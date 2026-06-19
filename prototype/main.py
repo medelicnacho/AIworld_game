@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 
 from agent.agent import Agent
-from services.llm import DEFAULT_MODEL, make_llm
+from services.llm import make_llm
 from world.events import EventBus
 from world.sim import World
 
@@ -67,8 +67,10 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--ticks", type=int, default=60)
     p.add_argument("--seed", type=int, default=7)
-    p.add_argument("--backend", choices=["auto", "ollama", "mock"], default="auto")
-    p.add_argument("--model", default=DEFAULT_MODEL)
+    p.add_argument("--backend", choices=["auto", "claude", "ollama", "mock"],
+                   default="auto")
+    p.add_argument("--model", default=None,
+                   help="override model id (defaults per backend)")
     p.add_argument("--think", action="store_true",
                    help="also print memory mutation/forget events")
     args = p.parse_args()
