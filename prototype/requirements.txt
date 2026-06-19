@@ -1,0 +1,4 @@
+# Python deps for the optional backends. The core sim (Ollama/Mock + no audio)
+# runs on the stdlib alone; these enable Claude speech and Piper TTS.
+anthropic        # Claude API backend (services/llm.py ClaudeLLM)
+piper-tts        # local text-to-speech (services/tts.py PiperTTS)

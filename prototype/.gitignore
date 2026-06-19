@@ -1,4 +1,7 @@
 __pycache__/
 *.pyc
 data/snapshots/
+data/voices/
+*.onnx
+*.onnx.json
 .env
