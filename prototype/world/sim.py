@@ -35,17 +35,14 @@ class World:
     def deliver(self, u: Utterance, speaker) -> None:
         """An utterance is heard by everyone in range -> writes their memory."""
         for listener in self.listeners_of(speaker):
-            listener.hear(u, self.tick)
+            listener.hear(u, self.tick, speaker_name=speaker.name)
         self.bus.publish("utterance", u)
 
-    def inject_user(self, text: str, near=None) -> None:
+    def inject_user(self, text: str) -> None:
         """User input is just an utterance with source='user'."""
-        speaker = near or (self.agents[0] if self.agents else None)
-        if speaker is None:
-            return
         u = Utterance(speaker_id="user", text=text, tick=self.tick, source="user")
         for listener in self.agents:
-            listener.hear(u, self.tick)
+            listener.hear(u, self.tick, speaker_name="You")
         self.bus.publish("utterance", u)
 
     def step(self) -> None:
