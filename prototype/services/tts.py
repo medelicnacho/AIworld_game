@@ -44,7 +44,7 @@ class PiperTTS:
     @staticmethod
     def available(voices_dir: Path = VOICES_DIR) -> bool:
         try:
-            import piper  # noqa: F401
+            from piper import PiperVoice  # noqa: F401  (the TTS package, not the GTK app)
         except ImportError:
             return False
         return Path(voices_dir).is_dir() and any(Path(voices_dir).glob("*.onnx"))
@@ -96,5 +96,14 @@ def make_tts(enabled: bool = True):
         where = tts.player or "no player found"
         print(f"[tts] Piper ready (playback: {where})")
         return tts
-    print("[tts] audio off (NullTTS)")
+    if enabled:  # wanted audio but couldn't -- explain why
+        try:
+            from piper import PiperVoice  # noqa: F401
+            print("[tts] audio off (NullTTS) -- no voice models. "
+                  "Run: bash scripts/get_voices.sh")
+        except ImportError:
+            print("[tts] audio off (NullTTS) -- piper-tts not found. "
+                  "Run with the venv python: ../.venv/bin/python main.py")
+    else:
+        print("[tts] audio off (NullTTS)")
     return NullTTS()
