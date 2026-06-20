@@ -16,6 +16,8 @@ from agent.thought import ThoughtLoop
 from services.llm import SpeechContext
 from world.events import Utterance
 
+TANGENT_CHANCE = 0.35   # chance an agent ignores the last line and speaks fresh
+
 
 class Agent:
     def __init__(self, agent_id: str, name: str, position: tuple[float, float],
@@ -63,25 +65,40 @@ class Agent:
     def wants_to_speak(self, threshold: float) -> bool:
         return self.cooldown == 0 and self.speak_urge >= threshold
 
-    def speak(self, now: int) -> Utterance:
-        recalled = self.memory.recall(k=3, query=self.last_heard_text)
+    def speak(self, now: int, recent: list[str] | None = None) -> Utterance:
+        # Tangent: sometimes drop the thread and speak fresh from your own mind,
+        # so the conversation diverges instead of collapsing into one topic.
+        tangent = (self.last_heard_text is None
+                   or self._rng.random() < TANGENT_CHANCE)
+
+        if tangent:
+            # recall biased to THIS agent's theme, not whatever was just heard
+            query = self._rng.choice(self.phrases)
+            reply_name = reply_text = addressed = None
+        else:
+            query = self.last_heard_text
+            reply_name, reply_text = self.last_heard_name, self.last_heard_text
+            addressed = self.last_heard_from
+
+        recalled = self.memory.recall(k=3, query=query)
         ctx = SpeechContext(
             name=self.name,
             persona=self.persona,
             mood=self.memory.mood(),
             drift=self.thought.current(3),
             memories=[m.text for m in recalled],
-            reply_to_name=self.last_heard_name,
-            reply_to_text=self.last_heard_text,
+            reply_to_name=reply_name,
+            reply_to_text=reply_text,
+            recent=list(recent or []),
         )
         text = self.llm.speak(ctx)
 
         u = Utterance(speaker_id=self.id, text=text, tick=now,
-                      addressed_to=self.last_heard_from, source="ai")
+                      addressed_to=addressed, source="ai")
         self.memory.write(text, tick=now, source="self", speaker_id=self.id)
         self.speak_urge = 0.0
         self.cooldown = 3
-        # a reply consumes the prompt that triggered it
+        # speaking consumes the prompt that triggered it
         self.last_heard_text = None
         self.last_heard_from = None
         return u

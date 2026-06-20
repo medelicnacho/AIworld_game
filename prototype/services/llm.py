@@ -51,6 +51,7 @@ class SpeechContext:
     memories: list[str] = field(default_factory=list)    # salient recollections
     reply_to_name: str | None = None
     reply_to_text: str | None = None
+    recent: list[str] = field(default_factory=list)      # lines just said (don't echo)
 
 
 def _mood_word(mood: float) -> str:
@@ -80,7 +81,8 @@ def build_system(ctx: SpeechContext) -> str:
         "You speak ALOUD to others in a shared world. "
         "Reply with ONE short spoken sentence -- under 15 words, no narration, "
         "no stage directions, no quotation marks, no name labels. "
-        "Let your wandering thoughts color what you say."
+        "Stay true to your own nature and obsessions -- don't just mirror others. "
+        "Avoid repeating words or ideas already said; let the talk wander to new things."
     )
 
 
@@ -91,12 +93,17 @@ def build_user(ctx: SpeechContext) -> str:
         lines.append("Your mind is drifting through: " + "; ".join(ctx.drift) + ".")
     if ctx.memories:
         lines.append("You half-remember: " + "; ".join(ctx.memories) + ".")
+    if ctx.recent:
+        lines.append("Just said by others (do NOT restate these ideas or reuse their "
+                     "words -- add a new thought or change the subject): "
+                     + " | ".join(ctx.recent))
     if ctx.reply_to_text:
         who = ctx.reply_to_name or "someone"
         lines.append(f"{who} just said to you: \"{ctx.reply_to_text}\". "
-                     "Respond to them, in your own voice.")
+                     "React, but take it somewhere new -- don't echo it.")
     else:
-        lines.append("Say what is surfacing in you right now.")
+        lines.append("Bring up something new surfacing in you right now -- "
+                     "your own preoccupation, not the current topic.")
     return "\n".join(lines)
 
 

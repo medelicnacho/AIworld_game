@@ -13,6 +13,7 @@ from world.events import EventBus, Utterance
 
 HEARING_RANGE = 50.0     # v1: large enough that co-located agents all hear
 SPEAK_THRESHOLD = 1.0    # urge needed to grab the floor
+RECENT_LINES = 5         # how many recent lines agents are told NOT to repeat
 
 
 class World:
@@ -20,6 +21,11 @@ class World:
         self.bus = bus or EventBus()
         self.agents: list = []
         self.tick = 0
+        self.recent: list[str] = []   # rolling buffer of the last things said
+
+    def _remember_said(self, text: str) -> None:
+        self.recent.append(text)
+        del self.recent[:-RECENT_LINES]
 
     def add(self, agent) -> None:
         self.agents.append(agent)
@@ -36,6 +42,7 @@ class World:
         """An utterance is heard by everyone in range -> writes their memory."""
         for listener in self.listeners_of(speaker):
             listener.hear(u, self.tick, speaker_name=speaker.name)
+        self._remember_said(u.text)
         self.bus.publish("utterance", u)
 
     def inject_user(self, text: str) -> None:
@@ -43,6 +50,7 @@ class World:
         u = Utterance(speaker_id="user", text=text, tick=self.tick, source="user")
         for listener in self.agents:
             listener.hear(u, self.tick, speaker_name="You")
+        self._remember_said(u.text)
         self.bus.publish("utterance", u)
 
     def step(self) -> None:
@@ -55,7 +63,9 @@ class World:
         ready = [a for a in self.agents if a.wants_to_speak(SPEAK_THRESHOLD)]
         if ready:
             speaker = max(ready, key=lambda a: a.speak_urge)
-            u = speaker.speak(self.tick)
+            # tell the speaker what was just said (others' lines) so it won't echo
+            recent = [t for t in self.recent if t][-RECENT_LINES:]
+            u = speaker.speak(self.tick, recent=recent)
             self.deliver(u, speaker)
 
     def run(self, ticks: int) -> None:

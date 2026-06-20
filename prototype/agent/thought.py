@@ -13,7 +13,7 @@ import random
 from collections import defaultdict
 
 
-SEED_WEIGHT = 0.25      # weight of persona phrases vs. lived memory
+SEED_WEIGHT = 1.2       # weight of persona phrases vs. lived memory (anchors identity)
 MAX_FRAGMENT = 7        # max words in a single drift fragment
 BUFFER = 5              # how many recent fragments to keep around
 
