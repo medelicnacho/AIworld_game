@@ -22,11 +22,12 @@ TANGENT_CHANCE = 0.35   # chance an agent ignores the last line and speaks fresh
 class Agent:
     def __init__(self, agent_id: str, name: str, position: tuple[float, float],
                  persona: str, phrases: list[str], llm,
-                 seed: int | None = None) -> None:
+                 seed: int | None = None, style: str = "") -> None:
         self.id = agent_id
         self.name = name
         self.position = position
         self.persona = persona
+        self.style = style
         self.phrases = phrases            # persona seed material for the drift
         self.llm = llm
         self.memory = MemoryStore(seed=seed)
@@ -85,6 +86,7 @@ class Agent:
             name=self.name,
             persona=self.persona,
             mood=self.memory.mood(),
+            style=self.style,
             drift=self.thought.current(3),
             memories=[m.text for m in recalled],
             reply_to_name=reply_name,

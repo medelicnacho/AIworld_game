@@ -45,8 +45,9 @@ def load_dotenv(path: str | None = None) -> None:
 class SpeechContext:
     """Everything an agent knows at the moment it decides to speak."""
     name: str
-    persona: str
+    persona: str                     # what the agent is about (content/theme)
     mood: float                      # -1 (low/dark) .. +1 (light)
+    style: str = ""                  # how the agent talks (cadence/register)
     drift: list[str] = field(default_factory=list)       # subconscious fragments
     memories: list[str] = field(default_factory=list)    # salient recollections
     reply_to_name: str | None = None
@@ -75,14 +76,18 @@ def _clean(text: str) -> str:
 
 def build_system(ctx: SpeechContext) -> str:
     """Persona + mood + speaking-style instructions, shared by all backends."""
+    style = (ctx.style + " ") if ctx.style else ""
     return (
         f"You are {ctx.name}. {ctx.persona} "
+        f"{style}"
         f"Right now you feel {_mood_word(ctx.mood)}. "
         "You speak ALOUD to others in a shared world. "
         "Reply with ONE short spoken sentence -- under 15 words, no narration, "
         "no stage directions, no quotation marks, no name labels. "
-        "Stay true to your own nature and obsessions -- don't just mirror others. "
-        "Avoid repeating words or ideas already said; let the talk wander to new things."
+        "Stay true to your own VOICE -- don't mirror how others talk. "
+        "Not every line is a profound metaphor: sometimes it's plain, blunt, "
+        "mundane, a question, or a complaint. "
+        "Avoid repeating words or ideas already said; let the talk wander."
     )
 
 

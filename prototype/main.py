@@ -22,23 +22,29 @@ from services.tts import Voice, make_tts
 from world.events import EventBus
 from world.sim import World
 
-# (id, name, position, persona, seed phrases, voice)
+# (id, name, position, persona [theme], seed phrases, voice, style [register])
 PERSONAS = [
     ("river", "River", (0.0, 0.0),
      "You are slow, watery, and melancholic; you think in tides and depths.",
      ["the water keeps moving", "I dreamed of the deep again",
       "everything flows downhill"],
-     Voice("en_GB-alan-medium.onnx", length_scale=1.15)),   # calm, slow
+     Voice("en_GB-alan-medium.onnx", length_scale=1.15),    # calm, slow
+     "You talk slowly and sparsely, often trailing off mid-thought; calm and "
+     "resigned, more silence than words. You rarely ask questions."),
     ("ash", "Ash", (2.0, 0.0),
      "You are burnt-out and wry; you speak of warmth that is already gone.",
      ["the fire went out hours ago", "I remember warmth",
       "smoke rises and forgets"],
-     Voice("en_US-ryan-medium.onnx", length_scale=1.05)),   # flat, dry
+     Voice("en_US-ryan-medium.onnx", length_scale=1.05),    # flat, dry
+     "You talk dry and clipped, sardonic and a little bitter; blunt, not poetic. "
+     "You deflect with flat jokes and rarely wax lyrical."),
     ("moth", "Moth", (1.0, 1.5),
      "You are restless and obsessive, pulled toward light and circling thoughts.",
      ["I am drawn to any light", "wings are heavier at night",
       "I keep circling the same thought"],
-     Voice("en_US-amy-medium.onnx", length_scale=0.95)),    # quicker, restless
+     Voice("en_US-amy-medium.onnx", length_scale=0.95),     # quicker, restless
+     "You talk fast and anxious, in fragments; you ask nervous questions and "
+     "circle back on yourself, never quite settling."),
 ]
 
 
@@ -67,8 +73,9 @@ def build_world(llm, tts, seed: int, show_think: bool, show_text: bool) -> World
         bus.subscribe("memory", on_memory)
 
     world = World(bus)
-    for i, (aid, name, pos, persona, phrases, _voice) in enumerate(PERSONAS):
-        world.add(Agent(aid, name, pos, persona, phrases, llm, seed=seed + i + 1))
+    for i, (aid, name, pos, persona, phrases, _voice, style) in enumerate(PERSONAS):
+        world.add(Agent(aid, name, pos, persona, phrases, llm,
+                        seed=seed + i + 1, style=style))
 
     world.agents[0].memory.write("the deep is cold", tick=0, source="self",
                                  speaker_id="river", emotion=-0.3)
