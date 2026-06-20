@@ -22,7 +22,7 @@ from services.tts import Voice, make_tts
 from world.events import EventBus
 from world.sim import World
 
-# (id, name, position, persona [theme], seed phrases, voice, style [register])
+# (id, name, position, persona [theme], seed phrases, voice, style [register], temperament)
 PERSONAS = [
     ("river", "River", (0.0, 0.0),
      "You are slow, watery, and melancholic; you think in tides and depths.",
@@ -30,21 +30,24 @@ PERSONAS = [
       "everything flows downhill"],
      Voice("en_GB-alan-medium.onnx", length_scale=1.15),    # calm, slow
      "You talk slowly and sparsely, often trailing off mid-thought; calm and "
-     "resigned, more silence than words. You rarely ask questions."),
+     "resigned, more silence than words. You rarely ask questions.",
+     -0.3),   # resigned, sad
     ("ash", "Ash", (2.0, 0.0),
      "You are burnt-out and wry; you speak of warmth that is already gone.",
      ["the fire went out hours ago", "I remember warmth",
       "smoke rises and forgets"],
      Voice("en_US-ryan-medium.onnx", length_scale=1.05),    # flat, dry
      "You talk dry and clipped, sardonic and a little bitter; blunt, not poetic. "
-     "You deflect with flat jokes and rarely wax lyrical."),
+     "You deflect with flat jokes and rarely wax lyrical.",
+     -0.55),  # bitter, near the edge
     ("moth", "Moth", (1.0, 1.5),
      "You are restless and obsessive, pulled toward light and circling thoughts.",
      ["I am drawn to any light", "wings are heavier at night",
       "I keep circling the same thought"],
      Voice("en_US-amy-medium.onnx", length_scale=0.95),     # quicker, restless
      "You talk fast and anxious, in fragments; you ask nervous questions and "
-     "circle back on yourself, never quite settling."),
+     "circle back on yourself, never quite settling.",
+     0.05),   # anxious but not despairing -- the lightest of the three
 ]
 
 
@@ -73,9 +76,9 @@ def build_world(llm, tts, seed: int, show_think: bool, show_text: bool) -> World
         bus.subscribe("memory", on_memory)
 
     world = World(bus)
-    for i, (aid, name, pos, persona, phrases, _voice, style) in enumerate(PERSONAS):
+    for i, (aid, name, pos, persona, phrases, _voice, style, temper) in enumerate(PERSONAS):
         world.add(Agent(aid, name, pos, persona, phrases, llm,
-                        seed=seed + i + 1, style=style))
+                        seed=seed + i + 1, style=style, temperament=temper))
 
     world.agents[0].memory.write("the deep is cold", tick=0, source="self",
                                  speaker_id="river", emotion=-0.3)
@@ -108,9 +111,11 @@ def main() -> None:
 
     print("\n=== final memory state ===")
     for a in world.agents:
-        print(f"\n{a.name} ({len(a.memory)} memories, mood={a.memory.mood():+.2f}):")
+        felt = max(-1.0, min(1.0, 0.5 * a.temperament + 0.5 * a.memory.mood()))
+        print(f"\n{a.name} (temperament {a.temperament:+.2f}, felt mood {felt:+.2f}, "
+              f"{len(a.memory)} memories):")
         for m in sorted(a.memory.items, key=lambda m: m.salience, reverse=True)[:8]:
-            print(f"   {m.salience:.2f}  [{m.source}]  {m.text!r}")
+            print(f"   {m.salience:.2f}  [{m.source}]  emo={m.emotion:+.2f}  {m.text!r}")
 
 
 if __name__ == "__main__":

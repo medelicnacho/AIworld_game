@@ -56,11 +56,15 @@ class SpeechContext:
 
 
 def _mood_word(mood: float) -> str:
-    if mood <= -0.3:
-        return "heavy and withdrawn"
-    if mood >= 0.3:
-        return "light and open"
-    return "flat, somewhere in between"
+    if mood <= -0.55:
+        return "bleak and bitter, on the edge of giving up"
+    if mood <= -0.2:
+        return "low and resigned"
+    if mood < 0.2:
+        return "flat, somewhere in between"
+    if mood < 0.55:
+        return "quietly lifted, a little warmth returning"
+    return "light and open, almost hopeful"
 
 
 def _clean(text: str) -> str:

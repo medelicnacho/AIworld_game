@@ -22,12 +22,14 @@ TANGENT_CHANCE = 0.35   # chance an agent ignores the last line and speaks fresh
 class Agent:
     def __init__(self, agent_id: str, name: str, position: tuple[float, float],
                  persona: str, phrases: list[str], llm,
-                 seed: int | None = None, style: str = "") -> None:
+                 seed: int | None = None, style: str = "",
+                 temperament: float = 0.0) -> None:
         self.id = agent_id
         self.name = name
         self.position = position
         self.persona = persona
         self.style = style
+        self.temperament = temperament   # baseline mood floor (-1..1)
         self.phrases = phrases            # persona seed material for the drift
         self.llm = llm
         self.memory = MemoryStore(seed=seed)
@@ -82,10 +84,12 @@ class Agent:
             addressed = self.last_heard_from
 
         recalled = self.memory.recall(k=3, query=query)
+        # mood = baseline temperament blended with how the conversation has felt
+        mood = max(-1.0, min(1.0, 0.5 * self.temperament + 0.5 * self.memory.mood()))
         ctx = SpeechContext(
             name=self.name,
             persona=self.persona,
-            mood=self.memory.mood(),
+            mood=mood,
             style=self.style,
             drift=self.thought.current(3),
             memories=[m.text for m in recalled],

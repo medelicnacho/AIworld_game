@@ -52,6 +52,34 @@ def _similarity(a: str, b: str) -> float:
     return len(ta & tb) / len(ta | tb)  # Jaccard overlap
 
 
+# --- sentiment: a tiny lexicon so memories carry real emotion (no extra LLM) ---
+_NEG = {
+    "cold", "dark", "dead", "die", "dying", "death", "tired", "weary", "lost",
+    "alone", "lonely", "empty", "sink", "sinking", "sank", "drown", "forget",
+    "forgotten", "forgets", "gone", "fade", "fades", "fading", "faded", "never",
+    "nothing", "cant", "cannot", "weight", "heavy", "ash", "ashes", "burnt",
+    "broken", "silence", "silent", "numb", "grey", "gray", "shadow", "shadows",
+    "crack", "cracks", "hollow", "wrong", "fear", "afraid", "hurt", "pain",
+    "end", "ending", "stuck", "decay", "rot", "bitter", "fail", "cold,", "no",
+}
+_POS = {
+    "warm", "warmth", "light", "bright", "alive", "live", "remember", "hope",
+    "hopeful", "float", "floats", "rise", "rises", "rising", "glow", "shine",
+    "free", "open", "soft", "gentle", "home", "love", "dream", "dreams", "sweet",
+    "calm", "peace", "new", "bloom", "dawn", "still", "yes",
+}
+
+
+def valence(text: str) -> float:
+    """Rough emotional charge of a line, -1 (dark) .. +1 (light)."""
+    toks = _tokens(text)
+    pos = len(toks & _POS)
+    neg = len(toks & _NEG)
+    if pos == 0 and neg == 0:
+        return 0.0
+    return 0.8 * (pos - neg) / (pos + neg)
+
+
 @dataclass
 class Memory:
     text: str
@@ -73,15 +101,17 @@ class MemoryStore:
     def write(self, text: str, tick: int, source: str, speaker_id: str | None = None,
               emotion: float = 0.0) -> Memory:
         """Store a new memory, or reinforce an existing similar one."""
+        # derive emotional charge from the words unless the caller gave one
+        emo = emotion if emotion else valence(text)
         for m in self.items:
             if _similarity(m.text, text) >= 0.6:
                 m.salience = min(1.0, m.salience + REINFORCE_BUMP)
                 m.last_touched_tick = tick
-                m.emotion = (m.emotion + emotion) / 2
+                m.emotion = (m.emotion + emo) / 2
                 return m
         mem = Memory(text=text, salience=WRITE_SALIENCE, created_tick=tick,
                      last_touched_tick=tick, source=source, speaker_id=speaker_id,
-                     emotion=emotion)
+                     emotion=emo)
         self.items.append(mem)
         return mem
 
