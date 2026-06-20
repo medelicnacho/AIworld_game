@@ -21,6 +21,8 @@ from pathlib import Path
 OLLAMA_URL = "http://localhost:11434"
 DEFAULT_OLLAMA_MODEL = "mannix/llama3.1-8b-abliterated:q5_K_M"
 DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
 
 
 def load_dotenv(path: str | None = None) -> None:
@@ -130,6 +132,53 @@ class ClaudeLLM:
         return _clean(text) or "..."
 
 
+class DeepSeekLLM:
+    """DeepSeek API backend (OpenAI-compatible). Cheapest scalable option.
+
+    Stdlib HTTP -- no SDK needed. China-hosted, so benchmark latency before
+    relying on it for real-time play.
+    """
+
+    def __init__(self, model: str = DEFAULT_DEEPSEEK_MODEL, url: str = DEEPSEEK_URL,
+                 temperature: float = 0.95, max_tokens: int = 48,
+                 timeout: float = 30.0) -> None:
+        self.model = model
+        self.url = url
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.timeout = timeout
+        self._key = os.environ.get("DEEPSEEK_API_KEY", "")
+
+    @staticmethod
+    def available() -> bool:
+        return bool(os.environ.get("DEEPSEEK_API_KEY"))
+
+    def speak(self, ctx: SpeechContext) -> str:
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": build_system(ctx)},
+                {"role": "user", "content": build_user(ctx)},
+            ],
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "stream": False,
+            # v4-flash defaults to thinking mode, which burns the token budget on
+            # reasoning and returns empty content. Disable it for fast one-liners.
+            "thinking": {"type": "disabled"},
+        }
+        req = urllib.request.Request(
+            self.url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {self._key}"},
+        )
+        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        text = data["choices"][0]["message"]["content"]
+        return _clean(text) or "..."
+
+
 class OllamaLLM:
     def __init__(self, model: str = DEFAULT_OLLAMA_MODEL, url: str = OLLAMA_URL,
                  temperature: float = 0.95, num_predict: int = 60,
@@ -191,12 +240,22 @@ def make_llm(backend: str = "auto", model: str | None = None,
              seed: int | None = None):
     """Pick a backend.
 
-    'auto'  : Claude if a key is present, else Ollama if reachable, else Mock.
-    'claude': Claude API (errors if no key / package).
-    'ollama': local model (errors if not reachable).
-    'mock'  : no model.
+    'auto'    : DeepSeek if key present (cheap+fast), else Claude, else Ollama, else Mock.
+    'deepseek': DeepSeek API (errors if no key).
+    'claude'  : Claude API (errors if no key / package).
+    'ollama'  : local model (errors if not reachable).
+    'mock'    : no model.
     """
     load_dotenv()
+
+    if backend in ("deepseek", "auto") and DeepSeekLLM.available():
+        m = model or DEFAULT_DEEPSEEK_MODEL
+        print(f"[llm] using DeepSeek API model: {m}")
+        return DeepSeekLLM(model=m)
+    if backend == "deepseek":
+        raise RuntimeError(
+            "DeepSeek requested but no DEEPSEEK_API_KEY (set it in prototype/.env)."
+        )
 
     if backend in ("claude", "auto") and ClaudeLLM.available():
         m = model or DEFAULT_CLAUDE_MODEL

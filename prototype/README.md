@@ -24,8 +24,9 @@ python3 -m venv .venv
 # voice models for TTS (~190MB, gitignored)
 bash prototype/scripts/get_voices.sh
 
-# Claude speech (recommended for real-time): put your key in prototype/.env
-echo 'ANTHROPIC_API_KEY=sk-ant-...' > prototype/.env
+# API speech (real-time): put a key in prototype/.env (either or both)
+echo 'DEEPSEEK_API_KEY=sk-...'   >> prototype/.env   # cheapest + default
+echo 'ANTHROPIC_API_KEY=sk-ant-...' >> prototype/.env # higher quality option
 ```
 
 The core loop also runs with **no setup** (stdlib only) using `--backend mock` or a
@@ -57,10 +58,16 @@ cd prototype
 
 | LLM backend | What | Needs |
 |---|---|---|
-| `claude` | Claude Haiku 4.5 — fast (~1s/line), real-time | `anthropic` + `ANTHROPIC_API_KEY` |
+| `deepseek` | DeepSeek v4-flash — ~1.2s/line, ~10x cheaper than Haiku, scales | `DEEPSEEK_API_KEY` (stdlib) |
+| `claude` | Claude Haiku 4.5 — ~1.1s/line, real-time, higher quality | `anthropic` + `ANTHROPIC_API_KEY` |
 | `ollama` | local model over HTTP — free, offline | Ollama running + a pulled model |
 | `mock`   | composes from drift, no model | nothing (stdlib) |
-| `auto`   | Claude if key present, else Ollama, else Mock | — |
+| `auto`   | DeepSeek if key present, else Claude, else Ollama, else Mock | — |
+
+Measured (4 calls each): DeepSeek v4-flash ~$0.00003/line, Claude Haiku ~$0.00031/line
+— roughly tied on latency, DeepSeek ~10x cheaper, both fine quality for short lines.
+DeepSeek v4-flash defaults to *thinking mode* (returns empty content under a tight
+token cap), so the backend sends `thinking:{type:disabled}` for fast one-liners.
 
 TTS is `PiperTTS` (local, offline, free) when voices + `piper-tts` are present,
 else `NullTTS` (silent). Disable with `--no-audio`.

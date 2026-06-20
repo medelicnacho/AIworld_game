@@ -81,7 +81,8 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--ticks", type=int, default=60)
     p.add_argument("--seed", type=int, default=7)
-    p.add_argument("--backend", choices=["auto", "claude", "ollama", "mock"],
+    p.add_argument("--backend",
+                   choices=["auto", "claude", "deepseek", "ollama", "mock"],
                    default="auto")
     p.add_argument("--model", default=None,
                    help="override model id (defaults per backend)")
