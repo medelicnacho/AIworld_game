@@ -20,6 +20,8 @@ from pathlib import Path
 
 OLLAMA_URL = "http://localhost:11434"
 DEFAULT_OLLAMA_MODEL = "gemma3:4b"   # small + fast local model for this variant
+OLLAMA_NUM_THREAD = 8        # P-core sweet spot here; 12 oversubscribes E-cores
+OLLAMA_KEEP_ALIVE = "30m"    # keep the model resident so turns don't cold-reload
 DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5"
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
@@ -82,16 +84,11 @@ def build_system(ctx: SpeechContext) -> str:
     """Persona + mood + speaking-style instructions, shared by all backends."""
     style = (ctx.style + " ") if ctx.style else ""
     return (
-        f"You are {ctx.name}. {ctx.persona} "
-        f"{style}"
-        f"Right now you feel {_mood_word(ctx.mood)}. "
-        "You speak ALOUD to others in a shared world. "
-        "Reply with ONE short spoken sentence -- under 15 words, no narration, "
-        "no stage directions, no quotation marks, no name labels. "
-        "Stay true to your own VOICE -- don't mirror how others talk. "
-        "Not every line is a profound metaphor: sometimes it's plain, blunt, "
-        "mundane, a question, or a complaint. "
-        "Avoid repeating words or ideas already said; let the talk wander."
+        f"You are {ctx.name}. {ctx.persona} {style}"
+        f"You feel {_mood_word(ctx.mood)}. "
+        "Speak ALOUD: ONE short sentence, under 15 words, no narration or quotes. "
+        "Stay in your own voice; don't echo others or repeat what's been said. "
+        "Not every line is profound -- plain, blunt, or a question is fine."
     )
 
 
@@ -99,20 +96,17 @@ def build_user(ctx: SpeechContext) -> str:
     """The turn prompt: drift + recollections + whoever just spoke."""
     lines = []
     if ctx.drift:
-        lines.append("Your mind is drifting through: " + "; ".join(ctx.drift) + ".")
+        lines.append("Drifting through: " + "; ".join(ctx.drift) + ".")
     if ctx.memories:
-        lines.append("You half-remember: " + "; ".join(ctx.memories) + ".")
+        lines.append("Half-remember: " + "; ".join(ctx.memories) + ".")
     if ctx.recent:
-        lines.append("Just said by others (do NOT restate these ideas or reuse their "
-                     "words -- add a new thought or change the subject): "
+        lines.append("Others just said (don't repeat or reuse their words): "
                      + " | ".join(ctx.recent))
     if ctx.reply_to_text:
         who = ctx.reply_to_name or "someone"
-        lines.append(f"{who} just said to you: \"{ctx.reply_to_text}\". "
-                     "React, but take it somewhere new -- don't echo it.")
+        lines.append(f"{who} said: \"{ctx.reply_to_text}\". React, go somewhere new.")
     else:
-        lines.append("Bring up something new surfacing in you right now -- "
-                     "your own preoccupation, not the current topic.")
+        lines.append("Say something new on your mind -- your own preoccupation.")
     return "\n".join(lines)
 
 
@@ -197,12 +191,15 @@ class DeepSeekLLM:
 
 class OllamaLLM:
     def __init__(self, model: str = DEFAULT_OLLAMA_MODEL, url: str = OLLAMA_URL,
-                 temperature: float = 0.95, num_predict: int = 60,
+                 temperature: float = 0.95, num_predict: int = 48,
+                 num_thread: int = OLLAMA_NUM_THREAD, keep_alive: str = OLLAMA_KEEP_ALIVE,
                  timeout: float = 180.0) -> None:  # generous for cold model load
         self.model = model
         self.url = url
         self.temperature = temperature
         self.num_predict = num_predict
+        self.num_thread = num_thread
+        self.keep_alive = keep_alive
         self.timeout = timeout
 
     def available(self) -> bool:
@@ -220,8 +217,10 @@ class OllamaLLM:
                 {"role": "user", "content": build_user(ctx)},
             ],
             "stream": False,
+            "keep_alive": self.keep_alive,   # avoid cold reloads between turns
             "options": {"temperature": self.temperature,
-                        "num_predict": self.num_predict},
+                        "num_predict": self.num_predict,
+                        "num_thread": self.num_thread},  # 8 > 12 here (skips E-cores)
         }
         req = urllib.request.Request(
             f"{self.url}/api/chat",

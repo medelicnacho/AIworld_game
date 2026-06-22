@@ -83,7 +83,7 @@ class Agent:
             reply_name, reply_text = self.last_heard_name, self.last_heard_text
             addressed = self.last_heard_from
 
-        recalled = self.memory.recall(k=3, query=query)
+        recalled = self.memory.recall(k=2, query=query)
         # mood = baseline temperament blended with how the conversation has felt
         mood = max(-1.0, min(1.0, 0.5 * self.temperament + 0.5 * self.memory.mood()))
         ctx = SpeechContext(
@@ -91,11 +91,11 @@ class Agent:
             persona=self.persona,
             mood=mood,
             style=self.style,
-            drift=self.thought.current(3),
+            drift=self.thought.current(2),
             memories=[m.text for m in recalled],
             reply_to_name=reply_name,
             reply_to_text=reply_text,
-            recent=list(recent or []),
+            recent=list(recent or [])[-3:],   # last 3 lines is plenty for anti-echo
         )
         text = self.llm.speak(ctx)
 
