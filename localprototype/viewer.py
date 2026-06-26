@@ -73,6 +73,7 @@ RELIGION_COLOUR = {"devout": (230, 200, 90), "path": (90, 205, 200)}   # gold vs
 CAMP_PALETTE = [(230, 120, 110), (110, 200, 230), (170, 220, 120),
                 (220, 180, 100), (200, 130, 220), (120, 220, 190)]
 CAMP_GREY = (150, 150, 160)
+EAGER_FOUNDERS = 2          # author this many souls before the world starts; stream the rest in live
 
 # A genuinely distinct Piper voice (its own model) per agent -- six different
 # people, three churches' worth of timbres across British/American, male/female.
@@ -156,10 +157,14 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
     # the founding cast: `start` of the named slots (e.g. just 2 -- a founding pair
     # that then reproduces up to the population cap)
     cast = CAST[:start] if start else CAST
+    world._pending_founders = []   # souls authored AFTER startup, streamed in live
     chars = None
     if spawn:
         concepts = rng.sample(genesis.SEED_CONCEPTS, len(cast))
-        chars = [genesis.generate_character(llm, rng, concepts[i]) for i in range(len(cast))]
+        # author only the first couple eagerly so the window comes alive fast; the
+        # rest stream in on a background thread (founder_stream, set up by main)
+        eager = min(EAGER_FOUNDERS, len(cast))
+        chars = [genesis.generate_character(llm, rng, concepts[i]) for i in range(eager)]
         genesis.dedupe_names(chars, rng)        # the model over-uses a few names
     for i, (cid, name, temp, faith) in enumerate(cast):
         # start them in a loose central knot so the split is an emergence, not a setup
@@ -173,6 +178,10 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 else rng.randint(1200, 3500) if rebirth   # ~2-6 min, then death->bardo->rebirth
                 else rng.randint(6000, 15000))            # ~10-25 min
         if spawn:
+            if i >= len(chars):
+                # not authored yet -> defer this founder to the streaming thread
+                world._pending_founders.append((cid, pos, life, concepts[i]))
+                continue
             # a procedurally-authored soul: keep cid (for its distinct voice) but
             # the name/disposition/subconscious all come from genesis. Emergent
             # bonding, so factions form from these random selves.
@@ -473,7 +482,7 @@ def main() -> None:
                 pygame.quit()
                 return
         screen.fill(BG)
-        label = (("summoning the souls of the Data Realm" + "." * (frame // 8 % 4))
+        label = (("summoning the first souls of the Data Realm" + "." * (frame // 8 % 4))
                  if spawn_cast else "waking the world…")
         msg = font.render(label, True, (200, 200, 210))
         screen.blit(msg, (W // 2 - msg.get_width() // 2, H // 2))
@@ -533,6 +542,13 @@ def main() -> None:
         sid, _frag = payload
         base = sid.split(".")[0].split("~")[0]   # child voices follow their lineage
         clips = murmur_pool.get(base)
+        if not clips and murmur_pool:
+            # reborn / unknown streams ('stream:N') have no pool of their own --
+            # borrow a voice's clips, picked consistently per stream so a given
+            # soul always murmurs in the same voice. Without this the subconscious
+            # falls silent as the cast turns over into reborn streams.
+            keys = list(murmur_pool)
+            clips = murmur_pool[keys[hash(base) % len(keys)]]
         if clips and random.random() < MURMUR_VOICE_CHANCE:
             random.choice(clips).play()
     world.bus.subscribe("murmur", on_murmur)
@@ -711,9 +727,27 @@ def main() -> None:
                 print(f"+++ a new soul wakes: {a.name} (line {a.id})", flush=True)
             time.sleep(1.5)
 
+    def founder_stream():   # streaming genesis: wake the remaining founders one by one
+        for (cid, pos, life, concept) in list(getattr(world, "_pending_founders", [])):
+            if not running.is_set():
+                return
+            ch = genesis.generate_character(world.llm, random.Random(), concept)  # off the sim
+            a = Agent(cid, cid.capitalize(), pos, "", [], world.llm,
+                      seed=hash(cid) % 9999, lifespan=life, religion=None)
+            with world.lock:
+                genesis.dedupe_names([ch], random.Random(), taken={x.name for x in world.agents})
+                genesis.seed_agent(a, ch)
+                apply_speech_mode(a)
+                names[cid] = a.name
+                colours[cid] = CAMP_GREY
+                world.add(a)
+            print(f"+++ a founding soul wakes: {a.name}", flush=True)
+
     loops = [animate_loop, advance_loop, speech_loop, tts_loop, murmur_pool_loop]
     if args.spawn:
         loops.append(genesis_loop)
+    if getattr(world, "_pending_founders", None):   # stream the rest of the cast in
+        loops.append(founder_stream)
     for loop in loops:
         threading.Thread(target=loop, daemon=True).start()
 
