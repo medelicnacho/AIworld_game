@@ -259,10 +259,13 @@ class UpdateCampsTest(unittest.TestCase):
 
     def test_stamps_banner_and_rival(self):
         from world.sim import World
-        tide = ["the tide rises", "tide and current"]
-        stone = ["the stone holds", "stone and rock"]
         world = World()
-        specs = [("A", tide), ("B", tide), ("C", stone), ("D", stone)]
+        # 'tide' is the thread through camp 1, 'stone' through camp 2; the other
+        # words vary per soul so TF-IDF picks the shared distinctive term
+        specs = [("A", ["the tide rises", "tide and current"]),
+                 ("B", ["tide at dawn", "the tide deepens"]),
+                 ("C", ["the stone holds", "stone and moss"]),
+                 ("D", ["stone underfoot", "the grey stone"])]
         for aid, lines in specs:
             a = Agent(aid, aid, (0.0, 0.0), "v", ["x"], MockLLM(seed=1), seed=1)
             a.said_lines = list(lines)

@@ -782,7 +782,8 @@ def main() -> None:
                 shout = "  ".join(
                     f"[{flags.get(frozenset(g), '?')}] " + "+".join(names.get(c, c) for c in g)
                     for g in camps)
-                print(f"~~ emergent camps: {shout}", flush=True)
+                # modularity in the line so a long run logs whether it climbs/holds
+                print(f"~~ t{world.tick} mod {hud['modularity']:+.2f} | {shout}", flush=True)
 
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):

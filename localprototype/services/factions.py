@@ -20,6 +20,9 @@ Stdlib only; populations are tiny (<= ~24) so the O(n^2) passes are free.
 
 from __future__ import annotations
 
+import math
+from collections import Counter
+
 from agent import belief as _belief
 
 
@@ -144,18 +147,32 @@ def banners(agents, thresh: float = 0.15) -> dict[frozenset, str]:
     (Agent.said_lines is populated); returns {} otherwise. This is what turns an
     emergent cluster from an anonymous blob into a NAMED faction you can read."""
     groups = blocs(agents, thresh)
+    # Global TF-IDF, treating each SOUL as a document. A camp's banner is the word
+    # frequent among its members but RARE across the whole population -- measured
+    # against the stable global average, not against the (noisy, singleton-laden)
+    # other blocs. That stops the label flickering [need]->[right]->[hold] while
+    # the same souls stay clustered: the old readout named camps by a shared
+    # frequent word; this names them by what's DISTINCTIVE to them.
+    soul_words = {a.id: set(w for ln in getattr(a, "said_lines", []) for w in _belief.tokens(ln))
+                  for a in agents}
+    n_docs = max(1, sum(1 for ws in soul_words.values() if ws))
+    global_df: Counter = Counter()
+    for ws in soul_words.values():
+        global_df.update(ws)
     out: dict[frozenset, str] = {}
     for group in groups:
         if len(group) < 2:
             continue
-        members = set(group)
-        ins = [ln for a in agents if a.id in members for ln in getattr(a, "said_lines", [])]
-        outs = [ln for a in agents if a.id not in members for ln in getattr(a, "said_lines", [])]
-        if not ins:
+        camp_df: Counter = Counter()
+        for sid in group:
+            camp_df.update(soul_words.get(sid, set()))
+        if not camp_df:
             continue
-        terms = _belief.distinctive_terms(ins, outs, k=1)
-        if terms:
-            out[frozenset(group)] = terms[0]
+        def score(w: str, _n=len(group)) -> float:
+            tf = camp_df[w] / _n                                  # common in the camp
+            idf = math.log((n_docs + 1) / (global_df[w] + 1)) + 1.0  # rare overall
+            return tf * idf
+        out[frozenset(group)] = max(camp_df, key=score)
     return out
 
 
