@@ -25,6 +25,7 @@ class Utterance:
     religion: str = ""               # speaker's faith -> the faction line
     proclamation: str = ""           # if preaching, the fundamental being proclaimed (threat target)
     belief_vec: tuple = ()           # speaker's evolving opinion vector (emergent bonding); empty in legacy mode
+    stance_vec: tuple = ()           # speaker's signed stance vector (drives affinity when present); empty otherwise
 
 
 @dataclass(frozen=True)

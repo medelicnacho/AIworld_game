@@ -13,6 +13,7 @@ import math
 import random
 
 from agent import belief as _belief
+from agent import stance as _stance
 from agent import ideology
 from agent.doctrine import DOCTRINES, creator_stance
 from agent.memory import MemoryStore
@@ -112,6 +113,14 @@ class Agent:
         # (seed_opinion), bonding switches to bounded-confidence on this evolving
         # vector and no assigned label drives the social graph -- see hear().
         self.belief_vec: list[float] | None = None
+        # Signed stance (default None = off). The lexical belief_vec is sign-less and,
+        # over distinct trades, near-orthogonal -- so it can't carry agreement vs
+        # disagreement (measured: grounded modularity ~0). stance_vec adds the missing
+        # sign: when present it DRIVES affinity (warm on aligned leans, recoil on
+        # opposed), keying the social graph on stance, not shared vocabulary. Seeded
+        # independent of temperament/faith, so factions on it stay emergent. See
+        # agent/stance.py and hear()/_weigh_stance.
+        self.stance_vec: list[float] | None = None
         self.belief_grounded = False         # Stage 2: opinion lives in word-space, fed by speech
         self.said_lines: list[str] = []      # recent own utterances, for banner reading
         self.raw_speech = False              # speak the raw Markov drift, no persona/prompt scaffolding
@@ -227,7 +236,15 @@ class Agent:
         # Neutral exchanges barely move it: kinship needs a shared charge, and
         # you need a stance of your own (mood ~0 early on means no opinions yet).
         if u.source == "ai" and self.social_learning:
-            if self.belief_vec is not None and u.belief_vec:
+            if self.stance_vec is not None and u.stance_vec:
+                # SIGNED-STANCE path (the affinity fix): bonding keys on how aligned
+                # our stances are, with a real SIGN -- an opposed lean now SOURS the
+                # bond instead of (as in the lexical space) reading as orthogonal and
+                # doing nothing. This is what lets speech-level disagreement become a
+                # graph-level split. belief_vec, if present, stays as the banner/word
+                # readout but no longer drives the graph.
+                self._weigh_stance(u)
+            elif self.belief_vec is not None and u.belief_vec:
                 # EMERGENT path: bounded-confidence opinion dynamics. Bond on how
                 # aligned our evolving opinions are (no label), and let the
                 # encounter MOVE my opinion -- toward theirs if we're close enough
@@ -274,15 +291,21 @@ class Agent:
         # a function-word-only seed -> tiny noise so it isn't a dead zero vector
         self.belief_vec = _normalize(vec if any(vec) else [1e-6] * _belief.OPINION_DIM)
 
-    def _weigh_opinion(self, u) -> None:
-        """Bounded-confidence update from one heard line. If our opinions are
-        aligned past CONFIDENCE we engage: I warm to the speaker and drift toward
-        their view. Otherwise we reject: I cool toward them and drift away. The
-        drift is what makes it dynamics rather than fixed homophily -- my position
-        is not a label, it moves."""
-        spk = u.speaker_id
-        other = list(u.belief_vec)
-        sim = _cosine(self.belief_vec, other)
+    def seed_stance(self, rng: random.Random) -> None:
+        """Turn on signed-stance bonding: place this soul at a random point in
+        stance space, INDEPENDENT of temperament/faith. From here hearing warms or
+        sours the bond by the SIGN of our agreement (_weigh_stance) and the soul's
+        own speech nudges where it stands (commit_speech). Different seeds -> camps
+        that no fixed label predicts -- the emergence the harness checks for."""
+        self.stance_vec = _stance.seed(rng)
+
+    def _bounded_confidence(self, mine: list[float], other: list[float], spk: str) -> list[float]:
+        """The shared bounded-confidence update for a heard opinion/stance. Aligned
+        past CONFIDENCE -> warm to the speaker and drift toward their view; below ->
+        cool and drift away. Returns my moved, renormalized vector; affinity is
+        updated as a side effect. The drift is what makes it dynamics, not fixed
+        homophily -- my position is not a label, it moves."""
+        sim = _cosine(mine, other)
         cur = self.affinity.get(spk, 0.0)
         if sim >= CONFIDENCE:
             # kinship grows whenever views are close -- a camp stays cohesive...
@@ -299,8 +322,18 @@ class Agent:
         else:
             self.affinity[spk] = max(-1.0, min(1.0, cur - AFFINITY_RATE * (CONFIDENCE - sim)))
             step = -BELIEF_MU * BELIEF_REPEL       # reject: drift away
-        moved = [v + step * (o - v) for v, o in zip(self.belief_vec, other)]
-        self.belief_vec = _normalize(moved)
+        return _normalize([v + step * (o - v) for v, o in zip(mine, other)])
+
+    def _weigh_opinion(self, u) -> None:
+        """Bounded-confidence update on the LEXICAL belief_vec (Stage-1/2 emergent)."""
+        self.belief_vec = self._bounded_confidence(self.belief_vec, list(u.belief_vec), u.speaker_id)
+
+    def _weigh_stance(self, u) -> None:
+        """Bounded-confidence update on the SIGNED stance_vec -- the affinity fix.
+        Same dynamics as _weigh_opinion, but the stance space carries a sign, so an
+        opposed lean gives negative cosine and actively SOURS the bond (the lexical
+        space, lacking a sign, only ever failed to bond -- it never recoiled)."""
+        self.stance_vec = self._bounded_confidence(self.stance_vec, list(u.stance_vec), u.speaker_id)
 
     def feels_about(self, other_id: str) -> float:
         """How this agent currently feels about another, -1 (foe) .. 1 (kin)."""
@@ -583,6 +616,7 @@ class Agent:
             expression_rule=self._expression_rule(target),
             camp=self.banner,                # emergent: my faction's rallying word
             rival_camp=self.rival_banner,    # and the camp I lean against
+            stance_lean=_stance.describe(self.stance_vec) if self.stance_vec is not None else "",
             world_belief=self.world_belief,  # a (maybe false) theory of how the realm works
             role=self.role, task=self.task,  # its trade and the day's work, to ground the talk
         )
@@ -605,7 +639,8 @@ class Agent:
                       addressed_to=addressed, source="ai", effectiveness=self.grace,
                       mood=mood, religion=self.religion,
                       proclamation=(self._proclaiming or ""),
-                      belief_vec=tuple(self.belief_vec) if self.belief_vec is not None else ())
+                      belief_vec=tuple(self.belief_vec) if self.belief_vec is not None else (),
+                      stance_vec=tuple(self.stance_vec) if self.stance_vec is not None else ())
         self._proclaiming = None
         self.memory.write(text, tick=now, source="self", speaker_id=self.id,
                           weight=0.5 + 0.5 * self.grace)
@@ -620,6 +655,12 @@ class Agent:
                 self.belief_vec = _normalize(moved)
             self.said_lines.append(text)
             del self.said_lines[:-SAID_HISTORY]
+        # the grounding loop for the signed stance: where I just spoke a pole word
+        # ("conquer"/"yield", "keep"/"make"...), my stance shifts that way, so the
+        # lean I'm fed in the prompt and the lean my speech moves toward stay coupled
+        # (the loop the sign-less lexical space could not close).
+        if self.stance_vec is not None:
+            self.stance_vec = _stance.ground(self.stance_vec, text)
         self.spoken.append(text)
         del self.spoken[:-SELF_ECHO]   # keep only the last few of my own lines
         self.speak_urge = 0.0

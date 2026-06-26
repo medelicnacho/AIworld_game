@@ -195,6 +195,7 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                       seed=hash(cid) % 9999, temperament=temp, style="",
                       lifespan=life, religion=None)
             a.seed_opinion_text(EMERGENT_SEEDS[i % len(EMERGENT_SEEDS)])
+            a.seed_stance(random.Random(rng.randrange(2 ** 31)))  # signed stance -> drives the social graph
             colours[cid] = CAMP_GREY   # uncoloured: the camps aren't known yet
         else:
             relig = RELIGION_OBJ[faith]

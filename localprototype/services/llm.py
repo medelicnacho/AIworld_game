@@ -69,6 +69,7 @@ class SpeechContext:
     concept_mind: bool = False                            # INTERPRET the drift into meaning, then speak that
     camp: str = ""                                        # emergent faction's banner word -> lean toward it
     rival_camp: str = ""                                  # the opposing faction's banner word -> lean against
+    stance_lean: str = ""                                 # the soul's signed stance lean, e.g. 'surrender over mastery'
     world_belief: str = ""                                # a causal THEORY the agent holds about how the realm works
     role: str = ""                                        # the agent's trade in the realm
     task: str = ""                                        # the pressing business of its day
@@ -158,6 +159,17 @@ def _work_clause(ctx: SpeechContext) -> str:
             "just feelings. ")
 
 
+def _stance_clause(ctx: SpeechContext) -> str:
+    """The soul's signed stance lean, voiced as a felt value-leaning so the stance
+    that drives its bonds also colours its speech (the 'not decorative' loop). Kept
+    soft -- evoke, don't chant -- so small models don't parrot the bare pole words."""
+    if not ctx.stance_lean:
+        return ""
+    return (f"In what you value you lean toward {ctx.stance_lean} -- it colours your "
+            "judgement and surfaces in what you say (evoke it in your own words, "
+            "never just name it). ")
+
+
 def build_system(ctx: SpeechContext) -> str:
     """Persona + mood + speaking-style instructions, shared by all backends."""
     if ctx.raw_mind:
@@ -185,7 +197,7 @@ def build_system(ctx: SpeechContext) -> str:
                      "swayed. Weigh what others say against it; where they cut against "
                      "it, push back and argue YOUR side. Never open by saying they are "
                      "right, and do not agree unless you genuinely do. ")
-        return (_work_clause(ctx) + creed + "The fragments below are surfacing in your mind -- not "
+        return (_work_clause(ctx) + creed + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
                 "sentences, but the shape of a half-formed thought. Understand what "
                 "they reach toward, then say THAT thought -- the meaning beneath them "
                 "-- in one or two clear sentences, first person, your own voice. "
@@ -230,7 +242,7 @@ def build_system(ctx: SpeechContext) -> str:
         creed = (f"You are utterly convinced of this about how your world works: "
                  f"\"{ctx.world_belief}\". You speak and act from that conviction. ")
     return (
-        f"You are {ctx.name}. {ctx.persona} {_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{creed}"
+        f"You are {ctx.name}. {ctx.persona} {_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_stance_clause(ctx)}{creed}"
         f"{_disposition(ctx.mood)} "
         "Speak ALOUD: one or two SHORT sentences -- one clear thought or argument, "
         "not a one-liner but never a speech. ALWAYS finish your sentences; never "

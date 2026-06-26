@@ -208,6 +208,7 @@ class World:
         self._bardo.append({
             "seeds": seeds,
             "belief_vec": list(soul.belief_vec) if soul.belief_vec is not None else None,
+            "stance_vec": list(soul.stance_vec) if soul.stance_vec is not None else None,
             "temperament": max(-1.0, min(1.0, soul.temperament + self._rng.uniform(-0.25, 0.25))),
             "position": soul.position,
             "countdown": self._rng.randint(*BARDO_TICKS),
@@ -262,6 +263,12 @@ class World:
             noise = [self._rng.gauss(0.0, 0.06) for _ in entry["belief_vec"]]
             a.belief_vec = _normalize([v + n for v, n in zip(entry["belief_vec"], noise)])
             a.belief_grounded = True
+        if entry.get("stance_vec") is not None:
+            # the SIGNED stance lean is the lever that actually drives the graph, so
+            # carrying it (perturbed) is how a faction outlives its members: the new
+            # stream wakes leaning the same way, with no memory of whose lean it was.
+            snoise = [self._rng.gauss(0.0, 0.06) for _ in entry["stance_vec"]]
+            a.stance_vec = _normalize([v + n for v, n in zip(entry["stance_vec"], snoise)])
         a.introspect_chance = 0.25
         self.agents.append(a)
         self.bus.publish("rebirth", sid)

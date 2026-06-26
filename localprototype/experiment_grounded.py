@@ -44,7 +44,7 @@ from services import factions
 from services.llm import MockLLM, OllamaLLM
 from world.sim import World
 
-ARMS = ("abstract", "grounded")
+ARMS = ("abstract", "grounded", "stance")
 KEYS = ["n_blocs", "modularity", "bloc_temp_purity", "temp_affinity_gap"]
 N_SOULS = 6
 
@@ -85,11 +85,17 @@ def build(seed: int, arm: str, llm) -> tuple[World, list[list[float]]]:
                   _belief.tokens(text)[:8] or ["the days run together"],
                   llm, seed=seed + i + 1, temperament=temp, religion=None,
                   lifespan=10 ** 9)
-        if arm == "grounded":
+        if arm == "stance":
+            a.seed_opinion_text(text)                       # keep lexical for banner realism
+            a.seed_stance(random.Random(seed * 1000 + i))   # the signed-stance fix drives affinity
+            drive = list(a.stance_vec)                       # this is the vector bonds key on
+        elif arm == "grounded":
             a.seed_opinion_text(text)            # the space --world runs
+            drive = list(a.belief_vec)
         else:
             a.seed_opinion(random.Random(seed * 1000 + i))  # abstract 6-dim
-        init_vecs.append(list(a.belief_vec))
+            drive = list(a.belief_vec)
+        init_vecs.append(drive)
         world.add(a)
     return world, init_vecs
 
@@ -150,6 +156,19 @@ def report(results, comemb, seeds, ticks) -> str:
         "why live --world sits at modularity ~0. The signed-stance fix targets exactly "
         "this." if starved else
         "grounded arm forms structure -- the stance fix may already be unnecessary, recheck."))
+    st = results["stance"]
+    fixed = st["modularity"][0] > 0.05 and st["bloc_temp_purity"][0] < 0.95 and comemb["stance"] > 0.02
+    lines.append(f"* stance fix:    |cos| {st['cos_abs_mean'][0]:.3f}, "
+                 f"{100*st['frac_engaged'][0]:.0f}% of pairs above CONFIDENCE -> modularity "
+                 f"{st['modularity'][0]:+.3f}, bloc_temp_purity {st['bloc_temp_purity'][0]:.3f}, "
+                 f"comemb_variance {comemb['stance']:.3f}.")
+    lines.append("  -> " + (
+        "STANCE FIX WORKS: the signed stance restores a bondable+recoilable signal on "
+        "the SAME trade-distinct souls, factions form (modularity > 0), they don't "
+        "reduce to temperament (purity < 1), and membership is history-dependent "
+        "(variance > 0) -- emergence the grounded lexical space could not produce."
+        if fixed else
+        "stance fix did NOT clear the emergence bar -- tune CONFIDENCE / stance dims."))
     lines.append("\n(MockLLM is optimistic here: its echoey speech manufactures shared vocab. "
                  "The real, worse number needs --llm ollama.)")
     return "\n".join(lines)
