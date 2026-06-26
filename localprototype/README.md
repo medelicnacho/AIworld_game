@@ -35,23 +35,34 @@ cd localprototype
 
 ## Modes — how the souls come to be, and how they speak
 
-The **default** is emergent: a fixed cast that forms factions from evolving
-opinion, each agent leaning into its camp's emergent banner word.
+**Start here — the full embodied world:**
 
 ```bash
-../.venv/bin/python viewer.py --llm ollama            # DEFAULT: emergent factions
-../.venv/bin/python viewer.py --spawn  --llm ollama   # the LLM AUTHORS six souls (with life stories);
-                                                      #   a fresh self is born for each child
+../.venv/bin/python viewer.py --world --llm ollama
+```
+
+`--world` stacks every compatible piece at once: souls **procedurally authored**
+by the LLM with first-person **life stories**, **emergent factions** that name
+their own banners, the **conceptual mind** (coherent speech drawn from each soul's
+Markov subconscious), and the **death → bardo → rebirth** wheel — where a dying
+self dissolves and only its *vāsanā* ripens into a new, identity-less stream.
+Give it ~1 minute to author the six souls. Press **[s]** to toggle slow-mode chat.
+
+The individual modes isolate one piece at a time (useful for seeing — and
+measuring — what each does on its own):
+
+```bash
+../.venv/bin/python viewer.py --llm ollama            # DEFAULT: emergent factions, fixed cast
+../.venv/bin/python viewer.py --spawn   --llm ollama  # procedural souls; a fresh self AUTHORED per birth
+../.venv/bin/python viewer.py --rebirth --llm ollama  # procedural souls + the samsaric bardo wheel
+../.venv/bin/python viewer.py --concept --llm ollama  # the LLM interprets the Markov drift into meaning
 ../.venv/bin/python viewer.py --raw     --llm ollama  # the LLM voices the raw Markov subconscious
-../.venv/bin/python viewer.py --concept --llm ollama  # the LLM interprets the drift into meaning
 ../.venv/bin/python viewer.py --collective --llm ollama # the older mode: one "mind" per RELIGION debates
 ../.venv/bin/python viewer.py --llm mock              # fast, no real talk — watch the movement
 ```
 
-`--spawn` is the fullest expression: souls are **procedurally generated** (try it
-and listen — they tell you about a dead sister, a lost hunt, a garden they tended),
-and when one reproduces, a brand-new self is authored rather than copied. Press
-**[s]** in the window to toggle slow-mode chat.
+`--collective` and the speech lenses (`--raw` / `--concept` / default) are
+*forks* — a soul speaks one way; the experiments below rely on running them apart.
 
 In the window: bodies drift under social forces so factions become visible
 clusters that **take on their camp's colour** as they form; each soul's **Markov

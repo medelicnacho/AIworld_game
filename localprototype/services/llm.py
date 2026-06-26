@@ -69,6 +69,7 @@ class SpeechContext:
     concept_mind: bool = False                            # INTERPRET the drift into meaning, then speak that
     camp: str = ""                                        # emergent faction's banner word -> lean toward it
     rival_camp: str = ""                                  # the opposing faction's banner word -> lean against
+    world_belief: str = ""                                # a causal THEORY the agent holds about how the realm works
 
 
 def _mood_word(mood: float) -> str:
@@ -198,8 +199,14 @@ def build_system(ctx: SpeechContext) -> str:
         if ctx.rival_camp:
             camp += (f"Another camp puts \"{ctx.rival_camp}\" first, and you push "
                      "against that. ")
+    # a (possibly false) theory the agent holds about how the realm works, and acts
+    # on -- the input to the belief-vs-reality experiment
+    creed = ""
+    if ctx.world_belief:
+        creed = (f"You are utterly convinced of this about how your world works: "
+                 f"\"{ctx.world_belief}\". You speak and act from that conviction. ")
     return (
-        f"You are {ctx.name}. {ctx.persona} {style}{identity}{conviction}{expression}{camp}"
+        f"You are {ctx.name}. {ctx.persona} {style}{identity}{conviction}{expression}{camp}{creed}"
         f"{_disposition(ctx.mood)} "
         "Speak ALOUD: one or two SHORT sentences -- one clear thought or argument, "
         "not a one-liner but never a speech. ALWAYS finish your sentences; never "

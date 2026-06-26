@@ -26,6 +26,13 @@ RECENT_LINES = 5         # how many recent lines agents are told NOT to repeat
 BREED_GRACE = 0.55       # grace needed to bear a child in life -- only the graceful breed
 BREED_INTERVAL = (400, 700)   # ticks between a soul's children (~40-70s at 10Hz)
 MATURITY = (500, 800)         # a newborn must live this long before it can breed
+# Rebirth (samsara, off by default). Instead of authoring an heir at death, a
+# dying stream's explicit self DISSOLVES and only its vasana -- the blurred
+# thematic residue of its drift, and its dispositional/opinion lean -- enters a
+# BARDO interval, then ripens into a NEW, identity-less stream. No self crosses
+# the gap (santana: identity-less causal continuity); population is conserved;
+# nothing leaves the wheel except by an intrusion from outside the physics.
+BARDO_TICKS = (20, 45)        # dissolution interval between a death and re-coalescing
 DEFAULT_POP_CAP = 10 ** 9     # effectively no cap; the viewer sets a real one
 # subconscious murmur: agents occasionally mutter their Markov drift, which seeps
 # into nearby minds' memory -> their thought -> their drift (a shared subconscious)
@@ -44,10 +51,13 @@ class World:
                  move_seed: int | None = None,
                  breed_enabled: bool = False,
                  pop_cap: int = DEFAULT_POP_CAP,
-                 murmur_enabled: bool = False) -> None:
+                 murmur_enabled: bool = False,
+                 rebirth_enabled: bool = False) -> None:
         self.bus = bus or EventBus()
         self.agents: list = []
         self.tick = 0
+        self.rebirth_enabled = rebirth_enabled   # death -> bardo -> identity-less rebirth
+        self._bardo: list[dict] = []             # streams dissolving between lives
         self.recent: list[str] = []   # rolling buffer of the last things said
         # Space. Off by default so headless/text runs and tests are unchanged.
         # When on, agents drift each tick under social forces (toward kin, away
@@ -157,7 +167,8 @@ class World:
         # 2.5) aging: the old die. A soul that dies in grace reproduces an heir;
         #      a fallen soul dies heirless, so the realm selects for the faithful.
         self._reap()
-        if self.breed_enabled:   # the graceful also bear children in life
+        self._process_bardo()    # streams ripen out of the bardo into new lives
+        if self.breed_enabled and not self.rebirth_enabled:   # living reproduction
             self._breed()
         # 2.6) bodies move: drift under social forces so factions take territory.
         if self.move_enabled:
@@ -167,19 +178,88 @@ class World:
         self.bus.publish("tick", self.tick)
 
     def _reap(self) -> None:
-        """Death of old age + grace-gated reproduction (the selection layer)."""
+        """Death of old age. Two cosmologies: with rebirth OFF, a soul that died
+        in grace authors an heir and the fallen die heirless (the selection layer);
+        with rebirth ON there is no judge and no author -- every stream dissolves
+        into the bardo, to ripen later as a new identity-less stream."""
         survivors = []
         for a in self.agents:
             if a.age < a.lifespan:
                 survivors.append(a)
                 continue
-            if a.grace >= REPRO_GRACE:
+            if self.rebirth_enabled:
+                self._dissolve(a)                 # into the bardo; no heir, no author
+            elif a.grace >= REPRO_GRACE:
                 self._births += 1
                 heir = a.reproduce(f"{a.id}.{self._births}")
-                survivors.append(heir)        # the heir takes the parent's place
+                survivors.append(heir)            # the heir takes the parent's place
                 self.bus.publish("birth", heir.id)
-            self.bus.publish("death", a.id)   # fallen: no heir, the line ends
+            self.bus.publish("death", a.id)       # the stream, as it was, ends
         self.agents = survivors
+
+    def _dissolve(self, soul) -> None:
+        """A stream dies: its explicit self (name, story) dissolves, but its vasana
+        -- the blurred, impersonal residue of its Markov drift, plus its opinion and
+        dispositional lean -- enters the bardo. The autobiography does NOT cross:
+        only the thematic/karmic tendency does, so no self is transmitted."""
+        seeds = [f for f in soul.thought.drift if f][-5:]
+        if not seeds:                              # fall back to faint memory fragments
+            seeds = [m.text for m in soul.memory.recall(k=3)]
+        self._bardo.append({
+            "seeds": seeds,
+            "belief_vec": list(soul.belief_vec) if soul.belief_vec is not None else None,
+            "temperament": max(-1.0, min(1.0, soul.temperament + self._rng.uniform(-0.25, 0.25))),
+            "position": soul.position,
+            "countdown": self._rng.randint(*BARDO_TICKS),
+        })
+        self.bus.publish("dissolution", soul.id)
+
+    def _process_bardo(self) -> None:
+        """Ripen the bardo: each dissolving stream counts down, then re-coalesces
+        into a new, identity-less stream seeded by its vasana -- continuity without
+        a self (santana)."""
+        if not self._bardo:
+            return
+        still = []
+        for entry in self._bardo:
+            entry["countdown"] -= 1
+            if entry["countdown"] > 0:
+                still.append(entry)
+            else:
+                self._coalesce(entry)
+        self._bardo = still
+
+    def _coalesce(self, entry: dict) -> None:
+        """A new stream condenses out of the bardo's residue. It gets a merely
+        designated name (no story), a fresh subconscious, and the vasana as faint
+        memory it drifts over -- surfacing as ITS OWN, with no knowledge of whose
+        it was. The opinion lean persists (perturbed), so a faction can outlive its
+        members through karmic transmission, not inherited labels."""
+        from agent.agent import Agent, _normalize
+        from agent.genesis import NAMES
+        if self.llm is None:
+            return
+        self._births += 1
+        living = {a.name for a in self.agents}
+        name = next((n for n in self._rng.sample(NAMES, len(NAMES)) if n not in living),
+                    f"Stream{self._births}")
+        sid = f"stream:{self._births}"
+        seeds = entry["seeds"] or ["something stirs in the quiet"]
+        a = Agent(sid, name, entry["position"],
+                  f"You are {name}, a soul who speaks your own mind.",
+                  list(seeds), self.llm, seed=self._rng.randint(0, 10 ** 6),
+                  temperament=entry["temperament"])
+        for frag in seeds:
+            a.memory.write(frag, tick=self.tick, source="self", speaker_id=sid, weight=0.8)
+        if entry["belief_vec"] is not None:
+            # gentle perturbation: the lean PERSISTS, softened by the dissolution
+            # (small per-component noise -- in a high-dim space even this spreads)
+            noise = [self._rng.gauss(0.0, 0.06) for _ in entry["belief_vec"]]
+            a.belief_vec = _normalize([v + n for v, n in zip(entry["belief_vec"], noise)])
+            a.belief_grounded = True
+        a.introspect_chance = 0.45
+        self.agents.append(a)
+        self.bus.publish("rebirth", sid)
 
     def _breed(self) -> None:
         """Living reproduction: a graceful, mature soul bears a child beside it
@@ -291,7 +371,8 @@ class World:
                 for ev in a.step(self.tick):
                     self.bus.publish("memory", (a.id, ev))
             self._reap()
-            if self.breed_enabled:   # the graceful also bear children in life
+            self._process_bardo()    # streams ripen out of the bardo into new lives
+            if self.breed_enabled and not self.rebirth_enabled:   # living reproduction
                 self._breed()
             if self.murmur_enabled:  # the subconscious mutters and cross-pollinates
                 self._murmur()

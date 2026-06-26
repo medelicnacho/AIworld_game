@@ -105,6 +105,11 @@ class CampPromptTest(unittest.TestCase):
     def test_no_camp_no_leaning(self):
         self.assertNotIn("drifted in among", build_system(self._ctx()))
 
+    def test_world_belief_enters_prompt(self):
+        s = build_system(self._ctx(world_belief="hostility makes you strong"))
+        self.assertIn("hostility makes you strong", s)
+        self.assertIn("convinced", s.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

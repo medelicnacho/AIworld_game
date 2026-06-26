@@ -97,7 +97,13 @@ def _voice_for(sid):
     voice; agents and their children ('river~7'/'river.1') use the lineage voice."""
     if sid.startswith("mind:"):
         return COLLECTIVE_VOICES.get(sid.split(":", 1)[1], DEFAULT_VOICE)
-    return VOICES.get(sid.split(".")[0].split("~")[0], DEFAULT_VOICE)
+    base = sid.split(".")[0].split("~")[0]
+    v = VOICES.get(base)
+    if v is not None:
+        return v
+    # reborn streams ('stream:N') and any unmapped id: spread across the voice pool
+    pool = list(VOICES.values()) + [DEFAULT_VOICE]
+    return pool[hash(sid) % len(pool)]
 
 
 def temperament_colour(t: float) -> tuple[int, int, int]:
@@ -124,7 +130,8 @@ EMERGENT_SEEDS = [
 def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 no_aging: bool = False, breed: bool = False,
                 pop_cap: int = 24, murmur: bool = False,
-                emergent: bool = False, spawn: bool = False) -> tuple[World, dict]:
+                emergent: bool = False, spawn: bool = False,
+                rebirth: bool = False) -> tuple[World, dict]:
     if backend == "ollama":
         llm = OllamaLLM(model="gemma3:4b")
         if not llm.available():   # don't go silently mute if Ollama isn't running
@@ -137,7 +144,8 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
     world = World(events_enabled=False, move_enabled=move,
                   hearing_range=240.0 if move else 10_000.0,
                   bounds=(W, H), move_seed=move_seed,
-                  breed_enabled=breed, pop_cap=pop_cap, murmur_enabled=murmur)
+                  breed_enabled=breed, pop_cap=pop_cap, murmur_enabled=murmur,
+                  rebirth_enabled=rebirth)
     world.llm = llm   # the collective consciousness speaks through it
     rng = __import__("random").Random(move_seed)
     colours = {}
@@ -156,7 +164,10 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
         # leaves an heir, a fallen one doesn't) instead of all at once -- born at
         # the same tick with one shared lifespan, they vanished in a single instant.
         # --no-aging makes them effectively immortal for uninterrupted war-watching.
-        life = 10**9 if no_aging else rng.randint(6000, 15000)   # ~10..25 min at 10Hz
+        # rebirth turns the wheel, so lives are shorter to make it watchable
+        life = (10**9 if no_aging
+                else rng.randint(1200, 3500) if rebirth   # ~2-6 min, then death->bardo->rebirth
+                else rng.randint(6000, 15000))            # ~10-25 min
         if spawn:
             # a procedurally-authored soul: keep cid (for its distinct voice) but
             # the name/disposition/subconscious all come from genesis. Emergent
@@ -349,26 +360,46 @@ def main() -> None:
                     help="conceptual mind: the LLM INTERPRETS each agent's Markov "
                          "drift into its underlying meaning and speaks that -- "
                          "coherent like speech, yet still from the subconscious")
+    ap.add_argument("--rebirth", action="store_true",
+                    help="samsara: procedural souls, but at death the SELF dissolves "
+                         "into a bardo and only its vasana ripens into a new, "
+                         "identity-less stream -- no author, no self transmitted")
+    ap.add_argument("--world", action="store_true",
+                    help="THE FULL EMBODIED WORLD: every compatible piece at once -- "
+                         "procedurally-authored souls with life-stories, emergent "
+                         "factions naming their own banners, the conceptual mind "
+                         "(coherent speech from the subconscious), and the "
+                         "death->bardo->rebirth wheel. A preset for --rebirth --concept.")
     args = ap.parse_args()
+    if args.world:               # the flagship: stack the complementary features
+        args.rebirth = True      # procedural souls + the samsaric wheel
+        args.concept = True       # the Markov-driven coherent voice
     room = args.room
     murmur_on = not args.no_murmur   # the ambient murmur plays in BOTH modes by default
     # EMERGENT is the default now. --collective restores the old faith-mind debate;
     # --individual is the faith cast speaking per-agent. --raw is an orthogonal
-    # modifier (works with the default emergent world too). --spawn implies an
-    # emergent world built from procedurally-generated souls.
+    # modifier. --spawn / --rebirth build an emergent world from procedural souls;
+    # --rebirth additionally turns the death->bardo->rebirth wheel.
     collective = args.collective
-    emergent = (not args.collective and not args.individual) or args.spawn
+    spawn_cast = args.spawn or args.rebirth   # procedural initial population
+    emergent = (not args.collective and not args.individual) or spawn_cast
 
-    # spawn wants births (each one a fresh generated self), so breeding is on for
-    # it; plain emergent keeps a fixed cast.
-    breed = not args.no_breed and (args.spawn or not emergent)
+    # --spawn births fresh authored selves (genesis_loop); --rebirth conserves the
+    # population through the bardo instead (World handles it, no living breeding).
+    breed = not args.no_breed and (args.spawn or not emergent) and not args.rebirth
     world, colours = build_world(args.llm, no_aging=args.no_aging, breed=breed,
                                  pop_cap=args.pop_cap, murmur=murmur_on,
-                                 emergent=emergent, spawn=args.spawn)
-    if args.raw or args.concept:             # the subconscious speaks (raw) or is interpreted (concept)
+                                 emergent=emergent, spawn=spawn_cast,
+                                 rebirth=args.rebirth)
+    def apply_speech_mode(a):
+        # the chosen voice (raw / concept) must follow onto EVERY soul, including
+        # those born or reborn mid-run, or the world drifts back to plain persona
+        # as the cast turns over (the bug that made --world incoherent over time)
+        a.raw_speech = args.raw
+        a.concept_speech = args.concept and not args.raw   # raw wins if both given
+    if args.raw or args.concept:
         for a in world.agents:
-            a.raw_speech = args.raw
-            a.concept_speech = args.concept and not args.raw   # raw wins if both given
+            apply_speech_mode(a)
     names = {a.id: a.name for a in world.agents}   # generated names in spawn mode
     names["user"] = "You"
     for fid, relig in RELIGION_OBJ.items():          # the faith minds show by name
@@ -410,6 +441,20 @@ def main() -> None:
         if clips and random.random() < MURMUR_VOICE_CHANCE:
             random.choice(clips).play()
     world.bus.subscribe("murmur", on_murmur)
+
+    def on_dissolution(sid):
+        print(f"... {names.get(sid, sid)} dissolves into the bardo ...", flush=True)
+
+    def on_rebirth(sid):
+        # a new identity-less stream has condensed out of the bardo; register it
+        a = next((x for x in world.agents if x.id == sid), None)
+        if a is not None:
+            names[sid] = a.name
+            colours[sid] = CAMP_GREY
+            apply_speech_mode(a)          # the reborn stream speaks in the world's voice too
+            print(f"... a stream re-coalesces from the residue: {a.name} ...", flush=True)
+    world.bus.subscribe("dissolution", on_dissolution)
+    world.bus.subscribe("rebirth", on_rebirth)
 
     def voice_line(sid, text, overlap=False, volume=1.0):
         """Queue a CLEAR (LLM / deliberate) line for the priority speech queue.
@@ -565,6 +610,7 @@ def main() -> None:
                 with world.lock:
                     genesis.seed_agent(a, ch, tick=world.tick, fresh=True)
                     names[a.id] = a.name
+                    apply_speech_mode(a)      # the newborn speaks in the world's voice too
                 colours[a.id] = CAMP_GREY
                 print(f"+++ a new soul wakes: {a.name} (line {a.id})", flush=True)
             time.sleep(1.5)
