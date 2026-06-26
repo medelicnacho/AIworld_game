@@ -50,6 +50,8 @@ MUSIC_VOLUME = 0.15   # under the voices
 MUSIC_END = pygame.USEREVENT + 1
 MURMUR_VOICE_CHANCE = 0.6   # fraction of murmur events actually voiced (the rest are silent thought)
 MURMUR_VOLUME = 0.08        # the murmur is a faint background hum, well under the clear LLM speech
+MURMUR_MIN_GAP = 2.5        # min seconds between murmur SYNTHESES -- Piper is CPU-bound and
+                           # was starving the (also CPU-bound) LLM, stalling it to a timeout
 # the murmur voices each soul's ACTUAL live Markov drift (the text in its bubble),
 # synthesized on demand and cached -- not a fixed pool of canned lines.
 
@@ -679,15 +681,22 @@ def main() -> None:
     def murmur_synth_loop():   # voice the agents' ACTUAL drift fragments, on demand
         if not (murmur_on and voice_via_mixer):
             return
+        last = 0.0
         while running.is_set():
             try:
                 voice, frag = murmur_q.get(timeout=0.3)
             except queue.Empty:
                 continue
+            # THROTTLE: Piper synthesis is CPU-bound; left unbounded it starves the
+            # (also CPU-bound) local LLM and stalls speech into a timeout. Skip
+            # murmurs that arrive too soon -- cached repeats are cheap, but a NEW
+            # fragment's synth must not crowd the model.
+            key = (voice.model, frag)
+            if key not in _SOUND_CACHE and time.time() - last < MURMUR_MIN_GAP:
+                continue
+            last = time.time()
             try:
-                # _voice_sound caches by (voice, text): the Markov repeats fragments
-                # as its vocabulary stabilises, so after a warm-up these are instant.
-                snd = _voice_sound(tts, voice, frag)
+                snd = _voice_sound(tts, voice, frag)  # caches by (voice, text)
                 chan = snd.play()                     # auto-allocated channel
                 if chan is not None:
                     chan.set_volume(MURMUR_VOLUME)    # per-channel, so the clear voice is untouched
@@ -728,6 +737,7 @@ def main() -> None:
                 colours[cid] = CAMP_GREY
                 world.add(a)
             print(f"+++ a founding soul wakes: {a.name}", flush=True)
+            time.sleep(4)   # pace genesis so it doesn't crowd the LLM's speech turns
 
     loops = [animate_loop, advance_loop, speech_loop, tts_loop, murmur_synth_loop]
     if args.spawn:

@@ -340,7 +340,7 @@ class OllamaLLM:
     def __init__(self, model: str = DEFAULT_OLLAMA_MODEL, url: str = OLLAMA_URL,
                  temperature: float = 0.95, num_predict: int = 110,
                  num_thread: int = OLLAMA_NUM_THREAD, keep_alive: str = OLLAMA_KEEP_ALIVE,
-                 timeout: float = 180.0) -> None:  # generous for cold model load
+                 timeout: float = 120.0) -> None:  # cold load fits; a hung call fails sooner
         self.model = model
         self.url = url
         self.temperature = temperature
