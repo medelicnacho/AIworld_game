@@ -48,7 +48,7 @@ MUSIC = ["Solitude_at_Dawn.mp3", "Beneath_A_Watching_Sky.mp3"]
 MUSIC_VOLUME = 0.15   # under the voices
 MUSIC_END = pygame.USEREVENT + 1
 MURMUR_VOICE_CHANCE = 0.6   # fraction of murmur events actually voiced (the rest are silent thought)
-MURMUR_VOLUME = 0.12        # the murmur is a faint background hum, well under the clear LLM speech
+MURMUR_VOLUME = 0.08        # the murmur is a faint background hum, well under the clear LLM speech
 # the murmur is voiced from a PRE-SYNTHESIZED, cached pool (live drift is too varied
 # to synthesize on the fly fast enough). The live drift still feeds thought + bubbles.
 MURMUR_TEXTS = list(THE_DEVOUT.scripture) + list(THE_PATH.scripture) + [
@@ -131,7 +131,7 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 no_aging: bool = False, breed: bool = False,
                 pop_cap: int = 24, murmur: bool = False,
                 emergent: bool = False, spawn: bool = False,
-                rebirth: bool = False) -> tuple[World, dict]:
+                rebirth: bool = False, start: int | None = None) -> tuple[World, dict]:
     if backend == "ollama":
         llm = OllamaLLM(model="gemma3:4b")
         if not llm.available():   # don't go silently mute if Ollama isn't running
@@ -152,12 +152,15 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
     # procedural genesis: the LLM authors six distinct souls up front (slow on a
     # real model -- one call each); their generated inner-voice seeds the Markov.
     # Each is anchored to a DIFFERENT preoccupation so they don't converge.
+    # the founding cast: `start` of the named slots (e.g. just 2 -- a founding pair
+    # that then reproduces up to the population cap)
+    cast = CAST[:start] if start else CAST
     chars = None
     if spawn:
-        concepts = rng.sample(genesis.SEED_CONCEPTS, len(CAST))
-        chars = [genesis.generate_character(llm, rng, concepts[i]) for i in range(len(CAST))]
+        concepts = rng.sample(genesis.SEED_CONCEPTS, len(cast))
+        chars = [genesis.generate_character(llm, rng, concepts[i]) for i in range(len(cast))]
         genesis.dedupe_names(chars, rng)        # the model over-uses a few names
-    for i, (cid, name, temp, faith) in enumerate(CAST):
+    for i, (cid, name, temp, faith) in enumerate(cast):
         # start them in a loose central knot so the split is an emergence, not a setup
         pos = (W / 2 + rng.uniform(-70, 70), H / 2 + rng.uniform(-70, 70))
         # STAGGERED lifespans so souls die of old age one at a time (a graced one
@@ -337,6 +340,10 @@ def main() -> None:
     ap.add_argument("--no-breed", action="store_true",
                     help="no living reproduction (fixed cast of six)")
     ap.add_argument("--pop-cap", type=int, default=24, help="max living souls")
+    ap.add_argument("--start", type=int, default=None,
+                    help="number of FOUNDING souls (default: the full cast of 6). "
+                         "e.g. --spawn --start 2 begins with a pair that reproduces "
+                         "up to --pop-cap")
     ap.add_argument("--room", action="store_true",
                     help="the clear LLM voices overlap and the chat scrolls freely")
     ap.add_argument("--no-murmur", action="store_true",
@@ -379,6 +386,13 @@ def main() -> None:
     if args.world:               # the flagship: stack the complementary features
         args.rebirth = True      # procedural souls + the samsaric wheel
         args.concept = True       # the Markov-driven coherent voice
+    # --start N: a founding population that GROWS by reproduction. Growth means
+    # living breeding (spawn), which overrides the population-conserving rebirth
+    # wheel; keep the procedural souls and the coherent voice.
+    start = None
+    if args.start is not None:
+        start = max(1, min(args.start, len(CAST)))
+        args.spawn, args.rebirth, args.concept = True, False, True
     room = args.room
     murmur_on = not args.no_murmur   # the ambient murmur plays in BOTH modes by default
     # EMERGENT is the default now. --collective restores the old faith-mind debate;
@@ -417,7 +431,7 @@ def main() -> None:
             _built["wc"] = build_world(args.llm, no_aging=args.no_aging, breed=breed,
                                        pop_cap=args.pop_cap, murmur=murmur_on,
                                        emergent=emergent, spawn=spawn_cast,
-                                       rebirth=args.rebirth)
+                                       rebirth=args.rebirth, start=start)
         except Exception as exc:  # noqa: BLE001
             _built["err"] = exc
 
