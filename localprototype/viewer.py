@@ -49,7 +49,7 @@ MUSIC = ["Solitude_at_Dawn.mp3", "Beneath_A_Watching_Sky.mp3"]
 MUSIC_VOLUME = 0.15   # under the voices
 MUSIC_END = pygame.USEREVENT + 1
 MURMUR_VOICE_CHANCE = 0.6   # fraction of murmur events actually voiced (the rest are silent thought)
-MURMUR_VOLUME = 0.08        # the murmur is a faint background hum, well under the clear LLM speech
+MURMUR_VOLUME = 0.15        # the murmur is a faint background hum, well under the clear LLM speech
 MURMUR_MIN_GAP = 2.5        # min seconds between murmur SYNTHESES -- Piper is CPU-bound and
                            # was starving the (also CPU-bound) LLM, stalling it to a timeout
 # the murmur voices each soul's ACTUAL live Markov drift (the text in its bubble),
