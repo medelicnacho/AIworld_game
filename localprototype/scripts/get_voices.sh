@@ -17,9 +17,15 @@ fetch() {  # <relative-path> <filename>
   done
 }
 
-fetch "en_GB/alan/medium" "en_GB-alan-medium"   # River  (calm British male)
-fetch "en_US/ryan/medium" "en_US-ryan-medium"   # Ash    (dry American male)
-fetch "en_US/amy/medium"  "en_US-amy-medium"    # Moth   (restless female)
+# A distinct model per agent -- British/American, male/female timbres.
+fetch "en_GB/alan/medium"                   "en_GB-alan-medium"                   # River (calm British male)
+fetch "en_US/ryan/medium"                   "en_US-ryan-medium"                   # Ash   (dry American male)
+fetch "en_GB/northern_english_male/medium"  "en_GB-northern_english_male-medium"  # Mire  (bleak Northern male)
+fetch "en_US/amy/medium"                    "en_US-amy-medium"                    # Lark  (quick bright female)
+fetch "en_GB/cori/medium"                   "en_GB-cori-medium"                   # Wren  (warm British female)
+fetch "en_US/joe/medium"                    "en_US-joe-medium"                    # Sol   (open American male)
+fetch "en_US/kristin/medium"                "en_US-kristin-medium"                # default voice
+fetch "en_US/lessac/medium"                 "en_US-lessac-medium"                 # The Devout (collective mind)
 
 echo "done -> $DIR"
 ls -1 "$DIR"/*.onnx

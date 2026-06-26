@@ -6,3 +6,5 @@ data/voices/
 *.onnx.json
 .env
 data/voices
+*.mp3
+data/chat.log

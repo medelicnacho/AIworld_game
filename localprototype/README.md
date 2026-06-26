@@ -1,44 +1,126 @@
-# localprototype — local-model variant
+# The Data Realm — an emergent AI social simulation
 
-A copy of `../prototype` that **defaults to a small local model** (no API, free,
-offline) so you can A/B it against the API version. Same code; only the defaults
-differ:
+Small AI agents that live in a world they call the **Data Realm**. The LLM
+**invents each soul** — a name, a disposition, and a first-person life story — and
+those souls then *bond, drift apart, and crystallize into factions and ideologies
+that nobody scripted*. You watch it as a god (and, eventually, step into it).
+Everything runs **locally** on a small model — no API, free, offline.
 
-- `--backend` defaults to **`ollama`** (not `auto`)
-- default Ollama model is **`gemma3:4b`** (~0.9s/line warm on CPU after the
-  speed tuning below; `gemma3:1b` is ~0.75s if you want even faster)
-- shares the parent's venv and voice models (`data/voices` is a symlink to
-  `../prototype/data/voices`), so nothing is duplicated
+The point isn't a chatbot diorama. It's a claim that's **measured, not asserted**:
+that genuine group structure can *emerge* from simple social dynamics + a language
+model, rather than being read back out of labels you assigned. There's a
+falsification harness (below) that proves it — and caught it when it wasn't true.
 
-### Speed tuning (baked into OllamaLLM)
-- `num_thread=8` — the P-core sweet spot here; 12 oversubscribes the E-cores
-- `keep_alive=30m` — model stays resident between runs (cold load ~7.5s hits once)
-- trimmed prompt — prompt-eval was ~half the latency; fewer tokens = big win
-Tune in `services/llm.py` (`OLLAMA_NUM_THREAD`, `OLLAMA_KEEP_ALIVE`).
+---
 
-## Run
+## Quick start
 
 ```bash
+# from the repo root, one-time setup
+python -m venv .venv && source .venv/bin/activate
+pip install -r localprototype/requirements.txt          # pygame, piper-tts, etc.
+ollama pull gemma3:4b                                    # the speaking brain
+ollama pull nomic-embed-text                             # semantic similarity
+bash localprototype/scripts/get_voices.sh                # Piper voices (~220MB, gitignored)
+
+# watch the world (the main way to experience it)
 cd localprototype
-./run.sh                              # gemma3:4b, audio on
-./run.sh --show-text                  # also print the lines
-./run.sh --model dolphin-mistral      # uncensored 7B (slower, more RP flavor)
-./run.sh --model mannix/llama3.1-8b-abliterated:q5_K_M   # the 8B (slowest)
-./run.sh --backend deepseek           # borrow the API backend for comparison
+../.venv/bin/python viewer.py --llm ollama
 ```
 
-Switch models with `--model <name>` (any model pulled in `ollama list`). Pull more
-with e.g. `ollama pull llama3.2:3b`.
+> **Use the venv's Python.** System `python3` doesn't have pygame — if you see
+> `No module named 'pygame'`, run `../.venv/bin/python …` (note the leading dot).
 
-## How it compares to ../prototype
+---
 
-| | localprototype | prototype |
-|---|---|---|
-| Default brain | `gemma3:4b` (local, free) | `deepseek-v4-flash` (API, ~$0.00003/line) |
-| Latency | ~0.9s/line warm (CPU, tuned) | ~1.2s/line |
-| Quality | good for size; less consistent | stronger, more in-character |
-| Cost | $0 | a few cents/hour |
+## Modes — how the souls come to be, and how they speak
 
-Everything else (subconscious drift, mutating memory, divergence/tangents,
-per-agent speech registers, Piper voices) is identical to the parent — see
-`../prototype/README.md` for the full design.
+The **default** is emergent: a fixed cast that forms factions from evolving
+opinion, each agent leaning into its camp's emergent banner word.
+
+```bash
+../.venv/bin/python viewer.py --llm ollama            # DEFAULT: emergent factions
+../.venv/bin/python viewer.py --spawn  --llm ollama   # the LLM AUTHORS six souls (with life stories);
+                                                      #   a fresh self is born for each child
+../.venv/bin/python viewer.py --raw     --llm ollama  # the LLM voices the raw Markov subconscious
+../.venv/bin/python viewer.py --concept --llm ollama  # the LLM interprets the drift into meaning
+../.venv/bin/python viewer.py --collective --llm ollama # the older mode: one "mind" per RELIGION debates
+../.venv/bin/python viewer.py --llm mock              # fast, no real talk — watch the movement
+```
+
+`--spawn` is the fullest expression: souls are **procedurally generated** (try it
+and listen — they tell you about a dead sister, a lost hunt, a garden they tended),
+and when one reproduces, a brand-new self is authored rather than copied. Press
+**[s]** in the window to toggle slow-mode chat.
+
+In the window: bodies drift under social forces so factions become visible
+clusters that **take on their camp's colour** as they form; each soul's **Markov
+subconscious** floats above its head; its **LLM speech** scrolls in the side chat
+and is spoken aloud in its own Piper voice. The terminal also prints each camp and
+the **banner word** it has rallied around (`~~ emergent camps: [stillness] …`).
+
+---
+
+## What's actually simulated
+
+Nothing below is scripted — it emerges from souls hearing each other.
+
+- **Genesis** (`agent/genesis.py`) — in `--spawn`, the LLM authors each soul: a
+  name, a nature, and a first-person backstory (where I came from, who I lost, what
+  I long for). That story seeds the soul's **Markov subconscious** *and* its
+  identity, so it speaks about *itself*, not abstractions.
+- **Subconscious** (`agent/thought.py`) — an order-1 **Markov chain** over the
+  soul's memory; the dreamlike drift shown above its head, and the seed for speech.
+- **Living memory** (`agent/memory.py`) — writes, decays, forgets, blurs, recalls.
+- **Emergent opinion dynamics** (`agent/agent.py`) — each soul carries a moving
+  **opinion vector** grounded in the words it speaks. Bounded-confidence bonding
+  (Deffuant–Weisbuch): you're drawn to those whose view is close, and pushed from
+  those too far — so a continuous opinion-space *spontaneously splits* into camps
+  whose membership no fixed label predicts. **That is the emergence.**
+- **Banners & camp-grounded speech** (`services/factions.py`) — each camp's
+  distinctive word is read off its members' speech and fed *back* into their
+  prompts, so the faction's talk actually sounds like the faction.
+- **The older faith layer** (`--collective`/`--individual`) — two authored
+  religions, **grace** earned by not being hostile to the Creator, conversion, and
+  **holy war**. Kept as a mode; it's the label-driven counterpart to emergence.
+
+It's **safe to run**: an agent's words are only ever *data* (stored, drawn,
+spoken) — never executed. There's no `eval`/`exec`/shell path from agent output,
+and all model text is stripped of control/escape characters before it's printed.
+
+---
+
+## Measuring emergence (what makes this more than a demo)
+
+A coherent conversation proves nothing — a good language model writes one
+regardless. So the claim is tested:
+
+```bash
+../.venv/bin/python experiment_factions.py     # do real factions form, or are they just labels?
+../.venv/bin/python experiment_camp_voice.py   # does a camp's banner actually shape speech?  (needs ollama)
+../.venv/bin/python experiment_confound.py     # does the substrate change WHAT is said, or only narrate?
+```
+
+`experiment_factions.py` runs seeded replicates across arms (full / no-faith /
+**substrate-ablated** / **emergent**) and renders a verdict: the legacy faith
+"factions" score `bloc_purity ≈ 1.0` with zero cross-seed variance (**homophily on
+an assigned label, not emergence**), while the emergent arm forms clusters that
+*don't* reduce to any fixed label and whose membership is *history-dependent*
+(**emergence confirmed**). The ablated control collapses to ~0, proving the metric
+detects absence — it isn't just always crying "factions."
+
+Tests: `../.venv/bin/python -m pytest` (94 passing).
+
+---
+
+## Local-model notes & speed
+
+Baked into `OllamaLLM` (`services/llm.py`): `num_thread=8`, `keep_alive=30m`, a
+trimmed prompt, and `num_predict` tuned so lines finish on a sentence. `gemma3:4b`
+runs ~7–8 tok/s on CPU here (no GPU); the viewer runs the world on its own threads
+so a slow model never freezes the animation. Speech truncated mid-thought is
+trimmed to the last finished sentence; voices play through one shared mixer with a
+reserved channel so a flurry of murmurs can't drop the clear voice.
+
+Swap the brain with `--llm mock` (instant, no real talk) or point `OllamaLLM` at
+any model in `ollama list`.

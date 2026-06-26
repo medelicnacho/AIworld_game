@@ -2,3 +2,4 @@
 # runs on the stdlib alone; these enable Claude speech and Piper TTS.
 anthropic        # Claude API backend (services/llm.py ClaudeLLM)
 piper-tts        # local text-to-speech (services/tts.py PiperTTS)
+pygame           # 2D god-view viewer (viewer.py)
