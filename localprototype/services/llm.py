@@ -162,13 +162,21 @@ def build_system(ctx: SpeechContext) -> str:
         # coherent like normal speech, yet still originating in the agent's own
         # subconscious, not an authored persona. (sankhara -> vinnana: formations
         # becoming conscious meaning.)
-        return ("The fragments below are surfacing in your mind -- not sentences, "
-                "but the shape of a half-formed thought. Understand what they are "
-                "reaching toward, then say THAT thought -- the meaning beneath them "
+        creed = ""
+        if ctx.belief:
+            # a stable conviction to HOLD and defend -- the antidote to an agreeable
+            # model dissolving every soul into "you're right". Without this they
+            # converge into one consensus; with it, the disagreement is principled.
+            creed = (f"You hold this conviction: \"{ctx.belief}\". You are NOT easily "
+                     "swayed. Weigh what others say against it; where they cut against "
+                     "it, push back and argue YOUR side. Never open by saying they are "
+                     "right, and do not agree unless you genuinely do. ")
+        return (creed + "The fragments below are surfacing in your mind -- not "
+                "sentences, but the shape of a half-formed thought. Understand what "
+                "they reach toward, then say THAT thought -- the meaning beneath them "
                 "-- in one or two clear sentences, first person, your own voice. "
                 "Interpret it; do not just repeat the fragments. If someone has just "
-                "spoken to you, let your thought ANSWER them, not drift alone. "
-                "Plain words only.")
+                "spoken, ANSWER them from your own mind. Plain words only.")
     style = (ctx.style + " ") if ctx.style else ""
     # Identity only enters on inward turns: small local models latch onto a
     # concrete self-line and parrot it verbatim (and leak it into ordinary
@@ -230,8 +238,9 @@ def build_user(ctx: SpeechContext) -> str:
             who = ctx.reply_to_name or "Someone"
             return (f"{who} just said: \"{ctx.reply_to_text}\"\n\n"
                     f"Meanwhile these fragments surface in you:\n{drift}\n\n"
-                    "Let your surfacing thought MEET what they said -- answer them, "
-                    "agree, or push back, in your own voice.")
+                    "Does what they said fit your conviction, or cut against it? Take "
+                    "YOUR OWN position -- if you disagree, push back and say why; do "
+                    "not just tell them they are right.")
         return drift
     if ctx.proclaim:   # a preaching turn -- doctrine, not atmosphere; keep it exclusive
         return (f"Proclaim this truth of your faith, plainly and with conviction, "

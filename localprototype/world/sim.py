@@ -251,6 +251,7 @@ class World:
                   list(seeds), self.llm, seed=self._rng.randint(0, 10 ** 6),
                   temperament=entry["temperament"],
                   lifespan=entry.get("lifespan", 2000))   # not the default 60!
+        a.belief = max(seeds, key=len)   # a nascent stance from the strongest vasana
         for frag in seeds:
             a.memory.write(frag, tick=self.tick, source="self", speaker_id=sid, weight=0.8)
         if entry["belief_vec"] is not None:

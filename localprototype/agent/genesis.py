@@ -64,6 +64,7 @@ class Character:
     name: str
     temperament: float
     lines: list[str] = field(default_factory=list)
+    conviction: str = ""   # the soul's core stance, to hold and defend in argument
 
 
 def _find(pattern: str, text: str) -> str:
@@ -90,8 +91,11 @@ def parse_character(raw: str, rng: random.Random) -> Character:
             lines.append(ln)
     if not lines:
         lines = rng.sample(_THEMES, 6)
+    # the conviction: the soul's strongly-held belief (the line it states one as),
+    # which it will hold and defend in argument instead of dissolving into agreement
+    conviction = next((l for l in lines if "believ" in l.lower()), lines[0])
     return Character(name=(sanitize(name).capitalize()[:16] or rng.choice(NAMES)),
-                     temperament=temp, lines=lines[:8])
+                     temperament=temp, lines=lines[:8], conviction=conviction)
 
 
 def generate_character(llm, rng: random.Random | None = None,
@@ -132,6 +136,7 @@ def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False) -> None
                      "Speak from your own memories, story, and longings -- as "
                      "yourself, in the first person, not in abstractions.")
     agent.phrases = list(ch.lines)
+    agent.belief = ch.conviction   # the stance it argues from (fed into the prompt)
     # the story lines are this soul's IDENTITY -- high-salience self-memory, so the
     # subconscious drifts over WHO IT IS and recall_self surfaces it for self-talk
     for ln in ch.lines:

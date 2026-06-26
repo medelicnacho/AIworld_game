@@ -131,9 +131,10 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 no_aging: bool = False, breed: bool = False,
                 pop_cap: int = 24, murmur: bool = False,
                 emergent: bool = False, spawn: bool = False,
-                rebirth: bool = False, start: int | None = None) -> tuple[World, dict]:
+                rebirth: bool = False, start: int | None = None,
+                model: str = "gemma3:4b") -> tuple[World, dict]:
     if backend == "ollama":
-        llm = OllamaLLM(model="gemma3:4b")
+        llm = OllamaLLM(model=model)
         if not llm.available():   # don't go silently mute if Ollama isn't running
             print("[viewer] Ollama not reachable -> falling back to mock speech.")
             llm = MockLLM(seed=7)
@@ -363,6 +364,9 @@ def draw_world(screen, world, colours, last_line, font, small, backend,
 
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default="gemma3:4b",
+                    help="ollama model for speech, e.g. dolphin-mistral (less "
+                         "sycophantic -> souls disagree). any model in `ollama list`")
     ap.add_argument("--llm", default="ollama", choices=["mock", "ollama"],
                     help="ollama = real LLM speech in the side chat; mock = fast nonsense")
     ap.add_argument("--step-ms", type=int, default=100,
@@ -464,7 +468,8 @@ def main() -> None:
 
     def _build():
         try:
-            _built["wc"] = build_world(args.llm, no_aging=args.no_aging, breed=breed,
+            _built["wc"] = build_world(args.llm, model=args.model,
+                                       no_aging=args.no_aging, breed=breed,
                                        pop_cap=args.pop_cap, murmur=murmur_on,
                                        emergent=emergent, spawn=spawn_cast,
                                        rebirth=args.rebirth, start=start)
