@@ -48,10 +48,10 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 MUSIC = ["Solitude_at_Dawn.mp3", "Beneath_A_Watching_Sky.mp3"]
 MUSIC_VOLUME = 0.15   # under the voices
 MUSIC_END = pygame.USEREVENT + 1
-MURMUR_VOICE_CHANCE = 0.6   # fraction of murmur events actually voiced (the rest are silent thought)
+MURMUR_VOICE_CHANCE = 0.85  # fraction of murmur events actually voiced (the rest are silent thought)
 MURMUR_VOLUME = 0.15        # the murmur is a faint background hum, well under the clear LLM speech
-MURMUR_MIN_GAP = 2.5        # min seconds between murmur SYNTHESES -- Piper is CPU-bound and
-                           # was starving the (also CPU-bound) LLM, stalling it to a timeout
+MURMUR_MIN_GAP = 1.4        # min seconds between NEW-fragment syntheses (cached repeats are
+                           # unthrottled). Piper is CPU-bound; too low starves the LLM -> stall
 # the murmur voices each soul's ACTUAL live Markov drift (the text in its bubble),
 # synthesized on demand and cached -- not a fixed pool of canned lines.
 
@@ -517,7 +517,7 @@ def main() -> None:
 
     tts = make_tts(enabled=not args.mute)             # Piper voices (or NullTTS)
     speech_q: queue.Queue = queue.Queue(maxsize=8)   # the clear LLM voice (always played)
-    murmur_q: queue.Queue = queue.Queue(maxsize=12)  # the ACTUAL drift fragments to murmur
+    murmur_q: queue.Queue = queue.Queue(maxsize=24)  # the ACTUAL drift fragments to murmur
 
     def on_utterance(u):
         last_line[u.speaker_id] = (u.text, time.time())
