@@ -259,7 +259,7 @@ class World:
             noise = [self._rng.gauss(0.0, 0.06) for _ in entry["belief_vec"]]
             a.belief_vec = _normalize([v + n for v, n in zip(entry["belief_vec"], noise)])
             a.belief_grounded = True
-        a.introspect_chance = 0.45
+        a.introspect_chance = 0.25
         self.agents.append(a)
         self.bus.publish("rebirth", sid)
 

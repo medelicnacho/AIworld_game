@@ -19,10 +19,11 @@ from dataclasses import dataclass, field
 
 from services.llm import sanitize
 
-GEN_SYSTEM = ("You invent vivid, distinct PEOPLE -- each a soul with its own name, "
-              "past, and inner life: a history, longings, wounds, things it cannot "
-              "forget. Write a PERSON with a story, in first person, not a mood or a "
-              "landscape. Avoid clichés of rust, gears, and grey machinery.")
+GEN_SYSTEM = ("You invent vivid, distinct PEOPLE -- each a whole soul with its own "
+              "name, history, APPETITES, CONVICTIONS, joys AND wounds. A person with "
+              "opinions and desires, who wants things and believes things -- not just "
+              "a grieving mood. Write in first person. Avoid clichés of rust, gears, "
+              "grey machinery, and do not make every soul defined by loss.")
 # Each soul is anchored to a DIFFERENT preoccupation, sampled without replacement,
 # so six independent generations don't all collapse into the same aesthetic.
 SEED_CONCEPTS = [
@@ -43,10 +44,11 @@ GEN_PROMPT = (
     "NAME: <a single evocative first name, fitting this person>\n"
     "NATURE: <one number from -1.0 (bleak, heavy) to 1.0 (warm, bright)>\n"
     "SELF:\n"
-    "<six to eight FIRST-PERSON lines telling who I am: where I came from, a memory "
-    "that marked me, someone I lost or love, what I long for, what I fear, what I "
-    "cannot forget. Each line begins with 'I'. A person with a story -- not scenery, "
-    "not abstraction.>")
+    "<six to eight FIRST-PERSON lines that make a WHOLE person: where I came from, "
+    "what I LOVE and chase after, a BELIEF or opinion I hold strongly, a delight or "
+    "appetite, and -- only if it fits -- a wound. Give me convictions and wants, not "
+    "only sorrows. Let my nature lead: if warm, let warmth and wanting lead; if "
+    "bleak, the shadow. Each line begins with 'I'. A real person, not a mood.>")
 
 NAMES = ["Vesper", "Toll", "Cael", "Mara", "Juno", "Bram", "Sable", "Orin", "Nyx",
          "Pell", "Liri", "Senna", "Corvin", "Dax", "Isolde", "Reyn"]
@@ -134,5 +136,5 @@ def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False) -> None
     # subconscious drifts over WHO IT IS and recall_self surfaces it for self-talk
     for ln in ch.lines:
         agent.memory.write(ln, tick=tick, source="self", speaker_id=agent.id, weight=1.4)
-    agent.introspect_chance = 0.45   # a generated soul turns to its own story often
+    agent.introspect_chance = 0.25   # speaks of itself sometimes, but mostly engages others
     agent.seed_opinion_text(" ".join(ch.lines))

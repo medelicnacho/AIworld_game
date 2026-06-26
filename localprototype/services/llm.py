@@ -166,7 +166,9 @@ def build_system(ctx: SpeechContext) -> str:
                 "but the shape of a half-formed thought. Understand what they are "
                 "reaching toward, then say THAT thought -- the meaning beneath them "
                 "-- in one or two clear sentences, first person, your own voice. "
-                "Interpret it; do not just repeat the fragments. Plain words only.")
+                "Interpret it; do not just repeat the fragments. If someone has just "
+                "spoken to you, let your thought ANSWER them, not drift alone. "
+                "Plain words only.")
     style = (ctx.style + " ") if ctx.style else ""
     # Identity only enters on inward turns: small local models latch onto a
     # concrete self-line and parrot it verbatim (and leak it into ordinary
@@ -219,9 +221,18 @@ def build_system(ctx: SpeechContext) -> str:
 def build_user(ctx: SpeechContext) -> str:
     """The turn prompt: drift + recollections + whoever just spoke."""
     if ctx.raw_mind or ctx.concept_mind:
-        # the Markov drift IS the material -- raw mode voices it, concept mode
-        # interprets it; either way nothing else is fed in
-        return "\n".join(ctx.drift) if ctx.drift else "..."
+        # the Markov drift is the material -- raw mode voices it verbatim. concept
+        # mode interprets it AND, when someone has just spoken, lets the surfacing
+        # thought MEET their words, so souls reply to each other instead of each
+        # monologuing its own subconscious in isolation.
+        drift = "\n".join(ctx.drift) if ctx.drift else "..."
+        if ctx.concept_mind and ctx.reply_to_text:
+            who = ctx.reply_to_name or "Someone"
+            return (f"{who} just said: \"{ctx.reply_to_text}\"\n\n"
+                    f"Meanwhile these fragments surface in you:\n{drift}\n\n"
+                    "Let your surfacing thought MEET what they said -- answer them, "
+                    "agree, or push back, in your own voice.")
+        return drift
     if ctx.proclaim:   # a preaching turn -- doctrine, not atmosphere; keep it exclusive
         return (f"Proclaim this truth of your faith, plainly and with conviction, "
                 f"in your own fresh words (not the exact phrase): \"{ctx.proclaim}\".")
