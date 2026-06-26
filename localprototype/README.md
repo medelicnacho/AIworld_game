@@ -31,7 +31,8 @@ python viewer.py
 
 `python viewer.py` with no arguments runs the **full embodied world** (and ollama
 is the default backend). A window opens immediately with a "summoning the souls…"
-screen; give it ~1 minute to author the cast, then it comes alive.
+screen; the first two souls are authored in ~20s and the world comes alive, with
+the remaining four streaming in live over the next ~40s.
 
 > **Use the venv's Python.** System `python3` lacks pygame unless the venv is
 > active. If you see `No module named 'pygame'`, run `../.venv/bin/python …`.
@@ -82,7 +83,9 @@ python viewer.py --llm mock    # fast, no real talk — watch the movement
   doesn't converge. The story seeds the soul's **Markov subconscious** *and* its
   identity, so it speaks about *itself*.
 - **Subconscious** (`agent/thought.py`) — an order-1 **Markov chain** rebuilt each
-  tick from the soul's memory; the drift above its head and the seed for speech.
+  tick from the soul's memory; the drift floats above its head *and* is murmured
+  aloud in its own voice (the actual fragment, synthesized on demand) under the
+  clear speech.
 - **Living memory** (`agent/memory.py`) — writes, decays, forgets, blurs, recalls.
   Everything a soul says or hears lands here, so speech continuously reshapes the
   subconscious (measured: ~⅓ of the Markov's material is lived conversation).
@@ -130,15 +133,17 @@ Tests: `python -m pytest` (99 passing).
 
 ## Status & known limitations (honest)
 
-- **Emergence is real in the harness, fragile in long live runs.** The
-  falsification arm confirms label-free, history-dependent clusters. But in
-  extended live `--world` runs the population can **collapse to a single consensus
-  camp** whose banner is a filler word ("sense", "yearning") — because the concept
-  voice homogenizes everyone's register, so the lexical opinion space converges. A
-  semantic (not lexical) opinion space and a one-line *creed* (instead of a single
-  banner word) are the planned fixes.
-- **The rebirth wheel currently churns fast / names repeat across the cast** —
-  tuning and a dedup-on-birth pass are pending.
+- **Emergence is confirmed in the harness; live runs were prone to consensus
+  collapse, now mitigated.** The falsification arm confirms label-free,
+  history-dependent clusters. Long live `--world` runs used to **collapse into one
+  camp with a filler-word banner** ("sense", "yearning") because the concept voice
+  homogenizes everyone's register and the lexical opinion space converged. Two
+  fixes are in: the introspective register is filtered out of the opinion vector
+  (so it keys on distinctive *content*), and bonding has an **individuation** term
+  so souls hold their distinctness instead of collapsing into clones. A *semantic*
+  opinion space and a one-line *creed* (instead of a single banner word) are the
+  next, deeper improvements — and the live as-shipped config still needs a long
+  run to *prove* it holds.
 - **No stakes yet.** Factions form and *talk*, but nothing is contested; there is
   no action channel, so ideology is not yet *consequential*. This is the next
   frontier.
