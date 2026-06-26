@@ -55,6 +55,8 @@ CONFIDENCE = 0.1        # cosine bound: engage above it, reject below. Tuned by 
                         # (higher values risk never clearing the cold-start threshold)
 BELIEF_MU = 0.18        # step you take toward someone you engage
 BELIEF_REPEL = 0.5      # fraction of MU you take AWAY from someone you reject
+BELIEF_SATURATION = 0.82  # above this you are ~identical: stop merging (individuation)
+BELIEF_INDIVIDUATE = 0.35  # how hard you hold your distinctness from a near-clone
 BELIEF_GROUND = 0.25    # Stage 2: how hard your OWN spoken words pull your opinion
 SAID_HISTORY = 12       # recent lines kept per soul, for reading a cluster's banner
 RAW_DRIFT_N = 8         # raw-mind mode: how many Markov fragments ARE the prompt
@@ -281,11 +283,20 @@ class Agent:
         sim = _cosine(self.belief_vec, other)
         cur = self.affinity.get(spk, 0.0)
         if sim >= CONFIDENCE:
+            # kinship grows whenever views are close -- a camp stays cohesive...
             self.affinity[spk] = max(-1.0, min(1.0, cur + AFFINITY_RATE * (sim - CONFIDENCE)))
-            step = BELIEF_MU                       # move toward them
+            if sim >= BELIEF_SATURATION:
+                # ...but once we are near-identical, I do NOT dissolve further into
+                # you -- I hold my distinctness (a touch apart). Without this,
+                # bounded confidence under a homogenising voice collapses everyone
+                # into ONE consensus blob; individuation keeps camps from swallowing
+                # the whole population.
+                step = -BELIEF_MU * BELIEF_INDIVIDUATE
+            else:
+                step = BELIEF_MU                   # engage: drift toward their view
         else:
             self.affinity[spk] = max(-1.0, min(1.0, cur - AFFINITY_RATE * (CONFIDENCE - sim)))
-            step = -BELIEF_MU * BELIEF_REPEL       # move away from them
+            step = -BELIEF_MU * BELIEF_REPEL       # reject: drift away
         moved = [v + step * (o - v) for v, o in zip(self.belief_vec, other)]
         self.belief_vec = _normalize(moved)
 

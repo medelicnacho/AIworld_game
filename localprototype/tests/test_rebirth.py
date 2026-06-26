@@ -54,10 +54,14 @@ class RebirthTest(unittest.TestCase):
             _soul(w, f"soul{i}", life=4, seed=i)
         for _ in range(70):
             w.step()
-        self.assertEqual(len(w.agents), 3)                 # conserved through the wheel
-        self.assertEqual(len(born), 3)
+            # the conserved invariant: every stream is either alive or in the bardo,
+            # never created or destroyed on net (reborn now inherit the short life,
+            # so the wheel churns -- which is exactly why we count both)
+            self.assertEqual(len(w.agents) + len(w._bardo), 3)
+        self.assertGreaterEqual(len(born), 3)
+        for sid in born:
+            self.assertTrue(sid.startswith("stream:"))     # new streams, not lineage heirs
         for a in w.agents:
-            self.assertTrue(a.id.startswith("stream:"))    # new stream, not a lineage heir
             self.assertNotIn("soul", a.id)                 # no self carried across
 
     def test_vasana_carries_the_opinion_lean(self):

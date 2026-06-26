@@ -211,6 +211,7 @@ class World:
             "temperament": max(-1.0, min(1.0, soul.temperament + self._rng.uniform(-0.25, 0.25))),
             "position": soul.position,
             "countdown": self._rng.randint(*BARDO_TICKS),
+            "lifespan": soul.lifespan,   # the new stream lives on the lineage's scale
         })
         self.bus.publish("dissolution", soul.id)
 
@@ -248,7 +249,8 @@ class World:
         a = Agent(sid, name, entry["position"],
                   f"You are {name}, a soul who speaks your own mind.",
                   list(seeds), self.llm, seed=self._rng.randint(0, 10 ** 6),
-                  temperament=entry["temperament"])
+                  temperament=entry["temperament"],
+                  lifespan=entry.get("lifespan", 2000))   # not the default 60!
         for frag in seeds:
             a.memory.write(frag, tick=self.tick, source="self", speaker_id=sid, weight=0.8)
         if entry["belief_vec"] is not None:

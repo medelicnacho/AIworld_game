@@ -700,6 +700,10 @@ def main() -> None:
                 genesised.add(a.id)
                 ch = genesis.generate_character(world.llm, random.Random())  # off the sim
                 with world.lock:
+                    # the model over-uses a few names ("Silas", "Corvus"); keep the
+                    # newborn distinct from every soul currently alive
+                    genesis.dedupe_names([ch], random.Random(),
+                                         taken={x.name for x in world.agents})
                     genesis.seed_agent(a, ch, tick=world.tick, fresh=True)
                     names[a.id] = a.name
                     apply_speech_mode(a)      # the newborn speaks in the world's voice too

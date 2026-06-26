@@ -35,6 +35,21 @@ STOPWORDS = {
     "yet", "now", "here", "who", "why", "how", "its", "it's", "i'm", "we", "us",
     "my", "me", "of", "in", "is", "it", "to", "a", "an", "as", "at", "be", "by",
     "do", "or", "on", "so", "no", "if", "up", "am",
+    # The conceptual/introspective REGISTER -- the emotional connective tissue every
+    # soul shares when it speaks this way ("I feel a profound, desperate yearning, a
+    # deep sense of lingering loss..."). Left in, this shared filler dominates the
+    # lexical opinion vector and collapses every camp into one consensus blob with a
+    # filler-word banner. Filtering it lets the vector key on distinctive CONTENT --
+    # the actual people, places and themes a soul is about -- so real camps form.
+    "feel", "feeling", "feels", "felt", "deep", "deeply", "profound", "profoundly",
+    "sense", "yearning", "yearn", "ache", "aching", "longing", "long", "desperate",
+    "desperately", "grasp", "grasping", "haunted", "haunt", "haunting", "realize",
+    "realizing", "realise", "lingering", "linger", "persistent", "persistently",
+    "overwhelming", "overwhelmed", "fragile", "hesitation", "way", "ways", "perhaps",
+    "almost", "truly", "utterly", "inherent", "inherently", "fundamental",
+    "fundamentally", "something", "someone", "profoundly", "quiet", "quietly",
+    "deepseated", "unbearable", "unsettling", "intense", "constant", "constantly",
+    "seeking", "seek", "trying", "struggle", "struggling", "born", "feeling",
 }
 
 
