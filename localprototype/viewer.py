@@ -50,12 +50,8 @@ MUSIC_VOLUME = 0.15   # under the voices
 MUSIC_END = pygame.USEREVENT + 1
 MURMUR_VOICE_CHANCE = 0.6   # fraction of murmur events actually voiced (the rest are silent thought)
 MURMUR_VOLUME = 0.08        # the murmur is a faint background hum, well under the clear LLM speech
-# the murmur is voiced from a PRE-SYNTHESIZED, cached pool (live drift is too varied
-# to synthesize on the fly fast enough). The live drift still feeds thought + bubbles.
-MURMUR_TEXTS = list(THE_DEVOUT.scripture) + list(THE_PATH.scripture) + [
-    "the cold takes everything", "the light returns slowly",
-    "nothing holds for long now", "we are not alone here",
-]
+# the murmur voices each soul's ACTUAL live Markov drift (the text in its bubble),
+# synthesized on demand and cached -- not a fixed pool of canned lines.
 
 # Two faiths, mixed ACROSS temperaments so religion -- not mood -- is the faction
 # line: each church has both bright and dark souls. (id, name, temperament, faith)
@@ -514,7 +510,7 @@ def main() -> None:
 
     tts = make_tts(enabled=not args.mute)             # Piper voices (or NullTTS)
     speech_q: queue.Queue = queue.Queue(maxsize=8)   # the clear LLM voice (always played)
-    murmur_pool: dict = {}   # voice-key -> [cached clips in that voice], filled in background
+    murmur_q: queue.Queue = queue.Queue(maxsize=12)  # the ACTUAL drift fragments to murmur
 
     def on_utterance(u):
         last_line[u.speaker_id] = (u.text, time.time())
@@ -534,23 +530,19 @@ def main() -> None:
     world.bus.subscribe("utterance", on_utterance)
 
     def on_murmur(payload):
-        # voice the murmuring agent's subconscious in ITS OWN voice (a random
-        # cached clip for that agent's voice), overlapping and quiet. The live
-        # drift still feeds thought + shows in the bubble; this is the ambient sound.
-        if not murmur_on:
+        # Voice the agent's ACTUAL live drift fragment -- the very text floating in
+        # its thought bubble -- in its own voice, quietly. (It used to play random
+        # clips from a fixed pool of religion scripture, which had nothing to do
+        # with the soul; that's why it was repetitive and "praised the Creator".)
+        if not (murmur_on and voice_via_mixer):
             return
-        sid, _frag = payload
-        base = sid.split(".")[0].split("~")[0]   # child voices follow their lineage
-        clips = murmur_pool.get(base)
-        if not clips and murmur_pool:
-            # reborn / unknown streams ('stream:N') have no pool of their own --
-            # borrow a voice's clips, picked consistently per stream so a given
-            # soul always murmurs in the same voice. Without this the subconscious
-            # falls silent as the cast turns over into reborn streams.
-            keys = list(murmur_pool)
-            clips = murmur_pool[keys[hash(base) % len(keys)]]
-        if clips and random.random() < MURMUR_VOICE_CHANCE:
-            random.choice(clips).play()
+        sid, frag = payload
+        if not frag or random.random() > MURMUR_VOICE_CHANCE:
+            return
+        try:
+            murmur_q.put_nowait((_voice_for(sid), frag))   # synth/play on its own thread
+        except queue.Full:
+            pass
     world.bus.subscribe("murmur", on_murmur)
 
     def on_dissolution(sid):
@@ -684,29 +676,23 @@ def main() -> None:
             finally:
                 speech_q.task_done()   # marks audio done -> unblocks the next synced chat line
 
-    def murmur_pool_loop():   # synthesize each agent's murmur clips ONCE, in the background
+    def murmur_synth_loop():   # voice the agents' ACTUAL drift fragments, on demand
         if not (murmur_on and voice_via_mixer):
             return
-        # text-outer, voice-inner: after the first line, EVERY voice already has a
-        # clip, so all voices are heard early instead of one model at a time
-        for txt in MURMUR_TEXTS:
-            for cid, voice in VOICES.items():
-                if not running.is_set():
-                    return
-                fd, path = tempfile.mkstemp(suffix=".wav")
-                os.close(fd)
-                try:
-                    tts.synth_to(txt, voice, path)
-                    clip = pygame.mixer.Sound(path)   # its own Sound, its own volume
-                    clip.set_volume(MURMUR_VOLUME)
-                    murmur_pool.setdefault(cid, []).append(clip)
-                except Exception as exc:  # noqa: BLE001
-                    print("[murmur] synth failed:", exc, file=sys.stderr)
-                finally:
-                    try:
-                        os.unlink(path)
-                    except OSError:
-                        pass
+        while running.is_set():
+            try:
+                voice, frag = murmur_q.get(timeout=0.3)
+            except queue.Empty:
+                continue
+            try:
+                # _voice_sound caches by (voice, text): the Markov repeats fragments
+                # as its vocabulary stabilises, so after a warm-up these are instant.
+                snd = _voice_sound(tts, voice, frag)
+                chan = snd.play()                     # auto-allocated channel
+                if chan is not None:
+                    chan.set_volume(MURMUR_VOLUME)    # per-channel, so the clear voice is untouched
+            except Exception as exc:  # noqa: BLE001 -- a bad murmur must not kill audio
+                print("[murmur] synth failed:", exc, file=sys.stderr)
 
     def genesis_loop():   # spawn mode: mint a fresh self for every soul that is born
         genesised = {a.id for a in world.agents}
@@ -743,7 +729,7 @@ def main() -> None:
                 world.add(a)
             print(f"+++ a founding soul wakes: {a.name}", flush=True)
 
-    loops = [animate_loop, advance_loop, speech_loop, tts_loop, murmur_pool_loop]
+    loops = [animate_loop, advance_loop, speech_loop, tts_loop, murmur_synth_loop]
     if args.spawn:
         loops.append(genesis_loop)
     if getattr(world, "_pending_founders", None):   # stream the rest of the cast in
