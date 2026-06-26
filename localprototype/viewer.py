@@ -371,6 +371,11 @@ def main() -> None:
                          "(coherent speech from the subconscious), and the "
                          "death->bardo->rebirth wheel. A preset for --rebirth --concept.")
     args = ap.parse_args()
+    # plain `viewer.py` with no mode chosen starts the FULL embodied world; pick any
+    # mode flag (or --emergent for the lighter fixed-cast emergent) to opt out.
+    if not (args.collective or args.individual or args.spawn or args.rebirth
+            or args.raw or args.concept or args.emergent or args.world):
+        args.world = True
     if args.world:               # the flagship: stack the complementary features
         args.rebirth = True      # procedural souls + the samsaric wheel
         args.concept = True       # the Markov-driven coherent voice
@@ -387,10 +392,57 @@ def main() -> None:
     # --spawn births fresh authored selves (genesis_loop); --rebirth conserves the
     # population through the bardo instead (World handles it, no living breeding).
     breed = not args.no_breed and (args.spawn or not emergent) and not args.rebirth
-    world, colours = build_world(args.llm, no_aging=args.no_aging, breed=breed,
-                                 pop_cap=args.pop_cap, murmur=murmur_on,
-                                 emergent=emergent, spawn=spawn_cast,
-                                 rebirth=args.rebirth)
+
+    # Open the WINDOW first -- procedural genesis can take ~a minute (six LLM
+    # calls), and without this the user stares at a bare terminal until it's done,
+    # thinking nothing happened. Show a loading screen, THEN author the souls.
+    try:
+        pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
+    except pygame.error:
+        pass
+    pygame.init()
+    screen = pygame.display.set_mode((W, H))
+    pygame.display.set_caption("Data Realm — god view")
+    font = pygame.font.SysFont("dejavusans", 14)
+    small = pygame.font.SysFont("dejavusans", 12)
+    clock = pygame.time.Clock()
+    # Author the world on a BACKGROUND thread so the window stays RESPONSIVE during
+    # the slow genesis (six LLM calls, ~a minute) -- otherwise the main thread is
+    # blocked and the OS flags the window "not responding". An animated loading
+    # screen runs in the foreground until the souls are ready.
+    _built: dict = {}
+
+    def _build():
+        try:
+            _built["wc"] = build_world(args.llm, no_aging=args.no_aging, breed=breed,
+                                       pop_cap=args.pop_cap, murmur=murmur_on,
+                                       emergent=emergent, spawn=spawn_cast,
+                                       rebirth=args.rebirth)
+        except Exception as exc:  # noqa: BLE001
+            _built["err"] = exc
+
+    builder = threading.Thread(target=_build, daemon=True)
+    builder.start()
+    frame = 0
+    while builder.is_alive():
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
+                pygame.quit()
+                return
+        screen.fill(BG)
+        label = (("summoning the souls of the Data Realm" + "." * (frame // 8 % 4))
+                 if spawn_cast else "waking the world…")
+        msg = font.render(label, True, (200, 200, 210))
+        screen.blit(msg, (W // 2 - msg.get_width() // 2, H // 2))
+        pygame.display.flip()
+        clock.tick(30)
+        frame += 1
+    builder.join()
+    if "err" in _built:
+        print("[viewer] world build failed:", _built["err"], file=sys.stderr)
+        pygame.quit()
+        return
+    world, colours = _built["wc"]
     def apply_speech_mode(a):
         # the chosen voice (raw / concept) must follow onto EVERY soul, including
         # those born or reborn mid-run, or the world drifts back to plain persona
@@ -466,18 +518,8 @@ def main() -> None:
         except queue.Full:
             pass
 
-    # pre_init BEFORE pygame.init() so the mixer comes up with a roomy buffer (a
-    # busy CPU running the LLM can't then starve playback into scratchiness).
-    try:
-        pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
-    except pygame.error:
-        pass
-    pygame.init()
-    screen = pygame.display.set_mode((W, H))
-    pygame.display.set_caption("Data Realm — god view")
-    font = pygame.font.SysFont("dejavusans", 14)
-    small = pygame.font.SysFont("dejavusans", 12)
-    clock = pygame.time.Clock()
+    # (the window, mixer pre_init, fonts and clock were created up front, before
+    # genesis, so a loading screen could show during the slow authoring.)
 
     # ONE audio client for both music and voices. The voices used to shell out to
     # pw-play once per line, opening/closing a PipeWire stream each time, which
