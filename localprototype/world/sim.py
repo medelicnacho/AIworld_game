@@ -237,7 +237,7 @@ class World:
         it was. The opinion lean persists (perturbed), so a faction can outlive its
         members through karmic transmission, not inherited labels."""
         from agent.agent import Agent, _normalize
-        from agent.genesis import NAMES
+        from agent.genesis import NAMES, ROLES
         if self.llm is None:
             return
         self._births += 1
@@ -252,6 +252,8 @@ class World:
                   temperament=entry["temperament"],
                   lifespan=entry.get("lifespan", 2000))   # not the default 60!
         a.belief = max(seeds, key=len)   # a nascent stance from the strongest vasana
+        role, tasks = self._rng.choice(ROLES)   # a new life, a new trade in the realm
+        a.role, a.task = role, self._rng.choice(tasks)
         for frag in seeds:
             a.memory.write(frag, tick=self.tick, source="self", speaker_id=sid, weight=0.8)
         if entry["belief_vec"] is not None:

@@ -120,6 +120,8 @@ class Agent:
         self.rival_banner = ""               # emergent: the opposing camp's word, to lean against
         self.introspect_chance = INTROSPECT_CHANCE   # how often it turns inward to speak of itself
         self.world_belief = ""               # a causal theory it holds about how the realm works
+        self.role = ""                       # its trade in the realm (grounds talk in work)
+        self.task = ""                       # the pressing business of its day
         # Ablation switch (default on). When off, hearing still writes memory and
         # stirs the urge to speak, but the SOCIAL GRAPH is frozen -- affinity,
         # hostility, conviction and faith never update. This is the substrate-
@@ -582,6 +584,7 @@ class Agent:
             camp=self.banner,                # emergent: my faction's rallying word
             rival_camp=self.rival_banner,    # and the camp I lean against
             world_belief=self.world_belief,  # a (maybe false) theory of how the realm works
+            role=self.role, task=self.task,  # its trade and the day's work, to ground the talk
         )
         return ctx, addressed, mood
 

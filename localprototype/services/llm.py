@@ -70,6 +70,8 @@ class SpeechContext:
     camp: str = ""                                        # emergent faction's banner word -> lean toward it
     rival_camp: str = ""                                  # the opposing faction's banner word -> lean against
     world_belief: str = ""                                # a causal THEORY the agent holds about how the realm works
+    role: str = ""                                        # the agent's trade in the realm
+    task: str = ""                                        # the pressing business of its day
 
 
 def _mood_word(mood: float) -> str:
@@ -144,6 +146,18 @@ def _clean(text: str) -> str:
     return " ".join(text.split())
 
 
+def _work_clause(ctx: SpeechContext) -> str:
+    """Ground the soul in its trade and the day's business -- so it talks about
+    concrete work (bread, the wall, the flock) and not only inner mood, and so
+    different trades use different words (the basis for interest-based factions)."""
+    if not ctx.role:
+        return ""
+    today = f" Today, the pressing thing is: {ctx.task}." if ctx.task else ""
+    return (f"You are the realm's {ctx.role}.{today} Let your trade and the day's "
+            "doings fill much of your talk -- the concrete world of your work, not "
+            "just feelings. ")
+
+
 def build_system(ctx: SpeechContext) -> str:
     """Persona + mood + speaking-style instructions, shared by all backends."""
     if ctx.raw_mind:
@@ -171,7 +185,7 @@ def build_system(ctx: SpeechContext) -> str:
                      "swayed. Weigh what others say against it; where they cut against "
                      "it, push back and argue YOUR side. Never open by saying they are "
                      "right, and do not agree unless you genuinely do. ")
-        return (creed + "The fragments below are surfacing in your mind -- not "
+        return (_work_clause(ctx) + creed + "The fragments below are surfacing in your mind -- not "
                 "sentences, but the shape of a half-formed thought. Understand what "
                 "they reach toward, then say THAT thought -- the meaning beneath them "
                 "-- in one or two clear sentences, first person, your own voice. "
@@ -216,7 +230,7 @@ def build_system(ctx: SpeechContext) -> str:
         creed = (f"You are utterly convinced of this about how your world works: "
                  f"\"{ctx.world_belief}\". You speak and act from that conviction. ")
     return (
-        f"You are {ctx.name}. {ctx.persona} {style}{identity}{conviction}{expression}{camp}{creed}"
+        f"You are {ctx.name}. {ctx.persona} {_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{creed}"
         f"{_disposition(ctx.mood)} "
         "Speak ALOUD: one or two SHORT sentences -- one clear thought or argument, "
         "not a one-liner but never a speech. ALWAYS finish your sentences; never "
