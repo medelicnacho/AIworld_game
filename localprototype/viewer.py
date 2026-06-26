@@ -35,6 +35,7 @@ import pygame
 from agent import genesis
 from agent.agent import Agent
 from agent.religion import THE_DEVOUT, THE_PATH
+from services import factions
 from services.llm import MockLLM, OllamaLLM
 from services.tts import Voice, make_tts
 from world.sim import World
@@ -255,6 +256,34 @@ def _thought_bubble(screen, font, text, cx, base_y) -> None:
     bx, by = cx - (w + pad * 2) // 2, base_y - h - pad * 2 - 20
     screen.blit(box, (bx, by))
     screen.blit(surf, (bx + pad, by + pad))
+
+
+def draw_hud(screen, font, small, world, hud) -> None:
+    """A live metrics panel, top-left: the dynamics quantified as you watch -- not
+    the controlled experiments (those are separate, multi-run A/Bs), but the same
+    numbers, read off the running world. Toggle with [h]; dump full stats with [m]."""
+    if not hud.get("show", True):
+        return
+    agents = list(world.agents)
+    grace = sum(a.grace for a in agents) / len(agents) if agents else 0.0
+    rows = [
+        ("THE DATA REALM", (235, 235, 245)),
+        (f"tick {world.tick}   souls {len(agents)}", (200, 200, 210)),
+        (f"births {hud['births']}   deaths {hud['deaths']}   in bardo {len(world._bardo)}",
+         (200, 200, 210)),
+        (f"camps {hud['camps']}   modularity {hud['modularity']:+.2f}", (170, 220, 170)),
+        (f"avg grace {grace:.2f}", (220, 210, 160)),
+    ]
+    banners = hud.get("banners", [])
+    if banners:
+        rows.append(("banners: " + ", ".join(b for b in banners if b)[:46], (200, 180, 220)))
+    w = max(font.size(t)[0] for t, _ in rows) + 16
+    h = len(rows) * 18 + 10
+    panel = pygame.Surface((w, h), pygame.SRCALPHA)
+    panel.fill((22, 24, 32, 205))
+    screen.blit(panel, (8, 8))
+    for i, (text, col) in enumerate(rows):
+        screen.blit((font if i == 0 else small).render(text, True, col), (16, 14 + i * 18))
 
 
 def draw_world(screen, world, colours, last_line, font, small, backend,
@@ -522,6 +551,13 @@ def main() -> None:
     world.bus.subscribe("dissolution", on_dissolution)
     world.bus.subscribe("rebirth", on_rebirth)
 
+    # live metrics for the HUD: cheap counters off the bus, plus camp/modularity
+    # snapshots refreshed in the banner block. [h] toggles the panel, [m] dumps all.
+    hud = {"births": 0, "deaths": 0, "modularity": 0.0, "camps": 0, "banners": [], "show": True}
+    world.bus.subscribe("birth", lambda _s: hud.__setitem__("births", hud["births"] + 1))
+    world.bus.subscribe("rebirth", lambda _s: hud.__setitem__("births", hud["births"] + 1))
+    world.bus.subscribe("death", lambda _s: hud.__setitem__("deaths", hud["deaths"] + 1))
+
     def voice_line(sid, text, overlap=False, volume=1.0):
         """Queue a CLEAR (LLM / deliberate) line for the priority speech queue.
         overlap=True plays without waiting (room); overlap=False is one-at-a-time."""
@@ -699,6 +735,10 @@ def main() -> None:
                 for cid in g:
                     new_colours[cid] = col
             colours.update(new_colours)
+            with world.lock:
+                hud["modularity"] = factions.modularity(world.agents)
+            hud["camps"] = len(camps)
+            hud["banners"] = [flags.get(frozenset(g), "?") for g in camps]
             if camps:
                 shout = "  ".join(
                     f"[{flags.get(frozenset(g), '?')}] " + "+".join(names.get(c, c) for c in g)
@@ -710,6 +750,16 @@ def main() -> None:
                 running.clear()
             elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_s:
                 slow_mode = not slow_mode   # toggle slow mode live
+            elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_h:
+                hud["show"] = not hud["show"]   # toggle the metrics panel
+            elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_m:
+                # dump the full faction metrics to the terminal on demand
+                with world.lock:
+                    summ = factions.summary(world.agents)
+                print("\n--- faction metrics @ tick", world.tick, "---")
+                for k, v in summ.items():
+                    print(f"   {k}: {v}")
+                print(flush=True)
             elif ev.type == MUSIC_END and tracks:
                 # a track just ended and the queued one is now playing; queue the
                 # next so the two keep alternating forever
@@ -737,6 +787,7 @@ def main() -> None:
         draw_world(screen, world, colours, last_line, font, small, args.llm,
                    transcript=transcript, names=names,
                    slow_mode=(slow_mode and not room), queued=len(pending))
+        draw_hud(screen, font, small, world, hud)
         pygame.display.flip()
         clock.tick(60)
 
