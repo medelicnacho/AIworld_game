@@ -50,7 +50,8 @@ the remaining four streaming in live over the next ~40s.
 - **emergent factions** that cluster by evolving opinion and **name their own
   banner word**, colouring in on the map as they form;
 - the **conceptual mind** — coherent speech drawn from each soul's Markov
-  subconscious;
+  subconscious, which *engages the conversation* and **defends a held conviction**
+  (so souls argue from their own stance instead of agreeing with everyone);
 - the **death → bardo → rebirth** wheel — a dying self dissolves and only its
   *vāsanā* ripens into a new, identity-less stream.
 
@@ -69,10 +70,13 @@ python viewer.py --concept     # interpret the Markov drift into meaning
 python viewer.py --raw         # voice the raw Markov subconscious, verbatim
 python viewer.py --collective  # the older mode: one "mind" per RELIGION debates
 python viewer.py --llm mock    # fast, no real talk — watch the movement
+python viewer.py --model dolphin-mistral   # swap the brain (any model in `ollama list`)
 ```
 
 `--collective` and the speech lenses (`--raw` / `--concept` / persona) are
 *forks* — a soul speaks one way; the experiments rely on running them apart.
+`--model` picks the Ollama model (default `gemma3:4b`); a less-aligned model is
+less sycophantic, though a held conviction does more than the model choice.
 
 ---
 
@@ -93,6 +97,10 @@ python viewer.py --llm mock    # fast, no real talk — watch the movement
   **opinion vector** grounded in the words it speaks. Bounded-confidence bonding
   (Deffuant–Weisbuch): drawn to those whose view is close, pushed from those too
   far — a continuous opinion-space splits into camps no fixed label predicts.
+- **Convictions** (`agent/genesis.py`) — genesis gives each soul a stated belief
+  it *holds and defends*. Without this an agreeable LLM dissolves every soul into
+  "you're right" and no faction can form; with it, the disagreement is principled
+  (measured: with a conviction, the model argues its corner instead of hedging).
 - **Banners & camp-grounded speech** (`services/factions.py`) — each camp's
   distinctive word is read off its members' speech and fed *back* into their
   prompts (measured effect ~+0.11), so a faction's talk leans toward its banner.
@@ -133,17 +141,18 @@ Tests: `python -m pytest` (99 passing).
 
 ## Status & known limitations (honest)
 
-- **Emergence is confirmed in the harness; live runs were prone to consensus
-  collapse, now mitigated.** The falsification arm confirms label-free,
-  history-dependent clusters. Long live `--world` runs used to **collapse into one
-  camp with a filler-word banner** ("sense", "yearning") because the concept voice
-  homogenizes everyone's register and the lexical opinion space converged. Two
-  fixes are in: the introspective register is filtered out of the opinion vector
-  (so it keys on distinctive *content*), and bonding has an **individuation** term
-  so souls hold their distinctness instead of collapsing into clones. A *semantic*
-  opinion space and a one-line *creed* (instead of a single banner word) are the
-  next, deeper improvements — and the live as-shipped config still needs a long
-  run to *prove* it holds.
+- **Emergence is confirmed in the harness; faction *opposition* in live runs is
+  the open problem.** The falsification arm confirms label-free, history-dependent
+  clusters. Live `--world` runs had two failure modes, traced and addressed in
+  turn: (1) the lexical opinion space converged on the concept voice's shared
+  *register* → fixed by filtering that register + an **individuation** term; (2)
+  the deeper one — an *agreeable* LLM made every soul open "you're right" and
+  abandon its position, so there was no disagreement to split a faction → being
+  addressed by giving each soul a **conviction to defend** plus anti-sycophancy
+  pressure (measured to work on the model in isolation). **Whether this produces
+  stable *opposed* camps over a long live run — i.e. modularity that climbs and
+  holds — still needs confirming.** Likely next levers: key affinity/conflict on
+  conviction-opposition directly, and a one-line *creed* per camp.
 - **No stakes yet.** Factions form and *talk*, but nothing is contested; there is
   no action channel, so ideology is not yet *consequential*. This is the next
   frontier.
