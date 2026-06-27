@@ -22,9 +22,9 @@ from __future__ import annotations
 
 import argparse
 
+from agent.affect import warmth
 from agent.agent import Agent
 from agent.bond import Bond, describe
-from agent.memory import valence
 from services.llm import MockLLM, OllamaLLM
 
 
@@ -124,6 +124,7 @@ def main() -> None:
         wound = _bond(hater, lover.id)                    # hater -> lover: betrayed
         for _ in range(4):
             wound.betray(0.6)
+        scored = {}
         for who, other, bnd in [(lover, hater, _bond(lover, hater.id)),
                                 (hater, lover, _bond(hater, lover.id))]:
             line = llm.generate(
@@ -131,8 +132,13 @@ def main() -> None:
                 f"or about {other.name}, in your own voice. Plain words only.",
                 system="You speak as yourself, plainly.")
             line = " ".join(line.split())
-            print(f"     {who.name} (trust {bnd.trust:+.2f}) -> {valence(line):+.2f}: {line[:110]}")
-        print("     -> warm trust should read positive, betrayed trust negative.")
+            w = warmth(line)                      # SEMANTIC read (the lexicon scores these 0)
+            scored[who.name] = (bnd.trust, w, line)
+            print(f"     {who.name} (trust {bnd.trust:+.2f}) -> warmth {w:+.2f}: {line[:110]}")
+        legible = scored["Cael"][1] > scored["Mara"][1]
+        print("     -> " + ("LEGIBLE & MEASURED: the warm bond reads warmer than the betrayed "
+                            "one in speech (semantic warmth, which the word-lexicon misses)."
+                            if legible else "speech did not separate the bonds this run."))
 
 
 if __name__ == "__main__":

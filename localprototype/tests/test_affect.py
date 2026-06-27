@@ -45,3 +45,21 @@ def test_emotion_is_clamped():
     for s in ["I accept it as it is and let it pass and hold it lightly with calm.",
               "I cannot stop and I am trapped and I cannot let it go, drowning."]:
         assert -affect.EMOTION_CAP <= affect.equanimity_emotion(s) <= affect.EMOTION_CAP
+
+
+def test_warmth_empty_is_zero():
+    assert affect.warmth("") == 0.0
+
+
+def test_warmth_positive_toward_love():
+    assert affect.warmth("I love you and I will stand by you, you mean everything to me.") > 0.0
+
+
+def test_warmth_negative_toward_rejection():
+    assert affect.warmth("You betrayed me, stay away, I want nothing to do with you.") < 0.0
+
+
+def test_warmth_ranks_love_above_rejection():
+    love = affect.warmth("I care about you deeply and I trust you completely.")
+    cold = affect.warmth("I despise you and you are nothing to me now.")
+    assert love > cold

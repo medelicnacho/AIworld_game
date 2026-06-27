@@ -42,6 +42,23 @@ CLINGING_ANCHORS: list[str] = [
 EMOTION_SCALE = 4.0
 EMOTION_CAP = 0.8
 
+# Warmth toward ANOTHER self -- the relational axis the dyad needs. Same problem as
+# equanimity: "that makes my whole world" / "don't even bother" carry obvious
+# warmth/coldness but zero sentiment-lexicon words, so a word list scores both 0.
+# Embeddings read the relationship in the line.
+WARMTH_ANCHORS: list[str] = [
+    "I love you and I am so glad you are in my life.",
+    "I care about you deeply and I will stand by you.",
+    "You mean everything to me; I trust you completely.",
+    "I am grateful for you and I cherish what we have.",
+]
+COLDNESS_ANCHORS: list[str] = [
+    "I want nothing to do with you; leave me alone.",
+    "You betrayed me and I will never trust you again.",
+    "You are nothing to me now; I am done with you.",
+    "Do not bother me -- keep away from me.",
+]
+
 
 def equanimity(text: str) -> float:
     """How a line RELATES to hard feeling: > 0 acceptance/letting-be, < 0
@@ -60,3 +77,16 @@ def equanimity_emotion(text: str) -> float:
     sadness of the words) is what moves its lived mood. Acceptance soothes;
     rumination deepens. Scaled + clamped to the valence range."""
     return max(-EMOTION_CAP, min(EMOTION_CAP, EMOTION_SCALE * equanimity(text)))
+
+
+def warmth(text: str) -> float:
+    """How a line sits toward ANOTHER self: > 0 warm/loving/trusting, < 0
+    cold/hostile/wounded, ~0 neutral. Semantic, so it reads warmth carried with no
+    sentiment words ("that makes my whole world"). Use to measure whether a bond is
+    legible in speech, or to let speech FEED a bond."""
+    if not text:
+        return 0.0
+    from services.embed import score   # local import avoids an import cycle
+    warm = max((score(text, a) for a in WARMTH_ANCHORS), default=0.0)
+    cold = max((score(text, a) for a in COLDNESS_ANCHORS), default=0.0)
+    return warm - cold
