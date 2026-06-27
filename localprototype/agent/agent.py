@@ -125,6 +125,7 @@ class Agent:
         self.said_lines: list[str] = []      # recent own utterances, for banner reading
         self.raw_speech = False              # speak the raw Markov drift, no persona/prompt scaffolding
         self.concept_speech = False          # INTERPRET the Markov drift into meaning, then speak that
+        self.reflect_enabled = False         # Stage-1 lab toggle: run reflect() (relate to own memory)
         self.banner = ""                     # emergent: my camp's rallying word (set by World.update_camps)
         self.rival_banner = ""               # emergent: the opposing camp's word, to lean against
         self.introspect_chance = INTROSPECT_CHANCE   # how often it turns inward to speak of itself

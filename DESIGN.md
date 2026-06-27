@@ -1,9 +1,25 @@
-# AI World — Design & Architecture Plan
+# The Data Realm — Design & Architecture
 
-A simulated world where autonomous AI agents think on their own, talk to each
-other **out loud via TTS** (no on-screen text for AI speech), influence each
-other, and grow/mutate/forget memory based on what they say and hear. The user
-can speak to them too, and every utterance heard reshapes how an agent thinks.
+**An AI selfhood & emergent-behaviour simulator.** Autonomous AI agents think on
+their own, talk to each other **out loud via TTS** (no on-screen text for AI
+speech), influence each other, and grow/mutate/forget memory based on what they
+say and hear. The user can speak to them too, and every utterance reshapes how an
+agent thinks.
+
+The design intent is twofold and treated as **falsifiable**, not asserted: (1) an
+agent should **enact a self** rather than store one — identity emerging as a
+self-reinforcing process over memory, mood, and speech, not a written-down record;
+and (2) higher-order structure — relationships, factions, and (with the rebirth
+wheel) lineages that outlive their members — should **emerge** from simple local
+loops rather than being scripted. The whole system runs **locally** (local LLM +
+local TTS); there are no hosted-API or cloud dependencies.
+
+> **Status note.** This document is the original architecture plan; the core loop
+> (§3–§5) is built and has since been extended with a single-agent *selfhood*
+> layer (a `reflect()` faculty and a semantic affect/equanimity measure), emergent
+> opinion-dynamics **factions**, and a death→bardo→**rebirth** wheel. Each addition
+> ships with a seeded falsification harness (`experiment_*.py`). See the
+> `localprototype/README.md` for the current, runnable surface.
 
 ---
 
@@ -220,11 +236,12 @@ loops to optimized code later if needed.
 | World/UI | headless first, then **pygame** 2D top-down | Godot/Unity bridge |
 | Orchestration | single Python process, asyncio | per-agent processes / actor model |
 
-> **Cloud option:** if local LLM quality is too low for emergent richness, the
-> LLM call is a single swappable function — point it at the **Claude API**
-> (e.g. Haiku for cheap/fast turns, Sonnet for richer ones). Keep TTS local for
-> the audio-only requirement. Design the LLM + TTS as **interfaces** so either
-> can be swapped without touching the sim.
+> **Local-only by design.** The LLM call is a single swappable function
+> (`services/llm.py`), but the project commits to running entirely on-machine:
+> `OllamaLLM` for speech, `MockLLM` for instant model-free runs, Piper for TTS,
+> and a local embedding model for semantic similarity/affect. No keys, no network,
+> nothing leaves the machine. The LLM and TTS remain **interfaces** so a different
+> *local* model can be swapped in without touching the sim.
 
 ---
 
@@ -247,7 +264,7 @@ AIgame_world/
       speech.py             # prompt assembly + LLM call
       mood.py               # valence/arousal from memory
     io/
-      llm.py                # LLM interface (ollama / claude) — swappable
+      llm.py                # LLM interface (local: ollama / mock) — swappable
       tts.py                # TTS interface (piper) — per-voice
       stt.py                # user mic → text (optional)
       audio.py              # playback queue
@@ -309,7 +326,7 @@ AIgame_world/
 ## 10. Open Questions (decide before/while building)
 
 - How many agents in v1? (Suggest 3.)
-- Local-only, or allow Claude API fallback for richer speech?
+- ~~Local-only, or allow a cloud-API fallback for richer speech?~~ **Resolved: local-only** — no hosted-API backends.
 - Single room (everyone hears all) or spatial hearing from the start?
 - Mic input in v1, or typed-only first?
 - How visible should the debug text be — fully hidden, hotkey toggle, or

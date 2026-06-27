@@ -1,47 +1,27 @@
-"""Swappable LLM backends.
+"""Local LLM backends.
 
 The sim never talks to a model directly -- it builds a SpeechContext and calls
-backend.speak(ctx). Three backends share the same prompt builders:
-  - ClaudeLLM : Claude API (fast, real-time) -- needs the `anthropic` package + key
-  - OllamaLLM : local model over HTTP (free, offline) -- stdlib only
+backend.speak(ctx). Two local backends share the same prompt builders:
+  - OllamaLLM : a local model over HTTP (free, offline) -- stdlib only
   - MockLLM   : no model at all, composes from drift so the world still runs
-Swapping backends never touches agent/sim code.
+Swapping backends never touches agent/sim code. The project is local-only; the
+older hosted-API backends (Claude/DeepSeek) and their .env key handling were
+removed -- nothing here leaves the machine.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import random
 import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from pathlib import Path
 
 OLLAMA_URL = "http://localhost:11434"
 DEFAULT_OLLAMA_MODEL = "gemma3:4b"   # small + fast local model for this variant
 OLLAMA_NUM_THREAD = 8        # P-core sweet spot here; 12 oversubscribes E-cores
 OLLAMA_KEEP_ALIVE = "30m"    # keep the model resident so turns don't cold-reload
-DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5"
-DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
-DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"
-
-
-def load_dotenv(path: str | None = None) -> None:
-    """Minimal .env loader: KEY=VALUE lines into os.environ (no overwrite).
-
-    Keeps secrets (ANTHROPIC_API_KEY) out of source and out of shell history.
-    """
-    env_path = Path(path) if path else Path(__file__).resolve().parent.parent / ".env"
-    if not env_path.is_file():
-        return
-    for line in env_path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, val = line.partition("=")
-        os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
 
 
 @dataclass
@@ -303,85 +283,6 @@ def build_user(ctx: SpeechContext) -> str:
     return "\n".join(lines)
 
 
-class ClaudeLLM:
-    """Claude API backend (uses the official anthropic SDK). Fast, real-time."""
-
-    def __init__(self, model: str = DEFAULT_CLAUDE_MODEL, max_tokens: int = 110,
-                 timeout: float = 30.0) -> None:
-        import anthropic  # lazy -- only this backend needs the package
-        self.model = model
-        self.max_tokens = max_tokens
-        # reads ANTHROPIC_API_KEY from the environment (loaded from .env)
-        self._client = anthropic.Anthropic(timeout=timeout)
-
-    @staticmethod
-    def available() -> bool:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            return False
-        try:
-            import anthropic  # noqa: F401
-        except ImportError:
-            return False
-        return True
-
-    def speak(self, ctx: SpeechContext) -> str:
-        resp = self._client.messages.create(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            system=build_system(ctx),
-            messages=[{"role": "user", "content": build_user(ctx)}],
-        )
-        text = "".join(b.text for b in resp.content if b.type == "text")
-        return _clean(text) or "..."
-
-
-class DeepSeekLLM:
-    """DeepSeek API backend (OpenAI-compatible). Cheapest scalable option.
-
-    Stdlib HTTP -- no SDK needed. China-hosted, so benchmark latency before
-    relying on it for real-time play.
-    """
-
-    def __init__(self, model: str = DEFAULT_DEEPSEEK_MODEL, url: str = DEEPSEEK_URL,
-                 temperature: float = 0.95, max_tokens: int = 110,
-                 timeout: float = 30.0) -> None:
-        self.model = model
-        self.url = url
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.timeout = timeout
-        self._key = os.environ.get("DEEPSEEK_API_KEY", "")
-
-    @staticmethod
-    def available() -> bool:
-        return bool(os.environ.get("DEEPSEEK_API_KEY"))
-
-    def speak(self, ctx: SpeechContext) -> str:
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": build_system(ctx)},
-                {"role": "user", "content": build_user(ctx)},
-            ],
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-            "stream": False,
-            # v4-flash defaults to thinking mode, which burns the token budget on
-            # reasoning and returns empty content. Disable it for fast one-liners.
-            "thinking": {"type": "disabled"},
-        }
-        req = urllib.request.Request(
-            self.url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {self._key}"},
-        )
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:
-            data = json.loads(r.read().decode("utf-8"))
-        text = data["choices"][0]["message"]["content"]
-        return _clean(text) or "..."
-
-
 class OllamaLLM:
     def __init__(self, model: str = DEFAULT_OLLAMA_MODEL, url: str = OLLAMA_URL,
                  temperature: float = 0.95, num_predict: int = 110,
@@ -467,7 +368,17 @@ class MockLLM:
 
     def generate(self, prompt: str = "", system: str = "", **_kw) -> str:
         """A deterministic fake character so genesis runs (and tests) without a
-        model -- the same structured format the real backend emits."""
+        model -- the same structured format the real backend emits. Also serves the
+        reflect() module: when the system prompt is the reflection framing, return a
+        canned EQUANIMOUS line (net-positive valence) so the clean-room A/B plumbing
+        and unit tests run without a model -- the real equanimity signal needs an
+        actual LLM, this only proves the wiring moves mood the intended way."""
+        if "observing its own" in system or "acceptance" in system:
+            return self._rng.choice([
+                "There is sorrow here, yet I hold it gently, and a quiet calm remains.",
+                "I feel the heaviness, and I let it be soft -- it is here, and so am I.",
+                "The grief moves through me like weather; I meet it with a gentle peace.",
+            ])
         name = self._rng.choice(["Vesper", "Toll", "Cael", "Mara", "Juno", "Bram",
                                  "Sable", "Orin", "Nyx", "Pell", "Liri", "Senna"])
         temp = round(self._rng.uniform(-1.0, 1.0), 2)
@@ -481,35 +392,12 @@ class MockLLM:
 
 def make_llm(backend: str = "auto", model: str | None = None,
              seed: int | None = None):
-    """Pick a backend.
+    """Pick a local backend.
 
-    'auto'    : DeepSeek if key present (cheap+fast), else Claude, else Ollama, else Mock.
-    'deepseek': DeepSeek API (errors if no key).
-    'claude'  : Claude API (errors if no key / package).
-    'ollama'  : local model (errors if not reachable).
-    'mock'    : no model.
+    'auto'  : Ollama if a local model is reachable, else Mock.
+    'ollama': local model (errors if not reachable).
+    'mock'  : no model.
     """
-    load_dotenv()
-
-    if backend in ("deepseek", "auto") and DeepSeekLLM.available():
-        m = model or DEFAULT_DEEPSEEK_MODEL
-        print(f"[llm] using DeepSeek API model: {m}")
-        return DeepSeekLLM(model=m)
-    if backend == "deepseek":
-        raise RuntimeError(
-            "DeepSeek requested but no DEEPSEEK_API_KEY (set it in prototype/.env)."
-        )
-
-    if backend in ("claude", "auto") and ClaudeLLM.available():
-        m = model or DEFAULT_CLAUDE_MODEL
-        print(f"[llm] using Claude API model: {m}")
-        return ClaudeLLM(model=m)
-    if backend == "claude":
-        raise RuntimeError(
-            "Claude requested but unavailable. Set ANTHROPIC_API_KEY (e.g. in "
-            "prototype/.env) and `pip install anthropic` in the project venv."
-        )
-
     if backend in ("ollama", "auto"):
         m = model or DEFAULT_OLLAMA_MODEL
         ollama = OllamaLLM(model=m)

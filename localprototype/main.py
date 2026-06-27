@@ -1,12 +1,12 @@
 """Milestone 3 demo: subconscious drift -> LLM speech -> spoken aloud via TTS.
 
 Each agent's subconscious (Markov) drifts over its mutating/forgetting memory;
-on its turn it asks an LLM (Claude / Ollama) to say one short line and reply to
+on its turn it asks a local LLM (Ollama) to say one short line and reply to
 whoever just spoke; the line is SPOKEN with a per-agent Piper voice. AI speech is
 audio-only by default -- you hear the agents, you don't read them. Hearing still
 writes memory, so speech keeps reshaping thought.
 
-Run:  python main.py                       # Claude if key set, else Ollama/Mock; audio on
+Run:  python main.py                       # local Ollama (else Mock); audio on
       python main.py --show-text           # also print the lines (debug overlay)
       python main.py --no-audio            # silent (text only, for headless)
       python main.py --backend mock --no-audio --ticks 20
@@ -122,8 +122,8 @@ def main() -> None:
     p.add_argument("--ticks", type=int, default=60)
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--backend",
-                   choices=["auto", "claude", "deepseek", "ollama", "mock"],
-                   default="ollama")   # local variant: default to the local model
+                   choices=["auto", "ollama", "mock"],
+                   default="ollama")   # local-only: default to the local model
     p.add_argument("--model", default=None,
                    help="override model id for ALL agents (defaults per backend)")
     p.add_argument("--models", default=None,
