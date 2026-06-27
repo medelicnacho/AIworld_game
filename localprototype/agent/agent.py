@@ -128,6 +128,7 @@ class Agent:
         self.reflect_enabled = False         # Stage-1 lab toggle: run reflect() (relate to own memory)
         self.bond_enabled = False            # Stage-2 toggle: keep dyadic Bonds (relate to other selves)
         self.bonds: dict = {}                # directional bonds toward other selves (see agent/bond.py)
+        self.grip = 0.0                      # Stage-4 manas: appropriation strength [0,1]; 0 = released (default)
         self.self_model_enabled = False      # Stage-3 toggle: consolidate a self-model (see agent/self_model.py)
         self.self_model = ""                 # the soul's current re-derived sense of who it is
         self.self_model_history: list[str] = []   # successive self-models, for coherence/drift measurement
@@ -204,6 +205,12 @@ class Agent:
         self.grace = max(0.0, self.grace + (GRACE_FLOOR - self.grace) * GRACE_RELAX)
         self.memory.effectiveness = self.grace
         events = self.memory.tick(now)
+        # manas: after memory decays, the appropriating grip (if any) holds self-relevant
+        # memories against that decay and amplifies aversive ones -- the second arrow.
+        # grip 0 (default) is a no-op: the released, non-appropriative regime.
+        if self.grip > 0.0:
+            from agent import manas
+            manas.apply(self, now)
         if self.cooldown > 0:
             self.cooldown -= 1
         # subconscious bias: when hostility runs high the drift leans hostile, so
