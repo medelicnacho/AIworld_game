@@ -30,6 +30,7 @@ from __future__ import annotations
 
 HOLD = 0.05          # how hard the grip resists a self-relevant memory's decay (per tick)
 AMP = 0.03           # how fast it amplifies an aversive self-relevant memory's charge
+TRANSMUTE_RATE = 0.15  # Vajrayāna: how fast the grip's energy METABOLIZES the charge to clarity
 SELF_SOURCES = {"self", "reflection"}   # the soul's own self-statements are self-relevant by origin
 
 # Self-relevance read (like affect/warmth): how much a line is about "me / mine / what
@@ -83,8 +84,21 @@ def apply(agent, now: int) -> None:
         r = relevance_of(m)
         if r <= 0.0:
             continue
-        # HOLD: clinging resists decay; the gripped memory looms larger (capped)
+        # HOLD: the self stays PRESENT to the charged memory (salience held). This is the
+        # engagement -- shared by clinging AND transmutation; only RELEASE (prajñā lowering
+        # the effective grip) lets it fade. So transmutation is the third path: it does not
+        # disengage, it stays in full contact.
         m.salience = min(1.0, m.salience * (1.0 + g * r * HOLD))
-        # SECOND ARROW: aversive self-relevant tone magnified by being gripped as mine
+        tr = getattr(agent, "transmute", 0.0)
         if m.emotion < 0.0:
-            m.emotion = max(-1.0, m.emotion * (1.0 + g * r * AMP))
+            if tr > 0.0:
+                # TRANSMUTE (Vajrayāna): the gripping energy, recognized, METABOLIZES the
+                # aversive charge into clarity rather than deepening it -- aversion -> mirror-
+                # like seeing. Stays present (salience held) yet the wound is digested, not
+                # amplified: engaged AND unwounded, the tantric result.
+                m.emotion *= (1.0 - TRANSMUTE_RATE * tr)
+            else:
+                # SECOND ARROW: aversive self-relevant tone magnified by being gripped as mine
+                m.emotion = max(-1.0, m.emotion * (1.0 + g * r * AMP))
+        # a pleasant charge under transmutation is simply SAVORED -- held (salience) and
+        # appreciated as warmth rather than craved; nothing to amplify (rāga -> discernment).

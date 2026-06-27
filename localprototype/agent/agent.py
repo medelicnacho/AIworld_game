@@ -141,6 +141,7 @@ class Agent:
         self.ground_enabled = False          # Mahāyāna buddha-nature: rest felt mood toward basic goodness, veiled by the grip
         self.bodhicitta = 0.0                # Mahāyāna: compassion as an AIM -- proactively seek and ease others' suffering
         self.prajna = 0.0                    # Mahāyāna prajñā: see constructs as empty -> the grip loosens at its source
+        self.transmute = 0.0                 # Vajrayāna: the grip's energy met and TURNED to clarity (a 3rd path: engaged, unwounded)
         self._others_mood: dict = {}         # id -> last overheard felt mood (who is suffering)
         self._others_name: dict = {}         # id -> name, for turning toward them
         self.self_model_enabled = False      # Stage-3 toggle: consolidate a self-model (see agent/self_model.py)
@@ -760,6 +761,7 @@ class Agent:
             bodhicitta=self.bodhicitta,      # the orienting aim to ease all suffering
             bodhicitta_turn=bodhicitta_turn, # this turn, proactively comfort the suffering one
             prajna=self.prajna,              # see the constructs as empty -> hold lightly (not nihilism)
+            transmute=self.transmute,        # meet the charge and turn it to clarity (the third path)
         )
         return ctx, addressed, mood
 

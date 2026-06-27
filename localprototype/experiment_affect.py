@@ -57,23 +57,24 @@ SCHEDULE = {
 
 
 def build_agent(llm, seed: int, grip: float = 0.0, ground: bool = False,
-                prajna: float = 0.0) -> Agent:
+                prajna: float = 0.0, transmute: float = 0.0) -> Agent:
     a = Agent("self", "Aldous", (0.0, 0.0),
               "You are Aldous, a quiet soul living an ordinary working life.",
               list(NEUTRAL_SEED), llm, seed=seed, temperament=0.0, lifespan=10 ** 9)
     a.grip = grip
     a.ground_enabled = ground
     a.prajna = prajna
+    a.transmute = transmute
     for ln in NEUTRAL_SEED:
         a.memory.write(ln, tick=0, source="self", speaker_id="self", weight=1.2)
     return a
 
 
 def run_arm(llm, seed: int, do_reflect: bool, grip: float = 0.0, ground: bool = False,
-            prajna: float = 0.0) -> dict:
+            prajna: float = 0.0, transmute: float = 0.0) -> dict:
     """Run the protocol once. Returns the per-tick lived-mood trajectory plus the
     reflections produced (so their valence can be inspected)."""
-    a = build_agent(llm, seed, grip=grip, ground=ground, prajna=prajna)
+    a = build_agent(llm, seed, grip=grip, ground=ground, prajna=prajna, transmute=transmute)
     a.reflect_enabled = do_reflect
     mood, felt, refl = [], [], []
     for t in range(1, TICKS + 1):
@@ -87,7 +88,7 @@ def run_arm(llm, seed: int, do_reflect: bool, grip: float = 0.0, ground: bool = 
                 refl.append(r)
         mood.append(a.memory.mood())      # lived mood: the affective trajectory
         felt.append(a.felt_mood())        # temperament-anchored disposition
-    return {"mood": mood, "felt": felt, "reflections": refl}
+    return {"mood": mood, "felt": felt, "reflections": refl, "agent": a}
 
 
 def _spark(xs: list[float]) -> str:
