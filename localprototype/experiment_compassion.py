@@ -99,6 +99,20 @@ def main() -> None:
         print(f"     warm-turn: {line}")
         print("  -> should be plain human warmth (how are you / comfort), not philosophy.")
 
+        print("\n  --- Part C: multi-party de-escalation (the pile-on) ---")
+        C.WARMTH_CHANCE = 0.0   # isolate de-escalation (no random warm-turn)
+        heated = ["That's a foolish notion, doomed to crumble.",
+                  "He mistakes caution for stupidity, plain and simple.",
+                  "A waste of good words; he's a scholar, not a builder.",
+                  "He's building a cathedral out of logic where there's only a broken beast."]
+        for comp in (0.0, 0.8):
+            s = make_B(comp, llm)
+            s.last_heard_from, s.last_heard_name = "X", "the others"
+            s.last_heard_text = heated[-1]
+            line = s.speak(now=5, recent=heated).text
+            print(f"     compassion {comp} -> warmth {warmth(line):+.2f}: {line[:140]}")
+        print("  -> the compassionate soul should COOL the room (higher warmth), not pile on.")
+
 
 if __name__ == "__main__":
     main()

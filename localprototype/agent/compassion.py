@@ -28,6 +28,7 @@ HOSTILITY_DAMP = 0.8     # compassion * this fraction reduces hostility/souring 
 WARMTH_CHANCE = 0.3      # chance a compassionate soul just CONNECTS warmly instead of philosophising
 MUDITA_GAIN = 0.5        # joy taken in a loved one's warmth -- shared joy spreading through bonds
 COMPASSION_FLOOR = 0.3   # above this, the warm prompt paths and the warm-turn mode switch on
+ROOM_HEAT = 0.08         # mean 'cutting' of recent talk above this = the room has turned sharp
 
 COMPASSION_SYSTEM = (
     "You meet others with genuine warmth and goodwill -- even in disagreement you "
@@ -39,6 +40,13 @@ DISAGREE_WARM = (
     "what they said, and show you care about them. THEN offer your own view honestly -- "
     "you can hold your difference without making them wrong. Do not pretend to agree if "
     "you do not.")
+
+
+DE_ESCALATE = (
+    "The talk in the room has turned sharp and cutting. You care about these people. "
+    "Do NOT add to the heat or score a point. Name what is true on more than one side, "
+    "ease the tension, and bring some warmth back -- be a peacemaker, not a combatant. "
+    "Still honest, but kind. One or two plain sentences.")
 
 
 def warm_turn_prompt(who: str | None) -> str:

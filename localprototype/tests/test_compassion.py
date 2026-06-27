@@ -71,3 +71,9 @@ def test_warm_turn_overrides_to_connection():
                                    concept_mind=True))   # overrides even concept voice
     assert "simply connect" in out
     assert "Ada" in out
+
+
+def test_de_escalate_prompt():
+    out = build_user(SpeechContext(name="B", persona="p", mood=0.0,
+                                   de_escalate=True, concept_mind=True))
+    assert "peacemaker" in out.lower()        # multi-party: cool the room, don't pile on

@@ -186,9 +186,12 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
         # leaves an heir, a fallen one doesn't) instead of all at once -- born at
         # the same tick with one shared lifespan, they vanished in a single instant.
         # --no-aging makes them effectively immortal for uninterrupted war-watching.
-        # rebirth turns the wheel, so lives are shorter to make it watchable
+        # rebirth turns the wheel, but SLOWLY: souls must live long enough to make
+        # each other tea, bond, and let a stable warm town form before death->bardo->
+        # rebirth turns it over. (Short lives churned a revolving door of brief
+        # strangers -- warmth never compounded and the cohort stayed fragmented.)
         life = (10**9 if no_aging
-                else rng.randint(1200, 3500) if rebirth   # ~2-6 min, then death->bardo->rebirth
+                else rng.randint(5000, 12000) if rebirth  # ~8-20 min, then death->bardo->rebirth
                 else rng.randint(6000, 15000))            # ~10-25 min
         if spawn:
             if i >= len(chars):

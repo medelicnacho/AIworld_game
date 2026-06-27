@@ -56,6 +56,7 @@ class SpeechContext:
     self_model: str = ""                                  # the self the soul has formed -> speak from it
     compassion: float = 0.0                               # metta/karuṇā: warm engagement, honour the person even in disagreement
     warm_turn: bool = False                               # this turn, just connect warmly -- not philosophise or argue
+    de_escalate: bool = False                             # the room has turned cutting -- be the peacemaker, not a combatant
 
 
 def _mood_word(mood: float) -> str:
@@ -258,6 +259,10 @@ def build_system(ctx: SpeechContext) -> str:
 
 def build_user(ctx: SpeechContext) -> str:
     """The turn prompt: drift + recollections + whoever just spoke."""
+    if ctx.de_escalate:
+        # the room has turned cutting -- a compassionate soul cools it (overrides voice mode)
+        from agent import compassion as _c
+        return _c.DE_ESCALATE
     if ctx.warm_turn:
         # drop the big questions for a beat and simply connect (overrides voice mode)
         from agent import compassion as _c

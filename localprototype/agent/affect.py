@@ -96,6 +96,34 @@ EXISTENTIAL_ANCHORS: list[str] = [
 ]
 
 
+# Cutting: is a line contemptuous/dismissive (the temperature of a pile-on)? Distinct
+# from warmth's INTERPERSONAL coldness -- this is INTELLECTUAL contempt toward an idea
+# or argument ("foolish notion", "waste of words"), which is what heats a group debate.
+CUTTING_ANCHORS: list[str] = [
+    "That is a foolish, worthless idea, doomed to fail.",
+    "You are completely wrong and you clearly do not understand.",
+    "What a waste of breath; he is a fool, not a real thinker.",
+    "He mistakes caution for stupidity and misses the point entirely.",
+]
+CALM_ANCHORS: list[str] = [
+    "That's a fair point; let's think it through together.",
+    "I see what you mean, and here's another way to look at it.",
+    "Good question -- here's how I'd put it, plainly.",
+    "How are you keeping? Mind the bread and pass me that cloth.",
+]
+
+
+def cutting(text: str) -> float:
+    """> 0 when a line is contemptuous/dismissive (cutting), < 0 when it is fair/calm.
+    The 'temperature' of a group exchange, for deciding when to de-escalate."""
+    if not text:
+        return 0.0
+    from services.embed import score   # local import avoids an import cycle
+    cut = max((score(text, a) for a in CUTTING_ANCHORS), default=0.0)
+    calm = max((score(text, a) for a in CALM_ANCHORS), default=0.0)
+    return cut - calm
+
+
 def groundedness(text: str) -> float:
     """> 0 when a line is ordinary/concrete/everyday, < 0 when it is abstract or
     existential. Semantic, so it reads register independent of exact words."""

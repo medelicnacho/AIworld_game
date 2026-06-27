@@ -614,6 +614,22 @@ class Agent:
                      and self.last_heard_from is not None
                      and self._rng.random() < _compassion.WARMTH_CHANCE)
 
+        # Multi-party compassion: read the ROOM, not just one challenger. If the recent
+        # talk has turned sharp/cutting and this soul is compassionate, it DE-ESCALATES --
+        # bringing warmth back instead of piling on (warmth-contagion answering the
+        # contempt-contagion that otherwise re-sharpens a group exchange).
+        de_escalate = False
+        if (self.compassion > _compassion.COMPASSION_FLOOR and recent
+                and not event_text and not proclaim):
+            from agent import affect
+            from services import embed
+            if embed.using_embeddings():
+                room = list(recent)[-4:]
+                heat = sum(affect.cutting(t) for t in room) / len(room)
+                de_escalate = heat > _compassion.ROOM_HEAT
+        if de_escalate:
+            warm_turn = False   # de-escalation takes priority over an idle warm turn
+
         # Tangent: sometimes drop the thread and speak fresh from your own mind,
         # so the conversation diverges instead of collapsing into one topic.
         tangent = (self.last_heard_text is None
@@ -686,6 +702,7 @@ class Agent:
             self_model=self.self_model,      # the self it has formed -> speech references who it is
             compassion=self.compassion,      # metta: meet others warmly, hold view without contempt
             warm_turn=warm_turn,             # this turn, just connect -- not philosophise
+            de_escalate=de_escalate,         # the room's turned cutting -- be the peacemaker
         )
         return ctx, addressed, mood
 
