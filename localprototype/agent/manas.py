@@ -73,7 +73,8 @@ def apply(agent, now: int) -> None:
     """One grip cycle, after memory has decayed: hold self-relevant memories against
     decay and amplify aversive ones. No-op when grip is 0 (the released / equanimous
     default). Never writes content -- it only re-weights what is already there."""
-    g = getattr(agent, "grip", 0.0)
+    # the grip's hold after wisdom: prajñā loosens it at the source (see effective_grip)
+    g = agent.effective_grip() if hasattr(agent, "effective_grip") else getattr(agent, "grip", 0.0)
     if g <= 0.0:
         return
     for m in agent.memory.items:

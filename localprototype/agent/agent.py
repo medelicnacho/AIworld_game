@@ -140,6 +140,7 @@ class Agent:
         self.compassion = 0.0                # Stage-6 metta/karuṇā: warm engagement [0,1]; 0 = off (default)
         self.ground_enabled = False          # Mahāyāna buddha-nature: rest felt mood toward basic goodness, veiled by the grip
         self.bodhicitta = 0.0                # Mahāyāna: compassion as an AIM -- proactively seek and ease others' suffering
+        self.prajna = 0.0                    # Mahāyāna prajñā: see constructs as empty -> the grip loosens at its source
         self._others_mood: dict = {}         # id -> last overheard felt mood (who is suffering)
         self._others_name: dict = {}         # id -> name, for turning toward them
         self.self_model_enabled = False      # Stage-3 toggle: consolidate a self-model (see agent/self_model.py)
@@ -215,9 +216,17 @@ class Agent:
         clinging one stays in the dark it is gripping. The warmth was always there."""
         base = 0.7 * self.temperament + 0.3 * self.memory.mood()
         if self.ground_enabled:
-            showing = max(0.0, 1.0 - self.grip)   # unobscured fraction; the grip veils it
+            showing = max(0.0, 1.0 - self.effective_grip())   # wisdom unveils what the grip hid
             base = base + GROUND_PULL * showing * (BASIC_GOODNESS - base)
         return max(-1.0, min(1.0, base))
+
+    def effective_grip(self) -> float:
+        """The grip's ACTUAL hold after wisdom. Prajñā -- seeing a grievance, a certainty,
+        the self itself as an empty, passing CONFIGURATION rather than a solid thing --
+        loosens the clinging at its source: there is less that is solid to clutch. So the
+        same recognition both eases the grip (less suffering) AND unveils the ground (more
+        warmth): wisdom and compassion, the two wings, from one seeing."""
+        return self.grip * (1.0 - self.prajna)
 
     # --- per-tick subconscious ---------------------------------------------
     def step(self, now: int) -> list[str]:
@@ -750,6 +759,7 @@ class Agent:
             de_escalate=de_escalate,         # the room's turned cutting -- be the peacemaker
             bodhicitta=self.bodhicitta,      # the orienting aim to ease all suffering
             bodhicitta_turn=bodhicitta_turn, # this turn, proactively comfort the suffering one
+            prajna=self.prajna,              # see the constructs as empty -> hold lightly (not nihilism)
         )
         return ctx, addressed, mood
 

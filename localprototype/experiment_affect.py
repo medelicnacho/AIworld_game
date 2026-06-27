@@ -56,21 +56,24 @@ SCHEDULE = {
 }
 
 
-def build_agent(llm, seed: int, grip: float = 0.0, ground: bool = False) -> Agent:
+def build_agent(llm, seed: int, grip: float = 0.0, ground: bool = False,
+                prajna: float = 0.0) -> Agent:
     a = Agent("self", "Aldous", (0.0, 0.0),
               "You are Aldous, a quiet soul living an ordinary working life.",
               list(NEUTRAL_SEED), llm, seed=seed, temperament=0.0, lifespan=10 ** 9)
     a.grip = grip
     a.ground_enabled = ground
+    a.prajna = prajna
     for ln in NEUTRAL_SEED:
         a.memory.write(ln, tick=0, source="self", speaker_id="self", weight=1.2)
     return a
 
 
-def run_arm(llm, seed: int, do_reflect: bool, grip: float = 0.0, ground: bool = False) -> dict:
+def run_arm(llm, seed: int, do_reflect: bool, grip: float = 0.0, ground: bool = False,
+            prajna: float = 0.0) -> dict:
     """Run the protocol once. Returns the per-tick lived-mood trajectory plus the
     reflections produced (so their valence can be inspected)."""
-    a = build_agent(llm, seed, grip=grip, ground=ground)
+    a = build_agent(llm, seed, grip=grip, ground=ground, prajna=prajna)
     a.reflect_enabled = do_reflect
     mood, felt, refl = [], [], []
     for t in range(1, TICKS + 1):

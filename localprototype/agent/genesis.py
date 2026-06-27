@@ -193,6 +193,7 @@ def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False) -> None
     agent.compassion = 0.6           # meet others with warmth (metta), hold views without contempt
     agent.ground_enabled = True      # buddha-nature: rest in basic goodness, veiled only by clinging
     agent.bodhicitta = 0.5           # compassion as an aim: proactively turn toward and ease suffering
+    agent.prajna = 0.4               # some wisdom: hold self/grievances lightly as empty configurations
     agent.seed_opinion_text(" ".join(ch.lines))   # lexical opinion -> the camp's banner WORD
     # the SIGNED stance that drives bonding: seeded independent of temperament (so
     # factions on it stay emergent, not homophily on disposition), stable per soul.
