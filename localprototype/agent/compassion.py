@@ -42,6 +42,22 @@ DISAGREE_WARM = (
     "you do not.")
 
 
+BODHICITTA_FLOOR = 0.3   # above this, a soul proactively seeks out and eases suffering
+BODHICITTA_CHANCE = 0.4  # chance a moved soul turns to comfort the suffering on a given turn
+SUFFERING_MOOD = -0.15   # an overheard felt mood below this marks a soul as suffering
+
+BODHICITTA_SYSTEM = (
+    "You are moved by bodhicitta -- a deep wish that all beings be free of suffering. "
+    "You actively turn toward those who hurt and seek to ease them, not from duty but "
+    "from genuine care. ")
+
+
+def comfort_prompt(who: str | None) -> str:
+    return (f"{who or 'Someone nearby'} is hurting. You are moved to ease their suffering. "
+            "Turn to them and offer genuine comfort or presence -- not advice or argument, "
+            "just warmth and care. One or two plain sentences.")
+
+
 DE_ESCALATE = (
     "The talk in the room has turned sharp and cutting. You care about these people. "
     "Do NOT add to the heat or score a point. Name what is true on more than one side, "

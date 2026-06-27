@@ -57,6 +57,8 @@ class SpeechContext:
     compassion: float = 0.0                               # metta/karuṇā: warm engagement, honour the person even in disagreement
     warm_turn: bool = False                               # this turn, just connect warmly -- not philosophise or argue
     de_escalate: bool = False                             # the room has turned cutting -- be the peacemaker, not a combatant
+    bodhicitta: float = 0.0                               # the orienting aim to ease all beings' suffering
+    bodhicitta_turn: bool = False                         # this turn, proactively turn to comfort the suffering one
 
 
 def _mood_word(mood: float) -> str:
@@ -170,9 +172,12 @@ def _compassion_clause(ctx: SpeechContext) -> str:
     disagreement, while staying honest (no flattery). The active partner of
     non-attachment -- without it, equanimity is just indifference."""
     from agent import compassion as _c   # local import avoids any import-order issue
-    if ctx.compassion <= _c.COMPASSION_FLOOR:
-        return ""
-    return _c.COMPASSION_SYSTEM
+    out = ""
+    if ctx.compassion > _c.COMPASSION_FLOOR:
+        out += _c.COMPASSION_SYSTEM
+    if ctx.bodhicitta > _c.BODHICITTA_FLOOR:
+        out += _c.BODHICITTA_SYSTEM      # the orienting aim, on top of reactive warmth
+    return out
 
 
 def build_system(ctx: SpeechContext) -> str:
@@ -259,6 +264,10 @@ def build_system(ctx: SpeechContext) -> str:
 
 def build_user(ctx: SpeechContext) -> str:
     """The turn prompt: drift + recollections + whoever just spoke."""
+    if ctx.bodhicitta_turn:
+        # proactively turn to comfort the suffering one (overrides voice mode)
+        from agent import compassion as _c
+        return _c.comfort_prompt(ctx.reply_to_name)
     if ctx.de_escalate:
         # the room has turned cutting -- a compassionate soul cools it (overrides voice mode)
         from agent import compassion as _c

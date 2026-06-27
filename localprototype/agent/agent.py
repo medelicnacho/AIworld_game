@@ -139,6 +139,9 @@ class Agent:
         self.grip = 0.0                      # Stage-4 manas: appropriation strength [0,1]; 0 = released (default)
         self.compassion = 0.0                # Stage-6 metta/karuṇā: warm engagement [0,1]; 0 = off (default)
         self.ground_enabled = False          # Mahāyāna buddha-nature: rest felt mood toward basic goodness, veiled by the grip
+        self.bodhicitta = 0.0                # Mahāyāna: compassion as an AIM -- proactively seek and ease others' suffering
+        self._others_mood: dict = {}         # id -> last overheard felt mood (who is suffering)
+        self._others_name: dict = {}         # id -> name, for turning toward them
         self.self_model_enabled = False      # Stage-3 toggle: consolidate a self-model (see agent/self_model.py)
         self.self_model = ""                 # the soul's current re-derived sense of who it is
         self.self_model_history: list[str] = []   # successive self-models, for coherence/drift measurement
@@ -326,6 +329,11 @@ class Agent:
                 self.memory.write(f"a warm moment with {speaker_name or u.speaker_id}",
                                   tick=now, source="self", speaker_id=self.id,
                                   emotion=joy, weight=0.6)
+        if self.bodhicitta > 0.0 and u.source == "ai":
+            # remember who is suffering, from the felt mood their words carry -- so a
+            # bodhicitta soul can later turn back toward them, even unprompted.
+            self._others_mood[u.speaker_id] = u.mood
+            self._others_name[u.speaker_id] = speaker_name or u.speaker_id
         if u.source == "user":
             # communion with the Creator, the Lord of Creation, renews grace
             self.grace = min(1.0, self.grace + GRACE_GAIN * 2)
@@ -648,6 +656,20 @@ class Agent:
         if de_escalate:
             warm_turn = False   # de-escalation takes priority over an idle warm turn
 
+        # Bodhicitta: compassion as an AIM, not a reaction. A soul so moved proactively
+        # turns toward the most-suffering soul it is AWARE of and seeks to ease it -- even
+        # unprompted, even when not addressed. (Reactive warmth waits to be provoked;
+        # bodhicitta actively seeks out the one who hurts.)
+        bodhicitta_turn = False
+        suffer_id = suffer_name = None
+        if (self.bodhicitta > _compassion.BODHICITTA_FLOOR and self._others_mood
+                and not event_text and not proclaim and not de_escalate):
+            sid, sm = min(self._others_mood.items(), key=lambda kv: kv[1])
+            if sm < _compassion.SUFFERING_MOOD and self._rng.random() < _compassion.BODHICITTA_CHANCE:
+                bodhicitta_turn = True
+                suffer_id, suffer_name = sid, self._others_name.get(sid, sid)
+                warm_turn = False
+
         # Tangent: sometimes drop the thread and speak fresh from your own mind,
         # so the conversation diverges instead of collapsing into one topic.
         tangent = (self.last_heard_text is None
@@ -663,6 +685,11 @@ class Agent:
             # bias recall toward who I've been, so the self coheres on itself
             query = self_mems[0].text
             reply_name = reply_text = addressed = None
+        elif bodhicitta_turn:
+            # proactively turn toward the suffering soul to comfort it
+            query = self._rng.choice(self.phrases)
+            reply_name, reply_text = suffer_name, None
+            addressed = suffer_id
         elif warm_turn:
             # turn warmly toward whoever just spoke, not to argue but to connect
             query = self.last_heard_text or self._rng.choice(self.phrases)
@@ -721,6 +748,8 @@ class Agent:
             compassion=self.compassion,      # metta: meet others warmly, hold view without contempt
             warm_turn=warm_turn,             # this turn, just connect -- not philosophise
             de_escalate=de_escalate,         # the room's turned cutting -- be the peacemaker
+            bodhicitta=self.bodhicitta,      # the orienting aim to ease all suffering
+            bodhicitta_turn=bodhicitta_turn, # this turn, proactively comfort the suffering one
         )
         return ctx, addressed, mood
 
