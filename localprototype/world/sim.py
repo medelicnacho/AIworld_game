@@ -296,6 +296,13 @@ class World:
             snoise = [self._rng.gauss(0.0, self.vasana_noise) for _ in entry["stance_vec"]]
             a.stance_vec = _normalize([v + n for v, n in zip(entry["stance_vec"], snoise)])
         a.introspect_chance = 0.25
+        # the reborn stream carries the faculties of a self: it relates (bonds) and it
+        # takes stock of who it is becoming (self-model). Crucially the self-model is
+        # NOT carried across -- only the vasana (blurred drift, opinion, stance) is, so
+        # any self that re-coheres does so from the impersonal residue, not a transmitted
+        # autobiography. Whether it re-coheres toward the dead self is the open question.
+        a.bond_enabled = True
+        a.self_model_enabled = True
         # Does love survive death? A faded bond-trace toward those still living wakes
         # in the new stream as a leaning with no history and no wounds -- it is drawn
         # to (or wary of) someone it cannot remember ever knowing. Anatta: the self is

@@ -54,3 +54,20 @@ def test_consolidation_builds_on_prior_self_model():
     sm.consolidate(a, llm, now=2)
     sm.consolidate(a, llm, now=10)
     assert len(a.self_model_history) == 2   # the loop runs again, building on the last
+
+
+def test_reborn_stream_has_self_faculties():
+    # a stream that coalesces from the bardo carries the faculties of a self (so a
+    # self can RE-form), though no self-model autobiography crosses the gap.
+    from world.sim import World
+    w = World(rebirth_enabled=True)
+    w.llm = MockLLM(seed=1)
+    w.bardo_ticks = (1, 1)
+    a = Agent("A", "A", (0, 0), "p", ["x"], w.llm, seed=1)
+    w.add(a)
+    a.age, a.lifespan = 0, 1
+    w.step()
+    streams = [x for x in w.agents if x.id.startswith("stream:")]
+    assert streams
+    assert streams[0].self_model_enabled and streams[0].bond_enabled
+    assert streams[0].self_model == ""        # no autobiography crossed

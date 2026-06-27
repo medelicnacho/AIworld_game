@@ -277,7 +277,7 @@ class Agent:
                 cur = self.affinity.get(u.speaker_id, 0.0)
                 self.affinity[u.speaker_id] = max(-1.0, min(1.0, cur + delta))
                 self._weigh_belief(u, my_mood, now)
-        if self.bond_enabled and u.source == "ai":
+        if self.bond_enabled and u.source in ("ai", "user"):
             # Dyadic bond: a directional, remembering relationship toward this
             # speaker (separate from the scalar affinity). It accretes from the
             # WARMTH of what they say -- a warm line builds trust, a cold one cools
@@ -296,8 +296,8 @@ class Agent:
             sig = 0.3 * u.mood * my_mood
             if embed.using_embeddings():
                 sig += affect.warmth(u.text)
-            if u.addressed_to == self.id:
-                sig *= 2.0
+            if u.addressed_to == self.id or u.source == "user":
+                sig *= 2.0   # words aimed at me -- or from the one who inhabits/tends me -- land harder
             self.bonds.setdefault(u.speaker_id, Bond()).feel(sig)
         if u.source == "user":
             # communion with the Creator, the Lord of Creation, renews grace
