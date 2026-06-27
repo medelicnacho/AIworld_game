@@ -267,6 +267,28 @@ class Agent:
                 cur = self.affinity.get(u.speaker_id, 0.0)
                 self.affinity[u.speaker_id] = max(-1.0, min(1.0, cur + delta))
                 self._weigh_belief(u, my_mood, now)
+        if self.bond_enabled and u.source == "ai":
+            # Dyadic bond: a directional, remembering relationship toward this
+            # speaker (separate from the scalar affinity). It accretes from the
+            # WARMTH of what they say -- a warm line builds trust, a cold one cools
+            # it -- weighted up when the line is addressed to me. Semantic warmth
+            # (embeddings) reads the relationship even in lines with no "nice" words;
+            # it falls back to disposition-product when embeddings are down.
+            from agent import affect
+            from agent.bond import Bond
+            from services import embed
+            # Bond accretes from SHARED EMOTIONAL REALITY (aligned disposition warms,
+            # opposed cools) PLUS the semantic warmth of the line; being ADDRESSED
+            # amplifies it -- you come to feel more, for good or ill, about those who
+            # engage you. (Reading live output showed warmth alone is too narrow: in
+            # the contemplative register souls rarely speak overtly warm/cold, so
+            # disposition carries the bond and warmth sharpens it.)
+            sig = 0.3 * u.mood * my_mood
+            if embed.using_embeddings():
+                sig += affect.warmth(u.text)
+            if u.addressed_to == self.id:
+                sig *= 2.0
+            self.bonds.setdefault(u.speaker_id, Bond()).feel(sig)
         if u.source == "user":
             # communion with the Creator, the Lord of Creation, renews grace
             self.grace = min(1.0, self.grace + GRACE_GAIN * 2)

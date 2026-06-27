@@ -74,3 +74,35 @@ def test_agent_has_opt_in_bonds():
     a = Agent("x", "X", (0, 0), "p", ["x"], MockLLM(seed=1), seed=1)
     assert a.bond_enabled is False
     assert a.bonds == {}
+
+
+def test_feel_warms_then_cools_without_wound():
+    b = Bond()
+    b.feel(0.3)
+    assert b.trust > 0.0 and b.history > 0.0
+    t = b.trust
+    b.feel(-0.3)
+    assert b.trust < t
+    assert b.wounds == 0          # ambient coolness is not a remembered betrayal
+
+
+def test_hear_forms_bond_when_enabled():
+    from services import embed
+    from world.events import Utterance
+    embed.use_jaccard_only(True)   # deterministic: uses the disposition fallback
+    try:
+        a = Agent("a", "A", (0, 0), "p", ["x"], MockLLM(seed=1), seed=1, temperament=0.5)
+        a.bond_enabled = True
+        a.hear(Utterance(speaker_id="b", text="we stand together", tick=1,
+                         source="ai", mood=0.6), now=1, speaker_name="B")
+        assert "b" in a.bonds and a.bonds["b"].trust > 0.0
+    finally:
+        embed.use_jaccard_only(False)
+
+
+def test_hear_no_bond_when_disabled():
+    from world.events import Utterance
+    a = Agent("a", "A", (0, 0), "p", ["x"], MockLLM(seed=1), seed=1, temperament=0.5)
+    a.hear(Utterance(speaker_id="b", text="hi", tick=1, source="ai", mood=0.6),
+           now=1, speaker_name="B")
+    assert a.bonds == {}           # opt-in: off by default, graph untouched

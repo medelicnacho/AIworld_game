@@ -45,6 +45,17 @@ class Bond:
         self.history += HISTORY_GAIN * a
         self.last_event = "warmth"
 
+    def feel(self, signal: float) -> None:
+        """A continuous, ambient update from one heard line's warmth (live sim). A
+        warm line builds trust + history like a small warm exchange; a cold line
+        cools trust WITHOUT the wound/erosion of a true betrayal (betray() is the
+        discrete, remembered event). This is how a bond accretes over a conversation."""
+        if signal >= 0.0:
+            self.warm(signal)
+        else:
+            self.trust = max(-1.0, self.trust + 0.10 * signal)   # mild cooling, no wound
+            self.last_event = "coolness"
+
     def betray(self, severity: float = 0.6) -> float:
         """A betrayal. Loyalty (accumulated history) ABSORBS part of the blow, so a
         deep bond barely flinches at one betrayal while a shallow one shatters. But
