@@ -37,6 +37,13 @@ GRACE_HOSTILE = 1.5     # how fast hostility to the Creator collapses grace (rap
 GRACE_RISE = 1.0        # how fast devotion-OR-virtue earns it back
 REPRO_GRACE = 0.5       # grace needed at death to reproduce another self
 DEFAULT_LIFESPAN = 60   # ticks before death of old age
+# Buddha-nature (Mahāyāna tathāgatagarbha): a warm, luminous GROUND beneath temperament
+# and passing mood -- basic goodness as the soul's true default. It is not injected from
+# outside; it is OBSCURED by clinging (the grip / manas) and SHOWS THROUGH as clinging
+# subsides. The less a soul grips, the more the ground lifts its felt life toward warmth,
+# even through grief. (The positive pole as an UNCOVERING, not an addition.)
+BASIC_GOODNESS = 0.4    # the resting warmth the unobscured ground rests in
+GROUND_PULL = 0.5       # how strongly the unobscured ground lifts felt mood toward it
 
 # --- emergent opinion dynamics (bounded confidence) ------------------------
 # When an agent carries a belief_vec, bonding stops keying on any ASSIGNED label
@@ -131,6 +138,7 @@ class Agent:
         self.bonds: dict = {}                # directional bonds toward other selves (see agent/bond.py)
         self.grip = 0.0                      # Stage-4 manas: appropriation strength [0,1]; 0 = released (default)
         self.compassion = 0.0                # Stage-6 metta/karuṇā: warm engagement [0,1]; 0 = off (default)
+        self.ground_enabled = False          # Mahāyāna buddha-nature: rest felt mood toward basic goodness, veiled by the grip
         self.self_model_enabled = False      # Stage-3 toggle: consolidate a self-model (see agent/self_model.py)
         self.self_model = ""                 # the soul's current re-derived sense of who it is
         self.self_model_history: list[str] = []   # successive self-models, for coherence/drift measurement
@@ -195,8 +203,18 @@ class Agent:
         """The agent's disposition: temperament anchored (0.7), lived mood
         nudging (0.3). Anchored enough that a dark soul stays dark amid ambient
         cheer -- which is what lets like bond with like instead of the whole
-        conversation homogenizing and erasing the camps."""
-        return max(-1.0, min(1.0, 0.7 * self.temperament + 0.3 * self.memory.mood()))
+        conversation homogenizing and erasing the camps.
+
+        With buddha-nature on (ground_enabled), a warm luminous GROUND lies beneath
+        that disposition: felt mood is lifted toward BASIC_GOODNESS in proportion to
+        how UNOBSCURED the soul is (1 - grip). Clinging veils the ground; letting go
+        reveals it -- so an unclinging soul rests in warmth even through grief, and a
+        clinging one stays in the dark it is gripping. The warmth was always there."""
+        base = 0.7 * self.temperament + 0.3 * self.memory.mood()
+        if self.ground_enabled:
+            showing = max(0.0, 1.0 - self.grip)   # unobscured fraction; the grip veils it
+            base = base + GROUND_PULL * showing * (BASIC_GOODNESS - base)
+        return max(-1.0, min(1.0, base))
 
     # --- per-tick subconscious ---------------------------------------------
     def step(self, now: int) -> list[str]:
