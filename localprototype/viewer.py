@@ -148,6 +148,20 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                   breed_enabled=breed, pop_cap=pop_cap, murmur_enabled=murmur,
                   rebirth_enabled=rebirth)
     world.llm = llm   # the collective consciousness speaks through it
+    if rebirth:
+        # Wheel regime tuned so factions PERSIST across the rebirth wheel rather
+        # than dissolving each time a body dies. experiment_regime (gemma3:1b) found
+        # the 'combo' arm was the ONLY one whose modularity survived turnover:
+        #   reborn_prebond -- the key, scale-independent lever: a reborn stream is
+        #     born already bonded into the opinion-camp its vasana carried, so it
+        #     joins the faction instantly instead of re-bonding from zero;
+        #   vasana_noise   -- lower keeps the carried lean sharp through the bardo;
+        #   bardo_ticks    -- shorter returns streams before the live cohort thins.
+        # (Plain rebirth without these collapsed live --world's modularity to ~0 --
+        # the churn outran affinity; see experiment_churn.)
+        world.reborn_prebond = 0.5
+        world.vasana_noise = 0.04
+        world.bardo_ticks = (8, 20)
     rng = __import__("random").Random(move_seed)
     colours = {}
     # procedural genesis: the LLM authors six distinct souls up front (slow on a
