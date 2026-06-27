@@ -58,6 +58,19 @@ class World:
         self.tick = 0
         self.rebirth_enabled = rebirth_enabled   # death -> bardo -> identity-less rebirth
         self._bardo: list[dict] = []             # streams dissolving between lives
+        # Wheel-tuning knobs (defaults reproduce the shipped behaviour). The churn
+        # isolation (experiment_churn) showed the rebirth wheel, not the opinion
+        # space, flattens live --world modularity: bardo dead-time fragments the live
+        # cohort and reborn streams re-bond from zero faster than affinity accretes.
+        # These let a regime sweep find where factions both FORM and PERSIST across
+        # the wheel. bardo_ticks: dissolution interval (shorter -> live pop stays up).
+        # vasana_noise: how much the carried opinion/stance lean is scrambled at
+        # rebirth (lower -> stronger transmission). reborn_prebond: a stream is born
+        # already bonded (this much affinity) to living souls whose lean is close --
+        # 'born into its camp', the karmic-transmission lever (0 = bond from scratch).
+        self.bardo_ticks = BARDO_TICKS
+        self.vasana_noise = 0.06
+        self.reborn_prebond = 0.0
         self.recent: list[str] = []   # rolling buffer of the last things said
         # Space. Off by default so headless/text runs and tests are unchanged.
         # When on, agents drift each tick under social forces (toward kin, away
@@ -211,7 +224,7 @@ class World:
             "stance_vec": list(soul.stance_vec) if soul.stance_vec is not None else None,
             "temperament": max(-1.0, min(1.0, soul.temperament + self._rng.uniform(-0.25, 0.25))),
             "position": soul.position,
-            "countdown": self._rng.randint(*BARDO_TICKS),
+            "countdown": self._rng.randint(*self.bardo_ticks),
             "lifespan": soul.lifespan,   # the new stream lives on the lineage's scale
         })
         self.bus.publish("dissolution", soul.id)
@@ -260,18 +273,42 @@ class World:
         if entry["belief_vec"] is not None:
             # gentle perturbation: the lean PERSISTS, softened by the dissolution
             # (small per-component noise -- in a high-dim space even this spreads)
-            noise = [self._rng.gauss(0.0, 0.06) for _ in entry["belief_vec"]]
+            noise = [self._rng.gauss(0.0, self.vasana_noise) for _ in entry["belief_vec"]]
             a.belief_vec = _normalize([v + n for v, n in zip(entry["belief_vec"], noise)])
             a.belief_grounded = True
         if entry.get("stance_vec") is not None:
             # the SIGNED stance lean is the lever that actually drives the graph, so
             # carrying it (perturbed) is how a faction outlives its members: the new
             # stream wakes leaning the same way, with no memory of whose lean it was.
-            snoise = [self._rng.gauss(0.0, 0.06) for _ in entry["stance_vec"]]
+            snoise = [self._rng.gauss(0.0, self.vasana_noise) for _ in entry["stance_vec"]]
             a.stance_vec = _normalize([v + n for v, n in zip(entry["stance_vec"], snoise)])
         a.introspect_chance = 0.25
         self.agents.append(a)
+        self._prebond(a)   # optionally born already bonded into its opinion-camp
         self.bus.publish("rebirth", sid)
+
+    def _prebond(self, newcomer) -> None:
+        """Karmic-transmission lever: a reborn stream wakes already bonded to the
+        living souls whose opinion/stance lean matches its inherited one, instead of
+        re-bonding from zero. With reborn_prebond>0 a faction can outlive its members
+        because each new body is born INTO the camp its vasana carried. Mutual
+        (both directions) so it registers as a real edge in factions.blocs."""
+        if self.reborn_prebond <= 0.0:
+            return
+        mine = newcomer.stance_vec if newcomer.stance_vec is not None else newcomer.belief_vec
+        if mine is None:
+            return
+        for other in self.agents:
+            if other is newcomer:
+                continue
+            theirs = other.stance_vec if other.stance_vec is not None else other.belief_vec
+            if theirs is None or len(theirs) != len(mine):
+                continue
+            sim = sum(x * y for x, y in zip(mine, theirs))   # both are unit vectors
+            if sim > 0:   # aligned lean -> born as kin, proportional to how aligned
+                bond = self.reborn_prebond * sim
+                newcomer.affinity[other.id] = max(newcomer.affinity.get(other.id, 0.0), bond)
+                other.affinity[newcomer.id] = max(other.affinity.get(newcomer.id, 0.0), bond)
 
     def _breed(self) -> None:
         """Living reproduction: a graceful, mature soul bears a child beside it

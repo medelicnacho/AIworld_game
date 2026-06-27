@@ -1,6 +1,17 @@
 """Baseline: does the GROUNDED lexical opinion engine -- the one --world actually
 runs -- support factions, or is it starved?
 
+*** CORRECTION (2026-06-26, after the real-model run): the MockLLM verdict below is
+an ARTIFACT, do not trust it. On MockLLM the grounded arm shows modularity ~0 and
+the stance arm "fixes" it -- but that is because MockLLM's echoey speak() collapses
+every soul's words together into ONE blob, which is not how the grounded engine
+behaves under real speech. Run `--llm ollama --model gemma3:1b --arms grounded,stance`
+and the grounded arm forms factions FINE (modularity +0.34); the stance arm is
+bimodal and no better. The grounded space was never starved. The real cause of live
+--world's flat modularity is the REBIRTH WHEEL -- see experiment_churn.py. Keep this
+file as the cautionary example of MockLLM mismeasuring a language-dependent engine. ***
+
+
 experiment_factions.py's 'emergent' arm uses ABSTRACT seed_opinion (6-dim random
 gaussian vectors), which start with large mutual overlap (cosine ~ +-0.4) and so
 cluster readily -- modularity ~ +0.29, "EMERGENCE CONFIRMED". But --world does not
@@ -180,21 +191,50 @@ def main() -> None:
     p.add_argument("--ticks", type=int, default=120)
     p.add_argument("--seed-base", type=int, default=300)
     p.add_argument("--llm", choices=["mock", "ollama"], default="mock")
+    p.add_argument("--model", default=None, help="ollama model override (e.g. gemma3:1b for speed)")
+    p.add_argument("--arms", default=",".join(ARMS),
+                   help="comma list to run (default all). On ollama, 'grounded,stance' "
+                        "is the real question -- abstract is a label-free reference the "
+                        "MockLLM run already gives and whose speech this harness ignores.")
     args = p.parse_args()
 
+    arms = [a for a in args.arms.split(",") if a in ARMS]
     seeds = list(range(args.seed_base, args.seed_base + args.replicates))
     if args.llm == "ollama":
-        shared = OllamaLLM(temperature=0.0)
+        shared = OllamaLLM(temperature=0.0, model=args.model) if args.model else OllamaLLM(temperature=0.0)
         make_llm = lambda _s: shared
     else:
         make_llm = lambda s: MockLLM(seed=s)
 
+    import time as _time
     results, comemb = {}, {}
-    for arm in ARMS:
-        runs = [run_one(s, arm, args.ticks, make_llm) for s in seeds]
+    t0 = _time.time()
+    for arm in arms:
+        runs = []
+        for k, s in enumerate(seeds, 1):
+            r = run_one(s, arm, args.ticks, make_llm)
+            runs.append(r)
+            print(f"[{_time.time()-t0:6.0f}s] arm={arm:<8} rep {k}/{len(seeds)} done "
+                  f"-> modularity {r[0]['modularity']:+.3f}, n_blocs {r[0]['n_blocs']}",
+                  flush=True)
         results[arm] = aggregate([r[0] for r in runs], [r[2] for r in runs])
         comemb[arm] = factions.comembership_variance([r[1] for r in runs])
-    print(report(results, comemb, seeds, args.ticks))
+    # only the arms we actually ran can be reported; fill any skipped with the run set
+    if set(arms) == set(ARMS):
+        print(report(results, comemb, seeds, args.ticks))
+    else:
+        print("\n=== ran arms:", ", ".join(arms), f"  ticks={args.ticks}  reps={len(seeds)} ===")
+        for arm in arms:
+            r = results[arm]
+            print(f"  {arm:<9} modularity {_fmt(r['modularity'])}  "
+                  f"bloc_temp_purity {_fmt(r['bloc_temp_purity'])}  "
+                  f"comemb_variance {comemb[arm]:.3f}  "
+                  f"frac_engaged {_fmt(r['frac_engaged'])}")
+        if "grounded" in results and "stance" in results:
+            g, s = results["grounded"]["modularity"][0], results["stance"]["modularity"][0]
+            print(f"\n  grounded -> stance modularity: {g:+.3f} -> {s:+.3f}  "
+                  + ("(STANCE FORMS FACTIONS the grounded space could not)"
+                     if s > 0.05 and g < 0.05 else "(inspect)"))
 
 
 if __name__ == "__main__":
