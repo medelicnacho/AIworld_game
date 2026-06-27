@@ -14,6 +14,7 @@ import random
 
 from agent import belief as _belief
 from agent import stance as _stance
+from agent import compassion as _compassion
 from agent import ideology
 from agent.doctrine import DOCTRINES, creator_stance
 from agent.memory import MemoryStore
@@ -129,6 +130,7 @@ class Agent:
         self.bond_enabled = False            # Stage-2 toggle: keep dyadic Bonds (relate to other selves)
         self.bonds: dict = {}                # directional bonds toward other selves (see agent/bond.py)
         self.grip = 0.0                      # Stage-4 manas: appropriation strength [0,1]; 0 = released (default)
+        self.compassion = 0.0                # Stage-6 metta/karuṇā: warm engagement [0,1]; 0 = off (default)
         self.self_model_enabled = False      # Stage-3 toggle: consolidate a self-model (see agent/self_model.py)
         self.self_model = ""                 # the soul's current re-derived sense of who it is
         self.self_model_history: list[str] = []   # successive self-models, for coherence/drift measurement
@@ -293,12 +295,19 @@ class Agent:
             # engage you. (Reading live output showed warmth alone is too narrow: in
             # the contemplative register souls rarely speak overtly warm/cold, so
             # disposition carries the bond and warmth sharpens it.)
-            sig = 0.3 * u.mood * my_mood
-            if embed.using_embeddings():
-                sig += affect.warmth(u.text)
+            w = affect.warmth(u.text) if embed.using_embeddings() else 0.0
+            sig = 0.3 * u.mood * my_mood + w
             if u.addressed_to == self.id or u.source == "user":
                 sig *= 2.0   # words aimed at me -- or from the one who inhabits/tends me -- land harder
-            self.bonds.setdefault(u.speaker_id, Bond()).feel(sig)
+            bond = self.bonds.setdefault(u.speaker_id, Bond())
+            bond.feel(sig)
+            # muditā: a loved one's warmth lifts your OWN felt life -- shared joy spreads
+            # through the bond (the positive counterpart to grief/hostility contagion).
+            if bond.trust > 0.0 and w > 0.0:
+                joy = min(0.8, _compassion.MUDITA_GAIN * bond.trust * w)
+                self.memory.write(f"a warm moment with {speaker_name or u.speaker_id}",
+                                  tick=now, source="self", speaker_id=self.id,
+                                  emotion=joy, weight=0.6)
         if u.source == "user":
             # communion with the Creator, the Lord of Creation, renews grace
             self.grace = min(1.0, self.grace + GRACE_GAIN * 2)
@@ -455,12 +464,16 @@ class Agent:
 
         # --- THREAT path: hostility update, no doctrine content in the equation ---
         react = ideology.reactivity(self.temperament)
+        # compassion (metta) damps the threat -> hostility reflex: a warm-hearted soul
+        # can be challenged without curdling into contempt -- it still holds its view
+        # (conviction below is NOT damped), it just doesn't make an enemy of the person.
+        damp = 1.0 - _compassion.HOSTILITY_DAMP * self.compassion
         delta = (ideology.Cfg.HOSTILITY_DELTA_SCALE
-                 * threat * self.identity_investment * react)
+                 * threat * self.identity_investment * react) * damp
         self.hostility[spk] = self.hostility.get(spk, 0.0) + delta
         self.conviction = min(1.0, self.conviction
                               + ideology.Cfg.CONVICTION_FROM_THREAT * threat)
-        self.affinity[spk] = max(-1.0, aff - ideology.Cfg.AFFINITY_SOUR)
+        self.affinity[spk] = max(-1.0, aff - ideology.Cfg.AFFINITY_SOUR * damp)
         self.last_challenge = u.text
         self.last_challenger = spk
         self.speak_urge += 0.5
@@ -512,10 +525,13 @@ class Agent:
             self.belief = u.text                          # and adopt the line that won me
             self.conviction = 0.3
             return
-        # dig in: harden, sour on them, accrue grievance (direct confrontation hurts more)
+        # dig in: harden, sour on them, accrue grievance (direct confrontation hurts more).
+        # compassion damps the souring/grievance (not the conviction) -- warm honesty:
+        # you keep your view but you don't make an enemy of the one who differs.
+        damp = 1.0 - _compassion.HOSTILITY_DAMP * self.compassion
         self.conviction = min(1.0, self.conviction + 0.06)
-        self.affinity[spk] = max(-1.0, aff - 0.12)
-        self.hostility[spk] = self.hostility.get(spk, 0.0) + (1.5 if direct else 1.0)
+        self.affinity[spk] = max(-1.0, aff - 0.12 * damp)
+        self.hostility[spk] = self.hostility.get(spk, 0.0) + (1.5 if direct else 1.0) * damp
         if direct:
             self.last_challenge = u.text
             self.last_challenger = spk
@@ -590,6 +606,14 @@ class Agent:
             proclaim = self._rng.choice(self.faith.fundamentals)
         self._proclaiming = proclaim   # stamped onto the utterance in commit_speech
 
+        # Warm turn: a compassionate soul sometimes drops the big questions and just
+        # CONNECTS with whoever it last heard -- ordinary warmth, not philosophy. This
+        # is the antidote to a world of souls who only ever exposit their meaninglessness.
+        warm_turn = (self.compassion > _compassion.COMPASSION_FLOOR
+                     and not event_text and not proclaim and not introspect
+                     and self.last_heard_from is not None
+                     and self._rng.random() < _compassion.WARMTH_CHANCE)
+
         # Tangent: sometimes drop the thread and speak fresh from your own mind,
         # so the conversation diverges instead of collapsing into one topic.
         tangent = (self.last_heard_text is None
@@ -605,6 +629,11 @@ class Agent:
             # bias recall toward who I've been, so the self coheres on itself
             query = self_mems[0].text
             reply_name = reply_text = addressed = None
+        elif warm_turn:
+            # turn warmly toward whoever just spoke, not to argue but to connect
+            query = self.last_heard_text or self._rng.choice(self.phrases)
+            reply_name, reply_text = self.last_heard_name, self.last_heard_text
+            addressed = self.last_heard_from
         elif tangent:
             # recall biased to THIS agent's theme, not whatever was just heard
             query = self._rng.choice(self.phrases)
@@ -655,6 +684,8 @@ class Agent:
             world_belief=self.world_belief,  # a (maybe false) theory of how the realm works
             role=self.role, task=self.task,  # its trade and the day's work, to ground the talk
             self_model=self.self_model,      # the self it has formed -> speech references who it is
+            compassion=self.compassion,      # metta: meet others warmly, hold view without contempt
+            warm_turn=warm_turn,             # this turn, just connect -- not philosophise
         )
         return ctx, addressed, mood
 

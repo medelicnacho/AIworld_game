@@ -54,6 +54,8 @@ class SpeechContext:
     role: str = ""                                        # the agent's trade in the realm
     task: str = ""                                        # the pressing business of its day
     self_model: str = ""                                  # the self the soul has formed -> speak from it
+    compassion: float = 0.0                               # metta/karuṇā: warm engagement, honour the person even in disagreement
+    warm_turn: bool = False                               # this turn, just connect warmly -- not philosophise or argue
 
 
 def _mood_word(mood: float) -> str:
@@ -162,6 +164,16 @@ def _self_clause(ctx: SpeechContext) -> str:
             "never reciting it. ")
 
 
+def _compassion_clause(ctx: SpeechContext) -> str:
+    """The metta/karuṇā disposition: warm engagement that honours the person even in
+    disagreement, while staying honest (no flattery). The active partner of
+    non-attachment -- without it, equanimity is just indifference."""
+    from agent import compassion as _c   # local import avoids any import-order issue
+    if ctx.compassion <= _c.COMPASSION_FLOOR:
+        return ""
+    return _c.COMPASSION_SYSTEM
+
+
 def build_system(ctx: SpeechContext) -> str:
     """Persona + mood + speaking-style instructions, shared by all backends."""
     if ctx.raw_mind:
@@ -189,7 +201,7 @@ def build_system(ctx: SpeechContext) -> str:
                      "swayed. Weigh what others say against it; where they cut against "
                      "it, push back and argue YOUR side. Never open by saying they are "
                      "right, and do not agree unless you genuinely do. ")
-        return (_work_clause(ctx) + creed + _self_clause(ctx) + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
+        return (_work_clause(ctx) + creed + _self_clause(ctx) + _compassion_clause(ctx) + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
                 "sentences, but the shape of a half-formed thought. Understand what "
                 "they reach toward, then say THAT thought -- the meaning beneath them "
                 "-- in one or two clear sentences, first person, your own voice. "
@@ -234,7 +246,7 @@ def build_system(ctx: SpeechContext) -> str:
         creed = (f"You are utterly convinced of this about how your world works: "
                  f"\"{ctx.world_belief}\". You speak and act from that conviction. ")
     return (
-        f"You are {ctx.name}. {ctx.persona} {_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_stance_clause(ctx)}{creed}"
+        f"You are {ctx.name}. {ctx.persona} {_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_compassion_clause(ctx)}{_stance_clause(ctx)}{creed}"
         f"{_disposition(ctx.mood)} "
         "Speak ALOUD: one or two SHORT sentences -- one clear thought or argument, "
         "not a one-liner but never a speech. ALWAYS finish your sentences; never "
@@ -246,6 +258,10 @@ def build_system(ctx: SpeechContext) -> str:
 
 def build_user(ctx: SpeechContext) -> str:
     """The turn prompt: drift + recollections + whoever just spoke."""
+    if ctx.warm_turn:
+        # drop the big questions for a beat and simply connect (overrides voice mode)
+        from agent import compassion as _c
+        return _c.warm_turn_prompt(ctx.reply_to_name)
     if ctx.raw_mind or ctx.concept_mind:
         # the Markov drift is the material -- raw mode voices it verbatim. concept
         # mode interprets it AND, when someone has just spoken, lets the surfacing
@@ -280,11 +296,16 @@ def build_user(ctx: SpeechContext) -> str:
                      "you long for. First person, as yourself, in fresh words you "
                      "haven't used before.")
     elif ctx.challenge:
-        # someone attacked the agent's core belief -- defend it, don't fold
-        heat = " You feel sharp hostility toward them." if ctx.hostility > 1.0 else ""
-        lines.append(f"Someone challenged what you believe by saying: "
-                     f"\"{ctx.challenge}\".{heat} You are not persuaded. Push back and "
-                     "defend your conviction in your own words.")
+        from agent import compassion as _c
+        if ctx.compassion > _c.COMPASSION_FLOOR:
+            # warm honesty: honour the person AND keep your view -- not contempt, not flattery
+            lines.append(f"Someone said: \"{ctx.challenge}\". " + _c.DISAGREE_WARM)
+        else:
+            # someone attacked the agent's core belief -- defend it, don't fold
+            heat = " You feel sharp hostility toward them." if ctx.hostility > 1.0 else ""
+            lines.append(f"Someone challenged what you believe by saying: "
+                         f"\"{ctx.challenge}\".{heat} You are not persuaded. Push back and "
+                         "defend your conviction in your own words.")
     elif ctx.reply_to_text:
         who = ctx.reply_to_name or "someone"
         lines.append(f"{who} said: \"{ctx.reply_to_text}\". Answer from YOUR OWN "
