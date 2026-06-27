@@ -380,6 +380,30 @@ def draw_world(screen, world, colours, last_line, font, small, backend,
     screen.blit(font.render(hud, True, (150, 150, 160)), (12, 12))
 
 
+def _safe_shutdown() -> None:
+    """Tear down audio + pygame cleanly, then HARD-exit. Skipping the normal interpreter
+    teardown is deliberate: the sim runs on daemon worker threads and the audio path uses
+    C libraries (SDL_mixer / Piper), and letting Python unwind those at exit raised
+    'terminate called without an active exception' (a C++ abort, exit 134/139) every time
+    the window was closed. So we release the audio + display ourselves, give the worker
+    loops a beat to fall out, then os._exit -- nothing half-alive when the process ends."""
+    try:
+        pygame.mixer.music.stop()
+        pygame.mixer.stop()
+    except Exception:  # noqa: BLE001
+        pass
+    time.sleep(0.25)   # let the 'while running.is_set()' worker loops notice and exit
+    try:
+        pygame.mixer.quit()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        pygame.quit()
+    except Exception:  # noqa: BLE001
+        pass
+    os._exit(0)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="gemma3:4b",
@@ -500,8 +524,7 @@ def main() -> None:
     while builder.is_alive():
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE):
-                pygame.quit()
-                return
+                _safe_shutdown()   # close-button / esc during loading: clean hard exit
         screen.fill(BG)
         label = (("summoning the first souls of the Data Realm" + "." * (frame // 8 % 4))
                  if spawn_cast else "waking the world…")
@@ -850,7 +873,7 @@ def main() -> None:
         clock.tick(60)
 
     running.clear()
-    pygame.quit()
+    _safe_shutdown()   # close-button / esc in the world: stop audio, let workers fall out, exit cleanly
 
 
 if __name__ == "__main__":
