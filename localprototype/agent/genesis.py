@@ -194,6 +194,12 @@ def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False) -> None
     agent.ground_enabled = True      # buddha-nature: rest in basic goodness, veiled only by clinging
     agent.bodhicitta = 0.5           # compassion as an aim: proactively turn toward and ease suffering
     agent.prajna = 0.4               # some wisdom: hold self/grievances lightly as empty configurations
+    # a MODEST, VARIED baseline of clinging -- the friction a self loosens. Without any
+    # grip the world rests pre-purified (no clinging to release); with too much it
+    # re-darkens. Varied so souls span a spectrum from grasping to nearly at ease.
+    # Loosened by prajna (effective = grip*(1-prajna)) and veiled-warmth restored by the
+    # ground, so most clinging resolves toward warmth rather than festering.
+    agent.grip = agent._rng.uniform(0.2, 0.5)
     agent.seed_opinion_text(" ".join(ch.lines))   # lexical opinion -> the camp's banner WORD
     # the SIGNED stance that drives bonding: seeded independent of temperament (so
     # factions on it stay emergent, not homophily on disposition), stable per soul.
