@@ -44,6 +44,13 @@ DEFAULT_LIFESPAN = 60   # ticks before death of old age
 # even through grief. (The positive pole as an UNCOVERING, not an addition.)
 BASIC_GOODNESS = 0.4    # the resting warmth the unobscured ground rests in
 GROUND_PULL = 0.5       # how strongly the unobscured ground lifts felt mood toward it
+# Vajrayāna self-liberation (rang drol): a charge recognized as empty AS IT ARISES frees
+# itself before it can be gripped or accrue -- felt for an instant, then gone, like a line
+# drawn on water. Acts at the moment of arising (a fresh memory), distinct from
+# transmutation (which works a HELD charge over time) and release (which lets it fade).
+SELF_LIB_RATE = 0.6     # how strongly a freshly-arisen charge self-frees per tick
+SELF_LIB_FRESH = 3      # how many ticks after arising a charge is still "fresh" enough to self-free
+SELF_LIB_FLOOR = 0.2    # only meaningful charges self-free; trivial ones pass through
 
 # --- emergent opinion dynamics (bounded confidence) ------------------------
 # When an agent carries a belief_vec, bonding stops keying on any ASSIGNED label
@@ -142,6 +149,7 @@ class Agent:
         self.bodhicitta = 0.0                # Mahāyāna: compassion as an AIM -- proactively seek and ease others' suffering
         self.prajna = 0.0                    # Mahāyāna prajñā: see constructs as empty -> the grip loosens at its source
         self.transmute = 0.0                 # Vajrayāna: the grip's energy met and TURNED to clarity (a 3rd path: engaged, unwounded)
+        self.self_liberation = 0.0           # Vajrayāna rang drol: a charge frees itself AS it arises, before it can be gripped
         self._others_mood: dict = {}         # id -> last overheard felt mood (who is suffering)
         self._others_name: dict = {}         # id -> name, for turning toward them
         self.self_model_enabled = False      # Stage-3 toggle: consolidate a self-model (see agent/self_model.py)
@@ -238,6 +246,16 @@ class Agent:
         self.grace = max(0.0, self.grace + (GRACE_FLOOR - self.grace) * GRACE_RELAX)
         self.memory.effectiveness = self.grace
         events = self.memory.tick(now)
+        # self-liberation (rang drol): a charge recognized as empty AS IT ARISES frees
+        # itself before it can be gripped or accrue. It is felt FULLY at the instant of
+        # arising (age 0, full contact -- not suppression) and then dissolves over the next
+        # few ticks, like a line drawn on water. Acts only on FRESH charges, so it never
+        # touches the held charges transmutation/clinging work on.
+        if self.self_liberation > 0.0:
+            for m in self.memory.items:
+                age = now - m.created_tick
+                if 1 <= age <= SELF_LIB_FRESH and abs(m.emotion) > SELF_LIB_FLOOR:
+                    m.emotion *= (1.0 - SELF_LIB_RATE * self.self_liberation)
         # manas: after memory decays, the appropriating grip (if any) holds self-relevant
         # memories against that decay and amplifies aversive ones -- the second arrow.
         # grip 0 (default) is a no-op: the released, non-appropriative regime.
@@ -762,6 +780,7 @@ class Agent:
             bodhicitta_turn=bodhicitta_turn, # this turn, proactively comfort the suffering one
             prajna=self.prajna,              # see the constructs as empty -> hold lightly (not nihilism)
             transmute=self.transmute,        # meet the charge and turn it to clarity (the third path)
+            self_liberation=self.self_liberation,  # a charge frees itself as it arises (like a line on water)
         )
         return ctx, addressed, mood
 

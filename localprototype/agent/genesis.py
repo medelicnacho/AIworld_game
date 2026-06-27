@@ -201,6 +201,7 @@ def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False) -> None
     # ground, so most clinging resolves toward warmth rather than festering.
     agent.grip = agent._rng.uniform(0.2, 0.5)
     agent.transmute = 0.4            # Vajrayāna: meet a charge and turn it to clarity, not only release it
+    agent.self_liberation = 0.4      # Vajrayāna rang drol: let a charge free itself as it arises
     agent.seed_opinion_text(" ".join(ch.lines))   # lexical opinion -> the camp's banner WORD
     # the SIGNED stance that drives bonding: seeded independent of temperament (so
     # factions on it stay emergent, not homophily on disposition), stable per soul.
