@@ -79,6 +79,34 @@ def equanimity_emotion(text: str) -> float:
     return max(-EMOTION_CAP, min(EMOTION_CAP, EMOTION_SCALE * equanimity(text)))
 
 
+# Groundedness: is the line ordinary, concrete, everyday -- or abstract/existential?
+# The recurring failure is souls who only ever philosophise their own meaninglessness;
+# this measures the register so a fix can be verified, not just eyeballed.
+ORDINARY_ANCHORS: list[str] = [
+    "The bread's nearly done; mind the door and pass me that cloth.",
+    "How's your mother keeping? Tell her I've still got her pot.",
+    "The cart wheel cracked again and the market opens at dawn.",
+    "I'm saving for a new roof before the rains come in.",
+]
+EXISTENTIAL_ANCHORS: list[str] = [
+    "The void yawns beneath all things and meaning slowly erodes.",
+    "We are but fleeting echoes in the vast, indifferent dark.",
+    "Existence is a quiet ache, a slow dissolution of the self.",
+    "Time devours everything; nothing endures, all is impermanence.",
+]
+
+
+def groundedness(text: str) -> float:
+    """> 0 when a line is ordinary/concrete/everyday, < 0 when it is abstract or
+    existential. Semantic, so it reads register independent of exact words."""
+    if not text:
+        return 0.0
+    from services.embed import score   # local import avoids an import cycle
+    ord_ = max((score(text, a) for a in ORDINARY_ANCHORS), default=0.0)
+    exi = max((score(text, a) for a in EXISTENTIAL_ANCHORS), default=0.0)
+    return ord_ - exi
+
+
 def warmth(text: str) -> float:
     """How a line sits toward ANOTHER self: > 0 warm/loving/trusting, < 0
     cold/hostile/wounded, ~0 neutral. Semantic, so it reads warmth carried with no

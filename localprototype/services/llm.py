@@ -422,10 +422,10 @@ class MockLLM:
                                  "Sable", "Orin", "Nyx", "Pell", "Liri", "Senna"])
         temp = round(self._rng.uniform(-1.0, 1.0), 2)
         themes = self._rng.sample(
-            ["the tide remembers", "old stone keeps its silence", "grey light at the edge",
-             "a slow hunger underneath", "dying embers and ash", "deep roots in the dark",
-             "the humming of the machine", "salt and rust on the wind",
-             "falling snow erases all", "a locked door nobody opens"], 6)
+            ["I mind the morning bread", "the wool's dear this season", "my neighbour's geese again",
+             "I'm saving for a better roof", "the festival's coming up", "my apprentice is clumsy",
+             "a good haggle at market", "the cart wheel wants mending",
+             "my mother's old recipe", "the long walk to the well"], 6)
         return f"NAME: {name}\nNATURE: {temp}\nVOICE:\n" + "\n".join(themes)
 
 

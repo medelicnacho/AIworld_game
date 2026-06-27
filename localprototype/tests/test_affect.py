@@ -63,3 +63,13 @@ def test_warmth_ranks_love_above_rejection():
     love = affect.warmth("I care about you deeply and I trust you completely.")
     cold = affect.warmth("I despise you and you are nothing to me now.")
     assert love > cold
+
+
+def test_groundedness_empty_is_zero():
+    assert affect.groundedness("") == 0.0
+
+
+def test_groundedness_ranks_ordinary_above_existential():
+    ordinary = affect.groundedness("Mind the bread and pass me that cloth, the market opens at dawn.")
+    cosmic = affect.groundedness("We are fleeting echoes in the void, and meaning slowly erodes.")
+    assert ordinary > cosmic

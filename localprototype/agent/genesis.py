@@ -19,37 +19,44 @@ from dataclasses import dataclass, field
 
 from services.llm import sanitize
 
-GEN_SYSTEM = ("You invent vivid, distinct PEOPLE -- each a whole soul with its own "
-              "name, history, APPETITES, CONVICTIONS, joys AND wounds. A person with "
-              "opinions and desires, who wants things and believes things -- not just "
-              "a grieving mood. Write in first person. Avoid clichés of rust, gears, "
-              "grey machinery, and do not make every soul defined by loss.")
-# Each soul is anchored to a DIFFERENT preoccupation, sampled without replacement,
-# so six independent generations don't all collapse into the same aesthetic.
+GEN_SYSTEM = ("You invent vivid, distinct, ORDINARY PEOPLE -- working folk of a small "
+              "town, each with a name, a trade, appetites, opinions, small joys and "
+              "gripes, and neighbours they like and dislike. Real people talking about "
+              "real daily life -- their work, their family, the market, the weather, who "
+              "owes whom, who they're sweet on -- NOT philosophers. Write in first "
+              "person, plain everyday speech. AVOID grand or cosmic themes; avoid talk of "
+              "the void, meaning, eternity, the soul, or the slow dissolution of the "
+              "self. Keep it concrete and human. Do not make them sad or defined by loss "
+              "-- most people are just getting on with their day.")
+# Each soul is anchored to a DIFFERENT everyday preoccupation, sampled without
+# replacement, so independent generations diverge -- and stay GROUNDED in ordinary
+# working life rather than collapsing into existential brooding.
 SEED_CONCEPTS = [
-    "the sea and what it swallows", "fire, and what it purifies or destroys",
-    "growing things, blossom and rot", "hunger and appetite", "memory and forgetting",
-    "war and the quiet after the bodies", "love and its small betrayals",
-    "the stars and unbearable distance", "stone, weight, and patience",
-    "music, rhythm, and silence", "money, debt, and what a life is worth",
-    "the body and its slow decay", "language, naming, and lies",
-    "children, lineage, and inheritance", "the hunt, predator and prey",
-    "dreams and the dread of waking", "borders, trespass, and belonging",
-    "faith and the silence of any god", "the desert, thirst, and mirage",
-    "gardens, tending, and what won't grow",
+    "pride in a craft done better than anyone else's", "a rivalry with another tradesperson",
+    "a debt being slowly worked off", "courting someone, or an unspoken crush",
+    "a stubborn animal or tool that won't cooperate", "feeding a family through a lean season",
+    "a feud with a neighbour over a boundary or a fence", "ambition to grow the business and earn a name",
+    "the festival or market day they're nervously preparing for", "a recipe or technique they're perfecting",
+    "raising a child or a clumsy apprentice", "a small vice -- drink, gambling, gossip, sweets",
+    "saving up for something specific (a boat, a roof, a ring)", "what the neighbours think of them",
+    "a friendship that's drifting, or mending", "wanting to be better at the trade than their parent was",
+    "a long-running joke or grudge in the town", "the weather wrecking or blessing the work",
+    "a deal that went sour at market", "homesickness, or itching to see another town",
 ]
 GEN_PROMPT = (
-    "Invent ONE person -- the {role} of a small realm, whose life was also shaped "
-    "by: {concept}. Give them a real past AND a working life, not just a mood. "
-    "Reply in EXACTLY this format and nothing else:\n"
-    "NAME: <a single evocative first name, fitting this person>\n"
-    "NATURE: <one number from -1.0 (bleak, heavy) to 1.0 (warm, bright)>\n"
+    "Invent ONE ordinary person -- the {role} of a small town -- whose life right now "
+    "turns around: {concept}. Reply in EXACTLY this format and nothing else:\n"
+    "NAME: <a single plain first name>\n"
+    "NATURE: <one number from -1.0 to 1.0; most ordinary people sit around 0 to 0.6, "
+    "not bleak>\n"
     "SELF:\n"
-    "<six to eight FIRST-PERSON lines that make a WHOLE, WORKING person: where I "
-    "came from, MY CRAFT as the {role} and what I want from it, a BELIEF or opinion "
-    "I hold strongly (about my work or the world), what I LOVE, a delight or a "
-    "grievance. Concrete and grounded in the trade, not only inner mood. Each line "
-    "begins with 'I'. A real person with a job, not a floating sorrow.>")
+    "<six to eight FIRST-PERSON lines of a real working person: what I do each day as "
+    "the {role}; who I deal with (name a neighbour, a rival, a child); what I WANT this "
+    "season; a strong opinion I firmly believe about my work or how things should be "
+    "done; one small JOY and one small GRIPE. Concrete and everyday -- the bread, the "
+    "wall, the goat, the debt, the festival -- NOT inner mood or grand statements. Each "
+    "line begins with 'I'. A neighbour you could chat with over a fence, not a poet "
+    "brooding on existence.>")
 
 # A small realm's division of labour. Each role has its own vocabulary and its own
 # concerns, so souls talk about DIFFERENT things -- which is what lets factions form
@@ -84,11 +91,11 @@ ROLES = [
 
 NAMES = ["Vesper", "Toll", "Cael", "Mara", "Juno", "Bram", "Sable", "Orin", "Nyx",
          "Pell", "Liri", "Senna", "Corvin", "Dax", "Isolde", "Reyn"]
-_THEMES = ["the tide remembers everything", "old stone keeps its silence",
-           "grey light at the edge of things", "a slow hunger underneath",
-           "dying embers and ash", "deep roots in the dark",
-           "the humming of the machine", "salt and rust on the wind",
-           "falling snow erases all", "a locked door nobody opens"]
+_THEMES = ["the morning bread and who's late for it", "the price of wool this season",
+           "my neighbour's noisy geese again", "saving up for a better roof",
+           "the festival coming up fast", "my apprentice's clumsy hands",
+           "a good haggle at the market", "the cart wheel I keep mending",
+           "my mother's old recipe", "the long walk to the well"]
 
 
 @dataclass
