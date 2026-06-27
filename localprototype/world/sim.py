@@ -33,6 +33,7 @@ MATURITY = (500, 800)         # a newborn must live this long before it can bree
 # the gap (santana: identity-less causal continuity); population is conserved;
 # nothing leaves the wheel except by an intrusion from outside the physics.
 BARDO_TICKS = (20, 45)        # dissolution interval between a death and re-coalescing
+BOND_VASANA_THRESHOLD = 0.2   # only bonds at least this strong leave a trace across death
 DEFAULT_POP_CAP = 10 ** 9     # effectively no cap; the viewer sets a real one
 # subconscious murmur: agents occasionally mutter their Markov drift, which seeps
 # into nearby minds' memory -> their thought -> their drift (a shared subconscious)
@@ -71,6 +72,9 @@ class World:
         self.bardo_ticks = BARDO_TICKS
         self.vasana_noise = 0.06
         self.reborn_prebond = 0.0
+        # how much of a strong bond's trust survives the bardo as a faint leaning in
+        # the reborn stream (0 = love does not survive death; 0.5 = half, faded)
+        self.bond_vasana = 0.5
         self.recent: list[str] = []   # rolling buffer of the last things said
         # Space. Off by default so headless/text runs and tests are unchanged.
         # When on, agents drift each tick under social forces (toward kin, away
@@ -218,12 +222,21 @@ class World:
         seeds = [f for f in soul.thought.drift if f][-5:]
         if not seeds:                              # fall back to faint memory fragments
             seeds = [m.text for m in soul.memory.recall(k=3)]
+        # A bond-trace may cross too: not the memory of WHOM, but a residual leaning
+        # toward (or away from) those the dead soul felt strongly about -- love as a
+        # karmic tendency (vasana), not autobiography. Only strong bonds leave a
+        # trace; faint ones dissolve completely. Carried per-target id, so it only
+        # resolves if that other is still alive when the new stream wakes.
+        bond_trace = ({tid: b.trust for tid, b in soul.bonds.items()
+                       if abs(b.trust) >= BOND_VASANA_THRESHOLD}
+                      if (self.bond_vasana > 0 and soul.bond_enabled) else {})
         self._bardo.append({
             "seeds": seeds,
             "belief_vec": list(soul.belief_vec) if soul.belief_vec is not None else None,
             "stance_vec": list(soul.stance_vec) if soul.stance_vec is not None else None,
             "temperament": max(-1.0, min(1.0, soul.temperament + self._rng.uniform(-0.25, 0.25))),
             "position": soul.position,
+            "bonds": bond_trace,
             "countdown": self._rng.randint(*self.bardo_ticks),
             "lifespan": soul.lifespan,   # the new stream lives on the lineage's scale
         })
@@ -283,6 +296,19 @@ class World:
             snoise = [self._rng.gauss(0.0, self.vasana_noise) for _ in entry["stance_vec"]]
             a.stance_vec = _normalize([v + n for v, n in zip(entry["stance_vec"], snoise)])
         a.introspect_chance = 0.25
+        # Does love survive death? A faded bond-trace toward those still living wakes
+        # in the new stream as a leaning with no history and no wounds -- it is drawn
+        # to (or wary of) someone it cannot remember ever knowing. Anatta: the self is
+        # gone, the tendency persists. One-directional (the other does not know).
+        if entry.get("bonds"):
+            from agent.bond import Bond
+            a.bond_enabled = True
+            living = {x.id for x in self.agents}   # a not appended yet
+            for tid, trust in entry["bonds"].items():
+                if tid in living:
+                    faded = trust * self.bond_vasana
+                    if abs(faded) >= 0.01:
+                        a.bonds[tid] = Bond(trust=faded)
         self.agents.append(a)
         self._prebond(a)   # optionally born already bonded into its opinion-camp
         self.bus.publish("rebirth", sid)

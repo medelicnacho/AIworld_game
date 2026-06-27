@@ -106,3 +106,34 @@ def test_hear_no_bond_when_disabled():
     a.hear(Utterance(speaker_id="b", text="hi", tick=1, source="ai", mood=0.6),
            now=1, speaker_name="B")
     assert a.bonds == {}           # opt-in: off by default, graph untouched
+
+
+def _bardo_world(vasana: float):
+    from world.sim import World
+    w = World(rebirth_enabled=True)
+    w.llm = MockLLM(seed=1)
+    w.bond_vasana = vasana
+    w.bardo_ticks = (1, 1)          # dissolve and re-coalesce within one step
+    a = Agent("A", "A", (0, 0), "p", ["x"], w.llm, seed=1)
+    b = Agent("B", "B", (0, 0), "p", ["y"], w.llm, seed=2)
+    a.bond_enabled = True
+    w.add(a); w.add(b)
+    for _ in range(12):
+        a.bonds.setdefault("B", Bond()).warm()
+    a.age, a.lifespan = 0, 1         # A dies this step
+    w.step()
+    return [x for x in w.agents if x.id.startswith("stream:")]
+
+
+def test_love_survives_death_as_faded_trace():
+    streams = _bardo_world(0.5)
+    assert streams, "a stream should have been reborn"
+    trace = streams[0].bonds.get("B")
+    assert trace is not None and trace.trust > 0.1   # drawn to B...
+    assert trace.history == 0.0 and trace.wounds == 0  # ...but with no memory of whom
+
+
+def test_no_bond_trace_when_vasana_zero():
+    streams = _bardo_world(0.0)
+    assert streams
+    assert streams[0].bonds.get("B") is None          # love does not cross when off

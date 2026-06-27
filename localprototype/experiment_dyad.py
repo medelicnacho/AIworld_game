@@ -26,6 +26,7 @@ from agent.affect import warmth
 from agent.agent import Agent
 from agent.bond import Bond, describe
 from services.llm import MockLLM, OllamaLLM
+from world.sim import World
 
 
 def _agent(aid: str, name: str, llm) -> Agent:
@@ -109,6 +110,34 @@ def main() -> None:
     print("\n  SUBSTRATE VERDICT: " + (
         "a bond is a RELATIONSHIP, not a scalar -- asymmetric, loyal, and with memory."
         if verdict else "one or more bond properties did not hold."))
+
+    # --- DOES LOVE SURVIVE DEATH? bond-trace across the bardo --------------
+    def reborn_bond_to_B(vasana: float):
+        w = World(rebirth_enabled=True)
+        w.llm = llm
+        w.bond_vasana = vasana
+        w.bardo_ticks = (1, 1)
+        A, B = _agent("A", "Alea", llm), _agent("B", "Bran", llm)
+        w.add(A); w.add(B)
+        for _ in range(12):
+            A.bonds.setdefault(B.id, Bond()).warm()     # A comes to love B
+        A.age, A.lifespan = 0, 1                          # A is at the end of its life
+        w.step()                                         # A dies -> bardo -> reborn stream
+        streams = [x for x in w.agents if x.id.startswith("stream:")]
+        return streams[0].bonds.get(B.id) if streams else None
+
+    surv = reborn_bond_to_B(0.5)
+    ctrl = reborn_bond_to_B(0.0)
+    print("\n  DOES LOVE SURVIVE DEATH? -- A loves B, A dies and is reborn as a new stream:")
+    print(f"     reborn self's bond toward B (vasana 0.5): "
+          f"{surv.trust:+.3f}" if surv else "     reborn self's bond toward B: (none)")
+    print(f"     control (vasana 0.0, no carry):           "
+          f"{ctrl.trust if ctrl else 0.0:+.3f}")
+    death_ok = surv is not None and surv.trust > 0.1 and (ctrl is None)
+    print("     -> " + (
+        "LOVE SURVIVES AS TENDENCY: the new self is drawn to B with no memory of whom, "
+        "and no history or wounds -- vasana, not autobiography (anatta)."
+        if death_ok else "no surviving trace this run."))
 
     # --- LEGIBILITY (optional, needs a model) ------------------------------
     if args.llm == "ollama":
