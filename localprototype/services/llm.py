@@ -53,6 +53,7 @@ class SpeechContext:
     world_belief: str = ""                                # a causal THEORY the agent holds about how the realm works
     role: str = ""                                        # the agent's trade in the realm
     task: str = ""                                        # the pressing business of its day
+    self_model: str = ""                                  # the self the soul has formed -> speak from it
 
 
 def _mood_word(mood: float) -> str:
@@ -150,6 +151,17 @@ def _stance_clause(ctx: SpeechContext) -> str:
             "never just name it). ")
 
 
+def _self_clause(ctx: SpeechContext) -> str:
+    """Feed the soul's own self-model back into its prompt, so its speech references
+    the self it has formed (the perpetual self-referential loop). Soft -- evoke who
+    you are, never recite the line -- so small models don't parrot it verbatim."""
+    if not ctx.self_model:
+        return ""
+    return (f"You have come to understand yourself as: \"{ctx.self_model}\". Let this "
+            "sense of who you are colour what you say -- speak from it, in fresh words, "
+            "never reciting it. ")
+
+
 def build_system(ctx: SpeechContext) -> str:
     """Persona + mood + speaking-style instructions, shared by all backends."""
     if ctx.raw_mind:
@@ -177,7 +189,7 @@ def build_system(ctx: SpeechContext) -> str:
                      "swayed. Weigh what others say against it; where they cut against "
                      "it, push back and argue YOUR side. Never open by saying they are "
                      "right, and do not agree unless you genuinely do. ")
-        return (_work_clause(ctx) + creed + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
+        return (_work_clause(ctx) + creed + _self_clause(ctx) + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
                 "sentences, but the shape of a half-formed thought. Understand what "
                 "they reach toward, then say THAT thought -- the meaning beneath them "
                 "-- in one or two clear sentences, first person, your own voice. "
@@ -222,7 +234,7 @@ def build_system(ctx: SpeechContext) -> str:
         creed = (f"You are utterly convinced of this about how your world works: "
                  f"\"{ctx.world_belief}\". You speak and act from that conviction. ")
     return (
-        f"You are {ctx.name}. {ctx.persona} {_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_stance_clause(ctx)}{creed}"
+        f"You are {ctx.name}. {ctx.persona} {_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_stance_clause(ctx)}{creed}"
         f"{_disposition(ctx.mood)} "
         "Speak ALOUD: one or two SHORT sentences -- one clear thought or argument, "
         "not a one-liner but never a speech. ALWAYS finish your sentences; never "
@@ -378,6 +390,12 @@ class MockLLM:
                 "There is sorrow here, yet I hold it gently, and a quiet calm remains.",
                 "I feel the heaviness, and I let it be soft -- it is here, and so am I.",
                 "The grief moves through me like weather; I meet it with a gentle peace.",
+            ])
+        if "who you have become" in system:   # the self-model consolidation
+            return self._rng.choice([
+                "I am someone learning to carry loss without being ruled by it.",
+                "I am becoming quieter and steadier, shaped by the work I tend each day.",
+                "I am a person who holds to small warmths against the dark.",
             ])
         name = self._rng.choice(["Vesper", "Toll", "Cael", "Mara", "Juno", "Bram",
                                  "Sable", "Orin", "Nyx", "Pell", "Liri", "Senna"])

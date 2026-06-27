@@ -182,6 +182,7 @@ def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False) -> None
         agent.memory.write(ln, tick=tick, source="self", speaker_id=agent.id, weight=1.4)
     agent.introspect_chance = 0.25   # speaks of itself sometimes, but mostly engages others
     agent.bond_enabled = True        # form dyadic bonds toward other souls (relate, not just cluster)
+    agent.self_model_enabled = True  # consolidate a self-model and speak from it (perpetual self-reference)
     agent.seed_opinion_text(" ".join(ch.lines))   # lexical opinion -> the camp's banner WORD
     # the SIGNED stance that drives bonding: seeded independent of temperament (so
     # factions on it stay emergent, not homophily on disposition), stable per soul.

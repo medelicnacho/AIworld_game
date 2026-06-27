@@ -128,6 +128,9 @@ class Agent:
         self.reflect_enabled = False         # Stage-1 lab toggle: run reflect() (relate to own memory)
         self.bond_enabled = False            # Stage-2 toggle: keep dyadic Bonds (relate to other selves)
         self.bonds: dict = {}                # directional bonds toward other selves (see agent/bond.py)
+        self.self_model_enabled = False      # Stage-3 toggle: consolidate a self-model (see agent/self_model.py)
+        self.self_model = ""                 # the soul's current re-derived sense of who it is
+        self.self_model_history: list[str] = []   # successive self-models, for coherence/drift measurement
         self.banner = ""                     # emergent: my camp's rallying word (set by World.update_camps)
         self.rival_banner = ""               # emergent: the opposing camp's word, to lean against
         self.introspect_chance = INTROSPECT_CHANCE   # how often it turns inward to speak of itself
@@ -644,6 +647,7 @@ class Agent:
             stance_lean=_stance.describe(self.stance_vec) if self.stance_vec is not None else "",
             world_belief=self.world_belief,  # a (maybe false) theory of how the realm works
             role=self.role, task=self.task,  # its trade and the day's work, to ground the talk
+            self_model=self.self_model,      # the self it has formed -> speech references who it is
         )
         return ctx, addressed, mood
 
