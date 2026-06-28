@@ -70,6 +70,26 @@ reflection groundedness −0.23 → −0.09, equanimity kept. Warm-**ordinary**,
 contemplative — important so Santāna, if ever built, isn't a cool removed Mind.
 (Grounding depends on the self having concrete life material; a thin seed grounds less.)
 
+### Joy — flourishing, not only suffering well (done)
+The whole build modelled dukkha and its cessation; the answer kept being equanimity/
+release. But a self that can only suffer *well* never simply flourishes. Joy is the
+complement — the missing fourth brahmavihāra (muditā) and savouring (pīti) — built with
+the same shape as everything else: **delight WITH non-grasping** (the near enemy of joy is
+craving/rāga, the hedonic treadmill).
+- **Savouring** (`agent/joy.py`, `Agent.joy`): a pleasant charge is *held* so the good
+  lands, lasts, and lifts mood — received, not amplified into wanting-more (the positive
+  mirror of the grip's second arrow).
+- **Craving** near-enemy (`agent/manas.py`): a clutching grip without joy *drains* a
+  pleasant charge — having a thing isn't enjoying it.
+- **Muditā** (`joy.rejoice_prompt`): the bright mirror of bodhicitta — turn to a
+  *flourishing* soul and rejoice *with* them.
+- Falsifier `experiment_joy.py`: savouring is the only config where the good lands & lasts,
+  lifts, and stays undrained — vs anhedonia (fades unfelt) and craving (clutched, soured).
+- Wired into the `Liberated` (and `Joyful`) archetypes, so the inhabitable self can have
+  *good days*, not only well-met bad ones. **Honest gap:** joy lands clearly in the
+  substrate and in *dialogue* (muditā verified live); the *solitary savouring-reflection*
+  voice still tends melancholy (the recurring contemplative-register weak spot).
+
 ### Phase 2 — make it a Path, not a setting (this is Stage B)
 Hard-coded bliss is a lie and brittle. Let a soul/lineage *move* toward the
 regime over a life and across rebirths (the karma-seeds already plant it).

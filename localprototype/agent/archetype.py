@@ -40,6 +40,7 @@ class Archetype:
     style: str                  # the voice -- HOW it speaks (fed to the prompt)
     stance: tuple               # the value lean over the five contested axes
     grounded: bool = False      # speak in a plain, concrete, everyday register (not lofty-existential)
+    joy: float = 0.0            # muditā/pīti: savour the good, rejoice in others' good fortune
 
 
 ARCHETYPES: list[Archetype] = [
@@ -72,7 +73,8 @@ ARCHETYPES: list[Archetype] = [
               transmute=0.8, self_liberation=0.7, temperament=0.6,
               style=("You speak brightly and playfully, quick to delight in small, ordinary "
                      "things."),
-              stance=(-0.3, -1.0, -0.8, 0.5, -0.4)),      # wildness, the made (create)
+              stance=(-0.3, -1.0, -0.8, 0.5, -0.4),       # wildness, the made (create)
+              joy=0.85),                                   # savours the good, rejoices with others
 ]
 
 # The Liberated / bodhisattva -- the dharmic ANSWER, not part of the saṃsāra cast rotation
@@ -92,7 +94,8 @@ LIBERATED = Archetype(
            "real and down-to-earth. You meet joy and sorrow alike without clinging to "
            "either, but you say it plainly, never in lofty or abstract language."),
     stance=(-0.5, -0.2, -0.2, 0.7, -0.7),    # surrender, mercy, the many over self
-    grounded=True)                            # plain-spoken, not the contemplative-existential register
+    grounded=True,                            # plain-spoken, not the contemplative-existential register
+    joy=0.8)                                  # savours the good and rejoices with others -- good days, not just well-met bad ones
 
 BY_NAME = {a.name: a for a in (*ARCHETYPES, LIBERATED)}
 
@@ -107,6 +110,7 @@ def apply(agent, arch: Archetype) -> None:
     agent.bodhicitta = arch.bodhicitta
     agent.transmute = arch.transmute
     agent.self_liberation = arch.self_liberation
+    agent.joy = arch.joy
     agent.temperament = arch.temperament
     agent.style = arch.style
     agent.ground_enabled = True

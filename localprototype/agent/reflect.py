@@ -37,7 +37,8 @@ GROUNDED_REFLECT_SYSTEM = (
 )
 
 
-def build_prompt(name: str, mood: float, memories: list[str], grounded: bool = False) -> str:
+def build_prompt(name: str, mood: float, memories: list[str], grounded: bool = False,
+                 joyful: bool = False) -> str:
     body = "\n".join(f"- {m}" for m in memories)
     base = (
         f"You are {name}. Right now you feel {_mood_word(mood)}. These are most "
@@ -45,6 +46,11 @@ def build_prompt(name: str, mood: float, memories: list[str], grounded: bool = F
         "sentences, observe what is here in you and how you are holding it -- name "
         "the feeling and let it be, neither denying it nor drowning in it. "
     )
+    # A joyful self does not turn every reflection into wistful acceptance: if what is most
+    # alive is GOOD, it savours it and lets itself be glad (muditā/pīti), not only equanimous.
+    if joyful:
+        base += ("If what is most alive in you right now is GOOD, do not merely observe it -- "
+                 "savour it and let yourself feel the gladness of it, fully. ")
     if grounded:
         return base + ("Say it plainly, in ordinary everyday words about your real life and the "
                        "people and things in it -- no abstract or cosmic language ('void', "
@@ -67,7 +73,9 @@ def reflect(agent, llm, now: int, k: int = 4):
         return None
     mems = sorted(lived, key=lambda m: m.salience, reverse=True)[:k]
     grounded = getattr(agent, "grounded_voice", False)
-    prompt = build_prompt(agent.name, agent.felt_mood(), [m.text for m in mems], grounded=grounded)
+    joyful = getattr(agent, "joy", 0.0) > 0.3      # a joyful self may savour, not only accept
+    prompt = build_prompt(agent.name, agent.felt_mood(), [m.text for m in mems],
+                          grounded=grounded, joyful=joyful)
     system = GROUNDED_REFLECT_SYSTEM if grounded else REFLECT_SYSTEM
     try:
         raw = llm.generate(prompt, system=system, num_predict=90, temperature=0.7)
@@ -86,6 +94,14 @@ def reflect(agent, llm, now: int, k: int = 4):
     from agent import affect
     from services import embed
     emo = affect.equanimity_emotion(text) if embed.using_embeddings() else 0.0
+    # ...but a JOYFUL self savouring a good day should imprint that GLADNESS, not be flattened
+    # to neutral (equanimity reads acceptance-of-difficulty, ~0 for plain delight). So when the
+    # reflection is positive, let its valence lift the imprint -- gladness deepens good mood, the
+    # bright counterpart of equanimity soothing grief. (max: a grief reflection, valence<0, keeps
+    # the equanimity soothing; only genuine gladness raises it.)
+    if joyful:
+        from agent.memory import valence
+        emo = max(emo, valence(text))
     # written like a self-statement: it is the agent's own, it counts toward mood
     # (mood() excludes only doctrine), and it feeds the next tick's drift.
     agent.memory.write(text, tick=now, source="reflection",

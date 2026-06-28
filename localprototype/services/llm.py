@@ -59,6 +59,8 @@ class SpeechContext:
     de_escalate: bool = False                             # the room has turned cutting -- be the peacemaker, not a combatant
     bodhicitta: float = 0.0                               # the orienting aim to ease all beings' suffering
     bodhicitta_turn: bool = False                         # this turn, proactively turn to comfort the suffering one
+    joy: float = 0.0                                      # muditā/pīti: savour the good, rejoice in others' good fortune
+    mudita_turn: bool = False                             # this turn, proactively rejoice WITH the flourishing one
     prajna: float = 0.0                                   # wisdom: see constructs as empty configurations, hold them lightly
     transmute: float = 0.0                                # meet a charged feeling's energy and turn it to clarity (not suppress, not indulge)
     self_liberation: float = 0.0                          # a feeling recognized as empty frees itself as it arises (like a line on water)
@@ -244,6 +246,13 @@ def _grounded_clause(ctx: SpeechContext) -> str:
     return GROUNDED_VOICE if ctx.grounded_voice else ""
 
 
+def _joy_clause(ctx: SpeechContext) -> str:
+    """Muditā/pīti: a joyful soul savours the good and rejoices in others' good fortune -- the
+    fourth brahmavihāra, so the self can flourish, not only suffer well."""
+    from agent import joy as _j
+    return _j.JOY_SYSTEM if ctx.joy > _j.MUDITA_FLOOR else ""
+
+
 def build_system(ctx: SpeechContext) -> str:
     """Persona + mood + speaking-style instructions, shared by all backends."""
     if ctx.raw_mind:
@@ -273,7 +282,7 @@ def build_system(ctx: SpeechContext) -> str:
                      "right, and do not agree unless you genuinely do. ")
         clauses = (((ctx.style + " ") if ctx.style else "") + ((ctx.stakes + " ") if ctx.stakes else "")
                    + _work_clause(ctx) + creed + _self_clause(ctx) + _compassion_clause(ctx)
-                   + _prajna_clause(ctx) + _transmute_clause(ctx) + _selflib_clause(ctx)
+                   + _joy_clause(ctx) + _prajna_clause(ctx) + _transmute_clause(ctx) + _selflib_clause(ctx)
                    + _stance_clause(ctx) + _grounded_clause(ctx))
         opening = ("The fragments below are surfacing in your mind -- not sentences, but the "
                    "shape of a half-formed thought. ")
@@ -327,7 +336,7 @@ def build_system(ctx: SpeechContext) -> str:
         creed = (f"You are utterly convinced of this about how your world works: "
                  f"\"{ctx.world_belief}\". You speak and act from that conviction. ")
     return (
-        f"You are {ctx.name}. {ctx.persona} {((ctx.stakes + ' ') if ctx.stakes else '')}{_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_compassion_clause(ctx)}{_prajna_clause(ctx)}{_transmute_clause(ctx)}{_selflib_clause(ctx)}{_stance_clause(ctx)}{_grounded_clause(ctx)}{creed}"
+        f"You are {ctx.name}. {ctx.persona} {((ctx.stakes + ' ') if ctx.stakes else '')}{_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_compassion_clause(ctx)}{_joy_clause(ctx)}{_prajna_clause(ctx)}{_transmute_clause(ctx)}{_selflib_clause(ctx)}{_stance_clause(ctx)}{_grounded_clause(ctx)}{creed}"
         f"{_disposition(ctx.mood)} "
         "Speak ALOUD: one or two SHORT sentences -- one clear thought or argument, "
         "not a one-liner but never a speech. ALWAYS finish your sentences; never "
@@ -343,6 +352,10 @@ def build_user(ctx: SpeechContext) -> str:
         # proactively turn to comfort the suffering one (overrides voice mode)
         from agent import compassion as _c
         return _c.comfort_prompt(ctx.reply_to_name, grounded=ctx.grounded_voice)
+    if ctx.mudita_turn:
+        # proactively turn to rejoice WITH the flourishing one (overrides voice mode)
+        from agent import joy as _j
+        return _j.rejoice_prompt(ctx.reply_to_name) + (" " + GROUNDED_VOICE if ctx.grounded_voice else "")
     if ctx.de_escalate:
         # the room has turned cutting -- a compassionate soul cools it (overrides voice mode)
         from agent import compassion as _c

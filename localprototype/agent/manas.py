@@ -30,6 +30,7 @@ from __future__ import annotations
 
 HOLD = 0.05          # how hard the grip resists a self-relevant memory's decay (per tick)
 AMP = 0.03           # how fast it amplifies an aversive self-relevant memory's charge
+CRAVE = 0.04         # rāga: how fast clutching a PLEASANT charge drains its sweetness (the treadmill)
 TRANSMUTE_RATE = 0.15  # Vajrayāna: how fast the grip's energy METABOLIZES the charge to clarity
 SELF_SOURCES = {"self", "reflection"}   # the soul's own self-statements are self-relevant by origin
 
@@ -100,5 +101,11 @@ def apply(agent, now: int) -> None:
             else:
                 # SECOND ARROW: aversive self-relevant tone magnified by being gripped as mine
                 m.emotion = max(-1.0, m.emotion * (1.0 + g * r * AMP))
-        # a pleasant charge under transmutation is simply SAVORED -- held (salience) and
-        # appreciated as warmth rather than craved; nothing to amplify (rāga -> discernment).
+        elif m.emotion > 0.0:
+            # a PLEASANT charge. Under transmutation (or joy) it is simply SAVORED -- held and
+            # received as warmth, nothing to grasp. But a bare clutching grip CRAVES it (rāga):
+            # clinging to the good as "mine to keep" drains its present sweetness -- the hedonic
+            # treadmill, where having a thing is not the same as enjoying it.
+            jo = getattr(agent, "joy", 0.0)
+            if tr <= 0.0 and jo <= 0.0:
+                m.emotion = max(0.0, m.emotion * (1.0 - g * r * CRAVE))

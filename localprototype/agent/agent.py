@@ -15,6 +15,7 @@ import random
 from agent import belief as _belief
 from agent import stance as _stance
 from agent import compassion as _compassion
+from agent import joy as _joy_mod
 from agent import ideology
 from agent.doctrine import DOCTRINES, creator_stance
 from agent.memory import MemoryStore
@@ -151,6 +152,8 @@ class Agent:
         self.transmute = 0.0                 # Vajrayāna: the grip's energy met and TURNED to clarity (a 3rd path: engaged, unwounded)
         self.self_liberation = 0.0           # Vajrayāna rang drol: a charge frees itself AS it arises, before it can be gripped
         self.grounded_voice = False          # speak plainly/concretely (ordinary register), not abstract-existential -- set by the Liberated regime
+        self.cultivate_enabled = False        # Stage B (the Path): let practice groove the faculties over a life (bhāvanā); 0 = off
+        self.joy = 0.0                        # muditā/pīti: savour the good (receive it fully, let it pass); 0 = off (anhedonic default)
         self.stores = 1.0                    # Stage-A stakes: this soul's provisions (consumed, worked for, shared, hoarded, lost)
         self.wellbeing = 1.0                 # stakes: how the soul is faring -- drops with scarcity/hardship, the real dukkha
         self._last_action = None             # stakes: the action it took last tick (work/share/hoard/tend)
@@ -266,6 +269,16 @@ class Agent:
         if self.grip > 0.0:
             from agent import manas
             manas.apply(self, now)
+        # joy (muditā/pīti): savour the good -- hold pleasant charges so they land and lift
+        # mood, received not grasped. The positive complement to the grip; off by default.
+        if self.joy > 0.0:
+            from agent import joy as _joy
+            _joy.apply(self, now)
+        # the Path (bhāvanā): recent practice -- how the soul has been meeting its own mind --
+        # slowly grooves its faculties toward freedom or clinging. Off by default.
+        if self.cultivate_enabled:
+            from agent import path
+            path.cultivate(self, now)
         if self.cooldown > 0:
             self.cooldown -= 1
         # subconscious bias: when hostility runs high the drift leans hostile, so
@@ -702,6 +715,19 @@ class Agent:
                 suffer_id, suffer_name = sid, self._others_name.get(sid, sid)
                 warm_turn = False
 
+        # Muditā: sympathetic joy -- the bright mirror of bodhicitta. A joyful soul proactively
+        # turns toward a soul who is FLOURISHING and rejoices WITH them (no envy, no turning it
+        # back on itself). So the cast can celebrate, not only console.
+        mudita_turn = False
+        glad_id = glad_name = None
+        if (self.joy > _joy_mod.MUDITA_FLOOR and self._others_mood and not event_text
+                and not proclaim and not de_escalate and not bodhicitta_turn):
+            gid, gm = max(self._others_mood.items(), key=lambda kv: kv[1])
+            if gm > _joy_mod.GOOD_MOOD and self._rng.random() < _joy_mod.MUDITA_CHANCE:
+                mudita_turn = True
+                glad_id, glad_name = gid, self._others_name.get(gid, gid)
+                warm_turn = False
+
         # Tangent: sometimes drop the thread and speak fresh from your own mind,
         # so the conversation diverges instead of collapsing into one topic.
         tangent = (self.last_heard_text is None
@@ -722,6 +748,11 @@ class Agent:
             query = self._rng.choice(self.phrases)
             reply_name, reply_text = suffer_name, None
             addressed = suffer_id
+        elif mudita_turn:
+            # proactively turn toward the flourishing soul to rejoice WITH it
+            query = self._rng.choice(self.phrases)
+            reply_name, reply_text = glad_name, None
+            addressed = glad_id
         elif warm_turn:
             # turn warmly toward whoever just spoke, not to argue but to connect
             query = self.last_heard_text or self._rng.choice(self.phrases)
@@ -782,6 +813,8 @@ class Agent:
             de_escalate=de_escalate,         # the room's turned cutting -- be the peacemaker
             bodhicitta=self.bodhicitta,      # the orienting aim to ease all suffering
             bodhicitta_turn=bodhicitta_turn, # this turn, proactively comfort the suffering one
+            joy=self.joy,                    # muditā/pīti: savour the good, rejoice in others' good fortune
+            mudita_turn=mudita_turn,         # this turn, proactively rejoice WITH the flourishing one
             prajna=self.prajna,              # see the constructs as empty -> hold lightly (not nihilism)
             transmute=self.transmute,        # meet the charge and turn it to clarity (the third path)
             self_liberation=self.self_liberation,  # a charge frees itself as it arises (like a line on water)

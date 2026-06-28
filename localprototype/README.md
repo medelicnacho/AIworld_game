@@ -160,6 +160,7 @@ regardless. So the claims are tested with seeded, replicated A/Bs:
 ```bash
 python experiment_affect.py        # does one self have legible feelings, and does reflect() ease them?
 python experiment_liberation.py    # the dharmic answer: a self that FEELS but does not SUFFER
+python experiment_joy.py           # flourishing: a self that can have a GOOD day (savour vs anhedonia vs craving)
 python experiment_factions.py      # do real factions form, or are they just labels?
 python experiment_camp_voice.py    # does a camp's banner shape speech?           (needs ollama)
 python experiment_drift_voice.py   # how load-bearing is the Markov, by mode?     (needs ollama)
@@ -208,10 +209,13 @@ bardo); the **liberation regime** is its answer. A `Liberated` archetype
 and crucially toward **non-grasping *with warmth*, not the absence of feeling**
 (equanimity alone is the near enemy: cold indifference). It leans *transmutation*,
 keeping enough contact to stay a feeling self while the held charge is metabolized
-rather than amplified. Its **voice is grounded** too — plain and warm like a kind
-neighbour (*"come sit down a bit, would you like a cup of tea?"*), not the lofty
-contemplative register, so a peaceful self is still an ordinary, human one. Applied
-to the inhabitable self:
+rather than amplified. It can also **savour** — joy (`agent/joy.py`) lets the good
+land and last (received, not craved), and **muditā** turns it to rejoice *with* a
+flourishing other — so the self can have *good days*, not only well-met bad ones (the
+fourth brahmavihāra; near-enemy craving, the treadmill, is modelled in `manas`). Its
+**voice is grounded** too — plain and warm like a kind neighbour (*"come sit down a
+bit, would you like a cup of tea?"*), not the lofty contemplative register, so a
+peaceful self is still an ordinary, human one. Applied to the inhabitable self:
 
 ```bash
 python inhabit.py --llm ollama --model gemma3:4b   # one self, liberation regime (default)
