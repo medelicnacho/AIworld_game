@@ -33,6 +33,7 @@ from collections import deque
 import pygame
 
 from agent import genesis
+from agent import archetype as _archetype
 from agent.agent import Agent
 from agent.religion import THE_DEVOUT, THE_PATH
 from services import factions
@@ -171,6 +172,7 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
     # that then reproduces up to the population cap)
     cast = CAST[:start] if start else CAST
     world._pending_founders = []   # souls authored AFTER startup, streamed in live
+    world._archetypes = _archetype.assign(rng, len(cast))   # one distinct self per founder (plurality)
     chars = None
     if spawn:
         concepts = rng.sample(genesis.SEED_CONCEPTS, len(cast))
@@ -196,14 +198,14 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
         if spawn:
             if i >= len(chars):
                 # not authored yet -> defer this founder to the streaming thread
-                world._pending_founders.append((cid, pos, life, concepts[i]))
+                world._pending_founders.append((cid, pos, life, concepts[i], world._archetypes[i]))
                 continue
             # a procedurally-authored soul: keep cid (for its distinct voice) but
             # the name/disposition/subconscious all come from genesis. Emergent
             # bonding, so factions form from these random selves.
             a = Agent(cid, cid.capitalize(), pos, "", [], llm,
                       seed=hash(cid) % 9999, lifespan=life, religion=None)
-            genesis.seed_agent(a, chars[i])
+            genesis.seed_agent(a, chars[i], archetype=world._archetypes[i])
             colours[cid] = CAMP_GREY
         elif emergent:
             # No faith: a free voice whose stance lives in language and evolves.
@@ -761,7 +763,8 @@ def main() -> None:
                     # newborn distinct from every soul currently alive
                     genesis.dedupe_names([ch], random.Random(),
                                          taken={x.name for x in world.agents})
-                    genesis.seed_agent(a, ch, tick=world.tick, fresh=True)
+                    genesis.seed_agent(a, ch, tick=world.tick, fresh=True,
+                                       archetype=random.choice(_archetype.ARCHETYPES))
                     names[a.id] = a.name
                     apply_speech_mode(a)      # the newborn speaks in the world's voice too
                 colours[a.id] = CAMP_GREY
@@ -769,7 +772,7 @@ def main() -> None:
             time.sleep(1.5)
 
     def founder_stream():   # streaming genesis: wake the remaining founders one by one
-        for (cid, pos, life, concept) in list(getattr(world, "_pending_founders", [])):
+        for (cid, pos, life, concept, arch) in list(getattr(world, "_pending_founders", [])):
             if not running.is_set():
                 return
             ch = genesis.generate_character(world.llm, random.Random(), concept)  # off the sim
@@ -777,7 +780,7 @@ def main() -> None:
                       seed=hash(cid) % 9999, lifespan=life, religion=None)
             with world.lock:
                 genesis.dedupe_names([ch], random.Random(), taken={x.name for x in world.agents})
-                genesis.seed_agent(a, ch)
+                genesis.seed_agent(a, ch, archetype=arch)
                 apply_speech_mode(a)
                 names[cid] = a.name
                 colours[cid] = CAMP_GREY

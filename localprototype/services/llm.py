@@ -253,7 +253,7 @@ def build_system(ctx: SpeechContext) -> str:
                      "swayed. Weigh what others say against it; where they cut against "
                      "it, push back and argue YOUR side. Never open by saying they are "
                      "right, and do not agree unless you genuinely do. ")
-        return (_work_clause(ctx) + creed + _self_clause(ctx) + _compassion_clause(ctx) + _prajna_clause(ctx) + _transmute_clause(ctx) + _selflib_clause(ctx) + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
+        return (((ctx.style + " ") if ctx.style else "") + _work_clause(ctx) + creed + _self_clause(ctx) + _compassion_clause(ctx) + _prajna_clause(ctx) + _transmute_clause(ctx) + _selflib_clause(ctx) + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
                 "sentences, but the shape of a half-formed thought. Understand what "
                 "they reach toward, then say THAT thought -- the meaning beneath them "
                 "-- in one or two clear sentences, first person, your own voice. "

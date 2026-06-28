@@ -168,7 +168,8 @@ def dedupe_names(chars: list[Character], rng: random.Random,
         seen.add(ch.name)
 
 
-def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False) -> None:
+def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False,
+               archetype=None) -> None:
     """Pour a generated soul into an agent: name, disposition, the inner-voice lines
     as BOTH Markov seed phrases AND salient self-memory (so the subconscious drifts
     over them), and the opinion vector that places it in faction-space. `fresh`
@@ -206,3 +207,8 @@ def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False) -> None
     # the SIGNED stance that drives bonding: seeded independent of temperament (so
     # factions on it stay emergent, not homophily on disposition), stable per soul.
     agent.seed_stance(random.Random(hash((agent.id, ch.name)) & 0xFFFFFFFF))
+    # an archetype, if given, overlays a distinct SELF on the life-story: its faculty dials,
+    # its voice, its value-lean -- so the cast is plural, not six souls of identical wisdom.
+    if archetype is not None:
+        from agent import archetype as _archetype
+        _archetype.apply(agent, archetype)
