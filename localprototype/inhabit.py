@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import random
 
+from agent import archetype as _arch
 from agent import genesis as _genesis
 from agent import self_model as _sm
 from agent.agent import Agent
@@ -36,6 +37,9 @@ def main() -> None:
     p.add_argument("--llm", choices=["mock", "ollama"], default="mock")
     p.add_argument("--model", default=None)
     p.add_argument("--seed", type=int, default=3)
+    p.add_argument("--samsara", action="store_true",
+                   help="inhabit the raw genesis self instead of the liberation regime "
+                        "(default: the Liberated config -- feels but does not suffer; see DHARMA.md)")
     args = p.parse_args()
     llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model else OllamaLLM(temperature=0.85)) \
         if args.llm == "ollama" else MockLLM(seed=args.seed)
@@ -48,11 +52,17 @@ def main() -> None:
     ch = _genesis.generate_character(llm, rng, rng.choice(_genesis.SEED_CONCEPTS))
     soul = Agent("soul", ch.name, (0.0, 0.0), "", [], llm, seed=args.seed,
                  lifespan=10 ** 9)
-    _genesis.seed_agent(soul, ch)          # bonds + self-model + opinion + story
+    _genesis.seed_agent(soul, ch)          # bonds + self-model + opinion + story (WHO it is)
+    if not args.samsara:
+        # the liberation regime (HOW it relates): feels but does not suffer -- non-grasping AND
+        # warm, leaning transmutation so it stays a feeling self, not a numb one. See DHARMA.md.
+        # Overlays the dials/voice; the genesis story/self stays, so it is a SELF, not a blank calm.
+        _arch.apply(soul, _arch.LIBERATED)
     soul.concept_speech = True
     soul.reflect_enabled = True
     w.add(soul)
-    print(f"  {soul.name} wakes.\n--- a life ---", flush=True)
+    regime = "samsara (raw genesis self)" if args.samsara else "liberation regime (feels without suffering)"
+    print(f"  {soul.name} wakes -- {regime}.\n--- a life ---", flush=True)
 
     def on_utt(u):
         if u.speaker_id == soul.id:

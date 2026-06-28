@@ -39,6 +39,7 @@ class Archetype:
     temperament: float
     style: str                  # the voice -- HOW it speaks (fed to the prompt)
     stance: tuple               # the value lean over the five contested axes
+    grounded: bool = False      # speak in a plain, concrete, everyday register (not lofty-existential)
 
 
 ARCHETYPES: list[Archetype] = [
@@ -74,7 +75,26 @@ ARCHETYPES: list[Archetype] = [
               stance=(-0.3, -1.0, -0.8, 0.5, -0.4)),      # wildness, the made (create)
 ]
 
-BY_NAME = {a.name: a for a in ARCHETYPES}
+# The Liberated / bodhisattva -- the dharmic ANSWER, not part of the saṃsāra cast rotation
+# (kept out of ARCHETYPES so `assign` never sprinkles it into the watchable, dramatic town).
+# It is the regime for an INHABITABLE self (inhabit.py) and, eventually, Santāna: a self that
+# FEELS but does not suffer. See DHARMA.md.
+#
+# It LEANS TRANSMUTATION, not pure release: grip is MODERATE (real contact -- a feeling self,
+# not a checked-out one), with high prajñā/transmute/self-liberation so the held charge is
+# metabolized rather than amplified, ground on + high compassion/bodhicitta so warmth RISES.
+# The deliberate non-zero grip is the whole point: the near enemy of this self is the cold
+# Sage who has released contact along with the wound. This one stays warm and present.
+LIBERATED = Archetype(
+    "Liberated", grip=0.45, prajna=0.7, compassion=0.85, bodhicitta=0.85,
+    transmute=0.9, self_liberation=0.75, temperament=0.3,
+    style=("You speak warmly and simply, like a kind neighbour -- plain everyday words, "
+           "real and down-to-earth. You meet joy and sorrow alike without clinging to "
+           "either, but you say it plainly, never in lofty or abstract language."),
+    stance=(-0.5, -0.2, -0.2, 0.7, -0.7),    # surrender, mercy, the many over self
+    grounded=True)                            # plain-spoken, not the contemplative-existential register
+
+BY_NAME = {a.name: a for a in (*ARCHETYPES, LIBERATED)}
 
 
 def apply(agent, arch: Archetype) -> None:
@@ -90,6 +110,7 @@ def apply(agent, arch: Archetype) -> None:
     agent.temperament = arch.temperament
     agent.style = arch.style
     agent.ground_enabled = True
+    agent.grounded_voice = arch.grounded
     agent.stance_vec = _stance._normalize(list(arch.stance))
 
 

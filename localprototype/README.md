@@ -159,6 +159,7 @@ regardless. So the claims are tested with seeded, replicated A/Bs:
 
 ```bash
 python experiment_affect.py        # does one self have legible feelings, and does reflect() ease them?
+python experiment_liberation.py    # the dharmic answer: a self that FEELS but does not SUFFER
 python experiment_factions.py      # do real factions form, or are they just labels?
 python experiment_camp_voice.py    # does a camp's banner shape speech?           (needs ollama)
 python experiment_drift_voice.py   # how load-bearing is the Markov, by mode?     (needs ollama)
@@ -179,9 +180,51 @@ python experiment_regime.py        # which wheel settings let a faction outlive 
   label and whose membership is *history-dependent* (**emergence**). The ablated
   control collapses to ~0, proving the metric detects absence.
 
-Tests: `python -m pytest` (117 passing).
+Tests: `python -m pytest` (189 passing).
+
+**Replication note (honest).** The load-bearing model-dependent claims were
+re-run multi-seed on `gemma3:4b`, not just once: `reflect()` easing lived mood
+(Δ +0.135, 5/5 seeds) and archetypes raising cross-soul distinctness (gap
++0.164, 4/4) both **replicate**; compassion's hostility-damp and warmer-reply
+also replicate. "Warm honesty holds its view without folding" at first appeared
+to fail (held-view margin negative, 2/5) — but that was a *broken metric*, not a
+broken claim: embedding line-similarity reads a warm reply that restates the
+other's framing as capitulation. Swapped to an **LLM judge** (MAINTAIN vs
+CONCEDE, validated 5/5 on calibration cases), the claim **replicates** — replies
+maintain their position 5/5 with compassion on *and* off, so warmth demonstrably
+does not increase folding. Lesson: rhetorical/pragmatic distinctions need a
+judge, not embeddings (embeddings measure topic and affect-tone, not whether a
+reply *concludes* by conceding). The deterministic substrate bricks
+(transmutation / prajñā / ground) reproduce their published numbers exactly and
+are bit-identical run to run.
 
 ---
+
+## The dharmic answer — a self that feels without suffering
+
+The architecture models dukkha in detail (grief, the second arrow, clinging, the
+bardo); the **liberation regime** is its answer. A `Liberated` archetype
+(`agent/archetype.py`) configures a self toward *release rather than re-arising* —
+and crucially toward **non-grasping *with warmth*, not the absence of feeling**
+(equanimity alone is the near enemy: cold indifference). It leans *transmutation*,
+keeping enough contact to stay a feeling self while the held charge is metabolized
+rather than amplified. Its **voice is grounded** too — plain and warm like a kind
+neighbour (*"come sit down a bit, would you like a cup of tea?"*), not the lofty
+contemplative register, so a peaceful self is still an ordinary, human one. Applied
+to the inhabitable self:
+
+```bash
+python inhabit.py --llm ollama --model gemma3:4b   # one self, liberation regime (default)
+python inhabit.py --samsara                         # …or the raw genesis self, for contrast
+```
+
+`experiment_liberation.py` is the falsifier that keeps this honest. Run through a
+grief protocol, the liberation config is the **only** one that is at once: *felt*
+the loss (a real dip — not numbed-out), *lets it go* (its grip fades, unlike
+clinging), *unwounded* (lived mood eases), and *warm* (the ground shows through) —
+falsifiably distinct from **clinging** (grips it, stays wounded) and from **numb**
+(the near enemy: lets go by going cold). The full plan, including the *gated*
+collective-mind layer (Santāna), is in [`DHARMA.md`](DHARMA.md).
 
 ## Status & known limitations (honest)
 

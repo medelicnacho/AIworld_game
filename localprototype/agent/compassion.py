@@ -52,10 +52,18 @@ BODHICITTA_SYSTEM = (
     "from genuine care. ")
 
 
-def comfort_prompt(who: str | None) -> str:
+# appended when the soul has a grounded voice -- keeps comfort plain and human, not lofty
+# ("hold that space", "a small quiet within this moment" -> "come sit, I'll put the kettle on").
+GROUNDED_COMFORT = (" Use ordinary, concrete words -- name a real small kindness (sit down, a "
+                    "cup of tea, a hand on the shoulder); no abstract or lofty language like "
+                    "'space', 'presence', or 'stillness'.")
+
+
+def comfort_prompt(who: str | None, grounded: bool = False) -> str:
     return (f"{who or 'Someone nearby'} is hurting. You are moved to ease their suffering. "
             "Turn to them and offer genuine comfort or presence -- not advice or argument, "
-            "just warmth and care. One or two plain sentences.")
+            "just warmth and care. One or two plain sentences."
+            + (GROUNDED_COMFORT if grounded else ""))
 
 
 DE_ESCALATE = (
@@ -65,7 +73,8 @@ DE_ESCALATE = (
     "Still honest, but kind. One or two plain sentences.")
 
 
-def warm_turn_prompt(who: str | None) -> str:
+def warm_turn_prompt(who: str | None, grounded: bool = False) -> str:
     return (f"Set the big questions aside for a moment. Turn to {who or 'whoever is near'} "
             "and simply connect -- ask how they are, offer a small kindness or comfort, or "
-            "share something light and ordinary. Plain human warmth, not philosophy.")
+            "share something light and ordinary. Plain human warmth, not philosophy."
+            + (GROUNDED_COMFORT if grounded else ""))

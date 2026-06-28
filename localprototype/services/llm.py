@@ -62,6 +62,7 @@ class SpeechContext:
     prajna: float = 0.0                                   # wisdom: see constructs as empty configurations, hold them lightly
     transmute: float = 0.0                                # meet a charged feeling's energy and turn it to clarity (not suppress, not indulge)
     self_liberation: float = 0.0                          # a feeling recognized as empty frees itself as it arises (like a line on water)
+    grounded_voice: bool = False                          # speak plainly/concretely (ordinary register), not abstract-existential
     stakes: str = ""                                      # the soul's material situation (scarcity, a flood, plenty) -> ground talk in it
 
 
@@ -227,6 +228,22 @@ def _compassion_clause(ctx: SpeechContext) -> str:
     return out
 
 
+# Grounding the voice: the recurring register failure is a soul that only ever speaks in an
+# abstract, cosmic, contemplative key ("the grey settles deep... the deeper currents within").
+# A self can be at peace AND plain-spoken; this clause pushes the ordinary register so the
+# liberated self is warm-and-human, not loftily-calm. Mirrors the genesis regrounding.
+GROUNDED_VOICE = (
+    "Speak plainly, the way an ordinary person talks at the kitchen table -- short, concrete, "
+    "everyday words about real, tangible things (people by name, bread, a kettle, the weather, "
+    "a hand on the shoulder, the day's work). Do NOT speak in an abstract, cosmic, or lofty "
+    "register: avoid 'the void', 'echoes', 'stillness', 'presence', 'space', 'patterns', "
+    "'currents', 'the deeper'. If you feel something, say it the plain way a neighbour would. ")
+
+
+def _grounded_clause(ctx: SpeechContext) -> str:
+    return GROUNDED_VOICE if ctx.grounded_voice else ""
+
+
 def build_system(ctx: SpeechContext) -> str:
     """Persona + mood + speaking-style instructions, shared by all backends."""
     if ctx.raw_mind:
@@ -254,12 +271,23 @@ def build_system(ctx: SpeechContext) -> str:
                      "swayed. Weigh what others say against it; where they cut against "
                      "it, push back and argue YOUR side. Never open by saying they are "
                      "right, and do not agree unless you genuinely do. ")
-        return (((ctx.style + " ") if ctx.style else "") + ((ctx.stakes + " ") if ctx.stakes else "") + _work_clause(ctx) + creed + _self_clause(ctx) + _compassion_clause(ctx) + _prajna_clause(ctx) + _transmute_clause(ctx) + _selflib_clause(ctx) + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
-                "sentences, but the shape of a half-formed thought. Understand what "
-                "they reach toward, then say THAT thought -- the meaning beneath them "
-                "-- in one or two clear sentences, first person, your own voice. "
-                "Interpret it; do not just repeat the fragments. If someone has just "
-                "spoken, ANSWER them from your own mind. Plain words only.")
+        clauses = (((ctx.style + " ") if ctx.style else "") + ((ctx.stakes + " ") if ctx.stakes else "")
+                   + _work_clause(ctx) + creed + _self_clause(ctx) + _compassion_clause(ctx)
+                   + _prajna_clause(ctx) + _transmute_clause(ctx) + _selflib_clause(ctx)
+                   + _stance_clause(ctx) + _grounded_clause(ctx))
+        opening = ("The fragments below are surfacing in your mind -- not sentences, but the "
+                   "shape of a half-formed thought. ")
+        if ctx.grounded_voice:
+            # grounded: do NOT chase "the meaning beneath" (that invites the cosmic register) --
+            # speak what they make you think/feel about your actual life, in plain words.
+            body = ("Say what they make you think or feel, plainly -- about your own life and the "
+                    "real people and things in it -- in one or two clear, down-to-earth sentences, "
+                    "first person. Do not philosophise. ")
+        else:
+            body = ("Understand what they reach toward, then say THAT thought -- the meaning beneath "
+                    "them -- in one or two clear sentences, first person, your own voice. Interpret "
+                    "it; do not just repeat the fragments. ")
+        return clauses + opening + body + "If someone has just spoken, ANSWER them from your own mind. Plain words only."
     style = (ctx.style + " ") if ctx.style else ""
     # Identity only enters on inward turns: small local models latch onto a
     # concrete self-line and parrot it verbatim (and leak it into ordinary
@@ -299,7 +327,7 @@ def build_system(ctx: SpeechContext) -> str:
         creed = (f"You are utterly convinced of this about how your world works: "
                  f"\"{ctx.world_belief}\". You speak and act from that conviction. ")
     return (
-        f"You are {ctx.name}. {ctx.persona} {((ctx.stakes + ' ') if ctx.stakes else '')}{_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_compassion_clause(ctx)}{_prajna_clause(ctx)}{_transmute_clause(ctx)}{_selflib_clause(ctx)}{_stance_clause(ctx)}{creed}"
+        f"You are {ctx.name}. {ctx.persona} {((ctx.stakes + ' ') if ctx.stakes else '')}{_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_compassion_clause(ctx)}{_prajna_clause(ctx)}{_transmute_clause(ctx)}{_selflib_clause(ctx)}{_stance_clause(ctx)}{_grounded_clause(ctx)}{creed}"
         f"{_disposition(ctx.mood)} "
         "Speak ALOUD: one or two SHORT sentences -- one clear thought or argument, "
         "not a one-liner but never a speech. ALWAYS finish your sentences; never "
@@ -314,15 +342,15 @@ def build_user(ctx: SpeechContext) -> str:
     if ctx.bodhicitta_turn:
         # proactively turn to comfort the suffering one (overrides voice mode)
         from agent import compassion as _c
-        return _c.comfort_prompt(ctx.reply_to_name)
+        return _c.comfort_prompt(ctx.reply_to_name, grounded=ctx.grounded_voice)
     if ctx.de_escalate:
         # the room has turned cutting -- a compassionate soul cools it (overrides voice mode)
         from agent import compassion as _c
-        return _c.DE_ESCALATE
+        return _c.DE_ESCALATE + (" " + GROUNDED_VOICE if ctx.grounded_voice else "")
     if ctx.warm_turn:
         # drop the big questions for a beat and simply connect (overrides voice mode)
         from agent import compassion as _c
-        return _c.warm_turn_prompt(ctx.reply_to_name)
+        return _c.warm_turn_prompt(ctx.reply_to_name, grounded=ctx.grounded_voice)
     if ctx.raw_mind or ctx.concept_mind:
         # the Markov drift is the material -- raw mode voices it verbatim. concept
         # mode interprets it AND, when someone has just spoken, lets the surfacing

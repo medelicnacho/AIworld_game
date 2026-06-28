@@ -28,16 +28,28 @@ REFLECT_SYSTEM = (
     "noticing what is here and meeting it with acceptance."
 )
 
+# A grounded self reflects in the SAME accepting spirit but in plain, concrete words -- so its
+# inner life reads like an ordinary person taking stock, not a contemplative narrating the void.
+GROUNDED_REFLECT_SYSTEM = (
+    "You are a down-to-earth person quietly taking stock of how you are -- not pushing your "
+    "feelings away, not dwelling on them, just noticing them honestly and letting them be. You "
+    "think in plain, everyday words about your actual life, never in abstract or lofty language."
+)
 
-def build_prompt(name: str, mood: float, memories: list[str]) -> str:
+
+def build_prompt(name: str, mood: float, memories: list[str], grounded: bool = False) -> str:
     body = "\n".join(f"- {m}" for m in memories)
-    return (
+    base = (
         f"You are {name}. Right now you feel {_mood_word(mood)}. These are most "
         f"present in your mind:\n{body}\n\nIn one or two short first-person "
         "sentences, observe what is here in you and how you are holding it -- name "
-        "the feeling and let it be, neither denying it nor drowning in it. Speak "
-        "plainly, as yourself."
+        "the feeling and let it be, neither denying it nor drowning in it. "
     )
+    if grounded:
+        return base + ("Say it plainly, in ordinary everyday words about your real life and the "
+                       "people and things in it -- no abstract or cosmic language ('void', "
+                       "'stillness', 'echoes', 'the deeper'); just how a neighbour would put it.")
+    return base + "Speak plainly, as yourself."
 
 
 def reflect(agent, llm, now: int, k: int = 4):
@@ -54,10 +66,11 @@ def reflect(agent, llm, now: int, k: int = 4):
     if not lived:
         return None
     mems = sorted(lived, key=lambda m: m.salience, reverse=True)[:k]
-    prompt = build_prompt(agent.name, agent.felt_mood(), [m.text for m in mems])
+    grounded = getattr(agent, "grounded_voice", False)
+    prompt = build_prompt(agent.name, agent.felt_mood(), [m.text for m in mems], grounded=grounded)
+    system = GROUNDED_REFLECT_SYSTEM if grounded else REFLECT_SYSTEM
     try:
-        raw = llm.generate(prompt, system=REFLECT_SYSTEM, num_predict=90,
-                           temperature=0.7)
+        raw = llm.generate(prompt, system=system, num_predict=90, temperature=0.7)
     except Exception:  # noqa: BLE001 -- a reflection must never crash the lab/sim
         return None
     text = " ".join(sanitize(raw).split()).strip().strip('"').strip()

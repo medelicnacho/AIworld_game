@@ -58,7 +58,7 @@ SCHEDULE = {
 
 def build_agent(llm, seed: int, grip: float = 0.0, ground: bool = False,
                 prajna: float = 0.0, transmute: float = 0.0,
-                self_liberation: float = 0.0) -> Agent:
+                self_liberation: float = 0.0, grounded: bool = False) -> Agent:
     a = Agent("self", "Aldous", (0.0, 0.0),
               "You are Aldous, a quiet soul living an ordinary working life.",
               list(NEUTRAL_SEED), llm, seed=seed, temperament=0.0, lifespan=10 ** 9)
@@ -67,17 +67,19 @@ def build_agent(llm, seed: int, grip: float = 0.0, ground: bool = False,
     a.prajna = prajna
     a.transmute = transmute
     a.self_liberation = self_liberation
+    a.grounded_voice = grounded            # plain register (only affects speech: reflect/concept)
     for ln in NEUTRAL_SEED:
         a.memory.write(ln, tick=0, source="self", speaker_id="self", weight=1.2)
     return a
 
 
 def run_arm(llm, seed: int, do_reflect: bool, grip: float = 0.0, ground: bool = False,
-            prajna: float = 0.0, transmute: float = 0.0, self_liberation: float = 0.0) -> dict:
+            prajna: float = 0.0, transmute: float = 0.0, self_liberation: float = 0.0,
+            grounded: bool = False) -> dict:
     """Run the protocol once. Returns the per-tick lived-mood trajectory plus the
     reflections produced (so their valence can be inspected)."""
     a = build_agent(llm, seed, grip=grip, ground=ground, prajna=prajna, transmute=transmute,
-                    self_liberation=self_liberation)
+                    self_liberation=self_liberation, grounded=grounded)
     a.reflect_enabled = do_reflect
     mood, felt, refl = [], [], []
     for t in range(1, TICKS + 1):

@@ -41,6 +41,25 @@ def test_assign_spans_the_cast():
     assert len(eight) == 8                         # cycles once they run out
 
 
+def test_liberated_is_out_of_the_samsara_rotation():
+    # the bodhisattva config must NOT be sprinkled into the watchable, dramatic cast
+    assert "Liberated" not in [a.name for a in arch.ARCHETYPES]
+    assert "Liberated" in arch.BY_NAME            # but still reachable by name (for inhabit.py)
+
+
+def test_liberated_config_feels_but_does_not_grasp():
+    lib = arch.LIBERATED
+    # non-grasping: lower grip than the clinging archetypes...
+    assert lib.grip < arch.BY_NAME["Grasper"].grip
+    # ...yet NOT zero -- it keeps contact (a feeling self, not the checked-out near enemy)
+    assert lib.grip > 0.0
+    # leans transmutation + self-liberation + wisdom (metabolize, don't amplify)
+    assert lib.transmute >= 0.8 and lib.self_liberation >= 0.6 and lib.prajna >= 0.6
+    # WARM, not cold equanimity: high compassion AND bodhicitta (the anti-indifference wing)
+    assert lib.compassion >= 0.8 and lib.bodhicitta >= 0.8
+    assert lib.temperament > 0.0                   # gently warm by nature
+
+
 def test_seed_agent_applies_archetype_over_defaults():
     a = Agent("s", "S", (0, 0), "p", [], MockLLM(seed=1), seed=1)
     ch = genesis.Character(name="Mara", temperament=0.0, lines=["I tend the lamps"],

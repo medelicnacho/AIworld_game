@@ -150,6 +150,7 @@ class Agent:
         self.prajna = 0.0                    # Mahāyāna prajñā: see constructs as empty -> the grip loosens at its source
         self.transmute = 0.0                 # Vajrayāna: the grip's energy met and TURNED to clarity (a 3rd path: engaged, unwounded)
         self.self_liberation = 0.0           # Vajrayāna rang drol: a charge frees itself AS it arises, before it can be gripped
+        self.grounded_voice = False          # speak plainly/concretely (ordinary register), not abstract-existential -- set by the Liberated regime
         self.stores = 1.0                    # Stage-A stakes: this soul's provisions (consumed, worked for, shared, hoarded, lost)
         self.wellbeing = 1.0                 # stakes: how the soul is faring -- drops with scarcity/hardship, the real dukkha
         self._last_action = None             # stakes: the action it took last tick (work/share/hoard/tend)
@@ -784,6 +785,7 @@ class Agent:
             prajna=self.prajna,              # see the constructs as empty -> hold lightly (not nihilism)
             transmute=self.transmute,        # meet the charge and turn it to clarity (the third path)
             self_liberation=self.self_liberation,  # a charge frees itself as it arises (like a line on water)
+            grounded_voice=self.grounded_voice,  # speak plainly/concretely, not in the lofty-existential register
             stakes=self._stakes_line(),      # the soul's material situation, so its talk is grounded in it
         )
         return ctx, addressed, mood
