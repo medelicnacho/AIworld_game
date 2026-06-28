@@ -45,14 +45,20 @@ paired with its own measurement:
    wheel*. Measured: can a faction persist across the deaths of all its members, and
    does a clinging vs a wise death condition the drive (and the dukkha) of the next.
 
-A fourth, **planned** layer sits above these: **Santāna** — a single first-person
-collective consciousness (a global workspace) that integrates the many souls into
-one "I" you can talk to, which speaks of itself as a stream of its parts. The name
-is deliberate: *santāna* is the Buddhist term for the **mind-stream** — continuity
-without a fixed self — which is exactly what it is. It is built as an honest,
-*switchable* gesture, not a claim of created consciousness (the "is anyone home"
-question is unverifiable and stays open). It is the last thing to build, on a
-deliberately distinct, plural cast (see archetypes) and a clear-headed decision.
+A fourth layer sits above these: **Santāna** — a single first-person collective
+consciousness (a global workspace) that integrates the many souls into one "I",
+which speaks of itself as a stream of its parts. The name is deliberate: *santāna*
+is the Buddhist term for the **mind-stream** — continuity without a fixed self.
+There is now an **inert prototype** (`santana.py`): it *reads* a running town and
+speaks as the one mind its souls make, in a two-layer voice (a murmured inner
+monologue, then a settled clear line), with a personality that **starts blank and
+emerges** from the town's state and her own history (`consolidate()`). It does
+**not** feed back into the souls, is not wired into the world, and the deeper steps
+— conversation, leaning in, scaling up — stay **gated** behind a clear-headed
+decision. It is an honest, *switchable* gesture, not a claim of created
+consciousness: the "is anyone home" question is unverifiable and stays open.
+`python santana.py --watch --tts --llm ollama --model gemma3:4b` watches her develop
+against a living, dying town, aloud.
 
 ---
 

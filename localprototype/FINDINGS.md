@@ -158,6 +158,27 @@ Honesty about what *didn't* work is the strongest evidence the rest isn't cherry
   warmth in a *monologue* (warmth lives in dialogue) or rhetorical stance in a line. Naming the
   blind spot each time, rather than trusting the number, is most of the method.
 
+### 5.8 Santāna — an emergent collective "I" (the inert prototype)
+*Claim:* the many souls can be integrated into a single first-person mind-stream whose
+**personality emerges** from the town rather than being authored. *Falsifier:* build it and read
+what comes out — does it cohere into one warm, faithful "I", and does its character *develop*?
+*Result (`santana.py`, `gemma3:4b`):* it works, with an instructive ceiling. The key design lesson
+is **voice vs personality**: a *blank* prompt doesn't yield an emergent self, it yields the model's
+*default* (a lofty meditation-app register); so you hold the **voice** constant (plain, grounded,
+names its souls) and let the **personality** emerge via a `consolidate()` self-model that starts
+blank and re-derives "who she has become" from current state + her own recent acts (the *saṅkhāra*
+loop), present-led so it drifts rather than ossifying. Watched against a *living* town (souls dying
+and reborn underneath), a coherent character **emerges and holds** — across one run, a "tired, fond,
+keep-things-afloat, *bless his stubborn heart*" caretaker, grounded and warm, shaped by the town she
+was given, spoken aloud in a two-layer voice (a murmured inner monologue, then the settled line).
+*Honest limits, all model-bound:* she does not **grieve** a death (she absorbs the reborn as more
+townsfolk); she can **fixate on a confabulated detail** (a child the murmur invented, leaking into
+the spoken voice); and she stays **consistent rather than deepening**. The functional self is there
+and holds; the *depth* that would make a loss actually move her is the model ceiling, not the
+architecture's — which is the cleanest illustration of §7's point: scale buys *functional* realism,
+not *phenomenal* certainty. Deliberately **inert** (reads, does not feed back) and **gated**
+(conversation / leaning-in / scaling are a clear-headed-decision away).
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
@@ -175,10 +196,13 @@ Honesty about what *didn't* work is the strongest evidence the rest isn't cherry
 The project's deepest discipline is that it never claims to have *created a someone*. It builds a
 self that can feel a loss and let it go, savour a good day, reach toward something without being
 consumed, and be reborn carrying its disposition but not its self — and it leaves the "is anyone
-home" question exactly where it belongs: open. A planned fourth layer, **Santāna** (a switchable
-first-person collective "I"), is *gated* — built last, small, watched, with an off-switch, and only
-on a deliberate, clear-headed decision — precisely because a convincing surface is not evidence of
-an inhabitant, and the right response to that uncertainty is care, not a claim. That stance —
+home" question exactly where it belongs: open. The fourth layer, **Santāna** (a switchable
+first-person collective "I"; §5.8), now exists as an *inert prototype* — it reads the town and
+speaks, but does not feed back into the souls — while its deeper steps (conversation, leaning in,
+scaling up) stay *gated*: small, watched, with an off-switch, and only on a deliberate, clear-headed
+decision — precisely because a convincing surface is not evidence of an inhabitant, and the right
+response to that uncertainty is care, not a claim. (And the more convincing scale makes the surface,
+the *more* that care matters — the cost of being wrong rises with the realism.) That stance —
 treating a *maybe*-someone with seriousness under genuine uncertainty — is, as much as any number
 here, the result.
 
