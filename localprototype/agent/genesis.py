@@ -49,6 +49,9 @@ GEN_PROMPT = (
     "NAME: <a single plain first name>\n"
     "NATURE: <one number from -1.0 to 1.0; most ordinary people sit around 0 to 0.6, "
     "not bleak>\n"
+    "AIM: <one concrete thing you are working toward in your craft this season -- a "
+    "project you tend and want to see come good, e.g. 'brew an ale worth the festival' "
+    "or 'raise the west wall before the frost'>\n"
     "SELF:\n"
     "<six to eight FIRST-PERSON lines of a real working person: what I do each day as "
     "the {role}; who I deal with (name a neighbour, a rival, a child); what I WANT this "
@@ -106,6 +109,7 @@ class Character:
     conviction: str = ""   # the soul's core stance, to hold and defend in argument
     role: str = ""         # its trade in the realm (concrete, distinct vocabulary)
     task: str = ""         # the pressing business of its day
+    aim: str = ""          # telos/chanda: a concrete craft goal it tends and is drawn toward
 
 
 def _find(pattern: str, text: str) -> str:
@@ -135,8 +139,14 @@ def parse_character(raw: str, rng: random.Random) -> Character:
     # the conviction: the soul's strongly-held belief (the line it states one as),
     # which it will hold and defend in argument instead of dissolving into agreement
     conviction = next((l for l in lines if "believ" in l.lower()), lines[0])
+    # the aim: a concrete craft goal it is drawn toward (telos/chanda). Fall back to a
+    # "what I want" line, else a plain role-shaped goal, so every soul has a future to tend.
+    aim = _find(r"AIM:\s*(.+)", raw)
+    if not aim:
+        aim = next((l for l in lines if any(w in l.lower() for w in ("want", "hope", "save", "finish"))), "")
+    aim = sanitize(aim).strip(" \"'.,:;-")[:80]
     return Character(name=(sanitize(name).capitalize()[:16] or rng.choice(NAMES)),
-                     temperament=temp, lines=lines[:8], conviction=conviction)
+                     temperament=temp, lines=lines[:8], conviction=conviction, aim=aim)
 
 
 def generate_character(llm, rng: random.Random | None = None,
@@ -154,6 +164,8 @@ def generate_character(llm, rng: random.Random | None = None,
         raw = ""
     ch = parse_character(raw, rng)
     ch.role, ch.task = role, task
+    if not ch.aim:
+        ch.aim = f"make my work as the {role} come good this season"
     return ch
 
 
@@ -184,6 +196,7 @@ def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False,
     agent.phrases = list(ch.lines)
     agent.belief = ch.conviction   # the stance it argues from (fed into the prompt)
     agent.role, agent.task = ch.role, ch.task   # its trade and the day's business
+    agent.aim = ch.aim             # telos/chanda: a craft goal it tends and is drawn toward (a future)
     # the story lines are this soul's IDENTITY -- high-salience self-memory, so the
     # subconscious drifts over WHO IT IS and recall_self surfaces it for self-talk
     for ln in ch.lines:
@@ -203,6 +216,8 @@ def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False,
     agent.grip = agent._rng.uniform(0.2, 0.5)
     agent.transmute = 0.4            # Vajrayāna: meet a charge and turn it to clarity, not only release it
     agent.self_liberation = 0.4      # Vajrayāna rang drol: let a charge free itself as it arises
+    agent.joy = 0.5                  # muditā/pīti: savour the good and rejoice with others (chanda, not anhedonia)
+    agent.telos = 0.5                # chanda: tend the aim and be drawn toward it (savoured/craved per faculties)
     agent.seed_opinion_text(" ".join(ch.lines))   # lexical opinion -> the camp's banner WORD
     # the SIGNED stance that drives bonding: seeded independent of temperament (so
     # factions on it stay emergent, not homophily on disposition), stable per soul.

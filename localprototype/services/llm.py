@@ -61,6 +61,7 @@ class SpeechContext:
     bodhicitta_turn: bool = False                         # this turn, proactively turn to comfort the suffering one
     joy: float = 0.0                                      # muditā/pīti: savour the good, rejoice in others' good fortune
     mudita_turn: bool = False                             # this turn, proactively rejoice WITH the flourishing one
+    aim: str = ""                                         # telos/chanda: a craft goal the soul tends and is drawn toward
     prajna: float = 0.0                                   # wisdom: see constructs as empty configurations, hold them lightly
     transmute: float = 0.0                                # meet a charged feeling's energy and turn it to clarity (not suppress, not indulge)
     self_liberation: float = 0.0                          # a feeling recognized as empty frees itself as it arises (like a line on water)
@@ -253,6 +254,16 @@ def _joy_clause(ctx: SpeechContext) -> str:
     return _j.JOY_SYSTEM if ctx.joy > _j.MUDITA_FLOOR else ""
 
 
+def _aim_clause(ctx: SpeechContext) -> str:
+    """Telos/chanda: a craft goal the soul is working toward, so its talk has a future in it --
+    it tends the work and is glad as it comes on, without being unmade by a setback."""
+    if not ctx.aim:
+        return ""
+    return (f"You are working toward something that matters to you: {ctx.aim}. You tend it and your "
+            "talk often turns to how the work is coming along -- glad as it comes good, steady when "
+            "it doesn't. ")
+
+
 def build_system(ctx: SpeechContext) -> str:
     """Persona + mood + speaking-style instructions, shared by all backends."""
     if ctx.raw_mind:
@@ -282,8 +293,8 @@ def build_system(ctx: SpeechContext) -> str:
                      "right, and do not agree unless you genuinely do. ")
         clauses = (((ctx.style + " ") if ctx.style else "") + ((ctx.stakes + " ") if ctx.stakes else "")
                    + _work_clause(ctx) + creed + _self_clause(ctx) + _compassion_clause(ctx)
-                   + _joy_clause(ctx) + _prajna_clause(ctx) + _transmute_clause(ctx) + _selflib_clause(ctx)
-                   + _stance_clause(ctx) + _grounded_clause(ctx))
+                   + _joy_clause(ctx) + _aim_clause(ctx) + _prajna_clause(ctx) + _transmute_clause(ctx)
+                   + _selflib_clause(ctx) + _stance_clause(ctx) + _grounded_clause(ctx))
         opening = ("The fragments below are surfacing in your mind -- not sentences, but the "
                    "shape of a half-formed thought. ")
         if ctx.grounded_voice:
@@ -336,7 +347,7 @@ def build_system(ctx: SpeechContext) -> str:
         creed = (f"You are utterly convinced of this about how your world works: "
                  f"\"{ctx.world_belief}\". You speak and act from that conviction. ")
     return (
-        f"You are {ctx.name}. {ctx.persona} {((ctx.stakes + ' ') if ctx.stakes else '')}{_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_compassion_clause(ctx)}{_joy_clause(ctx)}{_prajna_clause(ctx)}{_transmute_clause(ctx)}{_selflib_clause(ctx)}{_stance_clause(ctx)}{_grounded_clause(ctx)}{creed}"
+        f"You are {ctx.name}. {ctx.persona} {((ctx.stakes + ' ') if ctx.stakes else '')}{_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_compassion_clause(ctx)}{_joy_clause(ctx)}{_aim_clause(ctx)}{_prajna_clause(ctx)}{_transmute_clause(ctx)}{_selflib_clause(ctx)}{_stance_clause(ctx)}{_grounded_clause(ctx)}{creed}"
         f"{_disposition(ctx.mood)} "
         "Speak ALOUD: one or two SHORT sentences -- one clear thought or argument, "
         "not a one-liner but never a speech. ALWAYS finish your sentences; never "

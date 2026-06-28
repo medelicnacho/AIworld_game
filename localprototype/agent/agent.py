@@ -824,6 +824,7 @@ class Agent:
             bodhicitta_turn=bodhicitta_turn, # this turn, proactively comfort the suffering one
             joy=self.joy,                    # muditā/pīti: savour the good, rejoice in others' good fortune
             mudita_turn=mudita_turn,         # this turn, proactively rejoice WITH the flourishing one
+            aim=self.aim,                    # telos/chanda: the craft goal it tends -> a future in its talk
             prajna=self.prajna,              # see the constructs as empty -> hold lightly (not nihilism)
             transmute=self.transmute,        # meet the charge and turn it to clarity (the third path)
             self_liberation=self.self_liberation,  # a charge frees itself as it arises (like a line on water)
