@@ -102,6 +102,13 @@ class Santana:
         gone = (self._prev_names - names) if self._prev_names is not None else set()
         arrived = (names - self._prev_names) if self._prev_names is not None else set()
         self._prev_names = names
+        # SCRUB the dead from the Mind's own carried words (last line / identity / trail) so it stops
+        # resurrecting a soul that has died -- the digest grieves the loss; the name must not linger.
+        for name in gone:
+            pat = re.compile(rf"\b{re.escape(name)}\b")
+            self.last = pat.sub("the one now gone", self.last)
+            self.identity = pat.sub("a soul now gone", self.identity)
+            self.said = [pat.sub("the one now gone", s) for s in self.said]
         if not souls:
             return "No one lives in me just now; I am a quiet between lives."
         weather = statistics.fmean(s.felt_mood() for s in souls)
@@ -188,46 +195,120 @@ class Santana:
 
 
 def play_two_layer(murmur: str, clear: str, model: str = "en_US-amy-medium.onnx") -> None:
-    """The two-layer voice, ALOUD: the murmur as a quiet inner-monologue undercurrent, the settled
-    clear line spoken over it. Synthesizes both with Piper (the murmur's low volume baked in), starts
-    the murmur non-blocking, then speaks the clear voice on top. No-op if Piper/voices/player are
-    unavailable. (Reuses the project's Piper TTS; the murmur is the analogue of the viewer's faint
-    Markov hum under the clear LLM speech.)"""
+    """The two-layer voice, ALOUD, in SEQUENCE: the MURMUR first (the inner monologue, a touch soft
+    and slow), played to completion, THEN the settled CLEAR line -- she half-thinks aloud, then
+    speaks. Each plays blocking, so they never overlap. No-op if Piper/voices/player unavailable."""
     import os
     import subprocess
     import tempfile
     import time
     from services.tts import PiperTTS, Voice
     if not PiperTTS.available():
-        print("  [tts] no Piper voices -- run scripts/get_voices.sh"); return
+        print("  [tts] no Piper voices -- run scripts/get_voices.sh", flush=True); return
     tts = PiperTTS()
     if not tts.player:
-        print("  [tts] no audio player found"); return
+        print("  [tts] no audio player found", flush=True); return
     tmp = tempfile.mkdtemp()
-    mpath, cpath = os.path.join(tmp, "murmur.wav"), os.path.join(tmp, "clear.wav")
-    proc = None
+
+    def _say(text, path, length_scale, volume):
+        tts.synth_to(text, Voice(model, length_scale=length_scale, volume=volume), path)
+        subprocess.run([tts.player, path], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=False)   # blocking -- finishes before the next
+
     try:
-        if murmur:   # quiet, a touch slow and drowsy -- an undercurrent, not the spoken voice
-            tts.synth_to(murmur, Voice(model, length_scale=1.14, volume=0.30), mpath)
-            proc = subprocess.Popen([tts.player, mpath], stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL)
-            time.sleep(1.4)   # let the murmur establish under the silence before the clear voice lands
-        if clear:    # the settled voice, full and grave, over the murmur
-            tts.synth_to(clear, Voice(model, length_scale=1.06, volume=1.0), cpath)
-            subprocess.run([tts.player, cpath], stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, check=False)
-        if proc:
-            proc.wait()   # let the murmur's tail finish under/after the clear line
+        if murmur:   # the inner monologue: HER voice, but quiet and wispy -- clearly not the spoken line
+            print(f"  [tts] murmur ({len(murmur)}c)...", flush=True)
+            _say(murmur, os.path.join(tmp, "murmur.wav"), 1.0, 0.45)
+            time.sleep(0.6)   # a clear beat of silence -- she has half-thought; now she speaks
+        if clear:    # HER settled voice, full and measured -- the I-output, distinct from the murmur
+            print(f"  [tts] clear ({len(clear)}c)...", flush=True)
+            _say(clear, os.path.join(tmp, "clear.wav"), 1.06, 1.0)
     finally:
-        for p in (mpath, cpath):
+        for fn in ("murmur.wav", "clear.wav"):
             try:
-                os.unlink(p)
+                os.unlink(os.path.join(tmp, fn))
             except OSError:
                 pass
         try:
             os.rmdir(tmp)
         except OSError:
             pass
+
+
+def _watch(args) -> None:
+    """Watch Santāna DEVELOP against a living town. The town runs FREE on a fast MockLLM thread
+    (souls live, suffer under stakes, die and are reborn -- instant, no contention), while Santāna
+    reads it periodically with the REAL model and her self drifts over time. INERT: she observes;
+    she does not feed back into the souls. Needs --llm ollama for her voice."""
+    import random
+    import threading
+    import time
+    from agent import genesis as _genesis
+    from agent.agent import Agent
+    from services import embed
+    from services.llm import MockLLM, OllamaLLM
+    from world.sim import World
+
+    if args.llm != "ollama":
+        print("watch needs a real voice for the Mind -- run: --llm ollama --model gemma3:4b")
+        return
+    embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice on Ollama
+    santana_llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model
+                   else OllamaLLM(temperature=0.85))
+    town_llm = MockLLM(seed=7)   # the town lives on mock -> instant, frees the real model for her voice
+
+    rng = random.Random(7)
+    w = World(rebirth_enabled=True)
+    w.llm = town_llm
+    w.stakes_enabled = True
+    w.bardo_ticks = (4, 10)      # short bardo -> reborn streams return quickly during the watch
+    cast = [("Vesper", "brewer", 0.2, "brew an ale worth the festival"),
+            ("Mara", "farmer", 0.4, "bring in a full harvest"),
+            ("Toll", "scribe", -0.3, "finish the town charter"),
+            ("Cael", "fisher", 0.3, "read the water so I never come back empty"),
+            ("Silas", "healer", -0.1, "ease the fever in the low houses"),
+            ("Juno", "shepherd", 0.1, "keep the flock through the winter")]
+    for i, (name, role, temp, aim) in enumerate(cast):
+        a = Agent(f"s{i}", name, (rng.uniform(0, 900), rng.uniform(0, 600)),
+                  f"You are {name} the {role}.", [f"I am {name} the {role}", aim],
+                  town_llm, seed=i, temperament=temp, lifespan=rng.randint(2000, 5000))
+        _genesis.endow_faculties(a, a._rng)
+        a.role, a.aim = role, aim
+        w.add(a)
+
+    mind = Santana(w, santana_llm)
+    stop = threading.Event()
+
+    def run_town():    # the town lives and dies on its own, fast, under the lock so reads are safe
+        while not stop.is_set():
+            try:
+                with w.lock:
+                    w.step()
+            except Exception:   # noqa: BLE001 -- a bad tick must not kill the watch
+                pass
+            time.sleep(0.15)   # a slower wheel -- so warmth compounds between losses, not a revolving door
+
+    t = threading.Thread(target=run_town, daemon=True)
+    t.start()
+    print(f"\n~~~ watching Santāna develop over {args.observations} readings "
+          f"(a town living and dying underneath) ~~~")
+    try:
+        for i in range(args.observations):
+            time.sleep(args.interval)        # let the town live between her readings
+            clear = mind.speak()
+            with w.lock:
+                tick, n, births = w.tick, len(w.agents), getattr(w, "_births", 0)
+            print(f"\n[reading {i + 1}/{args.observations}  tick {tick}  souls {n}  reborn {births}]")
+            if mind.murmur:
+                print(f"  (murmur) {mind.murmur[:160]}")
+            print(f"  SANTĀNA: {clear}")
+            mind.consolidate()
+            print(f"  [who she has become] {mind.identity}")
+            if args.tts and (mind.murmur or clear):
+                play_two_layer(mind.murmur, clear)
+    finally:
+        stop.set()
+    print("\n~~~ the watch ends ~~~\n")
 
 
 # --- a first read: build a tiny town and let the Mind say the first thing it ever says ---------
@@ -248,7 +329,14 @@ def main() -> None:
                    help="one read of a fixed town (murmur + clear) -- fast, for comparing models")
     p.add_argument("--tts", action="store_true",
                    help="speak it aloud: the murmur as a quiet undercurrent, the clear line over it")
+    p.add_argument("--watch", action="store_true",
+                   help="watch her develop: a LIVE town (on fast mock) lives and dies underneath while "
+                        "Santāna reads it periodically with the real model and her self drifts over time")
+    p.add_argument("--observations", type=int, default=8, help="--watch: how many readings before it ends")
+    p.add_argument("--interval", type=float, default=8.0, help="--watch: seconds the town lives between readings")
     args = p.parse_args()
+    if args.watch:
+        _watch(args); return
     llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model else OllamaLLM(temperature=0.85)) \
         if args.llm == "ollama" else MockLLM(seed=1)
 
