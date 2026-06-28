@@ -154,6 +154,9 @@ class Agent:
         self.grounded_voice = False          # speak plainly/concretely (ordinary register), not abstract-existential -- set by the Liberated regime
         self.cultivate_enabled = False        # Stage B (the Path): let practice groove the faculties over a life (bhāvanā); 0 = off
         self.joy = 0.0                        # muditā/pīti: savour the good (receive it fully, let it pass); 0 = off (anhedonic default)
+        self.aim = ""                         # telos/chanda: a concrete aim the self is drawn toward (a craft, a project)
+        self.aim_progress = 0.0               # how far toward the aim -- moved by tending it, knocked back by the world
+        self.telos = 0.0                      # strength of aspiration; 0 = off (no aim pursued, the static present)
         self.stores = 1.0                    # Stage-A stakes: this soul's provisions (consumed, worked for, shared, hoarded, lost)
         self.wellbeing = 1.0                 # stakes: how the soul is faring -- drops with scarcity/hardship, the real dukkha
         self._last_action = None             # stakes: the action it took last tick (work/share/hoard/tend)
@@ -253,6 +256,12 @@ class Agent:
         self.grace = max(0.0, self.grace + (GRACE_FLOOR - self.grace) * GRACE_RELAX)
         self.memory.effectiveness = self.grace
         events = self.memory.tick(now)
+        # telos (chanda): tend the aim -> lay down a small gladness of the work (a fresh pleasant
+        # charge) that the faculties below then meet -- savoured as chanda, craved as taṇhā. The
+        # arrow of time: a future to move toward. Off by default (no aim pursued).
+        if self.telos > 0.0 and self.aim:
+            from agent import telos as _telos
+            _telos.pursue(self, now)
         # self-liberation (rang drol): a charge recognized as empty AS IT ARISES frees
         # itself before it can be gripped or accrue. It is felt FULLY at the instant of
         # arising (age 0, full contact -- not suppression) and then dissolves over the next
