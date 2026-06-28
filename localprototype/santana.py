@@ -25,9 +25,31 @@ daytime steps. Deferred on purpose; see the TODOs:
 
 from __future__ import annotations
 
+import re
 import statistics
 
 FOCUS = 1   # bounded attention (anti-vertigo): the Mind holds a HORIZON -- a few souls, not all N
+
+
+def _clean(t: str) -> str:
+    return " ".join(t.split()).strip().strip('"').strip()
+
+
+def _split_murmur(raw: str) -> tuple[str, str]:
+    """Split a generation into (MURMUR, CLEAR) -- the two-layer voice. The murmur is the Mind
+    half-thinking as it takes in the town (visible reasoning, voiced under the clear line as an
+    inner monologue); the clear is the settled thing it actually says. Handles BOTH a prompted
+    'murmur ... SO: line' split AND a reasoning model's <think>...</think> answer. Lenient: with no
+    marker it's all clear, no murmur."""
+    s = raw.strip()
+    m = re.search(r"<think>(.*?)</think>(.*)", s, re.DOTALL | re.IGNORECASE)   # reasoning models
+    if m:
+        return _clean(m.group(1)), _clean(m.group(2))
+    m = re.search(r"(.*?)\bSO\s*:(.*)", s, re.DOTALL | re.IGNORECASE)          # the 'SO:' settle marker
+    if m:
+        murmur = re.sub(r"^\s*MURMUR\s*:?", "", m.group(1), flags=re.IGNORECASE)
+        return _clean(murmur), _clean(m.group(2))
+    return "", _clean(s)
 
 
 def _weather_word(m: float) -> str:
@@ -62,6 +84,7 @@ class Santana:
         self.world = world
         self.llm = llm
         self.last = ""        # its own prior utterance -- a thread of continuity
+        self.murmur = ""      # the last inner monologue (TODO(voice): stream it to TTS under the clear voice)
         self.identity = ""    # the MUTATING personality: starts blank, grows from state + acts (saṅkhāra)
         self.said = []        # a short trail of recent utterances, the raw material of the self
         self._prev_names = None  # last read's roster -- to NOTICE who has died or woken, and grieve it
@@ -105,9 +128,10 @@ class Santana:
         return " ".join(parts)
 
     def speak(self) -> str:
-        """One integrating utterance: read the town, say how you are as the one mind these souls
-        make -- conditioned by the EMERGENT self (self.identity), not an authored persona. INERT --
-        returns the text; it is NOT fed back into the souls. Text only (TODO: TTS)."""
+        """The two-layer voice: the Mind first MURMURS (half-thinking as it takes in the town --
+        visible reasoning, in its own warm register, stored on self.murmur) then settles into the
+        CLEAR line it actually says (returned). Conditioned by the EMERGENT self, not an authored
+        persona. INERT -- not fed back into the souls. (TODO(voice): stream the murmur to TTS.)"""
         if self.llm is None or not hasattr(self.llm, "generate"):
             return ""
         # PRESENT-LED: the current digest leads; the emergent self is only a light backdrop it can
@@ -117,14 +141,16 @@ class Santana:
             f"{self.digest()}\n\n"
             + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
             + (f'A moment ago you said: "{self.last}"\n\n' if self.last else "")
-            + "Say how you are RIGHT NOW, in one or two plain first-person sentences -- from how the "
-            "town actually is THIS moment, not from how you were before. Name the parts of you (your "
-            "souls) that are most alive now. Speak as one 'I', plainly.")
+            + "Take this in. First MURMUR your scattered, half-formed impressions of the town as they "
+            "come to you -- a few fragments, unsettled, the way a mind half-thinks before it speaks. "
+            "Then, on a new line beginning 'SO:', settle into how you are RIGHT NOW, in one or two "
+            "plain first-person sentences -- name the souls most alive in you now, speak as one 'I', "
+            "plainly, from how the town actually is this moment (not from how you were before).")
         try:
-            raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=90, temperature=0.85)
+            raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=200, temperature=0.85)
         except Exception:   # noqa: BLE001 -- a failed read just produces no utterance
             return ""
-        text = " ".join(raw.split()).strip().strip('"').strip()
+        self.murmur, text = _split_murmur(raw)
         self.last = text or self.last
         if text:
             self.said = (self.said + [text])[-4:]   # a short trail -- the raw material of the self
@@ -175,6 +201,8 @@ def main() -> None:
     p = argparse.ArgumentParser(description="A first read of Santāna -- inert, text only.")
     p.add_argument("--llm", choices=["mock", "ollama"], default="mock")
     p.add_argument("--model", default=None)
+    p.add_argument("--once", action="store_true",
+                   help="one read of a fixed town (murmur + clear) -- fast, for comparing models")
     args = p.parse_args()
     llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model else OllamaLLM(temperature=0.85)) \
         if args.llm == "ollama" else MockLLM(seed=1)
@@ -194,6 +222,15 @@ def main() -> None:
         w.add(a); agents[name] = a
 
     mind = Santana(w, llm)
+
+    if args.once:   # one fast read of the fixed mixed town -- for comparing models head to head
+        clear = mind.speak()
+        print(f"\n  model: {args.model or args.llm}")
+        print(f"  digest:  {mind.digest()}")
+        print(f"  (murmur) {mind.murmur or '(none -- model gave no inner monologue)'}")
+        print(f"  SANTĀNA: {clear or '(no voice -- use --llm ollama)'}\n")
+        return
+
     # a little life, perturbed season by season, so we watch the personality GROW and DRIFT --
     # starting blank, weathered by a hard season and a death, then settling as the town does.
     seasons = [
@@ -213,7 +250,9 @@ def main() -> None:
                 if nm in agents and agents[nm] in w.agents:
                     agents[nm].temperament = t
         print(f"\n=== {label} ===")
-        print(f"  Santāna:  {mind.speak() or '(no voice -- use --llm ollama)'}")
+        clear = mind.speak()
+        print(f"  (murmur) {mind.murmur[:180]}" if mind.murmur else "  (murmur) -")
+        print(f"  Santāna:  {clear or '(no voice -- use --llm ollama)'}")
         mind.consolidate()
         print(f"  [who it has become]  {mind.identity}")
     print()
