@@ -26,6 +26,31 @@ from __future__ import annotations
 PROGRESS_RATE = 0.05   # progress made per tick of tending the aim (scaled by telos)
 GAIN = 0.5             # the gladness a step of progress lays down (savoured as chanda / craved as taṇhā)
 
+# Lineage across the wheel (the Second Noble Truth): taṇhā -- craving, thirst -- is what drives
+# rebirth. A self that CLUNG to its becoming (gripped its aim, unfulfilled, with little wisdom)
+# drags a strong thirst across the bardo and wakes DRIVEN; one that held its aim lightly (prajñā,
+# non-grasping) or saw it through carries little thirst and wakes more at rest. Anatta: the PROJECT
+# does not cross -- a fresh aim arises from the new life -- only the disposition, the thirst, does.
+LINEAGE_BASE = 0.25    # a fresh life always wakes with SOME modest aim of its own
+THIRST_CARRY = 1.3     # how strongly clung becoming pulls the wheel onward (tuned in experiment_lineage)
+
+
+def reborn_telos(dead_telos: float, effective_grip: float) -> float:
+    """The drive a reborn stream wakes with: a fresh modest baseline PLUS the thirst that crossed.
+    The thirst is the dead soul's telos scaled by how tightly it CLUNG (effective_grip = grip after
+    wisdom). The key dharmic point: taṇhā is INSATIABLE -- reaching the aim does not quench it, a new
+    thirst simply arises -- so what crosses the bardo is the GRASPING, not whether the aim was met. A
+    clinging soul drags a strong thirst onward (a hungry rebirth, escalating across the wheel); a soul
+    that held its aim with wisdom (low effective_grip) carries almost none, and the wheel settles."""
+    thirst = max(0.0, dead_telos) * max(0.0, effective_grip)
+    return max(0.0, min(1.0, LINEAGE_BASE + THIRST_CARRY * thirst))
+
+
+def fresh_aim(role: str) -> str:
+    """A new life's aim arises from its new trade -- not the dead soul's project (anatta), but a
+    fresh thing to tend. Plain and role-shaped; the live world may author richer ones."""
+    return f"make my work as the {role or 'townsfolk'} come good this season"
+
 
 def pursue(agent, now: int) -> None:
     """Tend the aim: advance progress and lay down a small gladness of the work -- a pleasant charge

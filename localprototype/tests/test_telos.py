@@ -74,3 +74,29 @@ def test_step_pursues_when_enabled():
     p0 = a.aim_progress
     a.step(1)
     assert a.aim_progress > p0
+
+
+# --- lineage across the wheel: the thirst (not the self) transmigrates ---
+
+def test_reborn_telos_clinging_carries_more_than_wisdom():
+    clinging = telos.reborn_telos(dead_telos=0.7, effective_grip=0.7)   # gripped its becoming
+    wise = telos.reborn_telos(dead_telos=0.7, effective_grip=0.05)      # held it lightly
+    assert clinging > wise                                              # taṇhā drags the thirst onward
+    assert wise <= telos.LINEAGE_BASE + 0.05                            # wisdom carries almost none
+
+
+def test_reborn_telos_floor_and_bounds():
+    assert telos.reborn_telos(0.0, 0.0) == telos.LINEAGE_BASE           # nothing clung -> a fresh modest aim
+    for dt in (0.0, 0.5, 1.0):
+        for eg in (0.0, 0.5, 1.0):
+            assert 0.0 <= telos.reborn_telos(dt, eg) <= 1.0
+
+
+def test_thirst_escalates_under_clinging_settles_under_wisdom():
+    # iterate the wheel: a clinging lineage climbs, a wise one settles
+    t_cling = t_wise = 0.5
+    for _ in range(6):
+        t_cling = telos.reborn_telos(t_cling, effective_grip=0.75)
+        t_wise = telos.reborn_telos(t_wise, effective_grip=0.09)
+    assert t_cling > 0.8           # the hungry wheel spins faster
+    assert t_wise < 0.4            # the wise lineage rests

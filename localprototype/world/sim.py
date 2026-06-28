@@ -250,6 +250,10 @@ class World:
             "bonds": bond_trace,
             "countdown": self._rng.randint(*self.bardo_ticks),
             "lifespan": soul.lifespan,   # the new stream lives on the lineage's scale
+            # the THIRST that crosses the bardo (Second Noble Truth): the drive scaled by how
+            # tightly this soul clung -- a hungry death pulls the next life on; wisdom lets it rest.
+            "telos": getattr(soul, "telos", 0.0),
+            "eff_grip": soul.effective_grip(),
         })
         self.bus.publish("dissolution", soul.id)
 
@@ -275,7 +279,8 @@ class World:
         it was. The opinion lean persists (perturbed), so a faction can outlive its
         members through karmic transmission, not inherited labels."""
         from agent.agent import Agent, _normalize
-        from agent.genesis import NAMES, ROLES
+        from agent.genesis import NAMES, ROLES, endow_faculties
+        from agent import telos as _telos
         if self.llm is None:
             return
         self._births += 1
@@ -292,6 +297,14 @@ class World:
         a.belief = max(seeds, key=len)   # a nascent stance from the strongest vasana
         role, tasks = self._rng.choice(ROLES)   # a new life, a new trade in the realm
         a.role, a.task = role, self._rng.choice(tasks)
+        # the reborn stream wakes a FULL soul (the standard affective endowment -- compassion,
+        # ground, joy, prajñā…), with a FRESH aim from its new trade (anatta: the dead soul's
+        # project does NOT cross), driven by the carried THIRST -- a clinging death wakes hungry,
+        # a wise one at rest. Only the disposition transmigrates; the faculties begin fresh, so no
+        # stream is doomed to its predecessor's exact kleśas.
+        endow_faculties(a, self._rng)
+        a.aim = _telos.fresh_aim(role)
+        a.telos = _telos.reborn_telos(entry.get("telos", 0.0), entry.get("eff_grip", 0.0))
         for frag in seeds:
             a.memory.write(frag, tick=self.tick, source="self", speaker_id=sid, weight=0.8)
         if entry["belief_vec"] is not None:
