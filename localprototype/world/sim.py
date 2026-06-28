@@ -11,6 +11,7 @@ import random
 import sys
 import threading
 import traceback
+import urllib.error
 from collections import defaultdict
 
 from agent.agent import REPRO_GRACE
@@ -486,7 +487,16 @@ class World:
             ctx, addressed, mood = speaker.prepare_speech(recent)
         try:                                   # the slow part, held by no lock
             text = speaker.llm.speak(ctx)
-        except Exception:  # noqa: BLE001 -- contain a bad turn, keep the clocks running
+        except (TimeoutError, urllib.error.URLError, OSError) as e:
+            # the local model occasionally stalls or times out -- expected and transient on a
+            # busy CPU, not a bug. Skip this turn quietly (like a failed reflection) and keep the
+            # clocks running; the soul will simply speak a little later.
+            print(f"  (… {speaker.name}'s turn skipped: model slow [{type(e).__name__}])", flush=True)
+            with self.lock:
+                speaker.speak_urge = 0.0
+                speaker.cooldown = 3
+            return None
+        except Exception:  # noqa: BLE001 -- an UNEXPECTED failure: surface it, but still recover
             traceback.print_exc()
             with self.lock:
                 speaker.speak_urge = 0.0
