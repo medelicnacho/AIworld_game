@@ -146,3 +146,13 @@ def warmth(text: str) -> float:
     warm = max((score(text, a) for a in WARMTH_ANCHORS), default=0.0)
     cold = max((score(text, a) for a in COLDNESS_ANCHORS), default=0.0)
     return warm - cold
+
+# NOTE on "holds its view" (the warm-honesty claim): there is deliberately NO embedding
+# axis for maintain-vs-concede here. We tried one (MAINTAIN/CONCEDE anchor pairs) and it
+# FAILED -- nomic-embed keys on TOPIC, not rhetorical stance, so a warm reply that restates
+# the other's framing ("there's truth in that, BUT I still hold X") reads as folding, and a
+# blunt defiant hold with no acknowledgment scored ~0. The distinction is PRAGMATIC (does
+# the reply's conclusion maintain or concede), which whole-line similarity cannot make.
+# An LLM judge does it reliably (validated 5/5 on calibration), so the holds-view metric
+# lives in the experiment/measurement layer (experiment_compassion.judge_holds), not as a
+# cheap embedding axis here.
