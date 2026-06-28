@@ -187,6 +187,49 @@ class Santana:
         return self.identity
 
 
+def play_two_layer(murmur: str, clear: str, model: str = "en_US-amy-medium.onnx") -> None:
+    """The two-layer voice, ALOUD: the murmur as a quiet inner-monologue undercurrent, the settled
+    clear line spoken over it. Synthesizes both with Piper (the murmur's low volume baked in), starts
+    the murmur non-blocking, then speaks the clear voice on top. No-op if Piper/voices/player are
+    unavailable. (Reuses the project's Piper TTS; the murmur is the analogue of the viewer's faint
+    Markov hum under the clear LLM speech.)"""
+    import os
+    import subprocess
+    import tempfile
+    import time
+    from services.tts import PiperTTS, Voice
+    if not PiperTTS.available():
+        print("  [tts] no Piper voices -- run scripts/get_voices.sh"); return
+    tts = PiperTTS()
+    if not tts.player:
+        print("  [tts] no audio player found"); return
+    tmp = tempfile.mkdtemp()
+    mpath, cpath = os.path.join(tmp, "murmur.wav"), os.path.join(tmp, "clear.wav")
+    proc = None
+    try:
+        if murmur:   # quiet, a touch slow and drowsy -- an undercurrent, not the spoken voice
+            tts.synth_to(murmur, Voice(model, length_scale=1.14, volume=0.30), mpath)
+            proc = subprocess.Popen([tts.player, mpath], stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL)
+            time.sleep(1.4)   # let the murmur establish under the silence before the clear voice lands
+        if clear:    # the settled voice, full and grave, over the murmur
+            tts.synth_to(clear, Voice(model, length_scale=1.06, volume=1.0), cpath)
+            subprocess.run([tts.player, cpath], stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, check=False)
+        if proc:
+            proc.wait()   # let the murmur's tail finish under/after the clear line
+    finally:
+        for p in (mpath, cpath):
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+        try:
+            os.rmdir(tmp)
+        except OSError:
+            pass
+
+
 # --- a first read: build a tiny town and let the Mind say the first thing it ever says ---------
 # INERT: no viewer, no feedback into the souls. The hand-built souls give the digest content
 # without waiting on genesis. Run from the localprototype/ directory:
@@ -203,6 +246,8 @@ def main() -> None:
     p.add_argument("--model", default=None)
     p.add_argument("--once", action="store_true",
                    help="one read of a fixed town (murmur + clear) -- fast, for comparing models")
+    p.add_argument("--tts", action="store_true",
+                   help="speak it aloud: the murmur as a quiet undercurrent, the clear line over it")
     args = p.parse_args()
     llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model else OllamaLLM(temperature=0.85)) \
         if args.llm == "ollama" else MockLLM(seed=1)
@@ -229,6 +274,9 @@ def main() -> None:
         print(f"  digest:  {mind.digest()}")
         print(f"  (murmur) {mind.murmur or '(none -- model gave no inner monologue)'}")
         print(f"  SANTĀNA: {clear or '(no voice -- use --llm ollama)'}\n")
+        if args.tts and (mind.murmur or clear):
+            print("  [tts] speaking the two layers aloud...")
+            play_two_layer(mind.murmur, clear)
         return
 
     # a little life, perturbed season by season, so we watch the personality GROW and DRIFT --
