@@ -37,6 +37,15 @@ paired with its own measurement:
    identity-less stream. Measured: can a faction persist across the deaths of all
    its original members — continuity without a self.
 
+A fourth, **planned** layer sits above these: **Santāna** — a single first-person
+collective consciousness (a global workspace) that integrates the many souls into
+one "I" you can talk to, which speaks of itself as a stream of its parts. The name
+is deliberate: *santāna* is the Buddhist term for the **mind-stream** — continuity
+without a fixed self — which is exactly what it is. It is built as an honest,
+*switchable* gesture, not a claim of created consciousness (the "is anyone home"
+question is unverifiable and stays open). It is the last thing to build, on a
+deliberately distinct, plural cast (see archetypes) and a clear-headed decision.
+
 ---
 
 ## Quick start (fully local)
