@@ -72,6 +72,11 @@ class World:
         self.bardo_ticks = BARDO_TICKS
         self.vasana_noise = 0.06
         self.reborn_prebond = 0.0
+        # Stage-A stakes: a shared store of provisions under seasonal threat. Off by
+        # default; the viewer/experiments turn it on. The commons is what 'work' builds
+        # and 'hoard' drains -- the contested thing the affective faculties act on.
+        self.stakes_enabled = False
+        self.commons = 3.0
         # how much of a strong bond's trust survives the bardo as a faint leaning in
         # the reborn stream (0 = love does not survive death; 0.5 = half, faded)
         self.bond_vasana = 0.5
@@ -165,6 +170,11 @@ class World:
         for a in self.agents:
             for ev in a.step(self.tick):
                 self.bus.publish("memory", (a.id, ev))
+        # 1.5) stakes: consume/act/hardship on the shared provisions (real loss the
+        #      affective faculties then meet), before anyone speaks of it
+        if self.stakes_enabled:
+            from world import stakes
+            stakes.step(self)
         # 2) urge-based turn: highest urge over threshold grabs the floor
         ready = [a for a in self.agents if a.wants_to_speak(self.speak_threshold)]
         if ready:
@@ -452,6 +462,9 @@ class World:
             for a in self.agents:
                 for ev in a.step(self.tick):
                     self.bus.publish("memory", (a.id, ev))
+            if self.stakes_enabled:        # stakes: provisions/actions/hardship
+                from world import stakes
+                stakes.step(self)
             self._reap()
             self._process_bardo()    # streams ripen out of the bardo into new lives
             if self.breed_enabled and not self.rebirth_enabled:   # living reproduction

@@ -149,6 +149,9 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                   breed_enabled=breed, pop_cap=pop_cap, murmur_enabled=murmur,
                   rebirth_enabled=rebirth)
     world.llm = llm   # the collective consciousness speaks through it
+    # stakes: the genesis/archetype worlds get a contested world (provisions under seasonal
+    # threat) so the affective faculties act on real loss; the curated-cast modes don't.
+    world.stakes_enabled = spawn or emergent
     if rebirth:
         # Wheel regime tuned so factions PERSIST across the rebirth wheel rather
         # than dissolving each time a body dies. experiment_regime (gemma3:1b) found

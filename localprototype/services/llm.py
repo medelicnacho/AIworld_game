@@ -62,6 +62,7 @@ class SpeechContext:
     prajna: float = 0.0                                   # wisdom: see constructs as empty configurations, hold them lightly
     transmute: float = 0.0                                # meet a charged feeling's energy and turn it to clarity (not suppress, not indulge)
     self_liberation: float = 0.0                          # a feeling recognized as empty frees itself as it arises (like a line on water)
+    stakes: str = ""                                      # the soul's material situation (scarcity, a flood, plenty) -> ground talk in it
 
 
 def _mood_word(mood: float) -> str:
@@ -253,7 +254,7 @@ def build_system(ctx: SpeechContext) -> str:
                      "swayed. Weigh what others say against it; where they cut against "
                      "it, push back and argue YOUR side. Never open by saying they are "
                      "right, and do not agree unless you genuinely do. ")
-        return (((ctx.style + " ") if ctx.style else "") + _work_clause(ctx) + creed + _self_clause(ctx) + _compassion_clause(ctx) + _prajna_clause(ctx) + _transmute_clause(ctx) + _selflib_clause(ctx) + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
+        return (((ctx.style + " ") if ctx.style else "") + ((ctx.stakes + " ") if ctx.stakes else "") + _work_clause(ctx) + creed + _self_clause(ctx) + _compassion_clause(ctx) + _prajna_clause(ctx) + _transmute_clause(ctx) + _selflib_clause(ctx) + _stance_clause(ctx) + "The fragments below are surfacing in your mind -- not "
                 "sentences, but the shape of a half-formed thought. Understand what "
                 "they reach toward, then say THAT thought -- the meaning beneath them "
                 "-- in one or two clear sentences, first person, your own voice. "
@@ -298,7 +299,7 @@ def build_system(ctx: SpeechContext) -> str:
         creed = (f"You are utterly convinced of this about how your world works: "
                  f"\"{ctx.world_belief}\". You speak and act from that conviction. ")
     return (
-        f"You are {ctx.name}. {ctx.persona} {_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_compassion_clause(ctx)}{_prajna_clause(ctx)}{_transmute_clause(ctx)}{_selflib_clause(ctx)}{_stance_clause(ctx)}{creed}"
+        f"You are {ctx.name}. {ctx.persona} {((ctx.stakes + ' ') if ctx.stakes else '')}{_work_clause(ctx)}{style}{identity}{conviction}{expression}{camp}{_self_clause(ctx)}{_compassion_clause(ctx)}{_prajna_clause(ctx)}{_transmute_clause(ctx)}{_selflib_clause(ctx)}{_stance_clause(ctx)}{creed}"
         f"{_disposition(ctx.mood)} "
         "Speak ALOUD: one or two SHORT sentences -- one clear thought or argument, "
         "not a one-liner but never a speech. ALWAYS finish your sentences; never "
