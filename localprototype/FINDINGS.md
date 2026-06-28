@@ -94,7 +94,11 @@ equanimity* eases that trajectory. *Falsifier:* `experiment_affect.py`, scripted
 reflect on/off, multi-seed. *Result:* the substrate signatures are deterministic (hold under
 MockLLM); reflect easing lived mood **replicates 5/5 seeds (Δ +0.135)**, with reflection
 equanimity **+0.080, 5/5**. Measuring it *required* the semantic read — the lexicon scored the
-same equanimous reflections as despair.
+same equanimous reflections as despair. And over a *life*, sustained practice doesn't just
+ease each moment — it remakes the self: `experiment_path.py` shows a clinging soul that meets
+its own mind with equanimity drifting measurably toward freedom (grip 0.70 → 0.53, prajñā
+0.10 → 0.28 on `gemma3:4b`) while an un-cultivated control stays static. (The within-a-life
+companion to the across-the-wheel lineage result in §5.5.)
 
 ### 5.2 Feels-without-suffering is a distinct, measurable state — not numbness
 *Claim:* the cure for suffering is non-grasping **with warmth**, distinct from both clinging and

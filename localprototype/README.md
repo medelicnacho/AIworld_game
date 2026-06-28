@@ -171,6 +171,7 @@ python experiment_affect.py        # does one self have legible feelings, and do
 python experiment_liberation.py    # the dharmic answer: a self that FEELS but does not SUFFER
 python experiment_joy.py           # flourishing: a self that can have a GOOD day (savour vs anhedonia vs craving)
 python experiment_telos.py         # an aim to reach for, without craving (chanda vs taṇhā vs none)
+python experiment_path.py          # does practice (cultivation) free a clinging soul over a life?
 python experiment_lineage.py       # the Second Noble Truth: does the thirst perpetuate dukkha across rebirth?
 python experiment_factions.py      # do real factions form, or are they just labels?
 python experiment_camp_voice.py    # does a camp's banner shape speech?           (needs ollama)
