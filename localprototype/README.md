@@ -32,10 +32,18 @@ paired with its own measurement:
    that form **name their own banner word** and colour in on the map. Measured:
    do clusters form that *don't* reduce to any fixed label and whose membership is
    history-dependent (emergence) versus mere homophily on an assigned attribute.
-3. **Samsara** *(the wheel)* — death dissolves the explicit self into a *bardo*;
-   only the *vāsanā* (blurred drift + opinion lean) ripens into a new,
-   identity-less stream. Measured: can a faction persist across the deaths of all
-   its original members — continuity without a self.
+3. **Flourishing & the path** *(single-agent)* — the architecture models *dukkha*
+   in detail, so the later work builds its **answer**: a self that **feels without
+   suffering** (non-grasping *with* warmth, not numbness), can **savour a good day**
+   and rejoice in others' (the brahmavihārās), is **cultivated** by how it meets its
+   own mind over a life, and **reaches toward an aim** without being consumed by it
+   (chanda, not craving). See *"the dharmic answer"* below and [`DHARMA.md`](DHARMA.md).
+4. **Samsara** *(the wheel)* — death dissolves the explicit self into a *bardo*;
+   only the *vāsanā* (blurred drift + opinion lean) and the **disposition** (the
+   *thirst*, scaled by how tightly the soul clung) ripen into a new, identity-less
+   stream — the project's most-tested result, the *Second Noble Truth across the
+   wheel*. Measured: can a faction persist across the deaths of all its members, and
+   does a clinging vs a wise death condition the drive (and the dukkha) of the next.
 
 A fourth, **planned** layer sits above these: **Santāna** — a single first-person
 collective consciousness (a global workspace) that integrates the many souls into
@@ -100,6 +108,7 @@ python viewer.py --start 2     # begin with a FOUNDING PAIR that reproduces up t
 python viewer.py --emergent    # the lighter fixed cast: emergent factions, no genesis/rebirth
 python viewer.py --spawn       # procedural souls; a fresh self AUTHORED per birth (breeding growth)
 python viewer.py --rebirth     # procedural souls + the samsaric bardo wheel
+python viewer.py --world --fast-wheel   # short lives -> watch death/bardo/rebirth in minutes
 python viewer.py --concept     # interpret the Markov drift into meaning
 python viewer.py --raw         # voice the raw Markov subconscious, verbatim
 python viewer.py --collective  # the older mode: one "mind" per RELIGION debates
@@ -161,6 +170,8 @@ regardless. So the claims are tested with seeded, replicated A/Bs:
 python experiment_affect.py        # does one self have legible feelings, and does reflect() ease them?
 python experiment_liberation.py    # the dharmic answer: a self that FEELS but does not SUFFER
 python experiment_joy.py           # flourishing: a self that can have a GOOD day (savour vs anhedonia vs craving)
+python experiment_telos.py         # an aim to reach for, without craving (chanda vs taṇhā vs none)
+python experiment_lineage.py       # the Second Noble Truth: does the thirst perpetuate dukkha across rebirth?
 python experiment_factions.py      # do real factions form, or are they just labels?
 python experiment_camp_voice.py    # does a camp's banner shape speech?           (needs ollama)
 python experiment_drift_voice.py   # how load-bearing is the Markov, by mode?     (needs ollama)
@@ -181,7 +192,9 @@ python experiment_regime.py        # which wheel settings let a faction outlive 
   label and whose membership is *history-dependent* (**emergence**). The ablated
   control collapses to ~0, proving the metric detects absence.
 
-Tests: `python -m pytest` (189 passing).
+Tests: `python -m pytest` (215 passing). **The full findings — every claim, its
+falsifier, the results (including what failed), and the honest limitations — are
+written up in [`FINDINGS.md`](FINDINGS.md).**
 
 **Replication note (honest).** The load-bearing model-dependent claims were
 re-run multi-seed on `gemma3:4b`, not just once: `reflect()` easing lived mood
@@ -232,22 +245,26 @@ collective-mind layer (Santāna), is in [`DHARMA.md`](DHARMA.md).
 
 ## Status & known limitations (honest)
 
-- **Single-agent selfhood: substrate and self-regulation confirmed.** One self
-  shows grief → habituation → recurrence, and relating to its memory with
-  equanimity measurably eases that trajectory (verified on `gemma3:4b`). Measuring
-  equanimity required a *semantic* affect read (`agent/affect.py`); a sentiment
-  word list mistakes sad-toned acceptance for despair. The effect is modest on a
-  small model and not yet replicated across seeds.
-- **Emergence is confirmed in the harness; faction *opposition* in live runs is
-  the open problem.** The falsification arm confirms label-free, history-dependent
-  clusters. In full live `--world` runs, souls converge on a shared register and
-  legible *opposed* camps are still hard to produce; the next levers are keying
-  affinity/conflict on conviction-opposition directly and a one-line *creed* per
-  camp.
-- **No stakes yet.** Factions form and *talk*, but nothing is contested; there is
-  no action channel, so ideology is not yet *consequential*. Relationships between
-  selves (asymmetric, with memory and inertia) are the planned next layer, built
-  *on* stakes so they have teeth rather than being decorative.
+- **Single-agent selfhood: confirmed and replicated.** One self shows grief →
+  habituation → recurrence, and relating to its memory with equanimity measurably
+  eases that trajectory — re-run multi-seed (Δ +0.135, 5/5 seeds) on `gemma3:4b`,
+  not a single run. Measuring equanimity required a *semantic* read; a sentiment
+  word list mistakes sad-toned acceptance for despair.
+- **The whole affective/flourishing arc is built and falsified.** Feels-without-
+  suffering, joy (savour / muditā / the craving near-enemy), the path (cultivation),
+  telos (chanda vs craving), and the lineage (the thirst carrying dukkha across the
+  wheel) each ship with a seeded experiment and pass. Stakes — a contested world the
+  faculties act on — are built (`world/stakes.py`).
+- **The persistent open problem is the *register*, not the mechanism.** On a small
+  local model the souls tend to converge on a shared contemplative voice; the
+  grounding work largely fixes it in *dialogue* and live `--world`, but the
+  *solitary reflection* voice still drifts a touch melancholy, and legibly *opposed*
+  factions are harder to produce than cohesive ones. A bigger model would likely
+  sharpen all of this.
+- **Honest scope.** Single-author, a small (4B) local model, results suggestive-not-
+  proven at scale; the central consciousness question is **deliberately left open**
+  — the project builds the *conditions* for a self, not a claim that anyone is home.
+  Full detail in [`FINDINGS.md`](FINDINGS.md).
 
 ---
 
