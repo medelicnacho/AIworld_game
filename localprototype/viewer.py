@@ -133,6 +133,7 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 pop_cap: int = 24, murmur: bool = False,
                 emergent: bool = False, spawn: bool = False,
                 rebirth: bool = False, start: int | None = None,
+                fast_wheel: bool = False,
                 model: str = "gemma3:4b") -> tuple[World, dict]:
     if backend == "ollama":
         llm = OllamaLLM(model=model)
@@ -196,6 +197,7 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
         # rebirth turns it over. (Short lives churned a revolving door of brief
         # strangers -- warmth never compounded and the cohort stayed fragmented.)
         life = (10**9 if no_aging
+                else rng.randint(250, 600) if (rebirth and fast_wheel)  # demo: deaths in ~2-5 min
                 else rng.randint(5000, 12000) if rebirth  # ~8-20 min, then death->bardo->rebirth
                 else rng.randint(6000, 15000))            # ~10-25 min
         if spawn:
@@ -424,6 +426,9 @@ def main() -> None:
     ap.add_argument("--no-music", action="store_true", help="no background music")
     ap.add_argument("--no-aging", action="store_true",
                     help="souls never die of old age (watch the war uninterrupted)")
+    ap.add_argument("--fast-wheel", action="store_true",
+                    help="short lifespans (250-600 ticks) so the rebirth wheel turns in "
+                         "minutes -- to WATCH death->bardo->rebirth and the lineage; with --world/--rebirth")
     ap.add_argument("--no-breed", action="store_true",
                     help="no living reproduction (fixed cast of six)")
     ap.add_argument("--pop-cap", type=int, default=24, help="max living souls")
@@ -519,7 +524,8 @@ def main() -> None:
                                        no_aging=args.no_aging, breed=breed,
                                        pop_cap=args.pop_cap, murmur=murmur_on,
                                        emergent=emergent, spawn=spawn_cast,
-                                       rebirth=args.rebirth, start=start)
+                                       rebirth=args.rebirth, start=start,
+                                       fast_wheel=args.fast_wheel)
         except Exception as exc:  # noqa: BLE001
             _built["err"] = exc
 
