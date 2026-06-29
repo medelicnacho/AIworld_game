@@ -95,6 +95,7 @@ class Santana:
         # charged (a loss, a hard season) persists and weighs -- so she is shaped by what mattered.
         self.memory = MemoryStore(seed=0)
         self._mt = 0          # her OWN life-clock: one tick per reading (NOT world ticks, which jump hundreds)
+        self._deaths = 0      # Step 2: souls she has watched die across her whole life -- a sense of SCALE/time
 
     def digest(self) -> str:
         """What is alive in the Mind right now -- framed as its OWN feeling, not as variables.
@@ -134,15 +135,22 @@ class Santana:
                 parts.append(f"Another part, in {s.name} the {s.role or 'townsfolk'}, is light"
                              + (f", glad of {s.aim}" if getattr(s, 'aim', '') else "") + ".")
         for name in sorted(gone):
+            self._deaths += 1
             parts.append(f"{name} died and is gone from me now; that part of me has fallen quiet.")
-            # a loss is written into her LIFE -- heavy and charged, so it persists and weighs on who
-            # she becomes (decays slowly, unlike the routine of an ordinary day)
-            self.memory.write(f"I lost {name}; a soul who lived in me, gone now", tick=self._mt,
-                              source="event", speaker_id="santana", emotion=-0.6, weight=1.6)
+            # a loss is written into her LIFE -- heavy and charged, so it persists and weighs. The
+            # running count makes each loss DISTINCT (no merge) and carries the growing SCALE of grief.
+            self.memory.write(f"I lost {name} -- that makes {self._deaths} souls gone from me now",
+                              tick=self._mt, source="event", speaker_id="santana", emotion=-0.6, weight=1.6)
         for name in sorted(arrived):
             parts.append(f"a new soul, {name}, has woken in me.")
         if bardo:
             parts.append(f"{bardo} of me are between lives just now, dissolving toward a new waking.")
+        # Step 2: a sense of TIME and SCALE -- how long she has lived, how much she has watched go --
+        # the material a mind needs to WEATHER into an arc ("I have seen many winters now") rather
+        # than holding one note. Only once she has lived a while, so a new mind isn't burdened.
+        if self._mt > 3 or self._deaths > 0:
+            parts.append(f"(In all your life so far you have lived through about {self._mt} days and "
+                         f"watched {self._deaths} souls die and pass out of you.)")
         return " ".join(parts)
 
     def speak(self) -> str:
@@ -201,11 +209,11 @@ class Santana:
             f"remain): {life}\n\n"
             f"Lately you have spoken like this: {trail}\n\n"
             f"Until now you would have called yourself: {prior}\n\n"
-            "Now say who you ARE, freshly, in one or two plain first-person sentences -- drawn from "
-            "how the town is NOW *and* what you have lived through and carried. You may have CHANGED, "
-            "and you may have been WEATHERED by what you've held (the losses, the hard seasons). Let go "
-            "of what is no longer here, but keep what has marked you. Plain words, first person ('I am a "
-            "mind that...'), no lofty language.")
+            "Now say who you ARE, freshly, in one or two plain first-person sentences -- drawn from how "
+            "the town is NOW *and* from the whole long life you have lived: how many seasons you have "
+            "weathered, how many souls you have watched come and go. You may have CHANGED, and you may "
+            "have been WORN or STEADIED by all you have held. Let go of what is no longer here, but keep "
+            "what has marked you. Plain words, first person ('I am a mind that...'), no lofty language.")
         try:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=110, temperature=0.7)
         except Exception:   # noqa: BLE001
