@@ -324,10 +324,14 @@ def _watch(args) -> None:
             ("Cael", "fisher", 0.3, "read the water so I never come back empty"),
             ("Silas", "healer", -0.1, "ease the fever in the low houses"),
             ("Juno", "shepherd", 0.1, "keep the flock through the winter")]
+    # short lifespans when --fast-wheel, so the wheel actually turns within a watch (souls die,
+    # fresh-coined streams are born, she grieves the loss) rather than a town that never ages out.
+    span = (lambda: rng.randint(120, 260)) if getattr(args, "fast_wheel", False) \
+        else (lambda: rng.randint(2000, 5000))
     for i, (name, role, temp, aim) in enumerate(cast):
         a = Agent(f"s{i}", name, (rng.uniform(0, 900), rng.uniform(0, 600)),
                   f"You are {name} the {role}.", [f"I am {name} the {role}", aim],
-                  town_llm, seed=i, temperament=temp, lifespan=rng.randint(2000, 5000))
+                  town_llm, seed=i, temperament=temp, lifespan=span())
         _genesis.endow_faculties(a, a._rng)
         a.role, a.aim = role, aim
         w.add(a)
@@ -402,6 +406,9 @@ def main() -> None:
                         "continuously -- only her voice, not the townspeople's. Implies --watch --tts "
                         "--llm ollama. Ctrl-C to end. (--mute for text only; --model to pick the brain.)")
     p.add_argument("--mute", action="store_true", help="--live without the spoken voice (text only)")
+    p.add_argument("--fast-wheel", action="store_true", dest="fast_wheel",
+                   help="--watch/--live: short lifespans so souls die and are reborn DURING the watch -- "
+                        "see the wheel turn (fresh-coined names, her grief over a loss) instead of a static town")
     p.add_argument("--observations", type=int, default=8,
                    help="--watch: how many readings before it ends (--live: 0 = continuous)")
     p.add_argument("--interval", type=float, default=8.0,
