@@ -251,6 +251,39 @@ verdict needs a larger model — as subject *and* as judge. Net: **§5.8 moves f
 *tested-and-not-confirmed*; what reliably emerges is *content*, not yet *personality*.** (This is the
 discovered/wired/asserted pass doing its job: the first real control on the headline claim corrected it.)
 
+*Update 2 — the larger model, and the real answer: emergence is gated on CONTRAST, not content
+(`experiment_emergence_contrast.py`, `deepseek-v4-flash` subject + calibrated judge).* Two things the
+4B couldn't deliver were supplied: a subject with a strong default to overcome, and an independent (a
+human, or a calibrated-then-trusted LLM) judge. Two findings, one of each sign.
+**(a) The 4B null replicates — and deepens.** On a larger model the matched-mood / trade-only towns
+*still* produce one recurring character with different nouns. Worse, the register is **prompt-selected**:
+the authored persona yields a "warm weathered caretaker"; stripping it to a bare *conceptual mind* (one
+instruction — "make meaning of what is present") doesn't reveal a hidden self, it swaps in a *different*
+default — a non-dual mystic ("I am the stillness that notices itself, already whole"). The empty placebo
+produces that same default with no town at all. So the *backbone* of the voice is the model+prompt's, not
+the town's — confirmed now on a model big enough to have a real default.
+**(b) But DISPOSITION moves the character where TRADE did not.** Contrast the towns by *disposition*
+instead of trade — a full harvest and the festival ale vs a fever's graves and a healer's dead children —
+and the conceptual mind settles into recognisably different selves: *"the year's weight and the festival's
+lightness… drawn in and given out"* vs *"the seventh grave dug by trembling hands… the silence that stays
+when all remedies have failed."* The judge (calibrated: same→True, diff→False) scored **ease vs grief 4/4
+DIFFERENT**, both diverging from the placebo default. And it is **inference, not echo**: it *survives the
+oblique framing* (`--framing oblique`) that feeds the mind only neutral facts — "digging the seventh small
+grave this week" — with no emotion word anywhere; the mind reads graves and dead children and *infers* the
+grief, producing *"the breath that has learned to hold nothing but the weight of a shroud"* (a phrase, and
+a feeling, that were never in its input).
+**Bounds, kept honest.** (i) The town fixes the character's **direction**, not one fixed self: across
+seeds the disposition is stable and separable, but the precise personality varies (the judge correctly
+over-splits within-town on the model's poetic variety, so within-SAME runs low — expected, not a failure).
+(ii) A *pilot* suggested an aligned (warm) town gets *absorbed* into the serene default while only a
+clashing one moves it; that **did not replicate** — here the ease town produced its own abundance-character,
+distinct from the placebo — so the "alignment masks emergence" story is dropped, left open.
+Net: **§5.8's honest negative stands for *content/trade*, but the sharper question now has a sign: a town's
+*disposition* does move the collective mind's character — its direction, demonstrably, and by inference
+rather than echo.** The earlier control read null partly because it varied the wrong axis (trade at matched
+mood); vary disposition and the town reaches the character. *(Subject is a hosted model — non-reproducible
+against drift; the deterministic substrate and the 4B nulls remain the pinned, reproducible spine.)*
+
 ### 5.9 The wheel that leans toward liberation — toward buddhahood
 *Claim:* the rebirth wheel can be made a **path** whose attractor is liberation — a lineage tends to
 develop as a *bodhisattva*, not a *hungry ghost* — without hard-coding the outcome. *Falsifier:*
