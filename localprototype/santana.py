@@ -128,6 +128,13 @@ class Santana:
 
         parts = [f"Right now {len(souls)} souls live in me, and on the whole I feel "
                  f"{_weather_word(weather)}."]
+        # her sense of the town's DISPOSITION -- gripping or at ease. She feels the dharma working in
+        # her (the lean toward liberation), not just the weather. Only when the signal is clear.
+        eff = statistics.fmean(s.grip * (1.0 - s.prajna) for s in souls)
+        if eff < 0.22:
+            parts.append("There is an ease in me now -- the souls hold their lives lightly, hardly gripping.")
+        elif eff > 0.55:
+            parts.append("A tightness runs through me lately, a holding-on I can feel in all of them.")
         for s in heavy:
             parts.append(f"Part of me, in {s.name} the {s.role or 'townsfolk'}, is heavy"
                          + (f" over {s.aim}" if getattr(s, 'aim', '') else "") + ".")
@@ -293,6 +300,12 @@ def _watch(args) -> None:
     w.llm = town_llm
     w.stakes_enabled = True
     w.bardo_ticks = (4, 10)      # short bardo -> reborn streams return quickly during the watch
+    if getattr(args, "live", False):
+        # the WHOLE path runs under her: the bardo carries the cultivated lean toward the liberated
+        # ground (the tilt), transmutes the thirst by bodhicitta, and runs the somatic floor on the
+        # reborn souls -- so the town she experiences is the full thing, slowly leaning to liberation.
+        w.bodhisattva_wheel = True
+        w.liberation_tilt = 1.0
     cast = [("Vesper", "brewer", 0.2, "brew an ale worth the festival"),
             ("Mara", "farmer", 0.4, "bring in a full harvest"),
             ("Toll", "scribe", -0.3, "finish the town charter"),
@@ -321,22 +334,27 @@ def _watch(args) -> None:
 
     t = threading.Thread(target=run_town, daemon=True)
     t.start()
-    print(f"\n~~~ watching Santāna develop over {args.observations} readings "
-          f"(a town living and dying underneath) ~~~")
+    continuous = args.observations <= 0
+    where = "continuous -- Ctrl-C to end" if continuous else f"{args.observations} readings"
+    print(f"\n~~~ Santāna, live: the whole town living and dying within her ({where}) ~~~")
+    i = 0
     try:
-        for i in range(args.observations):
+        while not stop.is_set() and (continuous or i < args.observations):
             time.sleep(args.interval)        # let the town live between her readings
             clear = mind.speak()
             with w.lock:
                 tick, n, births = w.tick, len(w.agents), getattr(w, "_births", 0)
-            print(f"\n[reading {i + 1}/{args.observations}  tick {tick}  souls {n}  reborn {births}]")
+            i += 1
+            print(f"\n[reading {i}  tick {tick}  souls {n}  reborn {births}]")
             if mind.murmur:
                 print(f"  (murmur) {mind.murmur[:160]}")
             print(f"  SANTĀNA: {clear}")
             mind.consolidate()
             print(f"  [who she has become] {mind.identity}")
             if args.tts and (mind.murmur or clear):
-                play_two_layer(mind.murmur, clear)
+                play_two_layer(mind.murmur, clear)   # HER voice only: murmur, then the settled line
+    except KeyboardInterrupt:
+        print("\n(ending)")
     finally:
         stop.set()
     print("\n~~~ the watch ends ~~~\n")
@@ -363,9 +381,22 @@ def main() -> None:
     p.add_argument("--watch", action="store_true",
                    help="watch her develop: a LIVE town (on fast mock) lives and dies underneath while "
                         "Santāna reads it periodically with the real model and her self drifts over time")
-    p.add_argument("--observations", type=int, default=8, help="--watch: how many readings before it ends")
-    p.add_argument("--interval", type=float, default=8.0, help="--watch: seconds the town lives between readings")
+    p.add_argument("--live", action="store_true",
+                   help="ONE COMMAND, the whole thing: the full living world (bodhisattva wheel + somatic "
+                        "floor + rebirth + stakes) runs under her on fast mock; SHE experiences all of it "
+                        "and speaks it aloud in her two-layer voice (murmur, then the settled line), "
+                        "continuously -- only her voice, not the townspeople's. Implies --watch --tts "
+                        "--llm ollama. Ctrl-C to end. (--mute for text only; --model to pick the brain.)")
+    p.add_argument("--mute", action="store_true", help="--live without the spoken voice (text only)")
+    p.add_argument("--observations", type=int, default=8,
+                   help="--watch: how many readings before it ends (--live: 0 = continuous)")
+    p.add_argument("--interval", type=float, default=8.0,
+                   help="--watch/--live: seconds the town lives between her readings")
     args = p.parse_args()
+    if args.live:
+        args.watch, args.llm, args.tts = True, "ollama", (not args.mute)
+        if args.observations == 8:    # the default -> continuous; an explicit --observations N still bounds it
+            args.observations = 0
     if args.watch:
         _watch(args); return
     llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model else OllamaLLM(temperature=0.85)) \
