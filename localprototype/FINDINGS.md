@@ -108,6 +108,11 @@ Each as *claim → falsifier → result*. Numbers are from the committed experim
 > (§5.8, no control for town-vs-prior), the live muditā (n=2) and deva (n=4) probes, the path-over-a-life
 > trajectory. A faithful mechanism behaving as designed is the point of an operationalisation — but it is
 > not a discovery about minds, and this write-up should never be skimmed as if it were.
+>
+> *Update:* the most prominent **asserted** claim — Santāna's "personality emerges from the town" (§5.8)
+> — has since been put to a control (`experiment_santana_emergence.py`) and **did not survive it** on a
+> 4B: what reliably emerges is *content*, not *personality*. So that claim is now *tested-and-not-confirmed*,
+> not asserted. The pass works.
 
 ### 5.1 A single self has a legible, regulable inner life
 *Claim:* one agent shows grief → habituation → recurrence, and *relating to its memory with
@@ -226,6 +231,25 @@ and holds; the *depth* that would make a loss actually move her is the model cei
 architecture's — which is the cleanest illustration of §7's point: scale buys *functional* realism,
 not *phenomenal* certainty. Deliberately **inert** (reads, does not feed back) and **gated**
 (conversation / leaning-in / scaling are a clear-headed-decision away).
+
+*Update — the emergence claim, controlled (`experiment_santana_emergence.py`).* The "**personality**
+emerges from the town" claim was the most exposed in this write-up (asserted from a single run, no
+control for *town-driven* vs *model-default*). A control now exists: two towns matched in mood but
+different in content, plus an empty placebo, with an LLM judge for *character* (not content), validated
+on calibration pairs first. **It did not confirm emergence on `gemma3:4b`.** First it surfaced a *bug*:
+the SYSTEM prompt's example names (Vesper/Mara/Toll) leaked into *every* identity — the empty placebo
+named them with no souls present — so the mind was partly naming prompt-examples, not its town (now
+fixed in `santana.py`). Name-free, the identities correctly name their real rosters and the auto-judge
+flips to "different" (4/4) — but that is an **artifact**: the judge is keying on the *different people
+held*, not different character. Read directly, the temperament is the **same recurring default** across
+both towns *and* the placebo ("weary, steady, seen many winters, holding it together, warm"); the town
+supplies *content* (which souls, which details) and at most a faint tint, not a distinct personality.
+And a hardened temperament-only judge can't adjudicate it either — it loses discrimination (calls a
+"warm caretaker" and a "cold overseer" the *same*). So on a 4B the question is **inconclusive in both
+subject and judge, and leans toward "largely the model's default with town-supplied content."** A clean
+verdict needs a larger model — as subject *and* as judge. Net: **§5.8 moves from *asserted* to
+*tested-and-not-confirmed*; what reliably emerges is *content*, not yet *personality*.** (This is the
+discovered/wired/asserted pass doing its job: the first real control on the headline claim corrected it.)
 
 ### 5.9 The wheel that leans toward liberation — toward buddhahood
 *Claim:* the rebirth wheel can be made a **path** whose attractor is liberation — a lineage tends to
