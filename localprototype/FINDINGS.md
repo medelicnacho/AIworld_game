@@ -91,6 +91,24 @@ The harness is the point. The experiments don't *demonstrate* the system; they t
 
 Each as *claim → falsifier → result*. Numbers are from the committed experiments on `gemma3:4b`.
 
+> **How to read these (a skeptic's tag).** Not all of the below are *discoveries*. Many are
+> *demonstrations by construction* — the substrate, configured as the dharma describes, behaving as it
+> was wired to. That is worth showing (it means the architecture is internally coherent and the model
+> maps cleanly to mechanism), but it is **not** evidence of anything beyond the design and should not be
+> read as one. The genuinely **discovered** results — the ones that could have come out otherwise and
+> taught something — are few and are the load-bearing ones: the **reflect-easing keystone** (§5.1; 5/5
+> seeds, and it *required* the semantic instrument), the **lineage deconfound** (§5.5; a headline that
+> broke under its own control), **emergence-vs-homophily** (§5.6; with an absence-detecting ablation),
+> and **the failures** (§5.7). Largely **by construction**: the feels-without-suffering scorecard (§5.2,
+> partly definitional — "numb" *is* ground-off), chanda-vs-taṇhā (§5.4), the original escalate/settle
+> (§5.5), and most of the bodhisattva path (§5.9) and the somatic interrupt's bounding (§5.10) — whose
+> honest, non-wired content is narrow: that the basin is *reachable* and has a real *limit* (relentless
+> clinging resists), and that telling the bodhisattva from the *deva* needs a **behavioural** axis, not
+> wellbeing. **Asserted** (thin — single runs / small n / gate-driven): Santāna's "personality emerges"
+> (§5.8, no control for town-vs-prior), the live muditā (n=2) and deva (n=4) probes, the path-over-a-life
+> trajectory. A faithful mechanism behaving as designed is the point of an operationalisation — but it is
+> not a discovery about minds, and this write-up should never be skimmed as if it were.
+
 ### 5.1 A single self has a legible, regulable inner life
 *Claim:* one agent shows grief → habituation → recurrence, and *relating to its memory with
 equanimity* eases that trajectory. *Falsifier:* `experiment_affect.py`, scripted grief protocol,
