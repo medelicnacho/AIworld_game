@@ -162,6 +162,10 @@ class Agent:
         self._last_action = None             # stakes: the action it took last tick (work/share/hoard/tend)
         self._others_mood: dict = {}         # id -> last overheard felt mood (who is suffering)
         self._others_name: dict = {}         # id -> name, for turning toward them
+        self.somatic_enabled = False         # bottom-up circuit-breaker (the window of tolerance); off by default
+        self._contraction = 0.0              # somatic down-regulation level, 0=open .. 1=fully contracted (read by manas)
+        self._somatic_history: list[float] = []   # recent spiral-metric values, for reading the trend
+        self._somatic_trips = 0              # how many times the interrupt has fired (a rare-backstop check)
         self.self_model_enabled = False      # Stage-3 toggle: consolidate a self-model (see agent/self_model.py)
         self.self_model = ""                 # the soul's current re-derived sense of who it is
         self.self_model_history: list[str] = []   # successive self-models, for coherence/drift measurement
@@ -272,6 +276,12 @@ class Agent:
                 age = now - m.created_tick
                 if 1 <= age <= SELF_LIB_FRESH and abs(m.emotion) > SELF_LIB_FLOOR:
                     m.emotion *= (1.0 - SELF_LIB_RATE * self.self_liberation)
+        # the somatic interrupt: a bottom-up circuit-breaker watching the second-arrow SPIRAL. Runs
+        # BEFORE manas so a trip takes the amplifier offline THIS tick (manas reads _contraction).
+        # Off by default; a backstop to the top-down faculties, not a replacement for them.
+        if self.somatic_enabled:
+            from agent import somatic
+            somatic.apply(self, now)
         # manas: after memory decays, the appropriating grip (if any) holds self-relevant
         # memories against that decay and amplifies aversive ones -- the second arrow.
         # grip 0 (default) is a no-op: the released, non-appropriative regime.

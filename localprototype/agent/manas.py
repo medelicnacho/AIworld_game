@@ -77,6 +77,9 @@ def apply(agent, now: int) -> None:
     default). Never writes content -- it only re-weights what is already there."""
     # the grip's hold after wisdom: prajñā loosens it at the source (see effective_grip)
     g = agent.effective_grip() if hasattr(agent, "effective_grip") else getattr(agent, "grip", 0.0)
+    # the somatic interrupt takes the amplifier OFFLINE while contracted: a bottom-up circuit-breaker
+    # on the second-arrow spiral, independent of (and a backstop to) the top-down wisdom faculties.
+    g *= (1.0 - getattr(agent, "_contraction", 0.0))
     if g <= 0.0:
         return
     for m in agent.memory.items:
