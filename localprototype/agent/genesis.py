@@ -94,6 +94,45 @@ ROLES = [
 
 NAMES = ["Vesper", "Toll", "Cael", "Mara", "Juno", "Bram", "Sable", "Orin", "Nyx",
          "Pell", "Liri", "Senna", "Corvin", "Dax", "Isolde", "Reyn"]
+
+# A coined name from nothing -- syllables assembled to order, not drawn from a fixed
+# cast. The rebirth wheel uses this so a stream that dissolves does not come back wearing
+# the same handful of names: each new soul is a name never heard before and, once gone,
+# effectively never returns (the space is ~thousands). Phonotactics alternate consonant
+# and vowel so the coinage is pronounceable but storyless -- fitting a "merely designated"
+# name (see World._coalesce). NAMES above stays the hand-authored founding cast.
+_ONSET  = ["b", "br", "c", "cl", "cr", "d", "dr", "f", "fr", "g", "gr", "h", "j", "k",
+           "l", "m", "n", "p", "ph", "pr", "r", "s", "sh", "sl", "st", "t", "th", "tr",
+           "v", "vr", "w", "z", "", "", "", ""]      # "" -> vowel-initial (Orin, Isolde)
+_VOWEL1 = ["a", "e", "i", "o", "u", "y", "ae", "ei", "ia", "io"]   # syllable 1 may diphthong
+_VOWEL2 = ["a", "e", "i", "o", "u", "y"]                           # syllable 2 stays simple
+_MID_1  = ["b", "c", "d", "g", "l", "m", "n", "r", "s", "t", "v", "th"]            # single
+_MID_2  = _MID_1 + ["ll", "nd", "st", "rn", "ss", "sh", "ld", "br", "dr", "ndr"]   # + clusters
+_CODA   = ["n", "r", "l", "s", "th", "ll", "rn", "m", "nd", "", ""]
+_SUFFIX = ["wyn", "wen", "dor", "ric", "ven", "ner", "lis", "mir", "reth", "dris",
+           "wel", "gar", "sa", "ra", "na", "da", "la"]      # name-like, consonant-initial
+
+
+def coined_name(rng: random.Random, taken=()) -> str:
+    """Assemble a fresh, never-before-heard first name. Avoids any name in `taken`."""
+    taken = set(taken)
+    for _ in range(40):
+        onset = rng.choice(_ONSET)
+        name = onset + rng.choice(_VOWEL1)
+        if rng.random() < 0.62:                          # a second syllable
+            # don't stack two consonant clusters -> keep it pronounceable
+            mid = _MID_1 if len(onset) > 1 else _MID_2
+            name += rng.choice(mid) + rng.choice(_VOWEL2)
+        r = rng.random()
+        if r < 0.45:
+            name += rng.choice(_CODA)
+        elif r < 0.72:
+            name += rng.choice(_SUFFIX)
+        # else: end on the open vowel (Mara, Liri, Senna)
+        name = name.capitalize()
+        if 3 <= len(name) <= 9 and name not in taken:
+            return name
+    return f"Stream-{rng.randint(1000, 9999)}"            # vanishingly rare fallback
 _THEMES = ["the morning bread and who's late for it", "the price of wool this season",
            "my neighbour's noisy geese again", "saving up for a better roof",
            "the festival coming up fast", "my apprentice's clumsy hands",

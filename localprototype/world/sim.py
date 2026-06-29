@@ -12,7 +12,7 @@ import sys
 import threading
 import traceback
 import urllib.error
-from collections import defaultdict
+from collections import defaultdict, deque
 
 from agent.agent import REPRO_GRACE
 from agent.religion import RELIGIONS
@@ -119,6 +119,11 @@ class World:
         self.llm = None                        # set by the viewer for collective speech
         self._collective_last: dict[str, str] = {}   # faith id -> its mind's last thought
         self._births = 0   # counter so heirs/children get unique ids
+        # Names the wheel has lately spent. A reborn stream coins a name avoiding both
+        # the living and this set, so a soul who just dissolved does not come straight
+        # back wearing its old name -- it is gone, and forgotten, before any echo of the
+        # syllables could recur. Bounded: old names drop off and the space reopens.
+        self._spent_names: deque[str] = deque(maxlen=64)
         self._reflect_i = 0   # round-robin cursor for reflect_turn (which soul practices next)
         # Guards shared state when a live viewer drives the three clocks
         # (animate / advance / speak_turn) from different threads. The blocking
@@ -293,14 +298,17 @@ class World:
         it was. The opinion lean persists (perturbed), so a faction can outlive its
         members through karmic transmission, not inherited labels."""
         from agent.agent import Agent, _normalize
-        from agent.genesis import NAMES, ROLES, endow_faculties
+        from agent.genesis import ROLES, coined_name, endow_faculties
         from agent import telos as _telos
         if self.llm is None:
             return
         self._births += 1
+        # A name coined fresh from nothing -- never the same soul dying over and over, but
+        # a different one born each turn, avoiding both the living and the lately-departed
+        # (which then fade from _spent_names and from others' decaying memories alike).
         living = {a.name for a in self.agents}
-        name = next((n for n in self._rng.sample(NAMES, len(NAMES)) if n not in living),
-                    f"Stream{self._births}")
+        name = coined_name(self._rng, taken=living | set(self._spent_names))
+        self._spent_names.append(name)
         sid = f"stream:{self._births}"
         seeds = entry["seeds"] or ["something stirs in the quiet"]
         a = Agent(sid, name, entry["position"],
