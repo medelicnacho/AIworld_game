@@ -28,6 +28,8 @@ from __future__ import annotations
 import re
 import statistics
 
+from agent.memory import MemoryStore, valence
+
 FOCUS = 1   # bounded attention (anti-vertigo): the Mind holds a HORIZON -- a few souls, not all N
 
 
@@ -88,6 +90,11 @@ class Santana:
         self.identity = ""    # the MUTATING personality: starts blank, grows from state + acts (saṅkhāra)
         self.said = []        # a short trail of recent utterances, the raw material of the self
         self._prev_names = None  # last read's roster -- to NOTICE who has died or woken, and grieve it
+        # Step 1 -- a LIFE she can take stock from, not just the present moment. The souls' own
+        # memory machine (decays, blurs, salience-weighted recall), one level up: routine fades, the
+        # charged (a loss, a hard season) persists and weighs -- so she is shaped by what mattered.
+        self.memory = MemoryStore(seed=0)
+        self._mt = 0          # her OWN life-clock: one tick per reading (NOT world ticks, which jump hundreds)
 
     def digest(self) -> str:
         """What is alive in the Mind right now -- framed as its OWN feeling, not as variables.
@@ -128,6 +135,10 @@ class Santana:
                              + (f", glad of {s.aim}" if getattr(s, 'aim', '') else "") + ".")
         for name in sorted(gone):
             parts.append(f"{name} died and is gone from me now; that part of me has fallen quiet.")
+            # a loss is written into her LIFE -- heavy and charged, so it persists and weighs on who
+            # she becomes (decays slowly, unlike the routine of an ordinary day)
+            self.memory.write(f"I lost {name}; a soul who lived in me, gone now", tick=self._mt,
+                              source="event", speaker_id="santana", emotion=-0.6, weight=1.6)
         for name in sorted(arrived):
             parts.append(f"a new soul, {name}, has woken in me.")
         if bardo:
@@ -141,6 +152,7 @@ class Santana:
         persona. INERT -- not fed back into the souls. (TODO(voice): stream the murmur to TTS.)"""
         if self.llm is None or not hasattr(self.llm, "generate"):
             return ""
+        self._mt += 1   # a new reading -- one tick of her life (the digest below records any losses)
         # PRESENT-LED: the current digest leads; the emergent self is only a light backdrop it can
         # depart from -- otherwise the accumulated personality ossifies and drowns the living town
         # (it kept grieving a soul that had died). State drives; the self is a through-line, not a cage.
@@ -161,6 +173,11 @@ class Santana:
         self.last = text or self.last
         if text:
             self.said = (self.said + [text])[-4:]   # a short trail -- the raw material of the self
+            # her lived experience enters her LIFE: charged by its tone, so a glad day and a heavy one
+            # imprint differently. Then her memory decays a step -- routine fades, the charged persists.
+            self.memory.write(text, tick=self._mt, source="self", speaker_id="santana",
+                              emotion=valence(text), weight=1.0)
+        self.memory.tick(self._mt)
         return text
 
     def consolidate(self) -> str:
@@ -172,18 +189,23 @@ class Santana:
             return self.identity
         prior = self.identity or "You are only just waking; you have no settled self yet."
         trail = " / ".join(self.said[-3:])
-        # PRESENT-LED again: re-derive the self FRESH from how the town is NOW; the prior identity is
-        # a soft prior to UPDATE against reality, not preserve -- so the self drifts and can shed an
-        # old preoccupation (a dead soul, a passed trouble) instead of locking onto its first fixation.
+        # Step 1: she takes stock from her LIFE, not just the moment -- a salience-weighted recall of
+        # her accumulated past (the losses and hard seasons persist; the routine has faded). So who she
+        # has become is drawn from continuity (the charged past) AND the living present -- the coherent-
+        # and-deepening sweet spot: present-led enough to drift, history-grounded enough to GROW.
+        lived = [m.text for m in self.memory.recall(k=5)]
+        life = "; ".join(lived) if lived else "almost nothing yet -- you are still new"
         prompt = (
             f"This is how you are right now: {self.digest()}\n\n"
+            f"What you carry from your whole life so far (the rest has faded; the heavy things "
+            f"remain): {life}\n\n"
             f"Lately you have spoken like this: {trail}\n\n"
             f"Until now you would have called yourself: {prior}\n\n"
             "Now say who you ARE, freshly, in one or two plain first-person sentences -- drawn from "
-            "how the town actually is NOW. You may have CHANGED: let go of what is no longer here -- "
-            "souls who have died, troubles that have passed -- and of who you used to be if it no "
-            "longer fits. Keep only what is still true today. Plain words, first person ('I am a mind "
-            "that...'), no lofty language.")
+            "how the town is NOW *and* what you have lived through and carried. You may have CHANGED, "
+            "and you may have been WEATHERED by what you've held (the losses, the hard seasons). Let go "
+            "of what is no longer here, but keep what has marked you. Plain words, first person ('I am a "
+            "mind that...'), no lofty language.")
         try:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=110, temperature=0.7)
         except Exception:   # noqa: BLE001
