@@ -58,16 +58,12 @@ def build_prompt(name: str, mood: float, memories: list[str], grounded: bool = F
     return base + "Speak plainly, as yourself."
 
 
-def reflect(agent, llm, now: int, k: int = 4):
-    """One reflection step: read salient memory + felt state, form a meta-thought,
-    write it back as a 'reflection' memory. Returns the reflection text (or None if
-    there was nothing to reflect on / the backend can't do a free completion).
-    Never raises -- a failed reflection just doesn't happen, like a failed turn."""
-    if not hasattr(llm, "generate"):
-        return None
-    # the most salient of the soul's OWN lived memory -- not the doctrines, which
-    # are written at high weight and would otherwise crowd out recall(); reflection
-    # is about what one is actually living through, not scripture.
+def prepare(agent, k: int = 4):
+    """The READ half of a reflection (no model call): the salient lived memory + felt state -> (prompt,
+    system). Returns None if there is nothing to reflect on. Split out so a live World can run the slow
+    model call OUTSIDE its lock (see World.reflect_turn), exactly as prepare_speech/commit_speech do."""
+    # the most salient of the soul's OWN lived memory -- not the doctrines, which are written at high
+    # weight and would crowd out recall(); reflection is about what one is living, not scripture.
     lived = [m for m in agent.memory.items if m.source != "doctrine"]
     if not lived:
         return None
@@ -77,33 +73,41 @@ def reflect(agent, llm, now: int, k: int = 4):
     prompt = build_prompt(agent.name, agent.felt_mood(), [m.text for m in mems],
                           grounded=grounded, joyful=joyful)
     system = GROUNDED_REFLECT_SYSTEM if grounded else REFLECT_SYSTEM
+    return prompt, system
+
+
+def imprint(agent, raw: str, now: int):
+    """The WRITE half: write a generated reflection back as memory, with emotion = its EQUANIMITY (not
+    the sadness of its words) -- so meeting a grief with acceptance SOOTHES the lived mood while
+    rumination deepens it. Measured semantically (embeddings); when they're down, emotion=0 lets
+    memory.write derive valence. A joyful self imprints genuine gladness instead. Returns the cleaned
+    text (or None)."""
+    text = " ".join(sanitize(raw).split()).strip().strip('"').strip()
+    if not text:
+        return None
+    from agent import affect
+    from services import embed
+    emo = affect.equanimity_emotion(text) if embed.using_embeddings() else 0.0
+    if getattr(agent, "joy", 0.0) > 0.3:
+        from agent.memory import valence
+        emo = max(emo, valence(text))   # only genuine gladness raises it; a grief reflection stays soothing
+    agent.memory.write(text, tick=now, source="reflection",
+                       speaker_id=agent.id, emotion=emo, weight=1.0)
+    return text
+
+
+def reflect(agent, llm, now: int, k: int = 4):
+    """One reflection step: read salient memory + felt state, form a meta-thought, write it back as a
+    'reflection' memory. Returns the reflection text (or None if there was nothing to reflect on / the
+    backend can't do a free completion). Never raises -- a failed reflection just doesn't happen."""
+    if not hasattr(llm, "generate"):
+        return None
+    prep = prepare(agent, k)
+    if prep is None:
+        return None
+    prompt, system = prep
     try:
         raw = llm.generate(prompt, system=system, num_predict=90, temperature=0.7)
     except Exception:  # noqa: BLE001 -- a reflection must never crash the lab/sim
         return None
-    text = " ".join(sanitize(raw).split()).strip().strip('"').strip()
-    if not text:
-        return None
-    # Self-regulation: the emotion this reflection imprints is its EQUANIMITY, not
-    # the sadness of its words -- so meeting a grief with acceptance SOOTHES the
-    # lived mood while restating it ruminatively deepens it. Measured semantically
-    # (embeddings) because the sentiment lexicon can't tell sad-toned acceptance
-    # from despair; when embeddings are down we fall back to the lexicon (emotion=0
-    # lets memory.write derive valence). This is the mind regulating itself through
-    # how it relates to its own memory.
-    from agent import affect
-    from services import embed
-    emo = affect.equanimity_emotion(text) if embed.using_embeddings() else 0.0
-    # ...but a JOYFUL self savouring a good day should imprint that GLADNESS, not be flattened
-    # to neutral (equanimity reads acceptance-of-difficulty, ~0 for plain delight). So when the
-    # reflection is positive, let its valence lift the imprint -- gladness deepens good mood, the
-    # bright counterpart of equanimity soothing grief. (max: a grief reflection, valence<0, keeps
-    # the equanimity soothing; only genuine gladness raises it.)
-    if joyful:
-        from agent.memory import valence
-        emo = max(emo, valence(text))
-    # written like a self-statement: it is the agent's own, it counts toward mood
-    # (mood() excludes only doctrine), and it feeds the next tick's drift.
-    agent.memory.write(text, tick=now, source="reflection",
-                       speaker_id=agent.id, emotion=emo, weight=1.0)
-    return text
+    return imprint(agent, raw, now)

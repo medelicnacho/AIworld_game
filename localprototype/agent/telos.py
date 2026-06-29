@@ -46,6 +46,22 @@ def reborn_telos(dead_telos: float, effective_grip: float) -> float:
     return max(0.0, min(1.0, LINEAGE_BASE + THIRST_CARRY * thirst))
 
 
+VOW_KEEP = 0.90        # how strongly bodhicitta SUSTAINS the carried fire as the vow (vs letting it quench)
+
+
+def transmute_thirst(dead_telos: float, effective_grip: float, bodhicitta: float) -> float:
+    """The bodhicitta-aware successor to reborn_telos: the carried fire (telos), its object set by what
+    claims it -- the SAME drive, three fates:
+      gripped (eff_grip high)        -> escalates as self-craving (taṇhā): the HUNGRY GHOST
+      released, low bodhicitta        -> quenches toward rest: the ARHAT (fire out, disengaged)
+      released, high bodhicitta        -> sustained as the vow: the BODHISATTVA (fire kept, turned to all)
+    Bodhicitta is what keeps the energy alive AND outward once the grip lets go -- the saint who stays.
+    (reborn_telos remains for the plain wheel; this is used when World.bodhisattva_wheel is on.)"""
+    craving = THIRST_CARRY * max(0.0, dead_telos) * max(0.0, effective_grip)
+    vow = VOW_KEEP * max(0.0, dead_telos) * max(0.0, bodhicitta)
+    return max(0.0, min(1.0, LINEAGE_BASE + craving + vow))
+
+
 def fresh_aim(role: str) -> str:
     """A new life's aim arises from its new trade -- not the dead soul's project (anatta), but a
     fresh thing to tend. Plain and role-shaped; the live world may author richer ones."""

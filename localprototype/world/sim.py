@@ -73,6 +73,14 @@ class World:
         self.bardo_ticks = BARDO_TICKS
         self.vasana_noise = 0.06
         self.reborn_prebond = 0.0
+        # Bodhisattva wheel (off by default -> the plain wheel above, which re-rolls wholesome faculties
+        # and carries only the thirst). When on, the bardo also carries the CULTIVATED LEAN (grip/prajñā/
+        # bodhicitta) faded toward the LIBERATED ground (the buddha-nature tilt), and the thirst is
+        # transmuted by bodhicitta (vow vs self-craving) -- so a lineage develops toward buddhahood across
+        # lives instead of resetting to ordinary wholesome. The somatic floor runs on these souls too.
+        # (agent/path.carry_practice + agent/telos.transmute_thirst; falsified in experiment_bodhisattva.)
+        self.bodhisattva_wheel = False
+        self.liberation_tilt = 1.0   # tilt strength when on: 0 = neutral mean, 1 = the liberated ground
         # Stage-A stakes: a shared store of provisions under seasonal threat. Off by
         # default; the viewer/experiments turn it on. The commons is what 'work' builds
         # and 'hoard' drains -- the contested thing the affective faculties act on.
@@ -111,6 +119,7 @@ class World:
         self.llm = None                        # set by the viewer for collective speech
         self._collective_last: dict[str, str] = {}   # faith id -> its mind's last thought
         self._births = 0   # counter so heirs/children get unique ids
+        self._reflect_i = 0   # round-robin cursor for reflect_turn (which soul practices next)
         # Guards shared state when a live viewer drives the three clocks
         # (animate / advance / speak_turn) from different threads. The blocking
         # LLM call is the ONE thing kept outside it, so motion never waits.
@@ -254,6 +263,11 @@ class World:
             # tightly this soul clung -- a hungry death pulls the next life on; wisdom lets it rest.
             "telos": getattr(soul, "telos", 0.0),
             "eff_grip": soul.effective_grip(),
+            # the cultivated lean -- the vāsanā of practice the bodhisattva wheel carries (ignored by
+            # the plain wheel, which re-rolls faculties fresh): grip/prajñā/bodhicitta as the soul died.
+            "grip": soul.grip,
+            "prajna": soul.prajna,
+            "bodhicitta": getattr(soul, "bodhicitta", 0.0),
         })
         self.bus.publish("dissolution", soul.id)
 
@@ -304,7 +318,21 @@ class World:
         # stream is doomed to its predecessor's exact kleśas.
         endow_faculties(a, self._rng)
         a.aim = _telos.fresh_aim(role)
-        a.telos = _telos.reborn_telos(entry.get("telos", 0.0), entry.get("eff_grip", 0.0))
+        if self.bodhisattva_wheel:
+            # carry the CULTIVATED LEAN across the bardo, faded toward the liberated ground (the
+            # buddha-nature tilt), overriding the fresh endowment's wisdom wing -- so practice and the
+            # lineage's drift toward liberation persist instead of resetting. Bodhicitta is carried too;
+            # the thirst is transmuted by it (the vow, not self-craving). The somatic floor runs here.
+            from agent import path as _path
+            a.grip, a.prajna, a.bodhicitta = _path.carry_practice(
+                entry.get("grip", a.grip), entry.get("prajna", a.prajna),
+                entry.get("bodhicitta", a.bodhicitta), self._rng, self.liberation_tilt)
+            a.telos = _telos.transmute_thirst(entry.get("telos", 0.0), a.effective_grip(), a.bodhicitta)
+            a.somatic_enabled = True       # the bottom-up floor active in the live world
+            a.cultivate_enabled = True     # within-life practice grooves the faculties ...
+            a.reflect_enabled = True       # ... fed by reflect_turn(), so the soul EARNS the lean, not only inherits it
+        else:
+            a.telos = _telos.reborn_telos(entry.get("telos", 0.0), entry.get("eff_grip", 0.0))
         for frag in seeds:
             a.memory.write(frag, tick=self.tick, source="self", speaker_id=sid, weight=0.8)
         if entry["belief_vec"] is not None:
@@ -519,6 +547,37 @@ class World:
             u = speaker.commit_speech(text, self.tick, addressed, mood)
             self.deliver(u, speaker)
         return u
+
+    def reflect_turn(self):
+        """One within-life PRACTICE turn: an eligible soul meets its own mind (the Path, bhāvanā), so
+        that step()'s cultivate() then grooves its faculties -- the souls EARN the lean, not only inherit
+        it from the bardo tilt. The model call runs OUTSIDE the lock (like speak_turn) so the fast clocks
+        never block; the reflection's emotion is its equanimity, read when embeddings are up. Returns the
+        reflection text, or None. Picks reflect_enabled souls round-robin."""
+        if self.llm is None or not hasattr(self.llm, "generate"):
+            return None
+        from agent import reflect as _reflect
+        with self.lock:
+            eligible = [a for a in self.agents if getattr(a, "reflect_enabled", False)]
+            if not eligible:
+                return None
+            a = eligible[self._reflect_i % len(eligible)]
+            self._reflect_i += 1
+            aid = a.id
+            prep = _reflect.prepare(a)              # read-only, under the lock
+            if prep is None:
+                return None
+            prompt, system = prep
+        try:                                        # the slow part, held by no lock
+            raw = self.llm.generate(prompt, system=system, num_predict=90, temperature=0.7)
+        except Exception:  # noqa: BLE001 -- a failed reflection just doesn't happen
+            return None
+        with self.lock:
+            # the soul may have died/been reborn during the slow call -- only write if it still lives
+            cur = next((x for x in self.agents if x.id == aid), None)
+            if cur is None:
+                return None
+            return _reflect.imprint(cur, raw, self.tick)
 
     # --- collective consciousness: one mind per faith --------------------------
     # The agents are NEURONS -- they murmur, drift, and cross-pollinate on the

@@ -133,7 +133,7 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 pop_cap: int = 24, murmur: bool = False,
                 emergent: bool = False, spawn: bool = False,
                 rebirth: bool = False, start: int | None = None,
-                fast_wheel: bool = False,
+                fast_wheel: bool = False, bodhisattva: bool = False,
                 model: str = "gemma3:4b") -> tuple[World, dict]:
     if backend == "ollama":
         llm = OllamaLLM(model=model)
@@ -167,6 +167,12 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
         world.reborn_prebond = 0.5
         world.vasana_noise = 0.04
         world.bardo_ticks = (8, 20)
+    if bodhisattva:
+        # the wheel leans toward buddhahood: the bardo carries the cultivated lean toward the liberated
+        # ground (the buddha-nature tilt) and transmutes the thirst by bodhicitta, with the somatic floor
+        # on the reborn souls. Watch the town drift toward the bodhisattva basin across deaths (best with
+        # --fast-wheel). Measured headless in experiment_wheel_bodhisattva.py.
+        world.bodhisattva_wheel = True
     rng = __import__("random").Random(move_seed)
     colours = {}
     # procedural genesis: the LLM authors six distinct souls up front (slow on a
@@ -463,6 +469,11 @@ def main() -> None:
                     help="samsara: procedural souls, but at death the SELF dissolves "
                          "into a bardo and only its vasana ripens into a new, "
                          "identity-less stream -- no author, no self transmitted")
+    ap.add_argument("--bodhisattva", action="store_true",
+                    help="the wheel LEANS TOWARD BUDDHAHOOD: the bardo carries the cultivated "
+                         "lean toward the liberated ground (buddha-nature tilt) + transmutes the "
+                         "thirst by bodhicitta + runs the somatic floor; implies --rebirth. Watch "
+                         "the town drift toward the bodhisattva basin (best with --fast-wheel)")
     ap.add_argument("--world", action="store_true",
                     help="THE FULL EMBODIED WORLD: every compatible piece at once -- "
                          "procedurally-authored souls with life-stories, emergent "
@@ -524,8 +535,8 @@ def main() -> None:
                                        no_aging=args.no_aging, breed=breed,
                                        pop_cap=args.pop_cap, murmur=murmur_on,
                                        emergent=emergent, spawn=spawn_cast,
-                                       rebirth=args.rebirth, start=start,
-                                       fast_wheel=args.fast_wheel)
+                                       rebirth=args.rebirth or args.bodhisattva, start=start,
+                                       fast_wheel=args.fast_wheel, bodhisattva=args.bodhisattva)
         except Exception as exc:  # noqa: BLE001
             _built["err"] = exc
 
@@ -701,6 +712,7 @@ def main() -> None:
 
     def speech_loop():    # the slow LLM turns, on their own thread
         faith_i = 0
+        turn_i = 0
         while running.is_set():
             try:
                 if collective:
@@ -714,6 +726,10 @@ def main() -> None:
                         time.sleep(0.1)
                 else:
                     world.speak_turn()   # each agent speaks for itself
+                    if args.bodhisattva:
+                        turn_i += 1
+                        if turn_i % 4 == 0:   # every few turns a soul PRACTISES instead (the Path, live)
+                            world.reflect_turn()
             except Exception as exc:  # noqa: BLE001
                 print("[speech] failed:", exc, file=sys.stderr)
             time.sleep(0.05)
