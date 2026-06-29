@@ -12,8 +12,10 @@ The project is built as an **experiment, not a diorama**. Its central claims —
 that a single agent has a *legible inner life*, that group structure *emerges*
 rather than being read back out of assigned labels, that a faction can *outlive
 its members* across rebirth — are each reduced to a number that can fail, and a
-falsification harness tests them. Everything runs **locally** on a small model:
-free, offline, no API keys, nothing leaves the machine.
+falsification harness tests them. It runs **locally by default** on a small model:
+free, offline, no API keys, nothing leaves the machine. (One opt-in hosted backend
+— DeepSeek — exists for the questions a 4B can't settle; it is off unless you ask
+for it by name, see *Swapping the brain* below.)
 
 ---
 
@@ -320,5 +322,28 @@ screen. Voices play through one shared mixer with a reserved channel so a flurry
 of murmurs can't drop the clear voice.
 
 Swap the brain with `--llm mock` (instant, no real talk) or point `OllamaLLM` at
-any model in `ollama list`. There are **no hosted-API backends** — the project is
-local-only by design.
+any model in `ollama list`. The default backend selection (`auto`) is **local-only
+by design** — it never reaches for the network, so a stray key can't silently ship
+the world out.
+
+**The opt-in hosted backend (DeepSeek).** This box (CPU-only, no GPU) tops out around
+8B locally, which isn't enough to settle the questions that need scale — chiefly
+whether a *personality* emerges from the town (§5.8, inconclusive on a 4B in both
+subject and judge). For those, there is one hosted backend, off unless you select it:
+
+```bash
+cp .env.example .env        # then put your key in DEEPSEEK_API_KEY
+# the §5.8 re-run: a larger subject + an independent (human) judge
+python experiment_santana_emergence.py --llm deepseek --judge human
+# or full-swap the live world / her voice when you want the better register
+python viewer.py --llm deepseek
+python santana.py --live --llm deepseek
+```
+
+It is **explicit opt-in** (`--llm deepseek` / `--backend deepseek`), never the
+default, and prints a one-line notice when active. *Privacy:* there is no real-person
+data in this sim, but with DeepSeek selected your prompts and the souls' generated
+speech leave the machine to a China-hosted API (~30-day retention; turn off "Improve
+the model for everyone" in your account to keep them out of training). Local stays the
+**committed default** so the saved experiment results stay reproducible against a model
+that can't drift or be deprecated under you.

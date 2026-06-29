@@ -122,8 +122,8 @@ def main() -> None:
     p.add_argument("--ticks", type=int, default=60)
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--backend",
-                   choices=["auto", "ollama", "mock"],
-                   default="ollama")   # local-only: default to the local model
+                   choices=["auto", "ollama", "mock", "deepseek"],
+                   default="ollama")   # local by default; deepseek = opt-in hosted (key in .env)
     p.add_argument("--model", default=None,
                    help="override model id for ALL agents (defaults per backend)")
     p.add_argument("--models", default=None,

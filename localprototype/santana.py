@@ -292,15 +292,19 @@ def _watch(args) -> None:
     from agent import genesis as _genesis
     from agent.agent import Agent
     from services import embed
-    from services.llm import MockLLM, OllamaLLM
+    from services.llm import MockLLM, OllamaLLM, make_llm
     from world.sim import World
 
-    if args.llm != "ollama":
-        print("watch needs a real voice for the Mind -- run: --llm ollama --model gemma3:4b")
+    if args.llm not in ("ollama", "deepseek"):
+        print("watch needs a real voice for the Mind -- run: --llm ollama --model gemma3:4b "
+              "(or --llm deepseek with a key in .env)")
         return
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice on Ollama
-    santana_llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model
-                   else OllamaLLM(temperature=0.85))
+    if args.llm == "deepseek":
+        santana_llm = make_llm(backend="deepseek", model=args.model)   # her voice leaves the machine
+    else:
+        santana_llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model
+                       else OllamaLLM(temperature=0.85))
     town_llm = MockLLM(seed=7)   # the town lives on mock -> instant, frees the real model for her voice
 
     rng = random.Random(7)
@@ -376,11 +380,13 @@ def _watch(args) -> None:
 def main() -> None:
     import argparse
     from agent.agent import Agent
-    from services.llm import MockLLM, OllamaLLM
+    from services.llm import MockLLM, OllamaLLM, make_llm
     from world.sim import World
 
     p = argparse.ArgumentParser(description="A first read of Santāna -- inert, text only.")
-    p.add_argument("--llm", choices=["mock", "ollama"], default="mock")
+    p.add_argument("--llm", choices=["mock", "ollama", "deepseek"], default="mock",
+                   help="her VOICE. deepseek = the hosted larger model (key in .env; her "
+                        "speech leaves the machine). The town underneath always runs on mock.")
     p.add_argument("--model", default=None)
     p.add_argument("--once", action="store_true",
                    help="one read of a fixed town (murmur + clear) -- fast, for comparing models")
@@ -402,13 +408,20 @@ def main() -> None:
                    help="--watch/--live: seconds the town lives between her readings")
     args = p.parse_args()
     if args.live:
-        args.watch, args.llm, args.tts = True, "ollama", (not args.mute)
+        # --live needs a real voice; default to local, but respect an explicit --llm deepseek
+        if args.llm != "deepseek":
+            args.llm = "ollama"
+        args.watch, args.tts = True, (not args.mute)
         if args.observations == 8:    # the default -> continuous; an explicit --observations N still bounds it
             args.observations = 0
     if args.watch:
         _watch(args); return
-    llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model else OllamaLLM(temperature=0.85)) \
-        if args.llm == "ollama" else MockLLM(seed=1)
+    if args.llm == "deepseek":
+        llm = make_llm(backend="deepseek", model=args.model)   # prints the egress notice, checks the key
+    elif args.llm == "ollama":
+        llm = OllamaLLM(temperature=0.85, model=args.model) if args.model else OllamaLLM(temperature=0.85)
+    else:
+        llm = MockLLM(seed=1)
 
     # a tiny town: a grieving one, a glad one, a couple in between -- moods set via temperament
     w = World()

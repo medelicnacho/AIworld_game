@@ -135,7 +135,10 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 rebirth: bool = False, start: int | None = None,
                 fast_wheel: bool = False, bodhisattva: bool = False,
                 model: str = "gemma3:4b") -> tuple[World, dict]:
-    if backend == "ollama":
+    if backend == "deepseek":
+        from services.llm import make_llm
+        llm = make_llm(backend="deepseek", model=model if model != "gemma3:4b" else None)
+    elif backend == "ollama":
         llm = OllamaLLM(model=model)
         if not llm.available():   # don't go silently mute if Ollama isn't running
             print("[viewer] Ollama not reachable -> falling back to mock speech.")
@@ -422,8 +425,9 @@ def main() -> None:
     ap.add_argument("--model", default="gemma3:4b",
                     help="ollama model for speech, e.g. dolphin-mistral (less "
                          "sycophantic -> souls disagree). any model in `ollama list`")
-    ap.add_argument("--llm", default="ollama", choices=["mock", "ollama"],
-                    help="ollama = real LLM speech in the side chat; mock = fast nonsense")
+    ap.add_argument("--llm", default="ollama", choices=["mock", "ollama", "deepseek"],
+                    help="ollama = real local speech; deepseek = hosted larger model "
+                         "(key in .env; the whole town's speech leaves the machine); mock = fast nonsense")
     ap.add_argument("--step-ms", type=int, default=100,
                     help="subconscious heartbeat interval (ms): memory/thought/urge rate")
     ap.add_argument("--chat-delay", type=float, default=0.5,

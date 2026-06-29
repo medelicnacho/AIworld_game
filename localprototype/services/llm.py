@@ -1,27 +1,53 @@
-"""Local LLM backends.
+"""LLM backends.
 
 The sim never talks to a model directly -- it builds a SpeechContext and calls
-backend.speak(ctx). Two local backends share the same prompt builders:
-  - OllamaLLM : a local model over HTTP (free, offline) -- stdlib only
-  - MockLLM   : no model at all, composes from drift so the world still runs
-Swapping backends never touches agent/sim code. The project is local-only; the
-older hosted-API backends (Claude/DeepSeek) and their .env key handling were
-removed -- nothing here leaves the machine.
+backend.speak(ctx). The backends share the same prompt builders:
+  - OllamaLLM   : a local model over HTTP (free, offline) -- stdlib only
+  - MockLLM     : no model at all, composes from drift so the world still runs
+  - DeepSeekLLM : hosted API (OpenAI-compatible) -- the opt-in larger-model path
+Swapping backends never touches agent/sim code. The default is local-only:
+'auto' chooses Ollama (or Mock), never the API, so nothing leaves the machine
+unless you ask for DeepSeek by name with a key in .env. That opt-in is the one
+path on which prompts and generated speech leave the box (see make_llm).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 
 OLLAMA_URL = "http://localhost:11434"
 DEFAULT_OLLAMA_MODEL = "gemma3:4b"   # small + fast local model for this variant
 OLLAMA_NUM_THREAD = 8        # P-core sweet spot here; 12 oversubscribes E-cores
 OLLAMA_KEEP_ALIVE = "30m"    # keep the model resident so turns don't cold-reload
+
+# Hosted DeepSeek backend (OpenAI-compatible). OFF unless explicitly selected: the
+# default ('auto') is local-only -- nothing leaves the machine. DeepSeek is the
+# opt-in path to a larger model than this box can run (see make_llm + README).
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash"   # cheap, fast; thinking disabled below
+
+
+def load_dotenv(path: str | None = None) -> None:
+    """Minimal .env loader: KEY=VALUE lines into os.environ (no overwrite).
+
+    Keeps the API key out of source and out of shell history. .env is gitignored.
+    """
+    env_path = Path(path) if path else Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
 
 
 @dataclass
@@ -429,6 +455,66 @@ def build_user(ctx: SpeechContext) -> str:
     return "\n".join(lines)
 
 
+class DeepSeekLLM:
+    """DeepSeek API backend (OpenAI-compatible). The opt-in larger-model path.
+
+    Stdlib HTTP -- no SDK. China-hosted: prompts and generated speech LEAVE this
+    machine (see the notice in make_llm). Use it for the runs that need more than a
+    4B can give (the emergence verdict); local stays the committed default so saved
+    experiments stay reproducible against a model that can't drift or be deprecated.
+    """
+
+    def __init__(self, model: str = DEFAULT_DEEPSEEK_MODEL, url: str = DEEPSEEK_URL,
+                 temperature: float = 0.95, max_tokens: int = 110,
+                 timeout: float = 60.0) -> None:
+        self.model = model
+        self.url = url
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.timeout = timeout
+        self._key = os.environ.get("DEEPSEEK_API_KEY", "")
+
+    @staticmethod
+    def available() -> bool:
+        return bool(os.environ.get("DEEPSEEK_API_KEY"))
+
+    def _post(self, messages: list[dict], max_tokens: int, temperature: float) -> str:
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": False,
+            # v4-flash defaults to thinking mode, which burns the budget on reasoning
+            # and returns empty content. Disable it for fast one-liners.
+            "thinking": {"type": "disabled"},
+        }
+        req = urllib.request.Request(
+            self.url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {self._key}"},
+        )
+        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        return data["choices"][0]["message"]["content"] or ""
+
+    def speak(self, ctx: SpeechContext) -> str:
+        text = self._post(
+            [{"role": "system", "content": build_system(ctx)},
+             {"role": "user", "content": build_user(ctx)}],
+            self.max_tokens, self.temperature)
+        return _trim_to_sentence(_clean(text)) or "..."
+
+    def generate(self, prompt: str, system: str = "", num_predict: int = 260,
+                 temperature: float = 1.0) -> str:
+        """Free-form completion (genesis authoring, reflect, the emergence judge):
+        returns RAW text so the caller parses its own structured reply."""
+        messages = ([{"role": "system", "content": system}] if system else []) \
+            + [{"role": "user", "content": prompt}]
+        return self._post(messages, num_predict, temperature)
+
+
 class OllamaLLM:
     def __init__(self, model: str = DEFAULT_OLLAMA_MODEL, url: str = OLLAMA_URL,
                  temperature: float = 0.95, num_predict: int = 110,
@@ -544,12 +630,27 @@ class MockLLM:
 
 def make_llm(backend: str = "auto", model: str | None = None,
              seed: int | None = None):
-    """Pick a local backend.
+    """Pick a backend. Local is the default; DeepSeek is explicit opt-in only.
 
-    'auto'  : Ollama if a local model is reachable, else Mock.
-    'ollama': local model (errors if not reachable).
-    'mock'  : no model.
+    'auto'    : Ollama if a local model is reachable, else Mock. Never the API --
+                so a stray key in the environment can't silently ship the world out.
+    'ollama'  : local model (errors if not reachable).
+    'deepseek': hosted DeepSeek API. Must be asked for by name + a key in .env;
+                prompts and speech leave the machine (a notice prints once).
+    'mock'    : no model.
     """
+    if backend == "deepseek":
+        load_dotenv()
+        if not DeepSeekLLM.available():
+            raise RuntimeError(
+                "DeepSeek requested but DEEPSEEK_API_KEY is not set "
+                "(put it in .env -- see .env.example).")
+        m = model or DEFAULT_DEEPSEEK_MODEL
+        print(f"[llm] DeepSeek API: {m} -- prompts + speech leave this machine "
+              "(api.deepseek.com, China; ~30d retention; turn off 'Improve the model "
+              "for everyone' to keep them out of training). Local is the default.")
+        return DeepSeekLLM(model=m)
+
     if backend in ("ollama", "auto"):
         m = model or DEFAULT_OLLAMA_MODEL
         ollama = OllamaLLM(model=m)

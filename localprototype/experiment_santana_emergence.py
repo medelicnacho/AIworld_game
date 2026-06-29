@@ -23,6 +23,11 @@ both DIFFERENT from the placebo default, and within-town judged SAME (stable acr
 Prior (§5.8 -> honest negative): T1 ~ T2 ~ placebo, all SAME -- the town does not move the default.
 
 Run:  python experiment_santana_emergence.py --llm ollama --model gemma3:4b
+The 4B verdict was inconclusive *in both subject and judge* (§5.8). To settle it,
+raise both: a larger subject and an independent judge --
+  python experiment_santana_emergence.py --llm deepseek --judge human
+DeepSeek writes the identities; you score the pairs blinded (no town labels), which
+is the cleanest judge -- nothing grades its own output.
 """
 
 from __future__ import annotations
@@ -31,10 +36,12 @@ import argparse
 import itertools
 import statistics
 
+import random as _random
+
 from agent.agent import Agent
 from santana import Santana
 from services import embed
-from services.llm import MockLLM, OllamaLLM
+from services.llm import MockLLM, OllamaLLM, make_llm
 from world.sim import World
 
 READINGS = 2   # speak+consolidate cycles to let the identity settle
@@ -110,46 +117,126 @@ def _dist(a, b):
     return 1.0 - embed.score(a, b)   # embedding cosine distance (descriptive only)
 
 
+def _pairs(ids, names):
+    """The three comparison sets the verdict rests on, as (a, b) tuples."""
+    btw = [(a, b) for a, b in itertools.product(ids[names[0]], ids[names[1]])]  # different-content
+    wth = [(ids[n][0], ids[n][1]) for n in names]                              # same town, two seeds
+    vpl = [(ids[n][0], ids["placebo"][0]) for n in names]                      # town vs empty default
+    return btw, wth, vpl
+
+
+def human_judge(btw, wth, vpl):
+    """Present every pair SHUFFLED and BLINDED (no town/seed labels); you call SAME or
+    DIFFERENT on character alone. Returns the three verdict lists in original order, or
+    None if aborted. The gold-standard judge: you can't unconsciously grade by the nouns
+    because you don't know which town any identity came from."""
+    tagged = ([("btw", i, p) for i, p in enumerate(btw)]
+              + [("wth", i, p) for i, p in enumerate(wth)]
+              + [("vpl", i, p) for i, p in enumerate(vpl)])
+    order = tagged[:]
+    _random.Random(0).shuffle(order)
+    calls: dict[tuple[str, int], bool] = {}
+    print("\n=== BLIND JUDGE — same underlying CHARACTER, or DIFFERENT? ===")
+    print("    Ignore which people/trades are named. Compare only temperament, warmth,")
+    print("    stance toward life, how it carries what it holds.\n")
+    for n, (kind, idx, (a, b)) in enumerate(order, 1):
+        print(f"  Pair {n}/{len(order)}")
+        print(f"    A: {a}")
+        print(f"    B: {b}")
+        while True:
+            ans = input("    same / different?  [s/d]  (q to abort): ").strip().lower()
+            if ans in ("s", "same"):
+                calls[(kind, idx)] = True; break
+            if ans in ("d", "different"):
+                calls[(kind, idx)] = False; break
+            if ans in ("q", "quit", "abort"):
+                print("  aborted -- no verdict.")
+                return None
+            print("    please type s or d (or q).")
+        print()
+    return ([calls[("btw", i)] for i in range(len(btw))],
+            [calls[("wth", i)] for i in range(len(wth))],
+            [calls[("vpl", i)] for i in range(len(vpl))])
+
+
+def print_embedding(ids, names) -> None:
+    """Descriptive only (conflates nouns with character); needs a local embed model.
+    Never fatal -- it is a sketch, not the verdict."""
+    try:
+        within = statistics.fmean(_dist(ids[n][0], ids[n][1]) for n in names)
+        between = statistics.fmean(_dist(a, b) for a, b in itertools.product(ids[names[0]], ids[names[1]]))
+        to_placebo = statistics.fmean(_dist(t, pl) for n in names for t in ids[n] for pl in ids["placebo"])
+    except Exception as e:
+        print(f"\n  (embedding sketch skipped: {type(e).__name__} -- needs a local embed model)")
+        return
+    print(f"\n  embedding distance (descriptive, conflates nouns w/ character):")
+    print(f"    within-town (noise): {within:.3f}   between-content: {between:.3f}   town-vs-placebo: {to_placebo:.3f}")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--llm", choices=["mock", "ollama"], default="mock")
+    p.add_argument("--llm", choices=["mock", "ollama", "deepseek"], default="mock",
+                   help="the SUBJECT that writes the identities. deepseek = the larger model "
+                        "the 4B verdict said it needed (key in .env; prompts leave the machine).")
     p.add_argument("--model", default=None)
+    p.add_argument("--judge", choices=["auto", "human"], default="auto",
+                   help="auto = an LLM judge (calibrated first); human = you score the pairs "
+                        "blinded -- the independent judge §5.8 said the verdict needs.")
     args = p.parse_args()
-    llm = (OllamaLLM(temperature=0.8, model=args.model) if args.model else OllamaLLM(temperature=0.8)) \
-        if args.llm == "ollama" else MockLLM(seed=1)
+    if args.llm == "deepseek":
+        llm = make_llm(backend="deepseek", model=args.model)   # prints the egress notice, checks the key
+    elif args.llm == "ollama":
+        llm = OllamaLLM(temperature=0.8, model=args.model) if args.model else OllamaLLM(temperature=0.8)
+    else:
+        llm = MockLLM(seed=1)
 
-    # --- validate the judge before trusting it (the §5.7 discipline) ---
-    same_ok = judge_same(llm, *CALIB_SAME)
-    diff_ok = judge_same(llm, *CALIB_DIFF)
-    print(f"\n  judge calibration: same-pair -> {same_ok}  (want True);  diff-pair -> {diff_ok}  (want False)")
-    judge_valid = (same_ok is True and diff_ok is False)
-    if not judge_valid:
-        print("  [warn] the judge failed calibration -- its verdicts below are unreliable; lean on the prints.")
+    # --- validate the judge before trusting it (the §5.7 discipline). A human judge is
+    #     taken as valid; an LLM judge must pass a known same-pair and diff-pair first. ---
+    if args.judge == "human":
+        judge_valid = True
+        print("\n  judge: HUMAN (you) -- assumed valid; pairs will be shown blinded.")
+    else:
+        same_ok = judge_same(llm, *CALIB_SAME)
+        diff_ok = judge_same(llm, *CALIB_DIFF)
+        print(f"\n  judge calibration: same-pair -> {same_ok}  (want True);  diff-pair -> {diff_ok}  (want False)")
+        judge_valid = (same_ok is True and diff_ok is False)
+        if not judge_valid:
+            print("  [warn] the judge failed calibration -- its verdicts below are unreliable; lean on the prints.")
 
     # --- build settled identities: each town across seeds, plus the empty placebo ---
     ids = {name: [build_identity(cast, s, llm) for s in SEEDS] for name, cast in TOWNS.items()}
     ids["placebo"] = [build_identity([], s, llm) for s in SEEDS]
 
-    print("\n=== Settled identities (does the town shape WHO she becomes?) ===")
-    for name, lst in ids.items():
-        for s, idt in zip(SEEDS, lst):
-            print(f"  [{name}/{s}] {idt}")
-
     names = list(TOWNS)
-    within = statistics.fmean(_dist(ids[n][0], ids[n][1]) for n in names)               # seeds, same town
-    between = statistics.fmean(_dist(a, b) for a, b in itertools.product(ids[names[0]], ids[names[1]]))
-    to_placebo = statistics.fmean(_dist(t, pl) for n in names for t in ids[n] for pl in ids["placebo"])
-    print(f"\n  embedding distance (descriptive, conflates nouns w/ character):")
-    print(f"    within-town (noise): {within:.3f}   between-content: {between:.3f}   town-vs-placebo: {to_placebo:.3f}")
+    btw_p, wth_p, vpl_p = _pairs(ids, names)
 
-    # --- the verdict: the LLM judge on CHARACTER (ignoring nouns) ---
-    btw = [judge_same(llm, a, b) for a, b in itertools.product(ids[names[0]], ids[names[1]])]
-    wth = [judge_same(llm, ids[n][0], ids[n][1]) for n in names]
-    vpl = [judge_same(llm, ids[n][0], ids["placebo"][0]) for n in names]   # one representative pair per town
+    # --- the verdict: SAME/DIFFERENT on CHARACTER (ignoring nouns) ---
+    if args.judge == "human":
+        # judge BEFORE revealing the labels, so the nouns can't bias the call
+        res = human_judge(btw_p, wth_p, vpl_p)
+        if res is None:
+            return
+        btw, wth, vpl = res
+        print("\n=== Settled identities (revealed) ===")
+        for name, lst in ids.items():
+            for s, idt in zip(SEEDS, lst):
+                print(f"  [{name}/{s}] {idt}")
+        print_embedding(ids, names)
+    else:
+        print("\n=== Settled identities (does the town shape WHO she becomes?) ===")
+        for name, lst in ids.items():
+            for s, idt in zip(SEEDS, lst):
+                print(f"  [{name}/{s}] {idt}")
+        print_embedding(ids, names)
+        btw = [judge_same(llm, a, b) for a, b in btw_p]
+        wth = [judge_same(llm, a, b) for a, b in wth_p]
+        vpl = [judge_same(llm, a, b) for a, b in vpl_p]
+
     between_diff = sum(1 for x in btw if x is False)
     within_same = sum(1 for x in wth if x is True)
     placebo_diff = sum(1 for x in vpl if x is False)
-    print(f"\n  LLM-judge on CHARACTER (the verdict):")
+    judge_label = "HUMAN judge" if args.judge == "human" else "LLM-judge"
+    print(f"\n  {judge_label} on CHARACTER (the verdict):")
     print(f"    between-content pairs judged DIFFERENT: {between_diff}/{len(btw)}")
     print(f"    within-town pairs judged SAME:          {within_same}/{len(wth)}")
     print(f"    town-vs-placebo pairs judged DIFFERENT: {placebo_diff}/{len(vpl)}")
