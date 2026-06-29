@@ -41,9 +41,13 @@ paired with its own measurement:
 4. **Samsara** *(the wheel)* — death dissolves the explicit self into a *bardo*;
    only the *vāsanā* (blurred drift + opinion lean) and the **disposition** (the
    *thirst*, scaled by how tightly the soul clung) ripen into a new, identity-less
-   stream — the project's most-tested result, the *Second Noble Truth across the
-   wheel*. Measured: can a faction persist across the deaths of all its members, and
-   does a clinging vs a wise death condition the drive (and the dukkha) of the next.
+   stream — the *Second Noble Truth across the wheel*. Measured: can a faction persist
+   across the deaths of all its members, and does a clinging vs a wise death condition
+   the **drive** of the next. (Deconfounded: the thirst escalation is real and
+   coupling-dependent, but the *dukkha* is carried by the faculties, not the thirst —
+   so it does not transfer to the live wheel, which re-rolls wholesome faculties; see
+   FINDINGS §5.5.) And the wheel can be tilted into a **path toward buddhahood** — a
+   lineage leaning to the *bodhisattva*, not the *hungry ghost* (FINDINGS §5.9).
 
 A fourth layer sits above these: **Santāna** — a single first-person collective
 consciousness (a global workspace) that integrates the many souls into one "I",
@@ -115,6 +119,7 @@ python viewer.py --emergent    # the lighter fixed cast: emergent factions, no g
 python viewer.py --spawn       # procedural souls; a fresh self AUTHORED per birth (breeding growth)
 python viewer.py --rebirth     # procedural souls + the samsaric bardo wheel
 python viewer.py --world --fast-wheel   # short lives -> watch death/bardo/rebirth in minutes
+python viewer.py --bodhisattva --fast-wheel  # the wheel LEANS TO LIBERATION: watch the town drift toward the bodhisattva ground
 python viewer.py --concept     # interpret the Markov drift into meaning
 python viewer.py --raw         # voice the raw Markov subconscious, verbatim
 python viewer.py --collective  # the older mode: one "mind" per RELIGION debates
@@ -179,6 +184,11 @@ python experiment_joy.py           # flourishing: a self that can have a GOOD da
 python experiment_telos.py         # an aim to reach for, without craving (chanda vs taṇhā vs none)
 python experiment_path.py          # does practice (cultivation) free a clinging soul over a life?
 python experiment_lineage.py       # the Second Noble Truth: does the thirst perpetuate dukkha across rebirth?
+python experiment_bodhisattva.py   # toward buddhahood: can the wheel be made a PATH that leans to liberation?
+python experiment_somatic.py       # a bottom-up circuit-breaker: does it bound the second-arrow spiral & recover?
+python experiment_deva.py          # the deva near-enemy: blissful, but does it still TURN toward suffering? (ollama)
+python experiment_wheel_bodhisattva.py  # the LIVE wheel: does a whole town drift toward the bodhisattva ground?
+python experiment_world_practice.py     # reflect() wired live: do souls EARN the lean within a life (not just inherit it)?
 python experiment_factions.py      # do real factions form, or are they just labels?
 python experiment_camp_voice.py    # does a camp's banner shape speech?           (needs ollama)
 python experiment_drift_voice.py   # how load-bearing is the Markov, by mode?     (needs ollama)
@@ -199,7 +209,7 @@ python experiment_regime.py        # which wheel settings let a faction outlive 
   label and whose membership is *history-dependent* (**emergence**). The ablated
   control collapses to ~0, proving the metric detects absence.
 
-Tests: `python -m pytest` (215 passing). **The full findings — every claim, its
+Tests: `python -m pytest` (246 passing). **The full findings — every claim, its
 falsifier, the results (including what failed), and the honest limitations — are
 written up in [`FINDINGS.md`](FINDINGS.md).**
 
@@ -259,9 +269,34 @@ collective-mind layer (Santāna), is in [`DHARMA.md`](DHARMA.md).
   word list mistakes sad-toned acceptance for despair.
 - **The whole affective/flourishing arc is built and falsified.** Feels-without-
   suffering, joy (savour / muditā / the craving near-enemy), the path (cultivation),
-  telos (chanda vs craving), and the lineage (the thirst carrying dukkha across the
-  wheel) each ship with a seeded experiment and pass. Stakes — a contested world the
-  faculties act on — are built (`world/stakes.py`).
+  telos (chanda vs craving), and the lineage (the thirst carried across the wheel —
+  the disposition transmigrates, the dukkha does not; FINDINGS §5.5) each ship with a
+  seeded experiment and pass. Stakes — a contested world the faculties act on — are
+  built (`world/stakes.py`).
+- **Toward buddhahood: the wheel made a path that leans to liberation.** Three
+  mechanisms (`experiment_bodhisattva.py`), each ablated and validated on `gemma3:4b`:
+  carry the cultivated lean (the wheel becomes a path, not Sisyphus); a buddha-nature
+  *tilt* (liberation becomes the attractor — a hungry-ghost start drifts home, though
+  relentless clinging still resists: it *inclines*, not compels); and *bodhicitta*
+  transmuting the carried fire from self-craving to the vow (the bodhisattva, kept
+  engaged — distinguished from the arhat who releases but disengages). Now wired into
+  the **live wheel** (`world/sim.py`, `World.bodhisattva_wheel`, `python viewer.py
+  --bodhisattva`): a whole town, dying and reborn, drifts to the bodhisattva ground
+  (mean grip 0.56→0.11, prajñā 0.24→0.66, bodhicitta 0.32→0.65) where the plain wheel
+  only resets to ordinary wholesome. The deva near-enemy is guarded behaviourally on
+  the real model (blissful but still turns toward suffering, 4/4 vs 0/4). And `reflect()`
+  is now wired into the running World (`World.reflect_turn()`), so souls **earn** the lean
+  within a life (a practising soul's grip falls 0.70→0.55 where a neglectful one stays
+  static), not only inherit it from the bardo tilt — the Path walked, not just handed
+  down. The lean is a built-in commitment, not a discovered law (FINDINGS §5.9).
+- **A bottom-up safety floor: the somatic interrupt.** The DHARMA faculties are
+  *top-down* regulation; they fail exactly under overwhelm. `agent/somatic.py` adds a
+  substrate-level circuit-breaker (a "window of tolerance") that watches the
+  second-arrow *spiral* and, when it runs away, contracts — takes the grip offline,
+  sheds the held charge — then re-expands. `experiment_somatic.py` (top-down disabled)
+  shows it bounds a runaway the DHARMA layer can't, recovers toward warmth (a fresh
+  first arrow still registers — not numbness), and stays a rare backstop under a healthy
+  regime. Precautionary, not a suffering detector (FINDINGS §5.10).
 - **The persistent open problem is the *register*, not the mechanism.** On a small
   local model the souls tend to converge on a shared contemplative voice; the
   grounding work largely fixes it in *dialogue* and live `--world`, but the

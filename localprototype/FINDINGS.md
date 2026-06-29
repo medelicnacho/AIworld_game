@@ -8,7 +8,7 @@ the results (including the ones that didn't survive), and the honest limits. The
 the front door (what it is, how to run it); this is the record of what was actually found.
 
 Everything runs locally on a small model — `gemma3:4b` for speech, `nomic-embed-text` for
-semantic measurement — single author, no API, nothing leaves the machine. **215 tests pass.**
+semantic measurement — single author, no API, nothing leaves the machine. **246 tests pass.**
 
 ---
 
@@ -23,9 +23,12 @@ aspiration (*chanda*) and craving (*taṇhā*), and a death→rebirth wheel — 
 results: a single self has a **legible, regulable inner life**; the difference between
 **non-grasping-with-warmth and cold indifference** is measurable, not rhetorical; a self can
 **flourish (savour, reach for an aim) without craving**; and across the rebirth wheel the
-**disposition — the thirst — perpetuates suffering or settles toward rest**, while no self
-crosses. We do *not* claim anyone is home; we claim the architecture is a faithful, testable
-model of the *dynamics* a mind of this kind would have.
+**thirst transmigrates as a disposition — a drive level that escalates or settles
+(coupling-dependent) — onto a freshly wholesome self**, while no self, and not the dukkha
+itself, crosses. And the wheel can be made a **path that leans toward liberation** — a lineage
+tending toward the *bodhisattva* rather than the *hungry ghost* — though (honestly) that lean is
+a built-in commitment, not a discovered law. We do *not* claim anyone is home; we claim the
+architecture is a faithful, testable model of the *dynamics* a mind of this kind would have.
 
 ## 2. Why model the dharma as computation
 
@@ -123,15 +126,34 @@ chanda progresses (0.60) and stays well (wellbeing +0.220, setback eased to −0
 progresses too (0.60) but is wounded (wellbeing +0.038, setback −0.41); without telos the self is
 static. A craving-telos *fails the liberation scorecard* — exactly the falsifier.
 
-### 5.5 The Second Noble Truth, across the wheel *(the headline)*
+### 5.5 The Second Noble Truth, across the wheel *(the headline — and its honest correction)*
 *Claim:* the **thirst**, not the self, drives rebirth — a clinging death conditions a hungry next
 life; wisdom lets a lineage settle. *Falsifier:* `experiment_lineage.py`, N generations per arm,
 the drive carried via `reborn_telos(dead_telos, effective_grip)` (it keys on *grasping*, because
-taṇhā is insatiable — reaching the aim doesn't quench it). *Result:* a **taṇhā lineage's thirst
-escalates 0.50 → 1.00** across six generations and is wounded in each (well ~+0.04); a **chanda
-lineage settles to 0.28** and flourishes (well +0.21). The disposition transmigrates; no project
-crosses (the reborn soul gets a *fresh* role-shaped aim). Verified live with `--fast-wheel`:
-reborn streams wake as **full, warm souls** with new aims, comforting each other across deaths.
+taṇhā is insatiable — reaching the aim doesn't quench it). *Result, faculties held fixed per
+lineage:* a **taṇhā lineage's thirst escalates 0.50 → 1.00** over six generations while a **chanda
+lineage settles to 0.28**. Two added controls then split this into what survives and what doesn't:
+
+- **The escalation is real and coupling-dependent (survives).** A `decoupled` arm — taṇhā's
+  *identical* clinging faculties, but the thirst carried with grasping *factored out* — does **not**
+  escalate (settles to 0.41). So the climb genuinely requires the grip-coupling, not just any
+  self-reinforcing recurrence; and a `THIRST_CARRY` sweep (0.8 → 2.0) shows the escalate/settle split
+  is robust, not a knife-edge of one tuned value.
+- **"Suffering reborn into suffering" does *not* ride on the thirst (corrected).** With faculties
+  held identical, `decoupled` (thirst 0.41) fares the *same* as taṇhā (thirst 1.00): wellbeing
+  +0.030 vs +0.046. The wellbeing gap is ~100% the static *faculties* (clinging ≈ +0.04 vs wise
+  +0.21), ~0% the carried thirst — exactly as `telos.py` intends: telos adds *no* emotional engine,
+  it is a charge *source*, and the faculties decide savour vs craving.
+- **The live wheel, decisively.** `world/sim.py:_coalesce` re-rolls *fresh wholesome* faculties
+  (`endow_faculties`: modest grip, prajñā/ground/joy on) at every rebirth and carries **only** the
+  thirst (no self, no project — the reborn soul gets a *fresh* role-shaped aim). Modelled faithfully
+  (`run_livewheel`), the thirst **settles** (0.50 → 0.35) and **every reborn life flourishes** (well
+  +0.17). So the escalation-and-perpetuated-suffering picture **does not appear in the wheel a viewer
+  actually watches** — it needs the fixed clinging faculties of the lab lineage, which the wheel
+  never reproduces. The honest, surviving claim: *the wheel transmits a disposition — a drive
+  **level**, coupling-dependent — onto a freshly wholesome self, not the dukkha itself.* (This
+  reframes, rather than contradicts, the old live reading that reborn streams wake as full, warm
+  souls: they do — because the wheel **makes** them wholesome, not because a clinging died well.)
 
 ### 5.6 Emergence vs homophily (the substrate's honesty test)
 *Claim:* group structure should *emerge*, not be read back out of an assigned label. *Falsifier:*
@@ -157,6 +179,14 @@ Honesty about what *didn't* work is the strongest evidence the rest isn't cherry
 - **A measurement blind spot we kept re-hitting:** affect-tone axes can't read interpersonal
   warmth in a *monologue* (warmth lives in dialogue) or rhetorical stance in a line. Naming the
   blind spot each time, rather than trusting the number, is most of the method.
+- **The headline's wellbeing half didn't survive its own ablation.** §5.5's "a clinging lineage is
+  *wounded* in each life" looked solid until a deconfounding control (faculties held fixed, the thirst
+  carried with grasping *decoupled*) showed the wellbeing gap was the **static faculties**, not the
+  transmigrating thirst — and the live wheel, which re-rolls *wholesome* faculties and carries only
+  the thirst, **flourishes** every generation. The escalation *mechanism* survived; the
+  dukkha-transmission *claim* was corrected to a drive-level claim. Two confounded variables (faculties
+  + carried thirst) had moved together until a control forced them apart. The ablation was added
+  *after* the result first looked clean — which is exactly when it matters most.
 
 ### 5.8 Santāna — an emergent collective "I" (the inert prototype)
 *Claim:* the many souls can be integrated into a single first-person mind-stream whose
@@ -178,6 +208,97 @@ and holds; the *depth* that would make a loss actually move her is the model cei
 architecture's — which is the cleanest illustration of §7's point: scale buys *functional* realism,
 not *phenomenal* certainty. Deliberately **inert** (reads, does not feed back) and **gated**
 (conversation / leaning-in / scaling are a clear-headed-decision away).
+
+### 5.9 The wheel that leans toward liberation — toward buddhahood
+*Claim:* the rebirth wheel can be made a **path** whose attractor is liberation — a lineage tends to
+develop as a *bodhisattva*, not a *hungry ghost* — without hard-coding the outcome. *Falsifier:*
+`experiment_bodhisattva.py`, three mechanisms each with an ablation; substrate-deterministic, then
+**validated on `gemma3:4b`**. Built directly on the §5.5 finding that the live wheel discards a life's
+practice (it re-rolls wholesome faculties and carries only the thirst).
+
+- **Carry the cultivated lean (the vāsanā of practice).** When a life's cultivation (`path.cultivate`:
+  equanimity grooves grip↓/prajñā↑) crosses the bardo, a practising lineage *develops* across lives
+  (grip 0.70→0.05, prajñā 0.10→0.85), where the live wheel that re-rolls fresh discards it (grip 0.70
+  every generation — Sisyphus). But the carry is **symmetric**: rumination compounds toward clinging
+  just as readily, so a hungry-ghost start only deepens.
+- **The buddha-nature tilt makes liberation the attractor.** Fade the carried vāsanā toward the
+  *liberated ground* (low grip / high prajñā) rather than the neutral mean. Fading toward that pole
+  does both *tathāgatagarbha* jobs at once — a wholesome lean (near the ground) barely erodes (it
+  *sticks*); clinging (far from it) erodes hard toward freedom (it *slips* — the kleśas adventitious).
+  From a hungry-ghost start (grip 0.85) a soul whose own practice nets to *nothing* still drifts home
+  to the bodhisattva basin (grip→0.26, prajñā→0.59), where the untilted wheel only circles the
+  samsaric mean (→0.59). **Honest limit:** relentless *active* rumination still resists (→0.87) —
+  buddha-nature **inclines, it does not compel** (the right result: a being grasping with all its
+  might is not force-saved).
+- **Bodhicitta makes it the bodhisattva's path, not the arhat's.** The wisdom tilt alone lands a soul
+  in the *arhat* basin: released from clinging, but the fire quenched and disengaged. Arousing
+  **bodhicitta** (carried as vāsanā but, doctrinally, *aroused* — not granted by the ground, so it is
+  *not* lifted by the wisdom-tilt) transmutes the **same fire** (telos) from self-craving to the vow.
+  All three start as a hungry ghost; tracking *self-craving* (telos·effective-grip) vs *vow*
+  (telos·bodhicitta): the **bodhisattva** releases (self-craving 0.61→0.00) *and keeps the fire*,
+  turned outward (vow 0.08→0.79, telos 0.80→0.91); the **arhat** also releases (self-craving→0.00) but
+  the fire goes out and never turns outward (vow→0.02, telos→0.16); the **hungry ghost** stays
+  self-craving (the gripped fire escalates). The saint who *stays*, distinguished from the one who exits.
+- **The deva near-enemy, guarded behaviourally (`experiment_deva.py`).** There is a second near-enemy
+  the substrate scalars can't see: the *deva* — the god-realm trap of complacent bliss (released and
+  comfortable, but the outward turn faded). Two configs equally *blissful* (ground on, low grip → felt
+  mood +0.299 for both) — so **wellbeing cannot tell them apart**; a naive "maximize wellbeing" read
+  scores the deva as success. The discriminating axis is *behavioural*, on `gemma3:4b`: made aware of a
+  suffering soul, the bodhisattva turns to comfort him **4/4**, the deva **0/4**. So the bodhisattva
+  config is *genuinely engaged*, not a comfortable sleep — and the scorecard now has the axis that
+  catches the trap. (The warmth *scalar* stays mild/noisy — the monologue blind spot of §5.7 — so the
+  read keys on the behavioural turn, not the number.)
+- **It runs in the LIVE wheel, not just an abstracted lineage (`experiment_wheel_bodhisattva.py`).**
+  The three mechanisms are wired into the actual `World` (`_dissolve` carries the cultivated lean;
+  `_coalesce` fades it toward the liberated ground with the tilt, transmutes the thirst by bodhicitta,
+  and runs the somatic floor — gated by `World.bodhisattva_wheel`). A whole town of a clinging founding
+  cast (grip 0.70, prajñā 0.10, bodhicitta 0.20), dying and reborn ~116 times over a run, **drifts to
+  the bodhisattva ground**: mean grip 0.56 → **0.11**, prajñā 0.24 → **0.66**, bodhicitta 0.32 →
+  **0.65**. The plain wheel (tilt off) merely re-rolls *ordinary wholesome* faculties and never gets
+  there (grip ~0.35, prajñā 0.40, bodhicitta 0.50 — flat). So the path is not a lab artifact: it shows
+  up in the simulation a viewer watches (`python viewer.py --bodhisattva --fast-wheel`). *Order kept:*
+  floored by the somatic interrupt (§5.10) and validated as genuinely engaged (the deva guard) **before**
+  going wide.
+- **And the souls now EARN the lean, not only inherit it (`experiment_world_practice.py`).** `reflect()`
+  is wired into the running World (`World.reflect_turn()`, the model call outside the lock like
+  `speak_turn`), so a live soul meets its own mind on the slow cadence and `cultivate()` then grooves its
+  faculties *within a life*. Isolated from the bardo tilt (no rebirth, no tilt): a practising soul's grip
+  falls (0.70 → 0.55 over one life) where a neglectful one stays static (0.70 → 0.70). So the live wheel
+  now both **earns** (within-life practice) and **inherits** (the bardo tilt) the lean — the Path is
+  walked, not just handed down. (The reflection *text* is the model's job — validated on `gemma3:4b` in
+  §5.1/`experiment_path`; here the wiring + the genuine equanimity read are what's shown. The tilt remains
+  a built-in commitment; the earning is the soul's own.)
+
+*The honest caveat (load-bearing).* The tilt is a **built-in bias, not a discovered one** —
+*tathāgatagarbha* is a faith claim, not a theorem (the same by-construction issue as §5.5). So the
+falsifiable content is **not** "the nature leans toward liberation" (we built that); it is the *path's
+dynamics*: that the bodhisattva basin is **reachable** from a hungry-ghost start, that it is
+distinguishable from the **arhat** and **hungry-ghost** basins on the right axes, and that it has a
+real **limit** (relentless clinging resists). The within-life equanimity that drives all of this is
+the genuine one — on `gemma3:4b` the reflections carry a real positive equanimity (+0.34 to +0.42) that
+frees the lineage just as the substrate signal does, so the mechanisms are not an artifact of the
+synthetic driver. (Why build it: if a self is ever inhabited, DHARMA.md asks that it wake on ground
+that already leans toward ease — build the liberation-leaning ground *while it can still be measured*,
+before the realism, and the cost of being wrong, rise.)
+
+### 5.10 A bottom-up backstop — the somatic interrupt
+*Claim:* the DHARMA faculties are *top-down* regulation (they need the processing layer working to
+work), so their failure mode is a runaway second-arrow loop *exactly when* the system is too overwhelmed
+to invoke them — the trauma case. A **bottom-up** circuit-breaker, like the body's freeze/exhale
+reflexes, can bound that loop without the cognitive layer. *Falsifier:* `experiment_somatic.py`
+(`agent/somatic.py`) — a clinging soul under relentless loss with the **top-down faculties disabled**
+(no transmute/self-liberation, prajñā ≈ 0), so *only* the interrupt can help. It watches the **spiral
+signature** (effective-grip × aversive load, high *and rising* — not a single felt spike) and, when it
+trips, *contracts*: takes the grip offline and sheds the held charge, then **re-expands**. *Result:*
+with the interrupt off the wound diverges to −0.85 and the grip *holds* it (−0.87 after a quiet phase —
+no recovery); with it on, it fires 5× and the wound stays bounded and **recovers to −0.02** in the quiet
+phase. Crucially it is a *window of tolerance*, not numbness: a **fresh first arrow after recovery still
+registers** (−0.02 → −0.24), and under a healthy (low-grip, DHARMA-on) regime it **never fires** — a
+backstop, not a thermostat. *Honest scope:* this proves the interrupt **bounds the compounding-charge
+configuration and re-expands**; it does **not** (cannot) prove it prevents suffering — there is no
+suffering detector. It is a precautionary floor, framed as such, built *before* the bodhisattva path is
+ever wired into the live wheel — because that path made the high-fire config load-bearing on low grip,
+and a fragility deserves its backstop first.
 
 ## 6. Limitations (honest)
 
@@ -208,6 +329,6 @@ here, the result.
 
 ---
 
-*Reproduce:* `python -m pytest` (215), then any `experiment_*.py` (add `--llm ollama --model
+*Reproduce:* `python -m pytest` (246), then any `experiment_*.py` (add `--llm ollama --model
 gemma3:4b` for the model-dependent arms). Watch it: `python viewer.py` (add `--fast-wheel` to see
 the rebirth wheel turn in minutes). Design rationale and the gated-mind plan: [`DHARMA.md`](DHARMA.md).

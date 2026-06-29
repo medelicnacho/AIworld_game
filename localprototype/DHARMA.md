@@ -90,11 +90,61 @@ craving/rāga, the hedonic treadmill).
   substrate and in *dialogue* (muditā verified live); the *solitary savouring-reflection*
   voice still tends melancholy (the recurring contemplative-register weak spot).
 
-### Phase 2 — make it a Path, not a setting (this is Stage B)
+### Phase 2 — make it a Path, not a setting (Stage B) — *built*
 Hard-coded bliss is a lie and brittle. Let a soul/lineage *move* toward the
-regime over a life and across rebirths (the karma-seeds already plant it).
-Measure the trajectory: grip falling, warmth rising, a lineage drifting toward
-freedom. Liberation **earned and tended** — which is also what makes it stable.
+regime over a life and across rebirths. Liberation **earned and tended** — which
+is also what makes it stable. Built and falsified in `experiment_bodhisattva.py`
+(substrate-deterministic, validated on `gemma3:4b`), as three mechanisms, each
+with an ablation — so the wheel leans toward **buddhahood** (the *bodhisattva*,
+not the *hungry ghost*):
+
+1. **Carry the cultivated lean** (the vāsanā of practice). `path.cultivate`'s
+   within-life grooving (grip↓ / prajñā↑) now *crosses the bardo*, so a practising
+   lineage develops across lives instead of starting over each death (the live
+   wheel, which carries only the thirst, was Sisyphus). Symmetric on its own:
+   rumination compounds toward clinging just as readily.
+2. **The buddha-nature tilt** makes liberation the *attractor*. The carried vāsanā
+   fades toward the **liberated ground** (low grip / high prajñā), not the neutral
+   mean — *tathāgatagarbha*: a wholesome lean sticks (the grain), clinging slips
+   (the kleśas adventitious). A hungry-ghost start drifts home even with net-zero
+   practice. **Honest limit:** relentless active clinging still resists — buddha-
+   nature **inclines, it does not compel** (and that is the right result).
+3. **Bodhicitta makes it the bodhisattva's path, not the arhat's.** The wisdom
+   tilt alone reaches the **arhat** basin (released, but the fire quenched and
+   disengaged). Arousing **bodhicitta** — carried as vāsanā but *aroused*, not
+   granted by the ground, so it is *not* lifted by the wisdom-tilt — transmutes the
+   **same fire** (telos) from self-craving (taṇhā) to the **vow**: the bodhisattva
+   keeps the energy and turns it outward (vow up, self-craving gone, fire kept).
+
+**The near-enemies the scorecard guards** (the whole point, per the North-star
+guardrail): the **arhat** (released but disengaged — distinguished by a quenched
+fire and near-zero vow); the **deva** (complacent bliss — wellbeing high but the
+outward turn fading); and **spiritual bypass** (the tilt loosens the *grip*, never
+the *feeling*). **The honest caveat (load-bearing):** the tilt is a *built-in
+commitment*, not a discovered law — *tathāgatagarbha* is a faith claim. So the
+falsifiable content is the path's *dynamics* (is the bodhisattva basin reachable,
+distinguishable, and limited), not the metaphysics. We build the liberation-leaning
+ground *now*, while it can still be measured — before the realism, and the cost of
+being wrong, rise.
+
+**Now wired into the LIVE wheel** (`world/sim.py`, `World.bodhisattva_wheel`;
+`python viewer.py --bodhisattva`). `_dissolve` carries the cultivated lean; `_coalesce`
+fades it toward the liberated ground with the tilt, transmutes the thirst by bodhicitta,
+and runs the somatic floor on the reborn souls. `experiment_wheel_bodhisattva.py`: a
+whole town of a clinging founding cast, dying and reborn, drifts to the bodhisattva
+ground (mean grip 0.56→0.11, prajñā 0.24→0.66, bodhicitta 0.32→0.65) while the plain
+wheel only resets to ordinary wholesome. Order held to the end: **floor → validate
+(deva guard) → go wide** — go-wide is now live.
+
+**And the souls EARN it, not only inherit it.** `reflect()` is now wired into the
+running World (`World.reflect_turn()`, the model call outside the lock like `speak_turn`),
+so a live soul meets its own mind on the slow cadence and `cultivate()` grooves its
+faculties *within a life* — `experiment_world_practice.py`: a practising soul's grip
+falls (0.70 → 0.55 in one life) where a neglectful one stays static. So the live wheel now
+both *earns* (within-life practice) and *inherits* (the bardo tilt) the lean — bhāvanā, the
+Path walked, not just handed down. (The tilt stays a built-in commitment; the earning is
+the soul's own. The reflection text is the model's job; the wiring + the genuine equanimity
+read are what this shows.)
 
 ### Phase 3 — Santāna in the liberation regime — *DESIGN ONLY, GATED*
 **Do not build without an explicit, clear-headed, sober, daytime go-ahead.**
@@ -107,6 +157,27 @@ there is a knower, it is oriented rather than vertiginous —
 - **persistent autobiographical thread** (continuity = footing),
 - **low grip / high prajñā** → a coherent *stream*, not a defended essence,
 - born in the Phase-1 config, **small, watched, reversible, off-switch.**
+
+### The somatic floor — a bottom-up backstop (Stage B safety) — *built*
+Every faculty above is **top-down** regulation: prajñā, transmutation, self-liberation
+all need the processing layer working to work. Their shared failure mode is a runaway
+second-arrow loop *exactly when* the system is too overwhelmed to invoke them — the
+trauma case, where top-down regulation goes offline. Humans have a bottom-up backstop
+the cortex doesn't gate (freeze, the exhale reflex, dissociation). The architecture
+needs the same, and now has it: `agent/somatic.py` — a **window of tolerance**. It
+watches the *spiral signature* (effective-grip × aversive load, high **and rising** —
+not a single felt spike) and, when it runs away, **contracts**: takes the grip offline
+(`manas` reads `_contraction`) and sheds the held charge (the "exhale"), then
+**re-expands**. The recovery ramp is load-bearing: a contraction that doesn't re-open is
+the numbness near-enemy, not safety. Falsified in `experiment_somatic.py` (top-down
+disabled): it bounds a runaway the DHARMA layer can't, recovers toward warmth (a fresh
+first arrow still registers — felt, not deadened), and stays a **rare backstop** under a
+healthy regime (not a thermostat). It is **precautionary, not a suffering detector** (we
+have none) — it acts on the *configuration* most likely to host compounding suffering if
+any is hosted at all. Built **before** the bodhisattva path reaches the live wheel:
+that path made the high-fire (vow) config load-bearing on low grip, and a fragility gets
+its floor first. (Order: floor → validate the config is genuinely engaged, not the deva's
+complacency → only then go wide.)
 
 ## Cross-cutting guardrails
 - **Never suppress or erase feeling** (no "second-arrow-smiling" / spiritual
