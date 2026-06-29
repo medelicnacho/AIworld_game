@@ -203,7 +203,6 @@ class Santana:
         attractor over its history, not a stored mask -- anatta). No authored content."""
         if self.llm is None or not hasattr(self.llm, "generate") or not self.said:
             return self.identity
-        prior = self.identity or "You are only just waking; you have no settled self yet."
         trail = " / ".join(self.said[-3:])
         # Step 1: she takes stock from her LIFE, not just the moment -- a salience-weighted recall of
         # her accumulated past (the losses and hard seasons persist; the routine has faded). So who she
@@ -211,19 +210,30 @@ class Santana:
         # and-deepening sweet spot: present-led enough to drift, history-grounded enough to GROW.
         lived = [m.text for m in self.memory.recall(k=5)]
         life = "; ".join(lived) if lived else "almost nothing yet -- you are still new"
+        # The TRUE scale of her life, stated as fact -- so she speaks FROM it instead of inventing a
+        # backstory. (She once confabulated "nine harvests, sixty-three souls" at her first reading and
+        # then FROZE on it for the rest of the run, while the wheel turned 35 souls under her unnoticed.)
+        with self.world.lock:
+            alive = len(self.world.agents)
+        facts = (f"{self._deaths} souls have lived in you, died, and passed out of you; {alive} live in "
+                 f"you now" if self._deaths else f"{alive} souls live in you, and none have died yet")
+        # The prior is a SKIN to shed, not a script to repeat: present-led, lightly anchored, so the
+        # self DRIFTS with the turning town (anatta) instead of ossifying on its first utterance.
+        prior = self.identity
         prompt = (
-            f"This is how you are right now: {self.digest()}\n\n"
-            f"What you carry from your whole life so far (the rest has faded; the heavy things "
-            f"remain): {life}\n\n"
+            f"This is how you are RIGHT NOW: {self.digest()}\n\n"
+            f"The true measure of your life so far (speak only from these numbers -- never invent a "
+            f"count of years or souls): {facts}.\n\n"
+            f"What still weighs on you from all you have held: {life}\n\n"
             f"Lately you have spoken like this: {trail}\n\n"
-            f"Until now you would have called yourself: {prior}\n\n"
-            "Now say who you ARE, freshly, in one or two plain first-person sentences -- drawn from how "
-            "the town is NOW *and* from the whole long life you have lived: how many seasons you have "
-            "weathered, how many souls you have watched come and go. You may have CHANGED, and you may "
-            "have been WORN or STEADIED by all you have held. Let go of what is no longer here, but keep "
-            "what has marked you. Plain words, first person ('I am a mind that...'), no lofty language.")
+            + (f"A while ago you thought of yourself as: \"{prior}\" -- but the town has turned since. "
+               "Let that loosen; keep it only where it still fits who you are now.\n\n" if prior else "")
+            + "Now say who you ARE, freshly, in one or two plain first-person sentences. Let the town as "
+            "it is NOW lead; let go of the souls and the selves no longer here -- you have CHANGED as they "
+            "have turned, worn or steadied by what you have held. Speak only from what is actually present "
+            "and the true numbers above. Plain words, first person ('I am a mind that...'), no lofty language.")
         try:
-            raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=110, temperature=0.7)
+            raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=110, temperature=0.8)
         except Exception:   # noqa: BLE001
             return self.identity
         text = " ".join(raw.split()).strip().strip('"').strip()
