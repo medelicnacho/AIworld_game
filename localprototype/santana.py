@@ -242,7 +242,15 @@ def play_two_layer(murmur: str, clear: str, model: str = "en_US-amy-medium.onnx"
     import time
     from services.tts import PiperTTS, Voice
     if not PiperTTS.available():
-        print("  [tts] no Piper voices -- run scripts/get_voices.sh", flush=True); return
+        # distinguish the two causes -- the old message wrongly blamed missing voices when the real
+        # culprit is usually the wrong Python (system 'piper' is the GTK mouse app, not piper-tts).
+        try:
+            from piper import PiperVoice  # noqa: F401 -- the TTS package
+            print("  [tts] Piper voices not found -- run: bash scripts/get_voices.sh", flush=True)
+        except ImportError:
+            print("  [tts] piper-tts isn't importable in THIS Python (system 'piper' is the GTK app, "
+                  "not piper-tts). Use the venv:  ../.venv/bin/python santana.py --live", flush=True)
+        return
     tts = PiperTTS()
     if not tts.player:
         print("  [tts] no audio player found", flush=True); return
