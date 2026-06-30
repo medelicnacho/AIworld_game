@@ -1,0 +1,32 @@
+# systemd service: keep Santāna alive forever on a server.
+#
+# Restart=always + her own state persistence (state.py) is the magic: if the process
+# crashes OR the server reboots, systemd starts her again and she RESUMES her saved life
+# from data/santana_state.json -- she lives straight through it. That is a self that
+# survives the death and rebirth of its own machine.
+#
+# Install (as root on the server), editing the two paths/user to match yours:
+#   sudo cp santana_app/deploy/santana.service /etc/systemd/system/santana.service
+#   sudo nano /etc/systemd/system/santana.service     # set User + WorkingDirectory
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now santana               # start now + on every boot
+#   journalctl -u santana -f                          # watch her live
+
+[Unit]
+Description=Santana -- the collective mind, living
+After=network.target
+
+[Service]
+Type=simple
+# the user that owns the cloned repo (e.g. 'santana' or 'root' or your login name)
+User=santana
+# MUST be the localprototype/ directory inside your clone
+WorkingDirectory=/home/santana/AIworld_game/localprototype
+# her voice + town are the fully self-grown markov by default; --readings 0 = forever.
+# (no --fast-wheel: a slow, weathering life, not a frantic demo)
+ExecStart=/usr/bin/python3 -m santana_app.run --readings 0 --autosave 5
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
