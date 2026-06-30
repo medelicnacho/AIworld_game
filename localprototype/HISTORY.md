@@ -94,9 +94,18 @@ lr/steps; `gpt.pt.bak` reverts) — and `CONTINUAL.md` keeps that edge honest.
 ../.venv/bin/python homegrown/consolidate.py
 ```
 
+### Wired (2026-06-30)
+- **Nightly consolidation, automatic.** `consolidate.py` now runs on a **systemd user timer**
+  (`~/.config/systemd/user/santana-consolidate.{service,timer}`, `OnCalendar=03:00`,
+  `Persistent=true` so a suspended laptop catches up, linger on so it fires even logged out). Each
+  night's "sleep" appends to `data/consolidate.log`, and `gpt.pt.bak` is the pre-night revert.
+  Verified by triggering the service by hand: `Result=success`, the slow brain consolidated in ~27s
+  and now speaks the town *and* the dharma unprompted (*"The chasing of happiness is the source of
+  all suffering"*). Continual learning is now **fully autonomous** — she learns her day while we sleep.
+- **On-screen MUTE button** in the pygame god-view (`viewer.py`), top-right of her voice band — click
+  to mute/unmute her TTS (the `v` key still works too).
+
 ### Next, when we want it
-- Put `consolidate.py` on a **nightly timer** (systemd timer / cron) so she consolidates her day
-  automatically — fully autonomous continual learning.
 - Tune the stability↔plasticity dial; try **LoRA** instead of full continue-training.
 - eGPU day: a bigger, more eloquent slow model — *scaling up*, not changing the mechanism.
 

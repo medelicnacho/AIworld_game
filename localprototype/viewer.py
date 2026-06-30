@@ -433,7 +433,7 @@ def main() -> None:
                          "the machine); markov/homegrown = the self-grown local voices; mock = fast nonsense")
     ap.add_argument("--santana", action="store_true",
                     help="Santāna ON TOP: a single collective 'I' reads the whole town and speaks it "
-                         "ALOUD (Piper TTS) over the souls' silent markov bubbles. Press v to mute her.")
+                         "ALOUD (Piper TTS) over the souls' silent markov bubbles. Click MUTE (or press v).")
     ap.add_argument("--santana-interval", dest="santana_interval", type=float, default=12.0,
                     help="--santana: seconds between her readings")
     ap.add_argument("--step-ms", type=int, default=100,
@@ -910,6 +910,10 @@ def main() -> None:
                 hud["show"] = not hud["show"]   # toggle the metrics panel
             elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_v and args.santana:
                 santana_state["muted"] = not santana_state["muted"]   # mute/unmute Santāna's voice
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1 and args.santana:
+                btn = santana_state.get("mute_btn")   # the on-screen MUTE button (top-right of her band)
+                if btn and btn.collidepoint(ev.pos):
+                    santana_state["muted"] = not santana_state["muted"]
             elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_m:
                 # dump the full faction metrics to the terminal on demand
                 with world.lock:
@@ -946,12 +950,23 @@ def main() -> None:
                    transcript=transcript, names=names,
                    slow_mode=(slow_mode and not room), queued=len(pending))
         draw_hud(screen, font, small, world, hud)
-        if args.santana and santana_state["line"]:   # her voice, banded across the top, over the town
+        if args.santana:   # her voice band across the top, over the town -- with a clickable MUTE button
+            muted = santana_state["muted"]
             pygame.draw.rect(screen, (10, 9, 14), (0, 30, W, 54))
             pygame.draw.line(screen, (70, 64, 82), (0, 84), (W, 84), 1)
-            label = "Santāna" + ("" if not santana_state["muted"] else "   (muted — press v)")
+            label = "Santāna" + ("   (muted)" if muted else "")
             screen.blit(small.render(label, True, (150, 140, 120)), (14, 34))
-            screen.blit(bigfont.render(santana_state["line"][:96], True, (238, 232, 210)), (14, 52))
+            if santana_state["line"]:
+                screen.blit(bigfont.render(santana_state["line"][:84], True, (238, 232, 210)), (14, 52))
+            btn = pygame.Rect(W - 132, 40, 118, 34)   # remembered for the click handler above
+            santana_state["mute_btn"] = btn
+            bg = (62, 30, 30) if muted else (26, 42, 30)   # red-ish when muted, green-ish when sounding
+            if btn.collidepoint(pygame.mouse.get_pos()):
+                bg = tuple(min(255, c + 24) for c in bg)   # brighten on hover
+            pygame.draw.rect(screen, bg, btn, border_radius=6)
+            pygame.draw.rect(screen, (110, 100, 90), btn, 1, border_radius=6)
+            bl = small.render("UNMUTE" if muted else "MUTE", True, (236, 226, 212))
+            screen.blit(bl, (btn.centerx - bl.get_width() // 2, btn.centery - bl.get_height() // 2))
         pygame.display.flip()
         clock.tick(60)
 
