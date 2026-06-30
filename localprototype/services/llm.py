@@ -689,30 +689,43 @@ class HomegrownLLM:
 
 
 class MarkovLLM:
-    """The world's own words, recombined -- an order-2 word Markov over the project's authored
-    in-world lines (each trade's concerns, the genesis themes, the religions' scripture). Nothing
-    trained, nothing borrowed, and CLEAN, because it reproduces real two-word chunks verbatim. The
-    literal 'grown from the Markov chain' voice -- and, unlike the tiny char-RNN, it never garbles
-    a word (it can only ever say words the world already authored)."""
+    """The world's own words, recombined -- an order-N word Markov. Unlike a trained model, it is
+    NOT frozen: it carries the project's authored lines (each trade's concerns, the genesis themes,
+    the religions' scripture) as a clean ANCHOR, and learn() folds in the world's LIVING lines, so
+    the voice DRIFTS with experience -- always becoming, never done -- while never garbling a word
+    (it can only ever say words it has been given). The 'grown from the Markov chain' voice, alive."""
 
     _START = "\x02"
 
     def __init__(self, order: int = 2, seed: int | None = None, temperature: float = 1.0) -> None:
         from agent.genesis import ROLES, _THEMES
         from agent.religion import RELIGIONS
-        sents: list[str] = list(_THEMES)
+        base: list[str] = list(_THEMES)
         for _role, tasks in ROLES:
-            sents += tasks
+            base += tasks
         for rel in RELIGIONS.values():
-            sents.append(rel.creed)
-            sents += list(rel.scripture)
+            base.append(rel.creed)
+            base += list(rel.scripture)
+        self._authored = base          # the stable, clean anchor (keeps the drift from degenerating)
         self.order = order
         self._rng = random.Random(seed)
-        self._trans: dict[tuple, list] = {}
+        self._build([])                # initial chain = authored only
+
+    def _build(self, living: list[str]) -> None:
+        """Rebuild the chain from the authored anchor + the world's LIVING lines. Living lines are
+        filtered (sane length) so the voice stays clean as it drifts."""
+        sents = self._authored + [s for s in living if s and 2 <= len(s.split()) <= 24]
+        trans: dict[tuple, list] = {}
         for s in sents:
-            toks = [self._START] * order + s.split() + [None]   # None = end of line
-            for i in range(len(toks) - order):
-                self._trans.setdefault(tuple(toks[i:i + order]), []).append(toks[i + order])
+            toks = [self._START] * self.order + s.split() + [None]   # None = end of line
+            for i in range(len(toks) - self.order):
+                trans.setdefault(tuple(toks[i:i + self.order]), []).append(toks[i + self.order])
+        self._trans = trans
+
+    def learn(self, lines) -> None:
+        """Feed the voice the world's accumulating life -- it rebuilds itself, so it is always
+        changing, never frozen. Bounded (keeps the most recent lines) so it stays clean and cheap."""
+        self._build([str(s).strip() for s in lines][-300:])
 
     def available(self) -> bool:
         return bool(self._trans)

@@ -845,6 +845,10 @@ def main() -> None:
                         return
                     time.sleep(0.1)
                 try:
+                    if hasattr(_smind.llm, "learn"):   # her markov voice drifts with her living memory
+                        with world.lock:
+                            heard = [t for _, t in world.spoken][-30:]
+                        _smind.llm.learn([m.text for m in _smind.memory.items][-160:] + heard)
                     line = _smind.speak()
                     _smind.consolidate()
                     if line:

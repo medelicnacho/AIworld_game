@@ -159,6 +159,12 @@ def main() -> None:
             now = time.time()
             mind.lifetime += now - t_prev    # her REAL age accrues in wall-clock seconds, not readings
             t_prev = now
+            # her voice LIVES: a markov voice rebuilds from her accumulating memory + the town's
+            # recent speech, so her words drift with her life (frozen models -- gpt/deepseek -- skip)
+            if hasattr(mind.llm, "learn"):
+                with w.lock:
+                    heard = [t for _, t in w.spoken][-30:]
+                mind.llm.learn([m.text for m in mind.memory.items][-160:] + heard)
             clear = mind.speak()
             with w.lock:
                 tick, n, births = w.tick, len(w.agents), getattr(w, "_births", 0)
