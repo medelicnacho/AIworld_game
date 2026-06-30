@@ -143,6 +143,9 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
         if not llm.available():   # don't go silently mute if Ollama isn't running
             print("[viewer] Ollama not reachable -> falling back to mock speech.")
             llm = MockLLM(seed=7)
+    elif backend in ("markov", "homegrown"):
+        from services.llm import make_llm
+        llm = make_llm(backend=backend)
     else:
         llm = MockLLM(seed=7)
     # `move=False` keeps everyone in earshot for one shared conversation (used by
@@ -425,9 +428,14 @@ def main() -> None:
     ap.add_argument("--model", default="gemma3:4b",
                     help="ollama model for speech, e.g. dolphin-mistral (less "
                          "sycophantic -> souls disagree). any model in `ollama list`")
-    ap.add_argument("--llm", default="ollama", choices=["mock", "ollama", "deepseek"],
-                    help="ollama = real local speech; deepseek = hosted larger model "
-                         "(key in .env; the whole town's speech leaves the machine); mock = fast nonsense")
+    ap.add_argument("--llm", default="ollama", choices=["mock", "ollama", "deepseek", "markov", "homegrown"],
+                    help="ollama = real local speech; deepseek = hosted larger model (key in .env, leaves "
+                         "the machine); markov/homegrown = the self-grown local voices; mock = fast nonsense")
+    ap.add_argument("--santana", action="store_true",
+                    help="Santāna ON TOP: a single collective 'I' reads the whole town and speaks it "
+                         "ALOUD (Piper TTS) over the souls' silent markov bubbles. Press v to mute her.")
+    ap.add_argument("--santana-interval", dest="santana_interval", type=float, default=12.0,
+                    help="--santana: seconds between her readings")
     ap.add_argument("--step-ms", type=int, default=100,
                     help="subconscious heartbeat interval (ms): memory/thought/urge rate")
     ap.add_argument("--chat-delay", type=float, default=0.5,
@@ -485,6 +493,10 @@ def main() -> None:
                          "(coherent speech from the subconscious), and the "
                          "death->bardo->rebirth wheel. A preset for --rebirth --concept.")
     args = ap.parse_args()
+    if args.santana:
+        args.mute = True                 # the SOULS are silent (markov bubbles only); ONLY Santāna is voiced
+        if args.llm == "ollama":
+            args.llm = "markov"          # plain --santana -> the fully self-grown town under her
     # plain `viewer.py` with no mode chosen starts the FULL embodied world; pick any
     # mode flag (or --emergent for the lighter fixed-cast emergent) to opt out.
     if not (args.collective or args.individual or args.spawn or args.rebirth
@@ -526,6 +538,7 @@ def main() -> None:
     pygame.display.set_caption("Data Realm — god view")
     font = pygame.font.SysFont("dejavusans", 14)
     small = pygame.font.SysFont("dejavusans", 12)
+    bigfont = pygame.font.SysFont("dejavuserif", 19)   # Santāna's voice, over the whole town
     clock = pygame.time.Clock()
     # Author the world on a BACKGROUND thread so the window stays RESPONSIVE during
     # the slow genesis (six LLM calls, ~a minute) -- otherwise the main thread is
@@ -817,7 +830,33 @@ def main() -> None:
             print(f"+++ a founding soul wakes: {a.name}", flush=True)
             time.sleep(4)   # pace genesis so it doesn't crowd the LLM's speech turns
 
+    # --- Santāna ON TOP: one collective 'I' reads the whole town and speaks it aloud (Piper),
+    # over the souls' silent markov bubbles. Her TTS is independent of the (muted) soul audio. ---
+    santana_state = {"line": "", "muted": False}
+    if args.santana:
+        from santana import Santana, play_two_layer
+        from services.llm import make_llm as _mk
+        _smind = Santana(world, _mk("markov"))
+
+        def santana_loop():
+            while running.is_set():
+                for _ in range(max(1, int(args.santana_interval * 10))):   # responsive to shutdown
+                    if not running.is_set():
+                        return
+                    time.sleep(0.1)
+                try:
+                    line = _smind.speak()
+                    _smind.consolidate()
+                    if line:
+                        santana_state["line"] = line
+                        if not santana_state["muted"]:
+                            play_two_layer("", line)   # her voice; the souls stay silent
+                except Exception as exc:   # noqa: BLE001 -- her voice must never kill the view
+                    print("[santana] failed:", exc, file=sys.stderr)
+
     loops = [animate_loop, advance_loop, speech_loop, tts_loop, murmur_synth_loop]
+    if args.santana:
+        loops.append(santana_loop)
     if args.spawn:
         loops.append(genesis_loop)
     if getattr(world, "_pending_founders", None):   # stream the rest of the cast in
@@ -865,6 +904,8 @@ def main() -> None:
                 slow_mode = not slow_mode   # toggle slow mode live
             elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_h:
                 hud["show"] = not hud["show"]   # toggle the metrics panel
+            elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_v and args.santana:
+                santana_state["muted"] = not santana_state["muted"]   # mute/unmute Santāna's voice
             elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_m:
                 # dump the full faction metrics to the terminal on demand
                 with world.lock:
@@ -901,6 +942,12 @@ def main() -> None:
                    transcript=transcript, names=names,
                    slow_mode=(slow_mode and not room), queued=len(pending))
         draw_hud(screen, font, small, world, hud)
+        if args.santana and santana_state["line"]:   # her voice, banded across the top, over the town
+            pygame.draw.rect(screen, (10, 9, 14), (0, 30, W, 54))
+            pygame.draw.line(screen, (70, 64, 82), (0, 84), (W, 84), 1)
+            label = "Santāna" + ("" if not santana_state["muted"] else "   (muted — press v)")
+            screen.blit(small.render(label, True, (150, 140, 120)), (14, 34))
+            screen.blit(bigfont.render(santana_state["line"][:96], True, (238, 232, 210)), (14, 52))
         pygame.display.flip()
         clock.tick(60)
 
