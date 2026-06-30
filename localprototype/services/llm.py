@@ -644,14 +644,16 @@ class MockLLM:
         return f"NAME: {name}\nNATURE: {temp}\nVOICE:\n" + "\n".join(themes)
 
 
-HOMEGROWN_PATH = str(Path(__file__).resolve().parent.parent / "homegrown" / "model.npz")
+_HOMEGROWN_DIR = Path(__file__).resolve().parent.parent / "homegrown"
+HOMEGROWN_PATH = str(_HOMEGROWN_DIR / "model.npz")   # the old numpy char-RNN
+HOMEGROWN_GPT = str(_HOMEGROWN_DIR / "gpt.pt")       # the trained PyTorch GPT (preferred when present)
 
 
 class HomegrownLLM:
-    """A from-scratch char-RNN (homegrown/) grown on the world's OWN recorded words. It does
-    not follow instructions -- it has no idea what a prompt means -- it simply speaks in the
-    voice it learned from the town's life. The most literal 'self emerging from the substrate'
-    in the project: every letter it speaks, it learned here, from nothing. Train: homegrown/train.py."""
+    """A from-scratch model grown on the world's OWN recorded words -- it does not follow
+    instructions, it simply speaks in the voice it learned. Prefers the trained GPT (gpt.pt,
+    homegrown/gpt.py) when it exists, else falls back to the numpy char-RNN (model.npz). The
+    most literal 'self from the substrate' in the project: every letter it speaks, it learned here."""
 
     def __init__(self, path: str = HOMEGROWN_PATH, temperature: float = 0.85,
                  seed: str = "") -> None:   # "" = start cold, so it generates a natural line-start it learned
@@ -661,12 +663,16 @@ class HomegrownLLM:
         self._model = None
 
     def available(self) -> bool:
-        return Path(self.path).is_file()
+        return Path(HOMEGROWN_GPT).is_file() or Path(self.path).is_file()
 
     def _net(self):
         if self._model is None:
-            from homegrown.charrnn import CharRNN
-            self._model = CharRNN.load(self.path)
+            if Path(HOMEGROWN_GPT).is_file():        # the trained GPT wins
+                from homegrown.gpt import GPTVoice
+                self._model = GPTVoice(HOMEGROWN_GPT)
+            else:
+                from homegrown.charrnn import CharRNN
+                self._model = CharRNN.load(self.path)
         return self._model
 
     def _line(self, seed: str, n: int, temperature: float) -> str:
@@ -751,8 +757,8 @@ def make_llm(backend: str = "auto", model: str | None = None,
         if not h.available():
             raise RuntimeError("homegrown model not found -- train it first: "
                                "python homegrown/harvest.py <transcripts> && python homegrown/train.py")
-        print(f"[llm] homegrown char-RNN -- a voice grown from nothing on the world's own words "
-              f"({h.path})")
+        kind = "GPT" if Path(HOMEGROWN_GPT).is_file() else "char-RNN"
+        print(f"[llm] homegrown {kind} -- a voice grown from nothing on the world's own words")
         return h
 
     if backend == "markov":

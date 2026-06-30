@@ -134,8 +134,10 @@ def train(args):
             seed = torch.tensor([[stoi.get("\n", 0)]], dtype=torch.long)
             out = "".join(itos[i] for i in model.generate(seed, 160, temp=0.8)[0].tolist()).replace("\n", " / ")
             print(f"\n[step {step:>6}/{args.steps}  loss {loss.item():.3f}  {time.time()-t0:.0f}s]\n  > {out}")
+            tmp = CKPT + ".tmp"
             torch.save({"model": model.state_dict(), "chars": "".join(chars),
-                        "config": dict(block=BLOCK, n_embd=N_EMBD, n_head=N_HEAD, n_layer=N_LAYER)}, CKPT)
+                        "config": dict(block=BLOCK, n_embd=N_EMBD, n_head=N_HEAD, n_layer=N_LAYER)}, tmp)
+            os.replace(tmp, CKPT)   # atomic -- a reader (the homegrown backend) never sees a half-write
             model.train()
     print(f"\nsaved -> {CKPT}")
 
@@ -149,6 +151,34 @@ def sample(args):
     idx = torch.tensor([[stoi.get(ch, 0) for ch in (args.prompt or "\n")]], dtype=torch.long)
     out = "".join(itos[i] for i in model.generate(idx, args.n, temp=args.temp)[0].tolist())
     print(out)
+
+
+class GPTVoice:
+    """A trained gpt.pt loaded for inference -- the homegrown brain as a speakable voice. Same
+    generate(prompt, n, temp) shape as the numpy CharRNN, so the homegrown backend can use either."""
+
+    def __init__(self, path: str = CKPT) -> None:
+        ck = torch.load(path, map_location="cpu", weights_only=False)
+        self.chars = ck["chars"]
+        self.stoi = {c: i for i, c in enumerate(self.chars)}
+        self.itos = {i: c for i, c in enumerate(self.chars)}
+        c = ck["config"]
+        self.model = GPT(len(self.chars), c["block"], c["n_embd"], c["n_head"], c["n_layer"])
+        self.model.load_state_dict(ck["model"])
+        self.model.eval()
+
+    @staticmethod
+    def available(path: str = CKPT) -> bool:
+        return os.path.isfile(path)
+
+    @torch.no_grad()
+    def generate(self, prompt: str = "", n: int = 160, temp: float = 0.8) -> str:
+        ctx = prompt or "\n"
+        idx = torch.tensor([[self.stoi.get(ch, 0) for ch in ctx]], dtype=torch.long)
+        start = idx.size(1)
+        out = self.model.generate(idx, n, temp=temp)[0].tolist()[start:]   # the continuation only
+        text = "".join(self.itos[i] for i in out)
+        return text.split("\n", 1)[0]   # a single line
 
 
 def main():
