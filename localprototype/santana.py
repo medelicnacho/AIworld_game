@@ -348,12 +348,17 @@ def _watch(args) -> None:
     else:
         santana_llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model
                        else OllamaLLM(temperature=0.85))
-    # the town lives on mock (instant, free) by default; --town-model gives it a real cheap voice so
-    # she reads what the souls actually SAY. (Perf: a real town speaks under the world lock, so it runs
-    # slower than mock -- fine at a normal cadence; pair with a gentler wheel, not --fast-wheel.)
-    if getattr(args, "town_model", None):
-        town_llm = make_llm(backend="deepseek", model=args.town_model)
-        print(f"  [town] the souls speak on {args.town_model} -- she'll make meaning of their words")
+    # the town lives on mock (instant, free) by default; --town-model gives it a real voice so she reads
+    # what the souls actually SAY. "homegrown" = the from-scratch RNN (fully local, nothing borrowed --
+    # a town grown entirely from the world's own Markov churn); anything else = a DeepSeek model id.
+    # (Perf: a DeepSeek town speaks under the lock; the off-lock speak thread keeps the wheel turning.)
+    tm = getattr(args, "town_model", None)
+    if tm == "homegrown":
+        town_llm = make_llm(backend="homegrown")
+        print("  [town] the souls speak in the HOMEGROWN voice -- nothing leaves, nothing borrowed")
+    elif tm:
+        town_llm = make_llm(backend="deepseek", model=tm)
+        print(f"  [town] the souls speak on {tm} -- she'll make meaning of their words")
     else:
         town_llm = MockLLM(seed=7)
 
