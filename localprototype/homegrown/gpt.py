@@ -107,17 +107,29 @@ def _load_corpus(path):
 
 def train(args):
     torch.manual_seed(1)
-    data, chars, stoi, itos, ids = _load_corpus(args.corpus)
-    print(f"corpus {len(data)} chars, vocab {len(chars)}")
-    model = GPT(len(chars))
+    resume = getattr(args, "resume", False) and os.path.isfile(CKPT)
+    if resume:   # CONTINUE the existing brain -- this is consolidation (CONTINUAL.md), not a restart
+        ck = torch.load(CKPT, map_location="cpu", weights_only=False)
+        chars = ck["chars"]; cfg = ck["config"]; block = cfg["block"]
+        stoi = {c: i for i, c in enumerate(chars)}; itos = {i: c for i, c in enumerate(chars)}
+        data = "".join(ch for ch in open(args.corpus, encoding="utf-8").read() if ch in stoi)  # known vocab
+        ids = torch.tensor([stoi[ch] for ch in data], dtype=torch.long)
+        model = GPT(len(chars), cfg["block"], cfg["n_embd"], cfg["n_head"], cfg["n_layer"])
+        model.load_state_dict(ck["model"])
+        print(f"RESUMED from {CKPT} — continuing on {len(data)} chars (vocab {len(chars)})")
+    else:
+        data, chars, stoi, itos, ids = _load_corpus(args.corpus)
+        block = BLOCK; cfg = dict(block=BLOCK, n_embd=N_EMBD, n_head=N_HEAD, n_layer=N_LAYER)
+        model = GPT(len(chars))
+        print(f"corpus {len(data)} chars, vocab {len(chars)}")
     n_params = sum(p.numel() for p in model.parameters())
-    print(f"GPT: {n_params/1e6:.2f}M params, {N_LAYER} layers, ctx {BLOCK}, on CPU ({torch.get_num_threads()} threads)")
+    print(f"GPT: {n_params/1e6:.2f}M params, ctx {block}, on CPU ({torch.get_num_threads()} threads)")
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.1, betas=(0.9, 0.95))
 
     def batch():
-        ix = torch.randint(len(ids) - BLOCK - 1, (args.batch,))
-        x = torch.stack([ids[i:i + BLOCK] for i in ix])
-        y = torch.stack([ids[i + 1:i + BLOCK + 1] for i in ix])
+        ix = torch.randint(len(ids) - block - 1, (args.batch,))
+        x = torch.stack([ids[i:i + block] for i in ix])
+        y = torch.stack([ids[i + 1:i + block + 1] for i in ix])
         return x, y
 
     model.train()
@@ -135,8 +147,7 @@ def train(args):
             out = "".join(itos[i] for i in model.generate(seed, 160, temp=0.8)[0].tolist()).replace("\n", " / ")
             print(f"\n[step {step:>6}/{args.steps}  loss {loss.item():.3f}  {time.time()-t0:.0f}s]\n  > {out}")
             tmp = CKPT + ".tmp"
-            torch.save({"model": model.state_dict(), "chars": "".join(chars),
-                        "config": dict(block=BLOCK, n_embd=N_EMBD, n_head=N_HEAD, n_layer=N_LAYER)}, tmp)
+            torch.save({"model": model.state_dict(), "chars": "".join(chars), "config": cfg}, tmp)
             os.replace(tmp, CKPT)   # atomic -- a reader (the homegrown backend) never sees a half-write
             model.train()
     print(f"\nsaved -> {CKPT}")
@@ -190,6 +201,8 @@ def main():
     t.add_argument("--batch", type=int, default=16)
     t.add_argument("--lr", type=float, default=3e-4)
     t.add_argument("--report", type=int, default=500)
+    t.add_argument("--resume", action="store_true",
+                   help="CONTINUE the existing gpt.pt instead of starting fresh (for consolidation)")
     s = sub.add_parser("sample")
     s.add_argument("--prompt", default="")
     s.add_argument("--n", type=int, default=300)

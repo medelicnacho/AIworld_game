@@ -21,3 +21,5 @@ data/santana_world.pkl.tmp
 homegrown/gpt.pt
 homegrown/train.log
 homegrown/corpus_train.txt
+homegrown/consolidate_corpus.txt
+homegrown/gpt.pt.bak
