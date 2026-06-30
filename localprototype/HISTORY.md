@@ -109,6 +109,31 @@ lr/steps; `gpt.pt.bak` reverts) — and `CONTINUAL.md` keeps that edge honest.
 - Tune the stability↔plasticity dial; try **LoRA** instead of full continue-training.
 - eGPU day: a bigger, more eloquent slow model — *scaling up*, not changing the mechanism.
 
+## Phase 7 — the Demiurge: an 8B that seeds novelty into the ecology *(2026-06-30)*
+
+The closed-loop flaw made plain: a pure markov corpus can only *recombine* what it holds, so it
+converges and loops (you can watch it: *"my recipe mother's my recipe mother's"*). The fix is a
+**mutation operator** — a source of genuinely new material. `services/demiurge.py` is that: a **local
+ollama 8B** (`llama3.1-8b-abliterated` by default — chosen for chaos/uninhibited invention) that, on
+each **rebirth**, dreams a new villager (name, trade, ruling fear, 4 first-person lines), **writes
+that identity onto the reborn stream**, and feeds the lines into `homegrown/living_corpus.txt`. The
+markov voices re-read that corpus each rebuild, and the nightly consolidation harvests it — so the
+shape is: *8B seeds novelty → the souls live & morph it (markov) → Santāna consolidates it.* LLMs
+around a markov corpus the LLMs keep changing — the layered ecology asked for.
+
+Built and tested live (`--demiurge`, on both `santana_app.run` and the `viewer`/`app.sh`): the 8B
+dreamed **Kaelin the blacksmith's apprentice** (*"Why do shadows move on my own?"*) in 38s on CPU,
+and minutes later **her collective voice spoke his line** — *"…the source of all suffering. Will
+master notice one misplaced rivet?"* The novelty flowed the whole chain into Santāna. The slow 8B
+call runs off the sim lock and is throttled (~one soul per ~50s) so it stays a **minority** of the
+voice; the original hand-authored anchor is permanent; a **diversity log** (`data/demiurge.log`:
+lines / unique-ratio / vocab) makes collapse visible (held at unique=1.00, vocab climbing).
+
+**The honest cost (FINDINGS §7):** the Demiurge is *local* (nothing leaves the machine) but it is a
+**borrowed brain** — a town it seeds is partly a distillation of llama3. The claim drops from
+"nothing borrowed" to "nothing borrowed *except the Demiurge, by choice, as a novelty source*." That
+trade is opt-in (`--demiurge`); the pure-markov, fully-self-grown baseline is still the default.
+
 ---
 
 *The discipline that runs through all of it (`FINDINGS §7`): a self that learns is a more

@@ -95,6 +95,11 @@ def main() -> None:
                    help="where the TOWN is saved/resumed (pickle) -- so the wheel survives restarts")
     p.add_argument("--fresh", action="store_true", help="ignore any saved life/town and start new")
     p.add_argument("--tts", action="store_true", help="speak her aloud (Piper) as well as printing")
+    p.add_argument("--demiurge", action="store_true",
+                   help="an 8B (ollama) dreams up NEW souls at rebirth + seeds a living corpus the "
+                        "markov + consolidation read (novelty injection -- see services/demiurge.py)")
+    p.add_argument("--author-model", dest="author_model",
+                   default="mannix/llama3.1-8b-abliterated:q5_K_M", help="the Demiurge's ollama model")
     args = p.parse_args()
 
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice
@@ -121,6 +126,16 @@ def main() -> None:
     else:
         print("  ~ a new mind wakes, with no past yet.")
 
+    demiurge = None
+    if args.demiurge:
+        from services.demiurge import Demiurge
+        demiurge = Demiurge(model=args.author_model)
+        if not demiurge.available():
+            print(f"  (--demiurge: ollama/model '{args.author_model}' not reachable -- running without it)")
+            demiurge = None
+        else:
+            print(f"  ✦ the Demiurge wakes ({args.author_model}) -- it will dream new souls at rebirth")
+
     stop = threading.Event()
 
     def run_wheel():
@@ -140,9 +155,41 @@ def main() -> None:
                 pass
             time.sleep(0.6)
 
+    def run_demiurge():
+        # the 8B author: on rebirth, dream a NEW soul, write it onto the reborn stream, and feed the
+        # living corpus (the markov + the nightly consolidation read it). The slow 8B call runs OUTSIDE
+        # the lock; only the fast field-write is locked. Throttled, so it stays a minority of the voice.
+        authored: set[str] = set()
+        while not stop.is_set():
+            time.sleep(2.0)
+            try:
+                with w.lock:
+                    cands = sorted((a for a in w.agents
+                                    if a.id.startswith("stream:") and a.id not in authored),
+                                   key=lambda a: int(a.id.split(":")[1]))
+                if not cands:
+                    continue
+                target = cands[-1].id          # the newest unauthored reborn stream
+                authored.add(target)
+                soul = demiurge.invent()        # the SLOW 8B call -- OUTSIDE the lock
+                if not soul:
+                    continue
+                with w.lock:
+                    tgt = next((a for a in w.agents if a.id == target), None)
+                    if tgt is not None:
+                        demiurge.apply(tgt, soul, w.tick)
+                demiurge.seed_corpus(soul)
+                print(f"\n  ✦ the Demiurge dreams {soul['name']} the {soul['role']} -- {soul['aim']} "
+                      f"({len(soul['lines'])} lines into the living corpus)", flush=True)
+                time.sleep(15.0)               # bound the 8B to a MINORITY injection
+            except Exception:   # noqa: BLE001 -- the author must never kill the life
+                time.sleep(5.0)
+
     threads = [threading.Thread(target=run_wheel, daemon=True)]
     if real_town:
         threads.append(threading.Thread(target=run_speech, daemon=True))
+    if demiurge is not None:
+        threads.append(threading.Thread(target=run_demiurge, daemon=True))
     for t in threads:
         t.start()
 

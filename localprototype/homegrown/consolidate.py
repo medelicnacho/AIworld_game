@@ -59,6 +59,14 @@ def harvest(top: int, replay: int, weight: int) -> tuple[int, int]:
         except Exception:   # noqa: BLE001
             pass
 
+    # 2b) the DEMIURGE's living corpus (8B-dreamed souls) -- so the slow brain learns the new culture
+    living_corpus = os.path.join(HERE, "living_corpus.txt")
+    if os.path.isfile(living_corpus):
+        try:
+            salient += open(living_corpus, encoding="utf-8").read().splitlines()[-200:]
+        except Exception:   # noqa: BLE001
+            pass
+
     salient = [s.strip() for s in salient if _ok(s.strip())]
 
     # 3) REPLAY: a sample of the original corpus, so consolidating doesn't overwrite what it knows

@@ -23,3 +23,5 @@ homegrown/train.log
 homegrown/corpus_train.txt
 homegrown/consolidate_corpus.txt
 homegrown/gpt.pt.bak
+homegrown/living_corpus.txt
+data/demiurge.log

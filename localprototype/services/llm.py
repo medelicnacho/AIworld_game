@@ -647,6 +647,7 @@ class MockLLM:
 _HOMEGROWN_DIR = Path(__file__).resolve().parent.parent / "homegrown"
 HOMEGROWN_PATH = str(_HOMEGROWN_DIR / "model.npz")   # the old numpy char-RNN
 HOMEGROWN_GPT = str(_HOMEGROWN_DIR / "gpt.pt")       # the trained PyTorch GPT (preferred when present)
+LIVING_CORPUS = str(_HOMEGROWN_DIR / "living_corpus.txt")   # the Demiurge's novelty feed (see demiurge.py)
 
 
 class HomegrownLLM:
@@ -711,10 +712,23 @@ class MarkovLLM:
         self._rng = random.Random(seed)
         self._build([])                # initial chain = authored only
 
+    @staticmethod
+    def _living_corpus() -> list[str]:
+        """The Demiurge's novelty feed (8B-dreamed lines), re-read each rebuild so the voice picks up
+        new souls as they are born. Bounded -> a minority of the chain, never drowning the anchor."""
+        try:
+            if os.path.isfile(LIVING_CORPUS):
+                return [ln.strip() for ln in open(LIVING_CORPUS, encoding="utf-8").read().splitlines()
+                        if ln.strip()][-400:]
+        except Exception:   # noqa: BLE001
+            pass
+        return []
+
     def _build(self, living: list[str]) -> None:
-        """Rebuild the chain from the authored anchor + the world's LIVING lines. Living lines are
-        filtered (sane length) so the voice stays clean as it drifts."""
-        sents = self._authored + [s for s in living if s and 2 <= len(s.split()) <= 24]
+        """Rebuild the chain from the authored anchor + the Demiurge's living corpus + the world's
+        LIVING lines. All filtered (sane length) so the voice stays clean as it drifts."""
+        feed = living + self._living_corpus()
+        sents = self._authored + [s for s in feed if s and 2 <= len(s.split()) <= 24]
         trans: dict[tuple, list] = {}
         for s in sents:
             toks = [self._START] * self.order + s.split() + [None]   # None = end of line

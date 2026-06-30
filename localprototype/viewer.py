@@ -436,6 +436,11 @@ def main() -> None:
                          "ALOUD (Piper TTS) over the souls' silent markov bubbles. Click MUTE (or press v).")
     ap.add_argument("--santana-interval", dest="santana_interval", type=float, default=12.0,
                     help="--santana: seconds between her readings")
+    ap.add_argument("--demiurge", action="store_true",
+                    help="an 8B (ollama) dreams up NEW souls at rebirth + seeds the living corpus the "
+                         "markov + consolidation read (novelty injection -- see services/demiurge.py)")
+    ap.add_argument("--author-model", dest="author_model",
+                    default="mannix/llama3.1-8b-abliterated:q5_K_M", help="the Demiurge's ollama model")
     ap.add_argument("--step-ms", type=int, default=100,
                     help="subconscious heartbeat interval (ms): memory/thought/urge rate")
     ap.add_argument("--chat-delay", type=float, default=0.5,
@@ -858,9 +863,55 @@ def main() -> None:
                 except Exception as exc:   # noqa: BLE001 -- her voice must never kill the view
                     print("[santana] failed:", exc, file=sys.stderr)
 
+    demiurge = None
+    if getattr(args, "demiurge", False):
+        from services.demiurge import Demiurge
+        demiurge = Demiurge(model=args.author_model)
+        if not demiurge.available():
+            print(f"[demiurge] '{args.author_model}' not reachable -- running without it", file=sys.stderr)
+            demiurge = None
+        else:
+            print(f"✦ the Demiurge is awake ({args.author_model}) -- new souls dreamed at rebirth")
+
+    def demiurge_loop():
+        # the 8B author: dream a NEW soul on rebirth, write it onto the reborn stream, feed the living
+        # corpus. The slow 8B call runs OUTSIDE the lock; only the field-write is locked. Throttled.
+        authored: set[str] = set()
+        while running.is_set():
+            for _ in range(20):                      # ~2s, responsive to shutdown
+                if not running.is_set():
+                    return
+                time.sleep(0.1)
+            try:
+                with world.lock:
+                    cands = sorted((a for a in world.agents
+                                    if a.id.startswith("stream:") and a.id not in authored),
+                                   key=lambda a: int(a.id.split(":")[1]))
+                if not cands:
+                    continue
+                target = cands[-1].id
+                authored.add(target)
+                soul = demiurge.invent()             # SLOW -- no lock held
+                if not soul:
+                    continue
+                with world.lock:
+                    tgt = next((a for a in world.agents if a.id == target), None)
+                    if tgt is not None:
+                        demiurge.apply(tgt, soul, world.tick)
+                demiurge.seed_corpus(soul)
+                print(f"✦ the Demiurge dreams {soul['name']} the {soul['role']} -- {soul['aim']}", flush=True)
+                for _ in range(150):                 # ~15s throttle -> a minority injection
+                    if not running.is_set():
+                        return
+                    time.sleep(0.1)
+            except Exception as exc:   # noqa: BLE001 -- the author must never kill the view
+                print("[demiurge] failed:", exc, file=sys.stderr)
+
     loops = [animate_loop, advance_loop, speech_loop, tts_loop, murmur_synth_loop]
     if args.santana:
         loops.append(santana_loop)
+    if demiurge is not None:
+        loops.append(demiurge_loop)
     if args.spawn:
         loops.append(genesis_loop)
     if getattr(world, "_pending_founders", None):   # stream the rest of the cast in
