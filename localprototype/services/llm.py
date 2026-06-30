@@ -654,7 +654,7 @@ class HomegrownLLM:
     in the project: every letter it speaks, it learned here, from nothing. Train: homegrown/train.py."""
 
     def __init__(self, path: str = HOMEGROWN_PATH, temperature: float = 0.85,
-                 seed: str = "I am ") -> None:
+                 seed: str = "") -> None:   # "" = start cold, so it generates a natural line-start it learned
         self.path = path
         self.temperature = temperature
         self.seed = seed
@@ -682,6 +682,58 @@ class HomegrownLLM:
         return self._line(self.seed, num_predict, temperature)
 
 
+class MarkovLLM:
+    """The world's own words, recombined -- an order-2 word Markov over the project's authored
+    in-world lines (each trade's concerns, the genesis themes, the religions' scripture). Nothing
+    trained, nothing borrowed, and CLEAN, because it reproduces real two-word chunks verbatim. The
+    literal 'grown from the Markov chain' voice -- and, unlike the tiny char-RNN, it never garbles
+    a word (it can only ever say words the world already authored)."""
+
+    _START = "\x02"
+
+    def __init__(self, order: int = 2, seed: int | None = None, temperature: float = 1.0) -> None:
+        from agent.genesis import ROLES, _THEMES
+        from agent.religion import RELIGIONS
+        sents: list[str] = list(_THEMES)
+        for _role, tasks in ROLES:
+            sents += tasks
+        for rel in RELIGIONS.values():
+            sents.append(rel.creed)
+            sents += list(rel.scripture)
+        self.order = order
+        self._rng = random.Random(seed)
+        self._trans: dict[tuple, list] = {}
+        for s in sents:
+            toks = [self._START] * order + s.split() + [None]   # None = end of line
+            for i in range(len(toks) - order):
+                self._trans.setdefault(tuple(toks[i:i + order]), []).append(toks[i + order])
+
+    def available(self) -> bool:
+        return bool(self._trans)
+
+    def _walk(self, max_words: int = 16) -> str:
+        ctx = (self._START,) * self.order
+        out: list[str] = []
+        for _ in range(max_words):
+            nxts = self._trans.get(ctx)
+            if not nxts:
+                break
+            w = self._rng.choice(nxts)
+            if w is None:
+                break
+            out.append(w)
+            ctx = tuple(list(ctx)[1:] + [w])
+        return " ".join(out)
+
+    def speak(self, ctx: SpeechContext) -> str:
+        return _clean(self._walk()) or "..."
+
+    def generate(self, prompt: str = "", system: str = "", num_predict: int = 200,
+                 temperature: float = 1.0) -> str:
+        n = self._rng.randint(1, 2)
+        return _clean(" ".join(self._walk() for _ in range(n))) or "..."
+
+
 def make_llm(backend: str = "auto", model: str | None = None,
              seed: int | None = None):
     """Pick a backend. Local is the default; DeepSeek is explicit opt-in only.
@@ -702,6 +754,11 @@ def make_llm(backend: str = "auto", model: str | None = None,
         print(f"[llm] homegrown char-RNN -- a voice grown from nothing on the world's own words "
               f"({h.path})")
         return h
+
+    if backend == "markov":
+        print("[llm] markov -- the world's own authored words recombined (clean, fully self-grown, "
+              "nothing trained or borrowed)")
+        return MarkovLLM(seed=seed)
 
     if backend == "deepseek":
         load_dotenv()

@@ -335,12 +335,12 @@ def _watch(args) -> None:
     from services.llm import MockLLM, OllamaLLM, make_llm
     from world.sim import World
 
-    if args.llm not in ("ollama", "deepseek", "homegrown"):
+    if args.llm not in ("ollama", "deepseek", "homegrown", "markov"):
         print("watch needs a real voice for the Mind -- run: --llm ollama --model gemma3:4b "
               "(or --llm deepseek with a key in .env, or --llm homegrown for the from-scratch RNN)")
         return
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice on Ollama
-    if args.llm in ("deepseek", "homegrown"):
+    if args.llm in ("deepseek", "homegrown", "markov"):
         santana_llm = make_llm(backend=args.llm, model=args.model)   # deepseek leaves the machine; homegrown is local
         if getattr(args, "reasoning", False) and hasattr(santana_llm, "thinking"):
             santana_llm.thinking = True   # her murmur becomes the model's real reasoning trace
@@ -353,9 +353,9 @@ def _watch(args) -> None:
     # a town grown entirely from the world's own Markov churn); anything else = a DeepSeek model id.
     # (Perf: a DeepSeek town speaks under the lock; the off-lock speak thread keeps the wheel turning.)
     tm = getattr(args, "town_model", None)
-    if tm == "homegrown":
-        town_llm = make_llm(backend="homegrown")
-        print("  [town] the souls speak in the HOMEGROWN voice -- nothing leaves, nothing borrowed")
+    if tm in ("homegrown", "markov"):
+        town_llm = make_llm(backend=tm)
+        print(f"  [town] the souls speak in the {tm.upper()} voice -- nothing leaves, nothing borrowed")
     elif tm:
         town_llm = make_llm(backend="deepseek", model=tm)
         print(f"  [town] the souls speak on {tm} -- she'll make meaning of their words")
@@ -468,7 +468,7 @@ def main() -> None:
     from world.sim import World
 
     p = argparse.ArgumentParser(description="A first read of Santāna -- inert, text only.")
-    p.add_argument("--llm", choices=["mock", "ollama", "deepseek", "homegrown"], default="mock",
+    p.add_argument("--llm", choices=["mock", "ollama", "deepseek", "homegrown", "markov"], default="mock",
                    help="her VOICE. deepseek = the hosted larger model (key in .env; her speech leaves "
                         "the machine); homegrown = the from-scratch char-RNN grown on the world's own "
                         "words (homegrown/). The town underneath always runs on mock.")
@@ -504,15 +504,16 @@ def main() -> None:
                    help="--watch/--live: seconds the town lives between her readings")
     args = p.parse_args()
     if args.live:
-        # --live needs a real voice; default to local, but respect an explicit --llm deepseek
-        if args.llm != "deepseek":
+        # --live needs a real voice; default to local ollama only when none was chosen, but respect
+        # an explicit --llm (deepseek / homegrown / markov) so the chosen voice isn't hijacked.
+        if args.llm == "mock":
             args.llm = "ollama"
         args.watch, args.tts = True, (not args.mute)
         if args.observations == 8:    # the default -> continuous; an explicit --observations N still bounds it
             args.observations = 0
     if args.watch:
         _watch(args); return
-    if args.llm in ("deepseek", "homegrown"):
+    if args.llm in ("deepseek", "homegrown", "markov"):
         llm = make_llm(backend=args.llm, model=args.model)   # deepseek: egress notice + key; homegrown: local RNN
     elif args.llm == "ollama":
         llm = OllamaLLM(temperature=0.85, model=args.model) if args.model else OllamaLLM(temperature=0.85)
