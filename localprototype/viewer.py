@@ -836,7 +836,7 @@ def main() -> None:
     if args.santana:
         from santana import Santana, play_two_layer
         from services.llm import make_llm as _mk
-        _smind = Santana(world, _mk("markov"))
+        _smind = Santana(world, _mk(args.llm))   # her voice follows --llm too (markov by default)
 
         def santana_loop():
             while running.is_set():
