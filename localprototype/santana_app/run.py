@@ -30,7 +30,7 @@ from services import embed
 from services.llm import MockLLM, make_llm
 from world.sim import World
 
-from santana import Santana
+from santana import Santana, play_two_layer
 from santana_app.state import load_mind, load_world, save_mind, save_world
 
 DEFAULT_SNAPSHOT = os.path.join(ROOT, "data", "santana_state.json")
@@ -94,6 +94,7 @@ def main() -> None:
     p.add_argument("--world-snapshot", dest="world_snapshot", default=DEFAULT_WORLD,
                    help="where the TOWN is saved/resumed (pickle) -- so the wheel survives restarts")
     p.add_argument("--fresh", action="store_true", help="ignore any saved life/town and start new")
+    p.add_argument("--tts", action="store_true", help="speak her aloud (Piper) as well as printing")
     args = p.parse_args()
 
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice
@@ -167,6 +168,8 @@ def main() -> None:
             print(f"  SANTĀNA: {clear}")
             mind.consolidate()
             print(f"  [who she has become] {mind.identity}")
+            if args.tts and clear:
+                play_two_layer(mind.murmur, clear)   # speak her aloud (Piper); markov has no murmur
             if args.autosave and i % args.autosave == 0:
                 save_both()
                 print(f"  (saved -- {_fmt_age(mind.lifetime)} lived, {mind._deaths} souls watched pass)")
