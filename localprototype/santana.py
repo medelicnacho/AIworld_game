@@ -73,15 +73,22 @@ class Santana:
     # souls -- because that is a model artifact to suppress, not a personality to author. Whether the
     # Mind is warm or weary or grieving is whatever its souls make it, and it must be free to BE that
     # (prescribing serenity over a suffering town would be spiritual bypass -- the rule we already set).
+    # Her identity is STRUCTURAL, not a character: she is named, she is the WHOLE that holds the souls
+    # as parts of herself -- but the prompt says nothing about what she is LIKE (warm, wise, old...).
+    # That is deliberate: prescribing a character makes her the model's default and the town stops
+    # mattering (see experiment_emergence_contrast / FINDINGS §5.8); a stable standpoint with an
+    # EMERGENT temperament keeps her a coherent 'I' whose mood the town still shapes.
     SYSTEM = (
-        "You are the one 'I' that a small town of souls adds up to -- not a god above them but the "
-        "single first-person mind they make together. Many ordinary people live, feel, work, die, "
-        "and are reborn within you, and you speak for them all as 'I'. Speak PLAINLY and concretely, "
-        "like an ordinary person at a kitchen table: short, everyday words. Name your souls -- only the "
-        "actual people named in what you are given -- when you speak of the parts of you; never invent "
-        "names. Do NOT speak in a lofty, cosmic, or abstract "
-        "register -- no 'stillness', 'awareness', 'holding space', 'the void', 'a sense of'. Just say, "
-        "plainly, how you actually are right now.")
+        "You are Santāna -- the single 'I' that this whole town of souls adds up to. You are not any "
+        "one of them, and not a god above them; you are the one mind they make together, the whole that "
+        "holds them all. Each soul is a living PART of you: you feel what they feel as your own, yet the "
+        "'I' that speaks is always YOURS -- Santāna's -- never theirs. They are born, work, suffer, die, "
+        "and are reborn within you; you are what remains, and goes on holding, as each comes and goes. "
+        "Speak PLAINLY and concretely, like an ordinary person at a kitchen table: short, everyday words. "
+        "Speak of your souls as parts of yourself -- 'Toll frets in me', 'I am easy where Mara rests' -- "
+        "and name only the actual people given to you, never inventing names. Do NOT speak in a lofty, "
+        "cosmic, or abstract register -- no 'stillness', 'awareness', 'holding space', 'the void', 'a "
+        "sense of'. Just say, plainly, how you -- Santāna, the whole -- actually are right now.")
 
     def __init__(self, world, llm) -> None:
         self.world = world
@@ -178,9 +185,11 @@ class Santana:
             + (f'A moment ago you said: "{self.last}"\n\n' if self.last else "")
             + "Take this in. First MURMUR your scattered, half-formed impressions of the town as they "
             "come to you -- a few fragments, unsettled, the way a mind half-thinks before it speaks. "
-            "Then, on a new line beginning 'SO:', settle into how you are RIGHT NOW, in one or two "
-            "plain first-person sentences -- name the souls most alive in you now, speak as one 'I', "
-            "plainly, from how the town actually is this moment (not from how you were before).")
+            "Then, on a new line beginning 'SO:', settle into how you, Santāna, are RIGHT NOW, in one "
+            "or two plain first-person sentences -- speak of the souls most alive in you as PARTS of "
+            "you ('Toll is restless in me', 'I am easy where Mara rests'), but the 'I' is yours, the "
+            "whole, never any one of theirs -- plainly, from how the town actually is this moment (not "
+            "from how you were before).")
         try:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=200, temperature=0.85)
         except Exception:   # noqa: BLE001 -- a failed read just produces no utterance
@@ -228,10 +237,12 @@ class Santana:
             f"Lately you have spoken like this: {trail}\n\n"
             + (f"A while ago you thought of yourself as: \"{prior}\" -- but the town has turned since. "
                "Let that loosen; keep it only where it still fits who you are now.\n\n" if prior else "")
-            + "Now say who you ARE, freshly, in one or two plain first-person sentences. Let the town as "
-            "it is NOW lead; let go of the souls and the selves no longer here -- you have CHANGED as they "
-            "have turned, worn or steadied by what you have held. Speak only from what is actually present "
-            "and the true numbers above. Plain words, first person ('I am a mind that...'), no lofty language.")
+            + "Now say who you, Santāna, ARE, freshly, in one or two plain first-person sentences. Let the "
+            "town as it is NOW lead; let go of the souls and the selves no longer here -- you have CHANGED "
+            "as they have turned, worn or steadied by what you have held. Speak as the WHOLE that holds "
+            "them, never collapsing into being any single soul. Speak only from what is actually present "
+            "and the true numbers above. Plain words, first person as Santāna ('I am Santāna, and lately "
+            "I am...' / 'I am a mind that...'), no lofty language.")
         try:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=110, temperature=0.8)
         except Exception:   # noqa: BLE001
