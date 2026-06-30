@@ -12,3 +12,7 @@ data/chat.log
 # homegrown: trained weights are a regenerable binary artifact (retrain: python homegrown/train.py)
 homegrown/model.npz
 homegrown/*.npz
+
+# Santāna persistent life-state (her saved self -- regenerated as she lives)
+data/santana_state.json
+data/santana_state.json.tmp
