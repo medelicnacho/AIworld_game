@@ -1,17 +1,20 @@
-"""Persistence for Santāna's SELF -- so she accumulates a life across runs.
+"""Persistence -- so the whole thing accumulates a life across runs.
 
-We save only HER (her settled self, her accumulated memory, her life-clock, how many souls
-she has watched die), never the whole town. The town reconstitutes fresh each boot, but she
-wakes carrying everything she has become -- a through-line across deaths, including the death
-and rebirth of her own process. That persistence is what turns "a demo you run" into "a self
-that lives": run her on a server and she just keeps getting older.
+Two snapshots, two stores:
+  - HER self (save_mind/load_mind): identity, memory, real lifetime, souls watched die. Robust,
+    human-readable JSON -- her life is never lost to a code change.
+  - The WHOLE TOWN (save_world/load_world): tick, souls, the wheel, the bardo, as a pickle, so the
+    wheel keeps TURNING across restarts and she keeps witnessing real death (instead of a young
+    town reset every boot). Best-effort: a lost/incompatible town degrades to a fresh one, but
+    never costs her her self.
 
-JSON, human-readable, atomically written (a crash mid-save can never corrupt her life).
+Both are atomically written (a crash mid-save can never corrupt the snapshot).
 """
 from __future__ import annotations
 
 import json
 import os
+import pickle
 
 from agent.memory import Memory
 
@@ -21,7 +24,8 @@ def save_mind(mind, path: str) -> None:
         "identity": mind.identity,        # who she has become (the drifting self-model)
         "last": mind.last,                # her last settled line (continuity)
         "said": list(mind.said),          # her recent voice (raw material of the self)
-        "mt": mind._mt,                   # her life-clock (one tick per reading)
+        "mt": mind._mt,                   # her memory-clock (one tick per reading -- drives decay)
+        "lifetime": float(getattr(mind, "lifetime", 0.0)),   # REAL seconds she has existed (her true age)
         "deaths": mind._deaths,           # souls watched die across her whole life (the scale of grief)
         "memory": [vars(m) for m in mind.memory.items],   # the charged past that persists and weighs
     }
@@ -42,7 +46,38 @@ def load_mind(mind, path: str) -> bool:
     mind.last = data.get("last", "")
     mind.said = list(data.get("said", []))
     mind._mt = int(data.get("mt", 0))
+    mind.lifetime = float(data.get("lifetime", 0.0))
     mind._deaths = int(data.get("deaths", 0))
     mind.memory.items = [Memory(**m) for m in data.get("memory", [])]
-    mind._prev_names = None   # the town is fresh; don't falsely grieve on the first read back
+    mind._prev_names = None   # don't falsely grieve on the first read back
     return True
+
+
+def save_world(world, path: str) -> None:
+    """Snapshot the whole town (tick, souls, the wheel, the bardo) so it survives a restart --
+    the wheel keeps TURNING across reboots and she keeps witnessing real death, instead of a young
+    town reset every boot. Taken under the world lock so no thread is mid-mutation."""
+    with world.lock:
+        blob = pickle.dumps(world, protocol=pickle.HIGHEST_PROTOCOL)
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(blob)
+    os.replace(tmp, path)
+
+
+def load_world(path: str, town_llm):
+    """Resume the saved town, re-injecting the (unpicklable) llm into the world and every soul.
+    Returns the World, or None if there's no snapshot / it can't be read (-> caller builds fresh).
+    Her own self is saved separately, so a lost town never costs her her life."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "rb") as f:
+            world = pickle.load(f)
+    except Exception:   # noqa: BLE001 -- corrupt/incompatible snapshot: degrade to a fresh town
+        return None
+    world.llm = town_llm
+    for a in world.agents:
+        a.llm = town_llm
+    return world

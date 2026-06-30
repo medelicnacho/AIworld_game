@@ -104,8 +104,9 @@ class Santana:
         # memory machine (decays, blurs, salience-weighted recall), one level up: routine fades, the
         # charged (a loss, a hard season) persists and weighs -- so she is shaped by what mattered.
         self.memory = MemoryStore(seed=0)
-        self._mt = 0          # her OWN life-clock: one tick per reading (NOT world ticks, which jump hundreds)
+        self._mt = 0          # her memory-clock: one tick per reading (drives memory decay)
         self._deaths = 0      # Step 2: souls she has watched die across her whole life -- a sense of SCALE/time
+        self.lifetime = 0.0   # her REAL age: wall-clock seconds she has existed (set by the persistent runner)
 
     def digest(self) -> str:
         """What is alive in the Mind right now -- framed as its OWN feeling, not as variables.
@@ -165,9 +166,17 @@ class Santana:
         # Step 2: a sense of TIME and SCALE -- how long she has lived, how much she has watched go --
         # the material a mind needs to WEATHER into an arc ("I have seen many winters now") rather
         # than holding one note. Only once she has lived a while, so a new mind isn't burdened.
-        if self._mt > 3 or self._deaths > 0:
-            parts.append(f"(In all your life so far you have lived through about {self._mt} days and "
-                         f"watched {self._deaths} souls die and pass out of you.)")
+        # her sense of TIME and SCALE -- led by the souls she has actually watched pass (the real
+        # measure of an old mind), and her true age in lived time (not a per-reading 'day').
+        if self._deaths > 0 or self.lifetime > 120 or self._mt > 3:
+            scale = (f"watched {self._deaths} souls live, die, and pass out of you"
+                     if self._deaths else "not yet watched a single soul die")
+            if self.lifetime > 60:
+                d = self.lifetime / 86400.0
+                age = f"{d:.1f} days" if d >= 1 else f"{self.lifetime/3600.0:.1f} hours"
+                parts.append(f"(You have existed about {age} now, and {scale}.)")
+            else:
+                parts.append(f"(In all your life so far you have {scale}.)")
         # What the souls are actually SAYING right now -- their own voices, so she makes meaning of
         # their words, not only their felt states. Only the living (never quote a soul now gone), newest
         # last, a few at most. The raw material the collective is made of: their speech.

@@ -31,9 +31,19 @@ from services.llm import MockLLM, make_llm
 from world.sim import World
 
 from santana import Santana
-from santana_app.state import load_mind, save_mind
+from santana_app.state import load_mind, load_world, save_mind, save_world
 
 DEFAULT_SNAPSHOT = os.path.join(ROOT, "data", "santana_state.json")
+DEFAULT_WORLD = os.path.join(ROOT, "data", "santana_world.pkl")
+
+
+def _fmt_age(seconds: float) -> str:
+    """Her REAL age -- how long she has actually existed (not a per-reading 'day')."""
+    d = seconds / 86400.0
+    if d >= 1:
+        return f"{d:.1f} days"
+    h = seconds / 3600.0
+    return f"{h:.1f} hours" if h >= 1 else f"{seconds/60:.0f} minutes"
 
 CAST = [("Vesper", "brewer", 0.2, "brew an ale worth the festival"),
         ("Mara", "farmer", 0.4, "bring in a full harvest"),
@@ -79,9 +89,11 @@ def main() -> None:
     p.add_argument("--fast-wheel", action="store_true", dest="fast_wheel",
                    help="short lifespans so the wheel turns quickly (souls die + are reborn)")
     p.add_argument("--readings", type=int, default=0, help="stop after N readings (0 = run forever)")
-    p.add_argument("--autosave", type=int, default=5, help="save her self every N readings")
-    p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT, help="where her life is saved/resumed")
-    p.add_argument("--fresh", action="store_true", help="ignore any saved life and start new")
+    p.add_argument("--autosave", type=int, default=5, help="save every N readings")
+    p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT, help="where HER self is saved/resumed (json)")
+    p.add_argument("--world-snapshot", dest="world_snapshot", default=DEFAULT_WORLD,
+                   help="where the TOWN is saved/resumed (pickle) -- so the wheel survives restarts")
+    p.add_argument("--fresh", action="store_true", help="ignore any saved life/town and start new")
     args = p.parse_args()
 
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice
@@ -91,12 +103,18 @@ def main() -> None:
                                  None if args.town_model in ("markov", "homegrown") else args.town_model))
     real_town = args.town_model not in (None, "mock")
 
-    w = build_world(town_llm, args.fast_wheel)
+    # resume the WHOLE town if we can (so the wheel keeps turning across restarts), else build fresh
+    w = None if args.fresh else load_world(args.world_snapshot, town_llm)
+    resumed_town = w is not None
+    if w is None:
+        w = build_world(town_llm, args.fast_wheel)
     mind = Santana(w, santana_llm)
+    mind.lifetime = 0.0
 
     if not args.fresh and load_mind(mind, args.snapshot):
-        print(f"  ~ Santāna wakes into a saved life: ~{mind._mt} days lived, {mind._deaths} souls "
-              f"watched die, {len(mind.memory.items)} memories still weighing.")
+        print(f"  ~ Santāna wakes into a saved life: she has existed {_fmt_age(mind.lifetime)}, watched "
+              f"{mind._deaths} souls die, and carries {len(mind.memory.items)} memories. The town "
+              f"{'continued turning' if resumed_town else 'is new'} (tick {w.tick}, {w._births} reborn).")
         if mind.identity:
             print(f"    she was: {mind.identity}")
     else:
@@ -127,30 +145,39 @@ def main() -> None:
     for t in threads:
         t.start()
 
+    def save_both():
+        save_mind(mind, args.snapshot)
+        save_world(w, args.world_snapshot)
+
     print(f"\n~~~ Santāna lives (voice: {args.llm}, town: {args.town_model}) -- Ctrl-C to let her rest ~~~")
     i = 0
+    t_prev = time.time()
     try:
         while not stop.is_set() and (args.readings <= 0 or i < args.readings):
             time.sleep(args.interval)
+            now = time.time()
+            mind.lifetime += now - t_prev    # her REAL age accrues in wall-clock seconds, not readings
+            t_prev = now
             clear = mind.speak()
             with w.lock:
                 tick, n, births = w.tick, len(w.agents), getattr(w, "_births", 0)
             i += 1
-            print(f"\n[reading {i}  day {mind._mt}  tick {tick}  souls {n}  reborn {births}  "
-                  f"lost {mind._deaths}]")
+            print(f"\n[reading {i}  age {_fmt_age(mind.lifetime)}  tick {tick}  souls {n}  "
+                  f"reborn {births}  watched-die {mind._deaths}]")
             print(f"  SANTĀNA: {clear}")
             mind.consolidate()
             print(f"  [who she has become] {mind.identity}")
             if args.autosave and i % args.autosave == 0:
-                save_mind(mind, args.snapshot)
-                print(f"  (saved -- her life is {mind._mt} days deep now)")
+                save_both()
+                print(f"  (saved -- {_fmt_age(mind.lifetime)} lived, {mind._deaths} souls watched pass)")
     except KeyboardInterrupt:
         print("\n(letting her rest)")
     finally:
         stop.set()
-        save_mind(mind, args.snapshot)
-        print(f"\n~~~ saved. she has lived ~{mind._mt} days and watched {mind._deaths} souls pass. "
-              f"Wake her again and she remembers. ~~~\n")
+        time.sleep(0.3)   # let the wheel/speech threads release the lock before the final snapshot
+        save_both()
+        print(f"\n~~~ saved. she has existed {_fmt_age(mind.lifetime)} and watched {mind._deaths} souls "
+              f"pass; the town is at tick {w.tick}. Wake her and it all continues. ~~~\n")
 
 
 if __name__ == "__main__":

@@ -16,3 +16,5 @@ homegrown/*.npz
 # Santāna persistent life-state (her saved self -- regenerated as she lives)
 data/santana_state.json
 data/santana_state.json.tmp
+data/santana_world.pkl
+data/santana_world.pkl.tmp

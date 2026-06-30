@@ -226,6 +226,14 @@ class Agent:
             self.memory.write(d, tick=0, source="doctrine", weight=1.6)
         self.memory.effectiveness = self.grace
 
+    def __getstate__(self):   # persistence: the llm is re-injected on load, not saved with the soul
+        s = self.__dict__.copy()
+        s["llm"] = None
+        return s
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     def felt_mood(self) -> float:
         """The agent's disposition: temperament anchored (0.7), lived mood
         nudging (0.3). Anchored enough that a dark soul stays dark amid ambient

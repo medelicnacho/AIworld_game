@@ -136,6 +136,21 @@ class World:
         for ev in events or []:
             self._schedule[ev.tick].append(ev)
 
+    # --- persistence: the whole town can be snapshotted so the wheel survives a restart.
+    # The lock (a thread primitive) and the llm/bus (re-injected by the caller) are not saved.
+    def __getstate__(self):
+        s = self.__dict__.copy()
+        s["lock"] = None
+        s["llm"] = None
+        s["bus"] = None
+        return s
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.lock = threading.RLock()
+        if self.bus is None:
+            self.bus = EventBus()
+
     def _remember_said(self, text: str) -> None:
         self.recent.append(text)
         del self.recent[:-RECENT_LINES]
