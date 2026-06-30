@@ -8,3 +8,7 @@ data/voices/
 data/voices
 *.mp3
 data/chat.log
+
+# homegrown: trained weights are a regenerable binary artifact (retrain: python homegrown/train.py)
+homegrown/model.npz
+homegrown/*.npz

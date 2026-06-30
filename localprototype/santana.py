@@ -335,13 +335,13 @@ def _watch(args) -> None:
     from services.llm import MockLLM, OllamaLLM, make_llm
     from world.sim import World
 
-    if args.llm not in ("ollama", "deepseek"):
+    if args.llm not in ("ollama", "deepseek", "homegrown"):
         print("watch needs a real voice for the Mind -- run: --llm ollama --model gemma3:4b "
-              "(or --llm deepseek with a key in .env)")
+              "(or --llm deepseek with a key in .env, or --llm homegrown for the from-scratch RNN)")
         return
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice on Ollama
-    if args.llm == "deepseek":
-        santana_llm = make_llm(backend="deepseek", model=args.model)   # her voice leaves the machine
+    if args.llm in ("deepseek", "homegrown"):
+        santana_llm = make_llm(backend=args.llm, model=args.model)   # deepseek leaves the machine; homegrown is local
         if getattr(args, "reasoning", False) and hasattr(santana_llm, "thinking"):
             santana_llm.thinking = True   # her murmur becomes the model's real reasoning trace
             print("  [reasoning] her murmur is now the model's ACTUAL reasoning (thinking enabled)")
@@ -463,9 +463,10 @@ def main() -> None:
     from world.sim import World
 
     p = argparse.ArgumentParser(description="A first read of Santāna -- inert, text only.")
-    p.add_argument("--llm", choices=["mock", "ollama", "deepseek"], default="mock",
-                   help="her VOICE. deepseek = the hosted larger model (key in .env; her "
-                        "speech leaves the machine). The town underneath always runs on mock.")
+    p.add_argument("--llm", choices=["mock", "ollama", "deepseek", "homegrown"], default="mock",
+                   help="her VOICE. deepseek = the hosted larger model (key in .env; her speech leaves "
+                        "the machine); homegrown = the from-scratch char-RNN grown on the world's own "
+                        "words (homegrown/). The town underneath always runs on mock.")
     p.add_argument("--model", default=None)
     p.add_argument("--once", action="store_true",
                    help="one read of a fixed town (murmur + clear) -- fast, for comparing models")
@@ -506,8 +507,8 @@ def main() -> None:
             args.observations = 0
     if args.watch:
         _watch(args); return
-    if args.llm == "deepseek":
-        llm = make_llm(backend="deepseek", model=args.model)   # prints the egress notice, checks the key
+    if args.llm in ("deepseek", "homegrown"):
+        llm = make_llm(backend=args.llm, model=args.model)   # deepseek: egress notice + key; homegrown: local RNN
     elif args.llm == "ollama":
         llm = OllamaLLM(temperature=0.85, model=args.model) if args.model else OllamaLLM(temperature=0.85)
     else:

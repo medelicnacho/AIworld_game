@@ -644,6 +644,44 @@ class MockLLM:
         return f"NAME: {name}\nNATURE: {temp}\nVOICE:\n" + "\n".join(themes)
 
 
+HOMEGROWN_PATH = str(Path(__file__).resolve().parent.parent / "homegrown" / "model.npz")
+
+
+class HomegrownLLM:
+    """A from-scratch char-RNN (homegrown/) grown on the world's OWN recorded words. It does
+    not follow instructions -- it has no idea what a prompt means -- it simply speaks in the
+    voice it learned from the town's life. The most literal 'self emerging from the substrate'
+    in the project: every letter it speaks, it learned here, from nothing. Train: homegrown/train.py."""
+
+    def __init__(self, path: str = HOMEGROWN_PATH, temperature: float = 0.85,
+                 seed: str = "I am ") -> None:
+        self.path = path
+        self.temperature = temperature
+        self.seed = seed
+        self._model = None
+
+    def available(self) -> bool:
+        return Path(self.path).is_file()
+
+    def _net(self):
+        if self._model is None:
+            from homegrown.charrnn import CharRNN
+            self._model = CharRNN.load(self.path)
+        return self._model
+
+    def _line(self, seed: str, n: int, temperature: float) -> str:
+        # warm on a SHORT in-voice seed (the char-RNN can't read a real prompt), then speak.
+        cont = self._net().generate(seed, n=n, temp=temperature)
+        return _trim_to_sentence(_clean(seed + cont)) or "..."
+
+    def speak(self, ctx: SpeechContext) -> str:
+        return self._line(self.seed, 200, self.temperature)
+
+    def generate(self, prompt: str = "", system: str = "", num_predict: int = 200,
+                 temperature: float = 1.0) -> str:
+        return self._line(self.seed, num_predict, temperature)
+
+
 def make_llm(backend: str = "auto", model: str | None = None,
              seed: int | None = None):
     """Pick a backend. Local is the default; DeepSeek is explicit opt-in only.
@@ -653,8 +691,18 @@ def make_llm(backend: str = "auto", model: str | None = None,
     'ollama'  : local model (errors if not reachable).
     'deepseek': hosted DeepSeek API. Must be asked for by name + a key in .env;
                 prompts and speech leave the machine (a notice prints once).
+    'homegrown': the from-scratch char-RNN grown on the world's own words (homegrown/).
     'mock'    : no model.
     """
+    if backend == "homegrown":
+        h = HomegrownLLM()
+        if not h.available():
+            raise RuntimeError("homegrown model not found -- train it first: "
+                               "python homegrown/harvest.py <transcripts> && python homegrown/train.py")
+        print(f"[llm] homegrown char-RNN -- a voice grown from nothing on the world's own words "
+              f"({h.path})")
+        return h
+
     if backend == "deepseek":
         load_dotenv()
         if not DeepSeekLLM.available():
