@@ -179,7 +179,10 @@ class World:
         self._remember_said(u.text)
         self.bus.publish("utterance", u)
 
-    def step(self) -> None:
+    def step(self, speak: bool = True) -> None:
+        # speak=False: advance everything (drift, aging, rebirth, stakes) but do NOT run the
+        # inline urge-based speech turn -- a caller can then drive speech off the lock via
+        # speak_turn() so a slow (hosted-model) town never freezes the fast wheel.
         self.tick += 1
         # 0) world events scheduled for this tick fire first, so agents perceive
         #    them before this tick's subconscious drift and speech react to them.
@@ -196,7 +199,7 @@ class World:
             from world import stakes
             stakes.step(self)
         # 2) urge-based turn: highest urge over threshold grabs the floor
-        ready = [a for a in self.agents if a.wants_to_speak(self.speak_threshold)]
+        ready = [a for a in self.agents if a.wants_to_speak(self.speak_threshold)] if speak else []
         if ready:
             speaker = max(ready, key=lambda a: a.speak_urge)
             # tell the speaker what was just said (others' lines) so it won't echo

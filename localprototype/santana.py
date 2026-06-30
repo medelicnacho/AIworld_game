@@ -389,17 +389,35 @@ def _watch(args) -> None:
     mind = Santana(w, santana_llm)
     stop = threading.Event()
 
-    def run_town():    # the town lives and dies on its own, fast, under the lock so reads are safe
+    # A real (hosted-model) town would freeze the wheel if it spoke under the lock (the API call
+    # is slow). So when the town has a real voice we DECOUPLE: the wheel ticks fast with speech OFF
+    # (step(speak=False) -- aging, rebirth, drift, all under brief locks), and a separate thread drives
+    # speech via speak_turn(), whose LLM call runs OUTSIDE the lock. Now a fast wheel AND a talking
+    # town coexist. A mock town is instant, so it just speaks inline as before.
+    real_town = bool(getattr(args, "town_model", None))
+
+    def run_town():    # the wheel: lives, ages, dies, is reborn -- fast, brief locks
         while not stop.is_set():
             try:
                 with w.lock:
-                    w.step()
+                    w.step(speak=not real_town)
             except Exception:   # noqa: BLE001 -- a bad tick must not kill the watch
                 pass
-            time.sleep(0.15)   # a slower wheel -- so warmth compounds between losses, not a revolving door
+            time.sleep(0.15)
 
-    t = threading.Thread(target=run_town, daemon=True)
-    t.start()
+    def run_town_speech():   # only for a real town: souls speak off the lock, throttled to a sane rate
+        while not stop.is_set():
+            try:
+                w.speak_turn()   # the slow API call is held by no lock -> the wheel never waits
+            except Exception:   # noqa: BLE001
+                pass
+            time.sleep(0.6)
+
+    threads = [threading.Thread(target=run_town, daemon=True)]
+    if real_town:
+        threads.append(threading.Thread(target=run_town_speech, daemon=True))
+    for t in threads:
+        t.start()
     continuous = args.observations <= 0
     where = "continuous -- Ctrl-C to end" if continuous else f"{args.observations} readings"
     print(f"\n~~~ Santāna, live: the whole town living and dying within her ({where}) ~~~")
