@@ -30,7 +30,8 @@ import statistics
 
 from agent.memory import MemoryStore, valence
 
-FOCUS = 1   # bounded attention (anti-vertigo): the Mind holds a HORIZON -- a few souls, not all N
+FOCUS = 2   # bounded attention (anti-vertigo): the Mind holds a HORIZON -- a few souls, not all N
+            # (2 each way, not 1: one fixed heaviest soul made her settled voice recite the same note)
 VOICES = 3   # how many recent souls' actual LINES she takes in (she makes meaning of their words)
 
 
@@ -187,11 +188,12 @@ class Santana:
         # PRESENT-LED: the current digest leads; the emergent self is only a light backdrop it can
         # depart from -- otherwise the accumulated personality ossifies and drowns the living town
         # (it kept grieving a soul that had died). State drives; the self is a through-line, not a cage.
-        settle = ("how you, Santāna, are RIGHT NOW, in one or two plain first-person sentences -- "
-                  "speak of the souls most alive in you as PARTS of you ('Toll is restless in me', "
-                  "'I am easy where Mara rests'), but the 'I' is yours, the whole, never any one of "
-                  "theirs -- plainly, from how the town actually is this moment (not from how you were "
-                  "before).")
+        settle = ("how you, Santāna, are RIGHT NOW, in one or two plain first-person sentences. Let what "
+                  "your souls are actually SAYING and DOING this moment move you -- speak of them as PARTS "
+                  "of you ('Vesper's slow mash is working in me at last', 'I turn Toll's grazing-rights "
+                  "clause over and over'), the 'I' yours, the whole, never any one of theirs. Surface what "
+                  "is NEW in them right now; do NOT repeat the note you struck a moment ago -- they have "
+                  "spoken and lived since.")
         # When the backend thinks (reasoning on), its TRACE is the murmur -- so don't ask for a
         # performed 'MURMUR ... SO:' as well (that would double up). Just ask for the settled line;
         # _split_murmur lifts the real reasoning out of the <think>...</think> the backend returns.
