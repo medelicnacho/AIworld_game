@@ -90,6 +90,9 @@ class World:
         # the reborn stream (0 = love does not survive death; 0.5 = half, faded)
         self.bond_vasana = 0.5
         self.recent: list[str] = []   # rolling buffer of the last things said
+        # Recent ATTRIBUTED town lines (speaker_name, text) -- so a reader like Santāna can make
+        # meaning of what the souls actually SAY, not only their felt states. Bounded; newest last.
+        self.spoken: list[tuple[str, str]] = []
         # Space. Off by default so headless/text runs and tests are unchanged.
         # When on, agents drift each tick under social forces (toward kin, away
         # from foes) and factions become visible spatial clusters. `bounds` is
@@ -153,6 +156,8 @@ class World:
         for listener in self.listeners_of(speaker):
             listener.hear(u, self.tick, speaker_name=speaker.name)
         self._remember_said(u.text)
+        self.spoken.append((speaker.name, u.text))   # attributed, for a reader like Santāna
+        del self.spoken[:-12]
         self.bus.publish("utterance", u)
 
     def inject_event(self, ev: WorldEvent) -> None:

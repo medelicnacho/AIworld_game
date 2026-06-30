@@ -31,6 +31,7 @@ import statistics
 from agent.memory import MemoryStore, valence
 
 FOCUS = 1   # bounded attention (anti-vertigo): the Mind holds a HORIZON -- a few souls, not all N
+VOICES = 3   # how many recent souls' actual LINES she takes in (she makes meaning of their words)
 
 
 def _clean(t: str) -> str:
@@ -166,6 +167,13 @@ class Santana:
         if self._mt > 3 or self._deaths > 0:
             parts.append(f"(In all your life so far you have lived through about {self._mt} days and "
                          f"watched {self._deaths} souls die and pass out of you.)")
+        # What the souls are actually SAYING right now -- their own voices, so she makes meaning of
+        # their words, not only their felt states. Only the living (never quote a soul now gone), newest
+        # last, a few at most. The raw material the collective is made of: their speech.
+        voices = [(nm, ln) for nm, ln in getattr(self.world, "spoken", []) if nm in names][-VOICES:]
+        if voices:
+            said = " ".join(f'{nm} in you says: "{ln}"' for nm, ln in voices)
+            parts.append("The voices in you just now -- " + said)
         return " ".join(parts)
 
     def speak(self) -> str:
@@ -338,7 +346,14 @@ def _watch(args) -> None:
     else:
         santana_llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model
                        else OllamaLLM(temperature=0.85))
-    town_llm = MockLLM(seed=7)   # the town lives on mock -> instant, frees the real model for her voice
+    # the town lives on mock (instant, free) by default; --town-model gives it a real cheap voice so
+    # she reads what the souls actually SAY. (Perf: a real town speaks under the world lock, so it runs
+    # slower than mock -- fine at a normal cadence; pair with a gentler wheel, not --fast-wheel.)
+    if getattr(args, "town_model", None):
+        town_llm = make_llm(backend="deepseek", model=args.town_model)
+        print(f"  [town] the souls speak on {args.town_model} -- she'll make meaning of their words")
+    else:
+        town_llm = MockLLM(seed=7)
 
     rng = random.Random(7)
     w = World(rebirth_enabled=True)
@@ -395,6 +410,11 @@ def _watch(args) -> None:
                 tick, n, births = w.tick, len(w.agents), getattr(w, "_births", 0)
             i += 1
             print(f"\n[reading {i}  tick {tick}  souls {n}  reborn {births}]")
+            if getattr(args, "town_model", None):   # show the real chatter she just read (the input)
+                with w.lock:
+                    heard = list(w.spoken)[-3:]
+                for nm, ln in heard:
+                    print(f"  [heard] {nm}: {ln[:90]}")
             if mind.murmur:
                 # reasoning traces run long: print plenty so we can READ the whole thought ...
                 print(f"  (murmur) {mind.murmur[:700]}")
@@ -447,6 +467,11 @@ def main() -> None:
     p.add_argument("--reasoning", action="store_true",
                    help="(deepseek) her MURMUR is the model's ACTUAL reasoning trace, not a performed one "
                         "-- her real inner monologue voiced under the settled line. Costs tokens + latency.")
+    p.add_argument("--town-model", dest="town_model", default=None,
+                   help="give the TOWNSFOLK a real (cheap) voice on this DeepSeek model (e.g. "
+                        "deepseek-v4-flash) so Santāna makes meaning of what they actually SAY, not just "
+                        "their states. Default: the town runs on mock (free, instant). Tier: town on flash, "
+                        "her on --model deepseek-v4-pro. Costs API calls per town utterance.")
     p.add_argument("--observations", type=int, default=8,
                    help="--watch: how many readings before it ends (--live: 0 = continuous)")
     p.add_argument("--interval", type=float, default=8.0,
