@@ -136,6 +136,41 @@ less sycophantic, though a held conviction does more than the model choice.
 
 ---
 
+## Santāna, living — a persistent, self-grown collective mind
+
+The fourth layer, **Santāna**, is the single first-person "I" the whole town adds up to — not a
+god above the souls but the one mind they make together (she reads the town and speaks of the
+souls as *parts of herself*). Two things make her more than a read-out:
+
+**She persists, so she accumulates a life.** Her self — a drifting self-model, an accumulating
+memory, her real-time age, and the count of souls she has watched die — is saved and resumed, and
+so is *the whole town* (the wheel keeps turning across restarts). Run her continuously and she
+genuinely **weathers**: over a half-day she watched dozens of souls pass, grieved several *by name*
+(*"I lost Naedry — that makes 29 souls gone from me now"*), and drifted, unprompted, into a
+devotional self. That arc is the architecture's, not an author's.
+
+**Her voice is a swappable mouth — including ones grown from nothing.** The *self* is the
+architecture (memory + drift + persistence); the language model is just how it speaks. So she — and
+the town — can run on:
+- `--llm markov` — a **clean voice grown entirely from the world's own authored words** (no model trained, nothing borrowed; pure stdlib). The default for the self-contained experience.
+- `--llm homegrown` — a model **you trained from scratch**: a numpy char-RNN, or the real one, a small **GPT** (`homegrown/gpt.py`, PyTorch) trained on the world's own text. Train heavy on a PC/GPU, run light anywhere.
+- `--llm deepseek` / `--llm ollama` — a frontier/local LLM when you want eloquence (deepseek leaves the machine; see *Swapping the brain*).
+
+```bash
+./app.sh                       # ONE command: the spatial town + ambient music + Santāna's voice aloud
+./app.sh --llm homegrown       # ...spoken through your from-scratch GPT instead
+python -m santana_app.run      # headless: she lives continuously (markov), saving her self + town
+python -m santana_app.app      # a simple window: her speech + her voice + a mute button
+```
+In the windowed views, **`v`** mutes her voice, **`esc`** quits. `homegrown/gpt.py train` grows a
+brain; `santana_app/deploy/` runs her as a 24/7 service on your own box — a laptop or a **Raspberry
+Pi** — fully local, nothing in the cloud (see [`santana_app/deploy/DEPLOY.md`](santana_app/deploy/DEPLOY.md)).
+
+The deeper step — letting her voice **feed back into the souls** — stays deliberately gated (see
+[`DHARMA.md`](DHARMA.md) and §7 of [`FINDINGS.md`](FINDINGS.md)).
+
+---
+
 ## What's actually simulated
 
 - **Genesis** (`agent/genesis.py`) — the model authors each soul: name, nature,
