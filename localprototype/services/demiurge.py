@@ -19,6 +19,7 @@ Honest, per CONTINUAL.md / FINDINGS §7:
 from __future__ import annotations
 
 import os
+import random
 import re
 import time
 
@@ -30,16 +31,31 @@ DIVLOG = os.path.join(ROOT, "data", "demiurge.log")
 DEFAULT_MODEL = "mannix/llama3.1-8b-abliterated:q5_K_M"
 
 _SYS = ("You invent souls for a small, hard, half-mythic medieval town. Terse, grounded, a little "
-        "strange. No preamble, no commentary, no markdown. Output ONLY the requested block.")
-_USER = ("Invent ONE new villager just born into the town. Use EXACTLY this format, nothing else:\n"
-         "NAME: <one invented given name>\n"
-         "TRADE: <their work, 1-3 words>\n"
-         "FEAR: <one ruling fear or longing, a short phrase>\n"
-         "LINES:\n"
-         "- <a short thing they mutter to themselves, first person, under 12 words>\n"
-         "- <another, a daily worry of their trade>\n"
-         "- <another>\n"
-         "- <a private line of their faith or their dread>\n")
+        "strange. Each is a GROWN villager with a settled trade -- never a child or an apprentice. "
+        "No preamble, no commentary, no markdown. Output ONLY the requested block.")
+
+# We pick the trade and the name's initial OURSELVES and hand them to the model -- otherwise the
+# abliterated 8B grooves into one mode (it kept dreaming 'G'-named blacksmith's apprentices). Forcing
+# a varied trade per call spreads the dreamed souls across the whole town; we also overwrite role with
+# our choice after parsing, so the spread is GUARANTEED regardless of what the model echoes.
+_TRADES = ["fisher", "midwife", "gravedigger", "brewer", "beekeeper", "tanner", "miller", "herbalist",
+           "stonemason", "shepherd", "charcoal-burner", "saltmaker", "candlemaker", "ferryman",
+           "ratcatcher", "glassblower", "cooper", "thatcher", "drover", "wet-nurse", "bonesetter",
+           "reeve", "fletcher", "dyer", "swineherd", "net-mender", "peat-cutter", "hedge-witch",
+           "tollkeep", "plague-doctor", "smith", "weaver", "potter", "carter", "huntsman", "sexton"]
+_INITIALS = "ABCDEFHIJKLMNOPRSTUVW"   # deliberately no 'G' (the rut), no awkward Q/X/Y/Z
+
+_USER_TMPL = (
+    "Invent ONE new GROWN villager (not a child, not an apprentice) just born into the town. Use "
+    "EXACTLY this format, nothing else:\n"
+    "NAME: <one invented given name that BEGINS WITH the letter '{initial}'>\n"
+    "TRADE: {trade}\n"
+    "FEAR: <one ruling fear or longing of a {trade}, a short phrase>\n"
+    "LINES:\n"
+    "- <a short thing they mutter to themselves, first person, under 12 words>\n"
+    "- <a daily worry specific to being a {trade}>\n"
+    "- <something strange they half-believe>\n"
+    "- <a private line of their faith or their dread>\n")
 
 
 def _name_of(s: str) -> str | None:
@@ -56,6 +72,7 @@ class Demiurge:
 
     def __init__(self, model: str = DEFAULT_MODEL, temperature: float = 1.15) -> None:
         self.model = model
+        self._rng = random.Random()
         # high temperature -- the caller asked for chaos; novelty is the whole point
         self._llm = OllamaLLM(model=model, temperature=temperature, num_predict=240)
 
@@ -73,12 +90,20 @@ class Demiurge:
             return True      # reachable but couldn't list -- let the first call decide
 
     def invent(self) -> dict | None:
-        """One 8B call -> a parsed soul, or None if it returned garbage. SLOW; never hold a lock."""
+        """One 8B call -> a parsed soul, or None if it returned garbage. SLOW; never hold a lock.
+        We pick the trade + name-initial and hand them in, then OVERWRITE role with our trade -- so the
+        souls spread across the town even when the model wants to groove into one mode."""
+        trade = self._rng.choice(_TRADES)
+        initial = self._rng.choice(_INITIALS)
         try:
-            raw = self._llm.generate(_USER, system=_SYS, num_predict=240, temperature=1.15)
+            raw = self._llm.generate(_USER_TMPL.format(trade=trade, initial=initial),
+                                     system=_SYS, num_predict=240, temperature=1.2)
         except Exception:   # noqa: BLE001 -- a flaky model must never kill the world
             return None
-        return self._parse(raw)
+        soul = self._parse(raw)
+        if soul:
+            soul["role"] = trade   # OUR randomized trade -> guaranteed spread, not the model's rut
+        return soul
 
     def _parse(self, raw: str) -> dict | None:
         name = role = aim = None

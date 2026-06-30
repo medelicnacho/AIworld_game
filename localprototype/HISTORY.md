@@ -134,6 +134,18 @@ lines / unique-ratio / vocab) makes collapse visible (held at unique=1.00, vocab
 "nothing borrowed" to "nothing borrowed *except the Demiurge, by choice, as a novelty source*." That
 trade is opt-in (`--demiurge`); the pure-markov, fully-self-grown baseline is still the default.
 
+**Tuning + the comparison test (same day):** the abliterated 8B groove-fixated — it kept dreaming
+*"G"-named apprentices* (Grzegorz, Gwena, Grimgild…), a single sampling mode, not the chaos we
+wanted. Fix: the Demiurge now picks a **random trade + name-initial per call** and overwrites the
+role with its choice, so the dreamed souls are *guaranteed* to spread across the town (sexton,
+huntsman, ferryman…) while keeping the eerie texture. Tested in a **HER-vs-FORK** run — her resumed
+13.4h self with the Demiurge, beside a fresh from-birth self, sharing one living corpus (same novelty
+in, different memory). The finding: the same dreamed material is **subordinated into** her grief
+(it enters as minor color — *"my clumsy hands," "darkness creeps into"* — under the dominant dharma)
+but **constitutes** the fork (which becomes a forge-/loss-anxiety self because it has no past to rank
+it against). *Continuity digests novelty.* The diversity log held `unique=1.00`, vocab climbing — the
+8B's thematic rut was never corpus collapse.
+
 ---
 
 *The discipline that runs through all of it (`FINDINGS §7`): a self that learns is a more
