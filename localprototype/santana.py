@@ -179,17 +179,24 @@ class Santana:
         # PRESENT-LED: the current digest leads; the emergent self is only a light backdrop it can
         # depart from -- otherwise the accumulated personality ossifies and drowns the living town
         # (it kept grieving a soul that had died). State drives; the self is a through-line, not a cage.
+        settle = ("how you, Santāna, are RIGHT NOW, in one or two plain first-person sentences -- "
+                  "speak of the souls most alive in you as PARTS of you ('Toll is restless in me', "
+                  "'I am easy where Mara rests'), but the 'I' is yours, the whole, never any one of "
+                  "theirs -- plainly, from how the town actually is this moment (not from how you were "
+                  "before).")
+        # When the backend thinks (reasoning on), its TRACE is the murmur -- so don't ask for a
+        # performed 'MURMUR ... SO:' as well (that would double up). Just ask for the settled line;
+        # _split_murmur lifts the real reasoning out of the <think>...</think> the backend returns.
+        reasoning = getattr(self.llm, "thinking", False)
+        tail = (f"Take this in, then say {settle}" if reasoning else
+                "Take this in. First MURMUR your scattered, half-formed impressions of the town as "
+                "they come to you -- a few fragments, unsettled, the way a mind half-thinks before it "
+                f"speaks. Then, on a new line beginning 'SO:', settle into {settle}")
         prompt = (
             f"{self.digest()}\n\n"
             + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
             + (f'A moment ago you said: "{self.last}"\n\n' if self.last else "")
-            + "Take this in. First MURMUR your scattered, half-formed impressions of the town as they "
-            "come to you -- a few fragments, unsettled, the way a mind half-thinks before it speaks. "
-            "Then, on a new line beginning 'SO:', settle into how you, Santāna, are RIGHT NOW, in one "
-            "or two plain first-person sentences -- speak of the souls most alive in you as PARTS of "
-            "you ('Toll is restless in me', 'I am easy where Mara rests'), but the 'I' is yours, the "
-            "whole, never any one of theirs -- plainly, from how the town actually is this moment (not "
-            "from how you were before).")
+            + tail)
         try:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=200, temperature=0.85)
         except Exception:   # noqa: BLE001 -- a failed read just produces no utterance
@@ -247,6 +254,8 @@ class Santana:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=110, temperature=0.8)
         except Exception:   # noqa: BLE001
             return self.identity
+        # drop any reasoning trace (thinking-on backends) -- her SELF is the answer, not the thinking
+        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE)
         text = " ".join(raw.split()).strip().strip('"').strip()
         if text:
             self.identity = text
@@ -323,6 +332,9 @@ def _watch(args) -> None:
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice on Ollama
     if args.llm == "deepseek":
         santana_llm = make_llm(backend="deepseek", model=args.model)   # her voice leaves the machine
+        if getattr(args, "reasoning", False) and hasattr(santana_llm, "thinking"):
+            santana_llm.thinking = True   # her murmur becomes the model's real reasoning trace
+            print("  [reasoning] her murmur is now the model's ACTUAL reasoning (thinking enabled)")
     else:
         santana_llm = (OllamaLLM(temperature=0.85, model=args.model) if args.model
                        else OllamaLLM(temperature=0.85))
@@ -384,12 +396,14 @@ def _watch(args) -> None:
             i += 1
             print(f"\n[reading {i}  tick {tick}  souls {n}  reborn {births}]")
             if mind.murmur:
-                print(f"  (murmur) {mind.murmur[:160]}")
+                # reasoning traces run long: print plenty so we can READ the whole thought ...
+                print(f"  (murmur) {mind.murmur[:700]}")
             print(f"  SANTĀNA: {clear}")
             mind.consolidate()
             print(f"  [who she has become] {mind.identity}")
             if args.tts and (mind.murmur or clear):
-                play_two_layer(mind.murmur, clear)   # HER voice only: murmur, then the settled line
+                # ... but cap the SPOKEN murmur so a long trace isn't a two-minute mutter
+                play_two_layer(mind.murmur[:320], clear)   # HER voice only: murmur, then the settled line
     except KeyboardInterrupt:
         print("\n(ending)")
     finally:
@@ -430,6 +444,9 @@ def main() -> None:
     p.add_argument("--fast-wheel", action="store_true", dest="fast_wheel",
                    help="--watch/--live: short lifespans so souls die and are reborn DURING the watch -- "
                         "see the wheel turn (fresh-coined names, her grief over a loss) instead of a static town")
+    p.add_argument("--reasoning", action="store_true",
+                   help="(deepseek) her MURMUR is the model's ACTUAL reasoning trace, not a performed one "
+                        "-- her real inner monologue voiced under the settled line. Costs tokens + latency.")
     p.add_argument("--observations", type=int, default=8,
                    help="--watch: how many readings before it ends (--live: 0 = continuous)")
     p.add_argument("--interval", type=float, default=8.0,

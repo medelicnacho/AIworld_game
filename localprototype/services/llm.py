@@ -466,28 +466,36 @@ class DeepSeekLLM:
 
     def __init__(self, model: str = DEFAULT_DEEPSEEK_MODEL, url: str = DEEPSEEK_URL,
                  temperature: float = 0.95, max_tokens: int = 110,
-                 timeout: float = 60.0) -> None:
+                 timeout: float = 90.0, thinking: bool = False) -> None:
         self.model = model
         self.url = url
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.timeout = timeout
+        # thinking=True -> v4-flash's reasoning trace is returned (in message.reasoning_content)
+        # and generate() wraps it as <think>...</think> so a caller's murmur-splitter can voice the
+        # ACTUAL reasoning as the inner monologue. Off by default (it costs tokens + latency).
+        self.thinking = thinking
         self._key = os.environ.get("DEEPSEEK_API_KEY", "")
 
     @staticmethod
     def available() -> bool:
         return bool(os.environ.get("DEEPSEEK_API_KEY"))
 
-    def _post(self, messages: list[dict], max_tokens: int, temperature: float) -> str:
+    def _post_full(self, messages: list[dict], max_tokens: int,
+                   temperature: float) -> tuple[str, str]:
+        """Returns (content, reasoning). reasoning is '' unless thinking is on."""
+        if self.thinking:
+            max_tokens = max(max_tokens, 1024)   # leave room for the trace AND the answer
         payload = {
             "model": self.model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
             "stream": False,
-            # v4-flash defaults to thinking mode, which burns the budget on reasoning
-            # and returns empty content. Disable it for fast one-liners.
-            "thinking": {"type": "disabled"},
+            # v4-flash defaults to thinking mode, which burns the budget on reasoning and
+            # returns empty content -- disabled for fast one-liners unless asked for explicitly.
+            "thinking": {"type": "enabled" if self.thinking else "disabled"},
         }
         req = urllib.request.Request(
             self.url,
@@ -497,7 +505,11 @@ class DeepSeekLLM:
         )
         with urllib.request.urlopen(req, timeout=self.timeout) as r:
             data = json.loads(r.read().decode("utf-8"))
-        return data["choices"][0]["message"]["content"] or ""
+        msg = data["choices"][0]["message"]
+        return (msg.get("content") or "", msg.get("reasoning_content") or "")
+
+    def _post(self, messages: list[dict], max_tokens: int, temperature: float) -> str:
+        return self._post_full(messages, max_tokens, temperature)[0]
 
     def speak(self, ctx: SpeechContext) -> str:
         text = self._post(
@@ -509,10 +521,14 @@ class DeepSeekLLM:
     def generate(self, prompt: str, system: str = "", num_predict: int = 260,
                  temperature: float = 1.0) -> str:
         """Free-form completion (genesis authoring, reflect, the emergence judge):
-        returns RAW text so the caller parses its own structured reply."""
+        returns RAW text so the caller parses its own structured reply. With thinking on,
+        the reasoning trace is prepended as <think>...</think> so a murmur-splitter can voice it."""
         messages = ([{"role": "system", "content": system}] if system else []) \
             + [{"role": "user", "content": prompt}]
-        return self._post(messages, num_predict, temperature)
+        content, reasoning = self._post_full(messages, num_predict, temperature)
+        if reasoning.strip():
+            return f"<think>{reasoning.strip()}</think>{content}"
+        return content
 
 
 class OllamaLLM:
