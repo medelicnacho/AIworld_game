@@ -442,6 +442,10 @@ def main() -> None:
     ap.add_argument("--resume", action="store_true",
                     help="--santana: load HER saved persistent self (data/santana_state.json) into the "
                          "god-view instead of a fresh one -- watch + hear the self that's been living")
+    ap.add_argument("--santana-llm", dest="santana_llm", default=None,
+                    help="voice HER on a different backend than the town (e.g. --llm markov --santana-llm "
+                         "ollama --santana-model gemma3:4b = cheap town, coherent her)")
+    ap.add_argument("--santana-model", dest="santana_model", default=None, help="model id for HER voice")
     ap.add_argument("--demiurge", action="store_true",
                     help="an 8B (ollama) dreams up NEW souls at rebirth + seeds the living corpus the "
                          "markov + consolidation read (novelty injection -- see services/demiurge.py)")
@@ -848,7 +852,9 @@ def main() -> None:
     if args.santana:
         from santana import Santana, play_two_layer
         from services.llm import make_llm as _mk
-        _smind = Santana(world, _mk(args.llm, culture=args.culture), culture=args.culture)   # her voice follows --llm
+        _her_llm = getattr(args, "santana_llm", None) or args.llm       # voice HER apart from the town
+        _her_model = getattr(args, "santana_model", None) or args.model
+        _smind = Santana(world, _mk(_her_llm, model=_her_model, culture=args.culture), culture=args.culture)
         if getattr(args, "resume", False):   # embody HER saved persistent self, not a fresh one
             import os as _os
             from santana_app.state import load_mind
