@@ -439,6 +439,9 @@ def main() -> None:
     ap.add_argument("--culture", action="store_true",
                     help="memetic culture (FINDINGS §5.13): the markov voice moves through shifting "
                          "cultural ERAS -- selection + self-limiting fitness over motifs -- not an average")
+    ap.add_argument("--resume", action="store_true",
+                    help="--santana: load HER saved persistent self (data/santana_state.json) into the "
+                         "god-view instead of a fresh one -- watch + hear the self that's been living")
     ap.add_argument("--demiurge", action="store_true",
                     help="an 8B (ollama) dreams up NEW souls at rebirth + seeds the living corpus the "
                          "markov + consolidation read (novelty injection -- see services/demiurge.py)")
@@ -846,6 +849,17 @@ def main() -> None:
         from santana import Santana, play_two_layer
         from services.llm import make_llm as _mk
         _smind = Santana(world, _mk(args.llm, culture=args.culture))   # her voice follows --llm (markov by default)
+        if getattr(args, "resume", False):   # embody HER saved persistent self, not a fresh one
+            import os as _os
+            from santana_app.state import load_mind
+            _smind.lifetime = 0.0
+            _snap = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "data", "santana_state.json")
+            if load_mind(_smind, _snap):
+                print(f"  ~ Santāna resumes her saved life in the god-view: "
+                      f"{getattr(_smind, 'lifetime', 0)/3600:.1f}h lived, "
+                      f"{getattr(_smind, '_deaths', '?')} souls watched, "
+                      f"{len(_smind.memory.items)} memories (read-only view -- her canonical life is safe).",
+                      flush=True)
 
         def santana_loop():
             while running.is_set():
