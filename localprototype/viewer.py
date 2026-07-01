@@ -134,7 +134,8 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 emergent: bool = False, spawn: bool = False,
                 rebirth: bool = False, start: int | None = None,
                 fast_wheel: bool = False, bodhisattva: bool = False,
-                model: str = "gemma3:4b", culture: bool = False) -> tuple[World, dict]:
+                model: str = "gemma3:4b", culture: bool = False,
+                psyche: bool = False) -> tuple[World, dict]:
     if backend == "deepseek":
         from services.llm import make_llm
         llm = make_llm(backend="deepseek", model=model if model != "gemma3:4b" else None)
@@ -212,7 +213,18 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 else rng.randint(250, 600) if (rebirth and fast_wheel)  # demo: deaths in ~2-5 min
                 else rng.randint(5000, 12000) if rebirth  # ~8-20 min, then death->bardo->rebirth
                 else rng.randint(6000, 15000))            # ~10-25 min
-        if spawn:
+        if psyche:
+            # a PART OF ONE MIND (a drive), not a townsperson -- see agent/psyche.py
+            from agent.psyche import PSYCHE_CAST
+            pname, prole, ptemp, paim, pseeds = PSYCHE_CAST[i % len(PSYCHE_CAST)]
+            a = Agent(cid, pname, pos, f"You are {pname}, {prole} -- a part of one mind, not a person.",
+                      list(pseeds), llm, seed=hash(cid) % 9999, temperament=ptemp, style="",
+                      lifespan=life, religion=None)
+            a.role, a.aim = prole, paim
+            a.seed_opinion_text(pseeds[0])
+            a.seed_stance(random.Random(rng.randrange(2 ** 31)))   # moods emerge as coalitions of drives
+            colours[cid] = CAMP_GREY
+        elif spawn:
             if i >= len(chars):
                 # not authored yet -> defer this founder to the streaming thread
                 world._pending_founders.append((cid, pos, life, concepts[i], world._archetypes[i]))
@@ -446,6 +458,9 @@ def main() -> None:
                     help="voice HER on a different backend than the town (e.g. --llm markov --santana-llm "
                          "ollama --santana-model gemma3:4b = cheap town, coherent her)")
     ap.add_argument("--santana-model", dest="santana_model", default=None, help="model id for HER voice")
+    ap.add_argument("--psyche", action="store_true",
+                    help="the souls are PARTS OF ONE MIND (Dread, Ache, Longing...) not townsfolk -- so she "
+                         "reads as a mind in motion, not a narrator of a village (see agent/psyche.py)")
     ap.add_argument("--demiurge", action="store_true",
                     help="an 8B (ollama) dreams up NEW souls at rebirth + seeds the living corpus the "
                          "markov + consolidation read (novelty injection -- see services/demiurge.py)")
@@ -569,7 +584,7 @@ def main() -> None:
                                        emergent=emergent, spawn=spawn_cast,
                                        rebirth=args.rebirth or args.bodhisattva, start=start,
                                        fast_wheel=args.fast_wheel, bodhisattva=args.bodhisattva,
-                                       culture=args.culture)
+                                       culture=args.culture, psyche=args.psyche)
         except Exception as exc:  # noqa: BLE001
             _built["err"] = exc
 

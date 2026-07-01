@@ -59,7 +59,7 @@ def _make_voice(name: str, model: str | None, culture: bool = False):
     return make_llm(backend=name, model=model, culture=culture)
 
 
-def build_world(town_llm, fast_wheel: bool) -> World:
+def build_world(town_llm, fast_wheel: bool, psyche: bool = False) -> World:
     rng = random.Random(7)
     w = World(rebirth_enabled=True)
     w.llm = town_llm
@@ -68,10 +68,18 @@ def build_world(town_llm, fast_wheel: bool) -> World:
     w.bodhisattva_wheel = True       # the full path runs under her: the lean toward liberation
     w.liberation_tilt = 1.0
     span = (lambda: rng.randint(120, 260)) if fast_wheel else (lambda: rng.randint(2000, 5000))
-    for i, (name, role, temp, aim) in enumerate(CAST):
+    # --psyche: the streams are PARTS OF ONE MIND (drives), not townsfolk -- see agent/psyche.py
+    if psyche:
+        from agent.psyche import PSYCHE_CAST
+        roster = PSYCHE_CAST
+    else:
+        roster = [(n, r, t, a, None) for (n, r, t, a) in CAST]
+    for i, (name, role, temp, aim, seeds) in enumerate(roster):
+        phrases = list(seeds) if seeds else [f"I am {name} the {role}", aim]
+        persona = (f"You are {name}, {role} -- a part of one mind, not a person."
+                   if psyche else f"You are {name} the {role}.")
         a = Agent(f"s{i}", name, (rng.uniform(0, 900), rng.uniform(0, 600)),
-                  f"You are {name} the {role}.", [f"I am {name} the {role}", aim],
-                  town_llm, seed=i, temperament=temp, lifespan=span())
+                  persona, phrases, town_llm, seed=i, temperament=temp, lifespan=span())
         _genesis.endow_faculties(a, a._rng)
         a.role, a.aim = role, aim
         w.add(a)
@@ -88,6 +96,9 @@ def main() -> None:
     p.add_argument("--interval", type=float, default=6.0, help="seconds the town lives between her readings")
     p.add_argument("--fast-wheel", action="store_true", dest="fast_wheel",
                    help="short lifespans so the wheel turns quickly (souls die + are reborn)")
+    p.add_argument("--psyche", action="store_true",
+                   help="the souls are PARTS OF ONE MIND (drives: Dread, Ache, Longing...) not townsfolk "
+                        "-- a self as a society of parts (see agent/psyche.py)")
     p.add_argument("--readings", type=int, default=0, help="stop after N readings (0 = run forever)")
     p.add_argument("--autosave", type=int, default=5, help="save every N readings")
     p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT, help="where HER self is saved/resumed (json)")
@@ -117,7 +128,7 @@ def main() -> None:
     w = None if args.fresh else load_world(args.world_snapshot, town_llm)
     resumed_town = w is not None
     if w is None:
-        w = build_world(town_llm, args.fast_wheel)
+        w = build_world(town_llm, args.fast_wheel, psyche=args.psyche)
     mind = Santana(w, santana_llm, culture=args.culture)
     mind.lifetime = 0.0
 
