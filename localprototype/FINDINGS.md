@@ -487,6 +487,17 @@ tunable); **not yet wired into the live world.** The port is two mechanisms: **e
 (selection) + **motif-fatigue** (self-limiting) → a Santāna whose culture has shifting eras instead of
 freezing or averaging. See [[emergent-social-sim-direction]].
 
+**Ported + validated on the real voice** (`agent/culture.py`, `experiment_culture_live.py`, opt-in
+`--culture`). Driving the *actual* recombining `MarkovLLM` in the full speak→observe loop, all three
+pre-registered criteria pass: **concentrates** (a reigning motif, ~4× uniform), **lives** (mean ~4 era
+turnovers — one seed moved *"the barley is" → "wedding is coming" → "a wedding is" → "rains are late"*),
+**emergent** (cross-seed motif overlap ~0.0 — every town a different culture). Honest bounds: the
+recombining voice floods the motif space, so the port needed three principled fixes the abstract model
+didn't — an **echo threshold** (a motif must recur to count), **content-word** motifs (function-word
+n-grams like "and the" are not motifs), and a **culture-shared town** source; and it is *at-threshold* and
+*uneven* (some towns churn, some ossify — turning the self-limiting knob up crossed the bar). So: real,
+but modest and tuned. It is now live behind `--culture` — her voice moves through cultural eras.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

@@ -134,7 +134,7 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 emergent: bool = False, spawn: bool = False,
                 rebirth: bool = False, start: int | None = None,
                 fast_wheel: bool = False, bodhisattva: bool = False,
-                model: str = "gemma3:4b") -> tuple[World, dict]:
+                model: str = "gemma3:4b", culture: bool = False) -> tuple[World, dict]:
     if backend == "deepseek":
         from services.llm import make_llm
         llm = make_llm(backend="deepseek", model=model if model != "gemma3:4b" else None)
@@ -145,7 +145,7 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
             llm = MockLLM(seed=7)
     elif backend in ("markov", "homegrown"):
         from services.llm import make_llm
-        llm = make_llm(backend=backend)
+        llm = make_llm(backend=backend, culture=culture)
     else:
         llm = MockLLM(seed=7)
     # `move=False` keeps everyone in earshot for one shared conversation (used by
@@ -436,6 +436,9 @@ def main() -> None:
                          "ALOUD (Piper TTS) over the souls' silent markov bubbles. Click MUTE (or press v).")
     ap.add_argument("--santana-interval", dest="santana_interval", type=float, default=12.0,
                     help="--santana: seconds between her readings")
+    ap.add_argument("--culture", action="store_true",
+                    help="memetic culture (FINDINGS §5.13): the markov voice moves through shifting "
+                         "cultural ERAS -- selection + self-limiting fitness over motifs -- not an average")
     ap.add_argument("--demiurge", action="store_true",
                     help="an 8B (ollama) dreams up NEW souls at rebirth + seeds the living corpus the "
                          "markov + consolidation read (novelty injection -- see services/demiurge.py)")
@@ -558,7 +561,8 @@ def main() -> None:
                                        pop_cap=args.pop_cap, murmur=murmur_on,
                                        emergent=emergent, spawn=spawn_cast,
                                        rebirth=args.rebirth or args.bodhisattva, start=start,
-                                       fast_wheel=args.fast_wheel, bodhisattva=args.bodhisattva)
+                                       fast_wheel=args.fast_wheel, bodhisattva=args.bodhisattva,
+                                       culture=args.culture)
         except Exception as exc:  # noqa: BLE001
             _built["err"] = exc
 
@@ -841,7 +845,7 @@ def main() -> None:
     if args.santana:
         from santana import Santana, play_two_layer
         from services.llm import make_llm as _mk
-        _smind = Santana(world, _mk(args.llm))   # her voice follows --llm too (markov by default)
+        _smind = Santana(world, _mk(args.llm, culture=args.culture))   # her voice follows --llm (markov by default)
 
         def santana_loop():
             while running.is_set():

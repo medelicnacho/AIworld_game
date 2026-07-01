@@ -698,7 +698,8 @@ class MarkovLLM:
 
     _START = "\x02"
 
-    def __init__(self, order: int = 2, seed: int | None = None, temperature: float = 1.0) -> None:
+    def __init__(self, order: int = 2, seed: int | None = None, temperature: float = 1.0,
+                 culture: bool = False) -> None:
         from agent.genesis import ROLES, _THEMES
         from agent.religion import RELIGIONS
         base: list[str] = list(_THEMES)
@@ -710,6 +711,13 @@ class MarkovLLM:
         self._authored = base          # the stable, clean anchor (keeps the drift from degenerating)
         self.order = order
         self._rng = random.Random(seed)
+        # opt-in memetic culture (FINDINGS §5.13): selection + self-limiting fitness over motifs, so the
+        # voice develops shifting cultural ERAS instead of freezing or averaging. Off -> old behaviour.
+        if culture:
+            from agent.culture import CulturePool
+            self.culture = CulturePool(seed=seed)
+        else:
+            self.culture = None
         self._build([])                # initial chain = authored only
 
     @staticmethod
@@ -738,8 +746,15 @@ class MarkovLLM:
 
     def learn(self, lines) -> None:
         """Feed the voice the world's accumulating life -- it rebuilds itself, so it is always
-        changing, never frozen. Bounded (keeps the most recent lines) so it stays clean and cheap."""
-        self._build([str(s).strip() for s in lines][-300:])
+        changing, never frozen. Bounded (keeps the most recent lines) so it stays clean and cheap.
+        With a culture pool, motifs the town echoes are amplified and the reigning one fatigues, so
+        the voice moves through cultural eras (FINDINGS §5.13)."""
+        recent = [str(s).strip() for s in lines][-300:]
+        if self.culture is not None:
+            self.culture.observe(recent)
+            self._build(self.culture.voiced(recent))
+        else:
+            self._build(recent)
 
     def available(self) -> bool:
         return bool(self._trans)
@@ -768,7 +783,7 @@ class MarkovLLM:
 
 
 def make_llm(backend: str = "auto", model: str | None = None,
-             seed: int | None = None):
+             seed: int | None = None, culture: bool = False):
     """Pick a backend. Local is the default; DeepSeek is explicit opt-in only.
 
     'auto'    : Ollama if a local model is reachable, else Mock. Never the API --
@@ -790,8 +805,8 @@ def make_llm(backend: str = "auto", model: str | None = None,
 
     if backend == "markov":
         print("[llm] markov -- the world's own authored words recombined (clean, fully self-grown, "
-              "nothing trained or borrowed)")
-        return MarkovLLM(seed=seed)
+              "nothing trained or borrowed)" + (" + culture (shifting eras, §5.13)" if culture else ""))
+        return MarkovLLM(seed=seed, culture=culture)
 
     if backend == "deepseek":
         load_dotenv()

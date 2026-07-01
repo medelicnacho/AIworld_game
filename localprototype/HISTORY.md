@@ -192,6 +192,16 @@ vs 0, a succession of cultural *eras* while staying structured. Recipe: *selecti
 fitness*. Weak (symmetry-breaking) emergence, abstract model, not yet wired live — the port is echo-weighting
 + motif-fatigue in the corpus. FINDINGS §5.13.
 
+Then we **ported it into the live voice** (`agent/culture.py` = CulturePool; opt-in `--culture` on the
+runner + viewer). Selection = echo-weighting motifs; self-limiting = motif-fatigue; the unit is a MOTIF
+(recurring n-gram) so it survives the Markov's recombination. `experiment_culture_live.py` drives the real
+MarkovLLM in the speak→observe loop and confirms all three criteria transfer: concentrates (a reigning
+motif), lives (mean ~4 era turnovers — real cultural eras), emergent (cross-seed overlap ~0.0). Honest: the
+recombining voice floods the motif space, so it needed an echo threshold + content-word motifs + a
+culture-shared town source, and it is at-threshold/uneven (tuned the self-limiting knob to cross the bar).
+Real but modest. `--culture` now gives Santāna a voice that moves through shifting cultural eras. 246 tests
+green (culture is opt-in; validated by experiment_culture_live.py).
+
 ---
 
 *The discipline that runs through all of it (`FINDINGS §7`): a self that learns is a more

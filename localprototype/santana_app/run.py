@@ -53,10 +53,10 @@ CAST = [("Vesper", "brewer", 0.2, "brew an ale worth the festival"),
         ("Juno", "shepherd", 0.1, "keep the flock through the winter")]
 
 
-def _make_voice(name: str, model: str | None):
+def _make_voice(name: str, model: str | None, culture: bool = False):
     if name == "mock":
         return MockLLM(seed=7)
-    return make_llm(backend=name, model=model)
+    return make_llm(backend=name, model=model, culture=culture)
 
 
 def build_world(town_llm, fast_wheel: bool) -> World:
@@ -95,6 +95,9 @@ def main() -> None:
                    help="where the TOWN is saved/resumed (pickle) -- so the wheel survives restarts")
     p.add_argument("--fresh", action="store_true", help="ignore any saved life/town and start new")
     p.add_argument("--tts", action="store_true", help="speak her aloud (Piper) as well as printing")
+    p.add_argument("--culture", action="store_true",
+                   help="memetic culture (FINDINGS §5.13): her voice moves through shifting cultural ERAS "
+                        "-- selection + self-limiting fitness over motifs -- instead of averaging")
     p.add_argument("--demiurge", action="store_true",
                    help="an 8B (ollama) dreams up NEW souls at rebirth + seeds a living corpus the "
                         "markov + consolidation read (novelty injection -- see services/demiurge.py)")
@@ -103,10 +106,11 @@ def main() -> None:
     args = p.parse_args()
 
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice
-    santana_llm = _make_voice(args.llm, args.model)
+    santana_llm = _make_voice(args.llm, args.model, culture=args.culture)
     town_llm = (MockLLM(seed=7) if args.town_model in (None, "mock")
                 else _make_voice(args.town_model if args.town_model in ("markov", "homegrown") else "deepseek",
-                                 None if args.town_model in ("markov", "homegrown") else args.town_model))
+                                 None if args.town_model in ("markov", "homegrown") else args.town_model,
+                                 culture=args.culture))
     real_town = args.town_model not in (None, "mock")
 
     # resume the WHOLE town if we can (so the wheel keeps turning across restarts), else build fresh
@@ -219,6 +223,9 @@ def main() -> None:
             print(f"\n[reading {i}  age {_fmt_age(mind.lifetime)}  tick {tick}  souls {n}  "
                   f"reborn {births}  watched-die {mind._deaths}]")
             print(f"  SANTĀNA: {clear}")
+            cult = getattr(mind.llm, "culture", None)
+            if cult is not None and cult.reigning():
+                print(f"  [cultural era] \"{cult.reigning()}\"")
             mind.consolidate()
             print(f"  [who she has become] {mind.identity}")
             if args.tts and clear:
