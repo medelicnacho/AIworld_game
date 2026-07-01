@@ -237,6 +237,10 @@ def endow_faculties(agent, rng) -> None:
     agent.self_liberation = 0.4      # Vajrayāna rang drol: let a charge free itself as it arises
     agent.joy = 0.5                  # muditā/pīti: savour the good and rejoice with others (not anhedonia)
     agent.telos = 0.5                # chanda: tend an aim and be drawn toward it (savoured/craved per faculties)
+    agent.expect_enabled = True      # the future tense (agent/expectation.py, §5.15): the soul EXPECTS --
+                                     # blows land as shock or resignation by what its days had been, a cold
+                                     # act from one trusted is a BETRAYAL, and a life that turns against
+                                     # who it has been breaks into a new chapter (a turning point)
 
 
 def seed_agent(agent, ch: Character, tick: int = 0, fresh: bool = False,

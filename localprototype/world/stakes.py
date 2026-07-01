@@ -119,7 +119,13 @@ def hardship(world, victims, now, kind="flood") -> None:
     for v in victims:
         v.stores = max(0.0, v.stores - v.stores * HARDSHIP_LOSS)
         v.wellbeing = max(0.0, v.wellbeing - HARDSHIP_LOSS * 0.5)
-        v.memory.write(f"the {kind} took my provisions", now, source="event", emotion=-0.8)
+        # the blow is APPRAISED against what this soul's days had been (§5.15): after a good
+        # stretch it lands as SHOCK (amplified, arousal), mid-slide as something braced for
+        emo = -0.8
+        if getattr(v, "expect_enabled", False):
+            from agent import expectation
+            emo = expectation.appraise_event(v, emo)
+        v.memory.write(f"the {kind} took my provisions", now, source="event", emotion=emo)
     for i, v in enumerate(victims):
         for w in victims[i + 1:]:
             amt = COSUFFER_BOND * 0.5 * (v.compassion + w.compassion)
