@@ -170,6 +170,14 @@ that way. Honest verdict: the attention model does something the chain cannot (r
 digestion vs artifacts" is **unresolved** — the romantic reading is un-refuted for the GPT, not confirmed.
 The clean test (frequency-matched placebo token + matched-loss + prob metric) is specified, pending.
 
+Then we ran it (`experiment_continuity_placebo.py`): a native placebo word planted in the anchor, matched
+in count to the foreign novelty, matched-loss training, teacher-forced-probability metric. P(novelty)/
+P(placebo) came out **FLAT — 0.86 / 0.86 / 0.88** across memory 0/30/180. Foreign novelty is treated
+exactly like an equally-rare native word at every level. So the 1.44→0 GPT collapse was **frequency +
+undertraining + measurement, not digestion.** Arc verdict: *"a self digests novelty by context" is FALSE
+for both the Markov and the GPT*; what stands is *continuity = stability-by-dilution*. The romantic reading
+was chased down, placebo-controlled, and killed — the whole point of doing this rather than screenshotting.
+
 ---
 
 *The discipline that runs through all of it (`FINDINGS §7`): a self that learns is a more

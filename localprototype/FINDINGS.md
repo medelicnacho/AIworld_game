@@ -444,8 +444,20 @@ partly a *measurement* artifact. Honest status: **the attention model does somet
 frequency/undertraining/measurement artifacts is UNRESOLVED.** The romantic reading is *un-refuted for the
 GPT, not confirmed.* The clean test is specified: a **frequency-matched placebo token** in the *anchor*
 (if the novelty is suppressed *more* than it ⇒ a genuine contextual effect), **matched-loss** training,
-and a **teacher-forced-probability** metric robust to garbling. Pending — the discipline is to not claim
-the exciting version until that runs.
+and a **teacher-forced-probability** metric robust to garbling.
+
+**Resolved — the exciting reading is dead, placebo-controlled** (`experiment_continuity_placebo.py`). We
+ran exactly that clean test: placebo markers planted in the *native* anchor, matched in count to the
+*foreign* novelty (so frequency is equal at every level), each cell trained to matched loss, scored by
+teacher-forced probability. The ratio **P(novelty) / P(placebo) is FLAT — 0.86 / 0.86 / 0.88** across
+memory 0 / 30 / 180. Foreign novelty is treated **exactly like an equally-rare native word at every memory
+level**: memory makes less room for *anything* rare, new or old alike, and *never singles out the foreign*.
+So the 1.44 → 0 GPT collapse was **frequency + undertraining + char-level measurement — not contextual
+digestion.** Verdict across the whole arc: **"a self with memory digests novelty by context" is FALSE for
+both the Markov and the GPT.** What stands — robustly, now with every confound controlled — is the humble
+version: **continuity = stability-by-dilution.** The romantic reading was chased down, placebo-controlled,
+and killed. (The constant 0.86 offset is a *style* effect — eerie novelty is intrinsically ~14% less
+predictable than mundane town text — and, tellingly, it does **not** grow with memory.)
 
 ## 6. Limitations (honest)
 
