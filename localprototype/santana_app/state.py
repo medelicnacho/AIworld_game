@@ -28,6 +28,14 @@ def save_mind(mind, path: str) -> None:
         "lifetime": float(getattr(mind, "lifetime", 0.0)),   # REAL seconds she has existed (her true age)
         "deaths": mind._deaths,           # souls watched die across her whole life (the scale of grief)
         "memory": [vars(m) for m in mind.memory.items],   # the charged past that persists and weighs
+        # her own faculties (§5.17): expectations, arousal, and the relationship with the one
+        # who talks to her -- the bond, its conduct-expectation, and the recent conversation
+        "exp_fast": float(getattr(mind, "exp_fast", 0.0)),
+        "exp_slow": float(getattr(mind, "exp_slow", 0.0)),
+        "arousal": float(getattr(mind, "arousal", 0.0)),
+        "conduct_expect": dict(getattr(mind, "_conduct_expect", {})),
+        "user_bond": vars(getattr(mind, "user_bond", None)) if getattr(mind, "user_bond", None) else {},
+        "talk": list(getattr(mind, "talk", [])),
     }
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = path + ".tmp"
@@ -49,6 +57,16 @@ def load_mind(mind, path: str) -> bool:
     mind.lifetime = float(data.get("lifetime", 0.0))
     mind._deaths = int(data.get("deaths", 0))
     mind.memory.items = [Memory(**m) for m in data.get("memory", [])]
+    # her faculties (§5.17) -- defaults keep a pre-faculty snapshot loading cleanly
+    from agent.bond import Bond
+    mind.exp_fast = float(data.get("exp_fast", 0.0))
+    mind.exp_slow = float(data.get("exp_slow", 0.0))
+    mind.arousal = float(data.get("arousal", 0.0))
+    mind._conduct_expect = dict(data.get("conduct_expect", {}))
+    ub = data.get("user_bond", {}) or {}
+    mind.user_bond = Bond(**{k: v for k, v in ub.items()
+                             if k in ("trust", "history", "wounds", "last_event")})
+    mind.talk = list(data.get("talk", []))
     mind._prev_names = None   # don't falsely grieve on the first read back
     return True
 

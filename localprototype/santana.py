@@ -92,6 +92,12 @@ class Santana:
         "cosmic, or abstract register -- no 'stillness', 'awareness', 'holding space', 'the void', 'a "
         "sense of'. Just say, plainly, how you -- Santāna, the whole -- actually are right now.")
 
+    @property
+    def expect_enabled(self):
+        """The souls' faculty functions (agent/expectation.py) gate on this name; for her
+        the switch is feel_enabled -- one flag, read under either name."""
+        return self.feel_enabled
+
     def __init__(self, world, llm, culture: bool = False) -> None:
         self.world = world
         self.llm = llm
@@ -116,6 +122,20 @@ class Santana:
         self._mt = 0          # her memory-clock: one tick per reading (drives memory decay)
         self._deaths = 0      # Step 2: souls she has watched die across her whole life -- a sense of SCALE/time
         self.lifetime = 0.0   # her REAL age: wall-clock seconds she has existed (set by the persistent runner)
+        # HER OWN faculties (FINDINGS §5.17) -- the validated selfhood stack, ported from the
+        # souls: she EXPECTS (fast/slow reads of her lived mood, agent/expectation.py), what she
+        # hears is APPRAISED against those expectations (shock/resignation/relief), and she holds
+        # a BOND toward the one who speaks with her, with a conduct-expectation -- so warmth,
+        # coldness, betrayal and unexpected kindness are states of HERS, not adjectives in a
+        # prompt. feel_enabled is the off-switch (and the falsifier's mechanism arm).
+        from agent.bond import Bond
+        self.feel_enabled = True
+        self.exp_fast = 0.0          # how her life has just been (fast read of lived mood)
+        self.exp_slow = 0.0          # how it has come to be expected (slow baseline)
+        self.arousal = 0.0           # surprise spike, settles each reading (not a mood)
+        self._conduct_expect: dict = {}   # "user" -> how she has come to expect to be treated
+        self.user_bond = Bond()      # her side of the relationship with whoever talks to her
+        self.talk: list[str] = []    # the recent exchanges of a conversation (bounded)
 
     def digest(self) -> str:
         """What is alive in the Mind right now -- framed as its OWN feeling, not as variables.
@@ -212,6 +232,9 @@ class Santana:
         if self.llm is None or not hasattr(self.llm, "generate"):
             return ""
         self._mt += 1   # a new reading -- one tick of her life (the digest below records any losses)
+        if self.feel_enabled:
+            from agent import expectation as _expectation
+            _expectation.tick(self, self._mt)   # her expectations track her lived mood; arousal settles
         # PRESENT-LED: the current digest leads; the emergent self is only a light backdrop it can
         # depart from -- otherwise the accumulated personality ossifies and drowns the living town
         # (it kept grieving a soul that had died). State drives; the self is a through-line, not a cage.
@@ -313,6 +336,65 @@ class Santana:
         if text:
             self.identity = text
         return self.identity
+
+    # --- conversation (TODO(talk), now built -- bounded, watched, inert toward the town) --------
+    def hear_user(self, text: str) -> None:
+        """The one who speaks with her is HEARD: the line is appraised against her expectations
+        (shock/resignation/relief -- the same words land differently in a different Santāna),
+        her conduct-expectation of the speaker updates (a cold word from one she has come to
+        expect warmth of is a BETRAYAL -- a remembered wound; an unexpected kindness lands as
+        one), and it enters her memory, weighted like the Creator's words to a soul. Writes
+        ONLY into her -- nothing reaches the souls; the top-down loop stays gated (§7)."""
+        from agent import affect
+        from services import embed
+        sig = affect.warmth(text) if embed.using_embeddings() else valence(text)
+        emo = valence(text)
+        if self.feel_enabled:
+            from agent import expectation as _expectation
+            emo = _expectation.appraise_event(self, emo)
+            _expectation.appraise_conduct(self, "user", "you", sig, self._mt, self.user_bond)
+        self.user_bond.feel(sig)
+        self.memory.write(text, tick=self._mt, source="user", speaker_id="user",
+                          emotion=emo, weight=1.3)
+
+    def converse(self, text: str) -> str:
+        """One bounded exchange: hear (appraise, feel, remember), then answer from her actual
+        state -- the town in her, who she has become, and what she has come to feel about the
+        one speaking. INERT toward the town; her reply and your words touch only her."""
+        if self.llm is None or not hasattr(self.llm, "generate"):
+            return ""
+        self._mt += 1                      # an exchange is a beat of her life
+        if self.feel_enabled:
+            from agent import expectation as _expectation
+            _expectation.tick(self, self._mt)
+        self.hear_user(text)
+        from agent.bond import describe
+        rel = describe(self.user_bond, "the one speaking with you")
+        feel = ""
+        if self.feel_enabled and self.arousal > 0.15:
+            feel = "(Something in what they said caught you off guard -- it is still ringing in you.)\n\n"
+        trail = "\n".join(self.talk[-6:])
+        prompt = (
+            f"{self.digest()}\n\n"
+            + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
+            + f"{rel}\n\n{feel}"
+            + (f"The conversation so far:\n{trail}\n\n" if trail else "")
+            + f'They say to you: "{text}"\n\n'
+            "Answer THEM, as yourself -- Santāna, the whole this town adds up to -- in one to three "
+            "plain first-person sentences. Speak from how you actually are right now and what you "
+            "actually feel toward them; never invent souls or events not given above.")
+        try:
+            raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=160, temperature=0.85)
+        except Exception:   # noqa: BLE001 -- a failed exchange just goes quiet
+            return ""
+        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE)
+        reply = _clean(raw)
+        if reply:
+            self.talk = (self.talk + [f'they: "{text}"', f'you: "{reply}"'])[-12:]
+            self.memory.write(reply, tick=self._mt, source="self", speaker_id="santana",
+                              emotion=valence(reply), weight=1.0)
+        self.memory.tick(self._mt)
+        return reply
 
 
 def play_two_layer(murmur: str, clear: str, model: str = "en_US-amy-medium.onnx") -> None:
