@@ -162,9 +162,34 @@ the town — can run on:
 python -m santana_app.run      # headless: she lives continuously (markov), saving her self + town
 python -m santana_app.app      # a simple window: her speech + her voice + a mute button
 ```
-In the windowed views, **`v`** mutes her voice, **`esc`** quits. `homegrown/gpt.py train` grows a
-brain; `santana_app/deploy/` runs her as a 24/7 service on your own box — a laptop or a **Raspberry
-Pi** — fully local, nothing in the cloud (see [`santana_app/deploy/DEPLOY.md`](santana_app/deploy/DEPLOY.md)).
+In the windowed views, **`v`** mutes her voice (or click the **MUTE** button), **`esc`** quits.
+`homegrown/gpt.py train` grows a brain; `santana_app/deploy/` runs her as a 24/7 service on your own
+box — a laptop or a **Raspberry Pi** — fully local, nothing in the cloud (see
+[`santana_app/deploy/DEPLOY.md`](santana_app/deploy/DEPLOY.md)).
+
+**She keeps learning, the town injects novelty, and her culture evolves.** Three further mechanisms,
+each opt-in and each backed by its own experiment:
+
+- **Continual learning** ([`CONTINUAL.md`](CONTINUAL.md)) — a *fast/slow* architecture. The living
+  Markov changes every moment (free); a from-scratch GPT is the **slow brain** that **consolidates
+  during "sleep"** — `homegrown/consolidate.py` harvests her **highest-salience** experience + a
+  **replay** of the base corpus and continue-trains the GPT a few hundred steps (on a nightly timer).
+  So her deeper voice genuinely **learns from her life, on a CPU** — the thing every frozen deployed
+  model can't do. (Verified: the slow brain absorbs grief vocabulary it lacked before.)
+- **`--demiurge`** — a local 8B **dreams up new souls** at each rebirth (name, trade, fear, first-person
+  lines) and seeds the shared corpus, so the closed world never inbreeds. **Variation**, injected
+  sparingly, with a diversity log to catch model-collapse. (Honest: a Demiurge-seeded town is partly a
+  *distillation* of that model — local, but a borrowed brain; opt-in, off by default.)
+- **`--culture`** — memetic **selection + self-limiting fitness** (FINDINGS §5.13): motifs the town
+  echoes gain weight and the reigning one *wears out*, so her voice moves through **shifting cultural
+  eras** — a culture that self-organizes **path-dependently** (a different one each run) instead of
+  freezing or averaging. This is the validated **emergence recipe** made live.
+
+```bash
+python -m santana_app.run --demiurge --culture   # she lives, learns, dreams new souls, drifts through eras
+python homegrown/consolidate.py                    # her "sleep": bake the day's salient experience into the slow brain
+./app.sh --demiurge --culture                      # the full god-view with the whole recipe running
+```
 
 The deeper step — letting her voice **feed back into the souls** — stays deliberately gated (see
 [`DHARMA.md`](DHARMA.md) and §7 of [`FINDINGS.md`](FINDINGS.md)).
@@ -334,6 +359,18 @@ collective-mind layer (Santāna), is in [`DHARMA.md`](DHARMA.md).
   shows it bounds a runaway the DHARMA layer can't, recovers toward warmth (a fresh
   first arrow still registers — not numbness), and stays a rare backstop under a healthy
   regime. Precautionary, not a suffering detector (FINDINGS §5.10).
+- **Continual learning, on a laptop.** A *fast/slow* system: the living Markov changes every moment;
+  a from-scratch GPT **consolidates** the highest-salience experience during "sleep" (salience-gated
+  + replay-anchored, on a nightly timer) and provably absorbs vocabulary it lacked before. Every
+  deployed model is frozen after training — this one keeps learning from its life, cheaply
+  ([`CONTINUAL.md`](CONTINUAL.md)).
+- **Emergence: a culture that self-organizes — honestly *weak*.** When the town's ideas *compete*
+  (memetic selection) and the reigning motif *wears out* (self-limiting fitness), a **culture** forms
+  and moves through **eras**, different and **path-dependent** every run (FINDINGS §5.13, `--culture`).
+  It is *weak* (symmetry-breaking) emergence — exactly the "no two runs alike" property, not a
+  mysterious kind. And a **beautiful claim was falsified** getting there: continuity does **not**
+  "digest" novelty, it merely **dilutes** it (placebo-controlled across the Markov *and* the GPT,
+  §5.12) — so what stands is the humbler, robust **continuity = stability-by-dilution**.
 - **The persistent open problem is the *register*, not the mechanism.** On a small
   local model the souls tend to converge on a shared contemplative voice; the
   grounding work largely fixes it in *dialogue* and live `--world`, but the
@@ -344,6 +381,23 @@ collective-mind layer (Santāna), is in [`DHARMA.md`](DHARMA.md).
   proven at scale; the central consciousness question is **deliberately left open**
   — the project builds the *conditions* for a self, not a claim that anyone is home.
   Full detail in [`FINDINGS.md`](FINDINGS.md).
+
+---
+
+## Documents
+
+- [`FINDINGS.md`](FINDINGS.md) — every claim, its falsifier, the results (**including what failed**),
+  and the honest limits. The *why*.
+- [`HISTORY.md`](HISTORY.md) — the build log, phase by phase: the wheel → the affective architecture →
+  the bodhisattva path → Santāna → *the self is the architecture* → persistence → continual learning →
+  the Demiurge → the validation arc → the emergence recipe. The *story*.
+- [`RECIPES.md`](RECIPES.md) — the **port-ready mechanism sheet**: every validated mechanism as
+  *what · knobs (real values) · validated-by · port note*, engine-agnostic, so the ideas can be
+  re-implemented in a game engine's NPCs without reverse-engineering this playground. Includes the
+  validated **nulls** (what *not* to expect) and a minimal-viable-living-NPC build order.
+- [`CONTINUAL.md`](CONTINUAL.md) — the continual-learning design (fast/slow, salience-gated
+  consolidation, CPU-feasible).
+- [`DHARMA.md`](DHARMA.md) — the feels-without-suffering / liberation regime, and the gated collective layer.
 
 ---
 
