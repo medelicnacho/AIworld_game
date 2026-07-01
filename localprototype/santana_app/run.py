@@ -118,7 +118,7 @@ def main() -> None:
     resumed_town = w is not None
     if w is None:
         w = build_world(town_llm, args.fast_wheel)
-    mind = Santana(w, santana_llm)
+    mind = Santana(w, santana_llm, culture=args.culture)
     mind.lifetime = 0.0
 
     if not args.fresh and load_mind(mind, args.snapshot):
@@ -223,7 +223,7 @@ def main() -> None:
             print(f"\n[reading {i}  age {_fmt_age(mind.lifetime)}  tick {tick}  souls {n}  "
                   f"reborn {births}  watched-die {mind._deaths}]")
             print(f"  SANTĀNA: {clear}")
-            cult = getattr(mind.llm, "culture", None)
+            cult = getattr(mind.llm, "culture", None) or getattr(mind, "_culture", None)
             if cult is not None and cult.reigning():
                 print(f"  [cultural era] \"{cult.reigning()}\"")
             mind.consolidate()

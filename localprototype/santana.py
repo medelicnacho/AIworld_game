@@ -92,9 +92,18 @@ class Santana:
         "cosmic, or abstract register -- no 'stillness', 'awareness', 'holding space', 'the void', 'a "
         "sense of'. Just say, plainly, how you -- Santāna, the whole -- actually are right now.")
 
-    def __init__(self, world, llm) -> None:
+    def __init__(self, world, llm, culture: bool = False) -> None:
         self.world = world
         self.llm = llm
+        # Cultural eras on a big-model voice (FINDINGS §5.13): the markov backend carries its OWN
+        # CulturePool (it re-weights the phrases the chain is built from). A frozen LLM has no chain to
+        # re-weight, so we run the pool HERE and inject the reigning motif into the prompt -- the same
+        # emergence recipe, ported to prompt-injection, so an 8B voice also drifts through eras. Skip if
+        # the llm already owns a pool (markov), to avoid doing it twice.
+        self._culture = None
+        if culture and getattr(llm, "culture", None) is None:
+            from agent.culture import CulturePool
+            self._culture = CulturePool()
         self.last = ""        # its own prior utterance -- a thread of continuity
         self.murmur = ""      # the last inner monologue (TODO(voice): stream it to TTS under the clear voice)
         self.identity = ""    # the MUTATING personality: starts blank, grows from state + acts (saṅkhāra)
@@ -211,10 +220,26 @@ class Santana:
                 "Take this in. First MURMUR your scattered, half-formed impressions of the town as "
                 "they come to you -- a few fragments, unsettled, the way a mind half-thinks before it "
                 f"speaks. Then, on a new line beginning 'SO:', settle into {settle}")
+        # her CULTURAL ERA (LLM path): feed the pool her charged memory + the town's recent speech, take
+        # the reigning motif, and let it colour the prompt -- selection + self-limiting fatigue mean this
+        # preoccupation shifts over readings, so her big-model voice moves through eras (FINDINGS §5.13).
+        era_line = ""
+        if self._culture is not None:
+            try:
+                with self.world.lock:
+                    heard = [t for _, t in getattr(self.world, "spoken", [])][-30:]
+            except Exception:   # noqa: BLE001
+                heard = []
+            self._culture.observe([m.text for m in self.memory.items][-120:] + heard)
+            reign = self._culture.reigning()
+            if reign:
+                era_line = (f'(Lately the town keeps circling back to "{reign}" -- let that preoccupation '
+                            f"quietly colour what you say, without quoting it.)\n\n")
         prompt = (
             f"{self.digest()}\n\n"
             + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
             + (f'A moment ago you said: "{self.last}"\n\n' if self.last else "")
+            + era_line
             + tail)
         try:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=200, temperature=0.85)

@@ -848,7 +848,7 @@ def main() -> None:
     if args.santana:
         from santana import Santana, play_two_layer
         from services.llm import make_llm as _mk
-        _smind = Santana(world, _mk(args.llm, culture=args.culture))   # her voice follows --llm (markov by default)
+        _smind = Santana(world, _mk(args.llm, culture=args.culture), culture=args.culture)   # her voice follows --llm
         if getattr(args, "resume", False):   # embody HER saved persistent self, not a fresh one
             import os as _os
             from santana_app.state import load_mind
