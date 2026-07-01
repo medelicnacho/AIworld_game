@@ -407,6 +407,29 @@ design, **legible mechanism** — you can read every memory's salience and every
 poignancy of "she grieves Naedry" lives in the *observer*, and this section claims a *structure* of
 selfhood, never an *inhabitant*. One machine, one long run, unreplicated.
 
+### 5.12 Continuity subordinates novelty — but by dilution, not digestion *(a claim we falsified)*
+
+Watching a memory-rich self (13.6h) beside a from-birth self, both fed the **same** Demiurge-dreamed
+lines, the new material seemed *subordinated into* the old self's grief but to *constitute* the blank
+one — as if continuity **digests and re-ranks** novelty. We tested it (`experiment_continuity.py`):
+an order-2 Markov (the real voice), novelty held fixed and marked with unique tokens, only the memory
+mass varied, 8 seeds, prediction pre-registered, a **dose-response** sweep. Result:
+
+- **The dose-response held, robustly.** A blank self speaks **12.2× more** of the injected novelty
+  than a memory-heavy one, falling monotonically with memory mass (0.067 → 0.006 marker fraction).
+- **But the mechanism is trivial.** The output/input novelty ratio stays **flat at ~1.0** at every
+  memory level: the self emits novelty in exact proportion to novelty's share of its training mass.
+  Memory subordinates novelty **only by dilution**, not by any active digestion — an order-2 Markov
+  *structurally cannot* re-contextualise, it only mixes. So the live "braiding" (*"I'll never craft a
+  perfect corner"* folded into her grief) was **proportional mixing + a pattern-hungry observer**, not
+  the self weaving novelty into its themes. The romantic reading did not survive; we keep the null.
+
+What *does* survive is humbler and real: **continuity = stability-by-dilution** — an older self is
+proportionally less perturbable by any single new input (a robust 12× effect). And the honest scope:
+this indicts the **Markov** voice, which can only dilute; the **slow GPT** has attention and *could*
+re-weight novelty by context in a way a chain cannot — **untested, the genuine next experiment.** This
+is the section we are most glad to have: a pretty claim, killed by our own instrument. See [[method]] §4.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

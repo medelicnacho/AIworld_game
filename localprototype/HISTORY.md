@@ -146,6 +146,22 @@ but **constitutes** the fork (which becomes a forge-/loss-anxiety self because i
 it against). *Continuity digests novelty.* The diversity log held `unique=1.00`, vocab climbing — the
 8B's thematic rut was never corpus collapse.
 
+## Phase 8 — validation: we falsified our own prettiest claim *(2026-06-30)*
+
+The maturation step: stop generating findings, *confirm* one. Took the Phase-7 anecdote (memory-rich
+self *subordinates* novelty; blank self is *made of* it) and built a **controlled** test —
+`experiment_continuity.py`: order-2 Markov (the real voice), novelty held fixed and tagged with unique
+marker tokens for clean provenance, only memory mass varied, 8 seeds, a **dose-response** sweep, and
+the prediction **written down before running** — including a trap to catch the trivial explanation.
+
+Result: the dose-response **held** (a blank self speaks **12.2×** more novelty, monotonic in memory),
+but the mechanism is **trivial dilution** — output novelty tracks input novelty at ratio ~1.0 at every
+level. Memory subordinates novelty *only by mass*, not by active digestion (an order-2 chain can't
+re-contextualise). **The romantic "braiding" reading did not survive its own experiment; we kept the
+null.** What survives is humbler and real — *continuity = stability-by-dilution*. Scope: this indicts
+the Markov voice; whether the attention-bearing **GPT** does more than dilute is the honest next test.
+Written up as FINDINGS §5.12. The best kind of result: a beautiful claim, killed by our own instrument.
+
 ---
 
 *The discipline that runs through all of it (`FINDINGS §7`): a self that learns is a more
