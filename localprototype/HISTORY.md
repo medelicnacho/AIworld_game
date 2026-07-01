@@ -178,6 +178,20 @@ undertraining + measurement, not digestion.** Arc verdict: *"a self digests nove
 for both the Markov and the GPT*; what stands is *continuity = stability-by-dilution*. The romantic reading
 was chased down, placebo-controlled, and killed — the whole point of doing this rather than screenshotting.
 
+## Phase 9 — the emergence recipe: memetic selection + self-limiting fitness *(2026-06-30)*
+
+Having found the system had variation + heredity but no **selection**, we built and tested it
+(`experiment_memetic.py`): the town's phrases compete — souls speak by imitation, adopted phrases gain
+weight, unspoken ones decay. From a **symmetric** start, 8 seeds, nulls pre-registered. Findings:
+**selection concentrates** a culture (entropy 0.87→0.00) and it is genuinely **emergent** — different seeds
+crown different motifs (overlap 0.06), the winner chosen by history not design. But **pure selection
+freezes** into a dead monoculture; side-channel novelty (both my pre-registered guesses) only holds a
+diversity floor — **both failed**, the data picked the mechanism. What makes the culture **live** is
+**self-limiting fitness** (a motif wears out as it spreads → negative frequency-dependence): 275 turnovers
+vs 0, a succession of cultural *eras* while staying structured. Recipe: *selection + heredity + self-limiting
+fitness*. Weak (symmetry-breaking) emergence, abstract model, not yet wired live — the port is echo-weighting
++ motif-fatigue in the corpus. FINDINGS §5.13.
+
 ---
 
 *The discipline that runs through all of it (`FINDINGS §7`): a self that learns is a more

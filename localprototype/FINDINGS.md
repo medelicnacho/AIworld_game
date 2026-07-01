@@ -459,6 +459,34 @@ version: **continuity = stability-by-dilution.** The romantic reading was chased
 and killed. (The constant 0.86 offset is a *style* effect — eerie novelty is intrinsically ~14% less
 predictable than mundane town text — and, tellingly, it does **not** grow with memory.)
 
+### 5.13 Cultural emergence — memetic selection self-organizes a path-dependent culture; self-limiting fitness keeps it alive
+
+The system had **variation** (the Demiurge) and **heredity** (the wheel) but no **selection** — so novelty
+just *drifts* (§5.12). `experiment_memetic.py` adds the missing ingredient on the town's own phrases: souls
+speak by imitation (sample a phrase by its weight), adopted phrases gain weight, unspoken ones decay —
+ideas *compete* instead of averaging. From a **symmetric** start (all phrases equal), 8 seeds, nulls
+pre-registered. Read as a 2-D picture, **concentration × turnover**:
+
+- **Selection concentrates** (entropy 0.87 → 0.00) — a culture forms — and it is **emergent**: the same
+  symmetric start crowns **different motifs per seed** (cross-seed overlap 0.06). One town fixates on
+  *"the bridge timbers are rotting through"*, another on *"so many gone… I carry their names"* — the winner
+  is chosen by *history, not design*. Genuine, if **weak**, emergence (symmetry breaking).
+- **Pure selection FREEZES** (0 turnovers = a dead monoculture). Side-channel novelty — uniform *or*
+  rare-favouring — only raises a diversity **floor** (entropy 0.10–0.15); it cannot unseat the reigning motif.
+  (Both were pre-registered guesses; **both failed** — the data, not the author, picked the mechanism.)
+- **Self-limiting fitness makes it LIVE**: when a motif's fitness *falls as it spreads* (negative
+  frequency-dependence — it wears out), the culture keeps **turning over** (275 vs 0) while staying
+  *structured* (entropy 0.24 — a reigning motif at any instant): a **succession of cultural eras**, never
+  frozen. Distinct from no-selection noise (turnover 282 but entropy 0.87 — *no* reigning motif at all):
+  turnover must be read *with* entropy, or churn looks like life.
+
+**Recipe for a culture the town is not handed:** *selection* (a culture forms) + *heredity* (the wheel,
+already present) + *self-limiting fitness* (it keeps evolving). Honest bounds: weak (symmetry-breaking)
+emergence in an abstract replicator model; at penalty 2.5 the turnover is fast (fads, not long eras —
+tunable); **not yet wired into the live world.** The port is two mechanisms: **echo-weight** the corpus
+(selection) + **motif-fatigue** (self-limiting) → a Santāna whose culture has shifting eras instead of
+freezing or averaging. See [[emergent-social-sim-direction]].
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
