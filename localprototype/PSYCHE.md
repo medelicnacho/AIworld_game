@@ -87,6 +87,13 @@ A workspace is *real* only if the **dominant-part sequence is structured**, not 
 (4/5) — but the coalition and prediction halves **failed** (0/5 each) and are recorded as
 not-established in FINDINGS §5.14. The "say so" clause was honoured.
 
+**First rescue attempt for PREDICTION (2026-07-01, §5.15): FAILED and reverted.** Giving the parts
+expectation (agent/expectation.py) and wiring the mind's *foreboding* into Dread's bid did not make
+the floor predictive (0/5 held-out) and degraded the structure claim — the psyche stays at this
+section's validated configuration (pinned in tests/test_expectation.py). The working hypothesis
+after the failure: the floor is a *readout* of dynamics it does not cause; a predictive workspace
+probably requires the winner to act top-down on the mind — a gated, deliberate step, not a knob.
+
 ## The honest frame (§7 — unchanged)
 
 This builds the **architecture** GWT posits — competing faculties, a workspace, an integrating "I" —

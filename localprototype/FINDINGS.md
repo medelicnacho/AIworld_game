@@ -540,6 +540,50 @@ established mood-coalitions and no predictive power** over the mind's trajectory
 poetic halves of the GWT story; they are open questions, not features. §7 unchanged: architecture,
 not an inhabitant.
 
+### 5.15 Expectation — the self's future tense: appraisal and turning points PASS; the psyche port FAILS and is reverted
+
+The architecture metabolised its present and reached toward a wanted future (telos), but nothing in
+it **expected** anything — so nothing could be surprised, braced, relieved, or betrayed, and emotion
+was one valence scalar (fear = grief = disappointment = "−0.6"). `agent/expectation.py` adds the
+future tense, **opt-in** (`Agent.expect_enabled`, default off): fast/slow EWMAs of lived mood (the
+gap = the felt trend; `foreboding` = worsening), **appraisal at write-time** (the same event lands
+as SHOCK — amplified + arousal — in a self whose days were good, softened RESIGNATION in one already
+living the fall, brighter RELIEF when good arrives unexpected), **per-other conduct expectations**
+(a cold act from one expected warm = a BETRAYAL — `Bond.betray`, the violated expectation *is* the
+injury; from one expected cold = weather), and a **load-bearing self-model**: a slow expectation of
+one's *own* conduct; acting against it accrues dissonance until the self **TURNS** — a high-salience
+narrative memory ("something in me has turned: I was one who shared…") that enters identity recall.
+Identity must be *stickier than adaptation* (conduct-EWMA 0.02): at 0.08, measured, the gap closes
+before dissonance can reach a turning — the self quietly becomes the new self with no chapter break,
+drift without a story.
+
+**Falsified, all pre-registered, 5 seeds each:**
+
+- **Appraisal (`experiment_appraisal.py`) — 7/7 claims PASS 5/5.** Identical −0.7 loss: blindsided
+  writes −1.00 vs braced −0.81; arousal 0.38 vs 0.10; mood-drop 0.35 vs 0.15. Mechanism null clean
+  (expectation off ⇒ identical charges). Identical cold act: 1 wound after a warm history, 0 after a
+  cold one; the betrayed self's mood −0.50 vs ±0.00.
+- **Turning points (`experiment_turning.py`) — 4/4 claims PASS 5/5.** A sustained conduct flip turns
+  the self **exactly once** and the turning memory sits in identity recall; stable-with-noise never
+  turns; faculty-off never turns; no oscillation after re-anchoring. (One seed's turning memory was
+  later *mutated by the memory-blur machinery* — the narrative itself ages. Left as is; it's the
+  substrate being itself.)
+- **The psyche port — FAIL, REVERTED.** Wiring `foreboding` into Dread's workspace bid (to chase the
+  §5.14 PREDICTION failure: "Dread braces while the fall is still happening") did **not** make the
+  floor predictive — PREDICTION stayed **0/5 held-out** — and it *degraded* the validated succession
+  STRUCTURE (4/5 → 2/5 held-out; coalition flattered the tuning seeds at 4/5 then fell to 2/5
+  held-out, a textbook overfit-warning). Per the discipline, the psyche keeps its **§5.14
+  configuration** (config pinned in tests); expectation ships as an **individual-self faculty**.
+  Lesson worth the price: a leading indicator in one part's *bid* doesn't make the *floor* a
+  forecaster — the mind's lived mood is driven by dynamics (speech contagion, decay, amplification)
+  that the floor-holder reads but does not cause. **The floor is a readout, not a driver;** making
+  the workspace genuinely predictive likely needs the winner to *act* on the mind (top-down), which
+  is a gated, deliberate step — not a knob.
+
+Honest frame (§7): a self that expects, is surprised, is betrayed *by the violation rather than the
+act*, and turns its own story at a real break is more **functionally** realistic. Nothing here
+touches "is anyone home".
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

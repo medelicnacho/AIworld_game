@@ -107,6 +107,11 @@ def endow_part(agent, faculty: str, rng: random.Random) -> None:
     agent.ground_enabled = True                       # buddha-nature is the ground, not a part
     agent.reflect_enabled = (faculty == "reflect")    # only the Watcher reflects
     agent.somatic_enabled = (faculty == "somatic")    # only Ember carries the survival floor
+    # expectation (agent/expectation.py) stays OFF in the parts -- the port was tried and
+    # REVERTED: wiring foreboding into Dread's bid did not make the floor predictive
+    # (PREDICTION 0/5 held-out) and blurred the validated succession structure (4/5 -> 2/5).
+    # The psyche keeps its §5.14 configuration; expectation is an individual-self faculty
+    # (validated in experiment_appraisal / experiment_turning). See FINDINGS §5.15.
     agent.psyche_faculty = faculty
     agent._psyche_base_grip = agent.grip
 
@@ -161,7 +166,10 @@ def activation(agent, parts, now: int | None = None) -> float:
         return 0.0
     if f == "grip":
         # vigilance: the amplifier (effective grip, contraction-gated like manas) times
-        # the ARRIVING blow -- Dread braces at what the world is landing now
+        # the ARRIVING blow -- Dread braces at what the world is landing now.
+        # (A FOREBODING term -- expectation.foreboding, the mind's worsening trend -- was
+        # tried here to chase the §5.14 PREDICTION failure and REVERTED: it did not make
+        # the floor predictive on held-out seeds and degraded the succession structure.)
         eff = agent.effective_grip() * (1.0 - getattr(agent, "_contraction", 0.0))
         return _sat(GAINS["grip"] * eff * sum(_event_load(p, now) for p in parts))
     if f == "salience":

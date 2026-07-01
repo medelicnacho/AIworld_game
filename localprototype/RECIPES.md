@@ -80,6 +80,31 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
 - **what:** an order-1 Markov over the NPC's *own* memory — a low-key stream of half-thoughts it can surface.
 - **port:** rebuild a tiny Markov from the NPC's memory each tick; sample for ambient bubbles. Pure flavor.
 
+### A7. Expectation + appraisal — the NPC's future tense *(the realism multiplier)*
+- **what:** the NPC *expects*, so the same event does different things to different NPCs. Three floats
+  of state: a fast and a slow EWMA of its lived mood (the gap = its felt trend), and arousal (a spike
+  that settles). On every event, **appraise before writing**: unexpected loss → SHOCK (charge amplified,
+  arousal spikes); braced-for loss → RESIGNATION (softened); unexpected good → RELIEF (brighter). Per
+  bonded other, one more float: expected conduct — a cold act from someone expected warm is a
+  **BETRAYAL** (a remembered wound, A3's `betray()`), the *same act* from someone expected cold is
+  weather. This is the mechanic that makes players say "someone's home": the NPC who trusted you reacts
+  differently to your betrayal than the one who always suspected you.
+- **knobs (validated values):** fast EWMA `0.25`, slow `0.04`, arousal decay `0.90/tick` · surprise floor
+  `0.25` (below = "about what I expected") · shock amplification `0.8×surprise`, resignation `−25%`,
+  relief `0.4×surprise` · conduct EWMA `0.2`, betrayal gap `0.3` below an expectation `> 0.1`.
+- **turning points (the self-model made causal):** a SLOW expectation of the NPC's *own* conduct
+  (EWMA `0.02` — **identity must be stickier than adaptation**, measured: at 0.08 the self quietly
+  becomes the new self with no story); sustained out-of-character action accrues dissonance (`0.08/act`
+  beyond a `0.45` gap, easing `0.02` in character, turning at `1.0`) → ONE high-salience narrative
+  memory ("something in me has turned: I was one who shared…") that enters identity recall. Fires on a
+  real shift exactly once, never on noise, no oscillation — a character-arc chapter break for free.
+- **validated:** `experiment_appraisal.py` 7/7 pre-registered claims 5/5 seeds (identical −0.7 loss:
+  blindsided −1.00 vs braced −0.81, arousal 0.38 vs 0.10; identical cold act: 1 wound vs 0);
+  `experiment_turning.py` 4/4 at 5/5 (FINDINGS §5.15).
+- **port:** ~5 floats per NPC + one appraisal function at the event-write point. Crowd-tier cheap.
+  Feed `arousal` to animation intensity and `foreboding` (slow − fast, when positive) to wary idle
+  poses — free body language from state you already track.
+
 ---
 
 ## B. The wheel — continuity across death (heredity)
@@ -232,6 +257,12 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
   it as reactive mood display, not as an inner life that anticipates. Also a measurement trap for your
   own tests: aperiodic event schedules only — periodic ones hand a circular-shift null the structure
   you're testing for.
+- **Expectation does NOT rescue the psyche's foreshadowing** (§5.15): wiring the mind's worsening trend
+  into the fear-drive's bid left prediction at 0/5 held-out and *degraded* the validated succession
+  structure — reverted. The floor is a readout of dynamics it doesn't cause. Use A7 (appraisal) at the
+  individual-NPC level, where it's fully validated; don't expect the G2 workspace to forecast. And note
+  the overfit warning it produced: the coalition claim hit 4/5 on tuning seeds and fell to 2/5 held-out
+  — always keep held-out seeds.
 
 ---
 

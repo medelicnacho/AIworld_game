@@ -258,8 +258,12 @@ class MemoryStore:
         merges similar memories), so a coherent self becomes an attractor that
         still drifts as the underlying memories blur. A self that looks like a
         thing but is only a process: anatta, in code.
+
+        'turning' memories (agent/expectation.py) are chapter-breaks in that
+        narrative -- self-statements about the self CHANGING -- so they belong
+        in the identity recall alongside the plain self-statements.
         """
-        mine = [m for m in self.items if m.source == "self"]
+        mine = [m for m in self.items if m.source in ("self", "turning")]
 
         def score(m: Memory) -> float:
             rel = _similarity(m.text, query) if query else 0.0

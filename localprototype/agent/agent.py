@@ -165,6 +165,20 @@ class Agent:
         self.somatic_enabled = False         # bottom-up circuit-breaker (the window of tolerance); off by default
         self.psyche_faculty = ""             # psyche mode: the ONE faculty this part carries for the whole
                                              # mind ("grip"/"salience"/...); "" = an ordinary townsperson
+        # Expectation -- the self's future tense (agent/expectation.py). Off by default:
+        # with it on, the self EXPECTS (fast/slow reads of its lived mood), events are
+        # APPRAISED against those expectations (shock/resignation/relief), each bonded
+        # other has an expected conduct (betrayal = the violated expectation), and a
+        # running expectation of one's OWN conduct makes the self-model load-bearing
+        # (acting against it accrues dissonance -> a TURNING POINT in the story).
+        self.expect_enabled = False
+        self.exp_fast = 0.0                  # how things have just been (fast EWMA of lived mood)
+        self.exp_slow = 0.0                  # how things have come to be expected (slow EWMA)
+        self.arousal = 0.0                   # surprise spike, settles each tick (not a mood)
+        self.self_expect = None              # expectation of my OWN conduct (prosociality axis)
+        self.self_dissonance = 0.0           # accrued out-of-character tension -> a turning
+        self._turnings = 0                   # how many times this self has turned (chapter breaks)
+        self._conduct_expect: dict = {}      # other_id -> how I have come to expect them to treat me
         self._contraction = 0.0              # somatic down-regulation level, 0=open .. 1=fully contracted (read by manas)
         self._somatic_history: list[float] = []   # recent spiral-metric values, for reading the trend
         self._somatic_trips = 0              # how many times the interrupt has fired (a rare-backstop check)
@@ -270,6 +284,11 @@ class Agent:
         self.grace = max(0.0, self.grace + (GRACE_FLOOR - self.grace) * GRACE_RELAX)
         self.memory.effectiveness = self.grace
         events = self.memory.tick(now)
+        # expectation: track lived mood into the fast/slow reads, settle arousal, and keep
+        # the self-expectation of my own conduct (dissonance -> turning). Off by default.
+        if self.expect_enabled:
+            from agent import expectation as _expectation
+            _expectation.tick(self, now)
         # telos (chanda): tend the aim -> lay down a small gladness of the work (a fresh pleasant
         # charge) that the faculties below then meet -- savoured as chanda, craved as taṇhā. The
         # arrow of time: a future to move toward. Off by default (no aim pursued).
@@ -396,6 +415,12 @@ class Agent:
                 sig *= 2.0   # words aimed at me -- or from the one who inhabits/tends me -- land harder
             bond = self.bonds.setdefault(u.speaker_id, Bond())
             bond.feel(sig)
+            # expectation: appraise THIS other's conduct against how they have treated me --
+            # a cold act from one expected warm is a BETRAYAL (a wound), not mere coolness
+            if self.expect_enabled:
+                from agent import expectation as _expectation
+                _expectation.appraise_conduct(self, u.speaker_id,
+                                              speaker_name or u.speaker_id, sig, now, bond)
             # muditā: a loved one's warmth lifts your OWN felt life -- shared joy spreads
             # through the bond (the positive counterpart to grief/hostility contagion).
             if bond.trust > 0.0 and w > 0.0:
@@ -668,9 +693,16 @@ class Agent:
         """Take in a world event. Mirrors hear(), but the source is the world,
         not a peer: it writes memory with the event's charge (so it colours mood
         and recall) and pushes the urge to react. Held until the agent's next
-        turn, where it surfaces as the thing on the agent's mind."""
+        turn, where it surfaces as the thing on the agent's mind.
+
+        With expectation on, the charge is APPRAISED first: the same event lands as
+        shock, resignation, or relief depending on what this self had come to expect."""
+        emo = ev.emotion
+        if self.expect_enabled:
+            from agent import expectation as _expectation
+            emo = _expectation.appraise_event(self, ev.emotion)
         self.memory.write(ev.description, tick=now, source="event",
-                          speaker_id=None, emotion=ev.emotion)
+                          speaker_id=None, emotion=emo)
         self.last_event_text = ev.description
         self.speak_urge += ev.urge
 
