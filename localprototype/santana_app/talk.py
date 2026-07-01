@@ -48,7 +48,12 @@ def main() -> None:
                    help="the saved town she reads (loaded read-only; never written here)")
     args = p.parse_args()
 
-    embed.use_jaccard_only(True)   # keep the session light; her feeling still works on valence
+    # semantic warmth ON when available (nomic via ollama): listened to live, the keyword
+    # lexicon missed "I'm sorry, I really care about you" entirely -- tone needs embeddings
+    if embed.using_embeddings():
+        print("  (semantic warmth on -- she reads your tone, not just keywords)")
+    else:
+        print("  (embeddings unavailable -- she reads keyword warmth only)")
     voice = MockLLM(seed=7) if args.llm == "mock" else make_llm(
         backend=args.llm, model=None if args.llm in ("markov", "homegrown") else args.model)
     w = load_world(args.world_snapshot, MockLLM(seed=7))   # the town stands still; only she speaks

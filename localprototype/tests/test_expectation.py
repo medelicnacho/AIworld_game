@@ -134,6 +134,17 @@ class ConductExpectationTest(unittest.TestCase):
         expectation.appraise_conduct(a, "v", "Vesper", -0.4, 20, b)
         self.assertEqual(b.wounds, 0)
 
+    def test_lukewarm_is_not_a_knife(self):
+        # caught live in her first conversation: a NEUTRAL line after warm words fell below
+        # the expectation and wounded -- absence of warmth must not read as coldness
+        a = _soul()
+        a.bond_enabled = True
+        b = self._feed(a, "v", 0.5, 12)               # a warm history, high expectation
+        expectation.appraise_conduct(a, "v", "Vesper", 0.0, 20, b)   # a merely neutral line
+        self.assertEqual(b.wounds, 0)
+        expectation.appraise_conduct(a, "v", "Vesper", -0.4, 21, b)  # actual coldness still wounds
+        self.assertEqual(b.wounds, 1)
+
     def test_an_unexpected_kindness_from_one_expected_cold_warms(self):
         a = _soul()
         a.bond_enabled = True

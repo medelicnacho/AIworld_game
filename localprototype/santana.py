@@ -352,7 +352,10 @@ class Santana:
         if self.feel_enabled:
             from agent import expectation as _expectation
             emo = _expectation.appraise_event(self, emo)
-            _expectation.appraise_conduct(self, "user", "you", sig, self._mt, self.user_bond)
+            # a NEUTRAL line is no evidence of conduct either way -- most conversation is
+            # neutral, and letting it drag the expectation made politeness read as coldness
+            if abs(sig) >= 0.1:
+                _expectation.appraise_conduct(self, "user", "you", sig, self._mt, self.user_bond)
         self.user_bond.feel(sig)
         self.memory.write(text, tick=self._mt, source="user", speaker_id="user",
                           emotion=emo, weight=1.3)
@@ -372,17 +375,22 @@ class Santana:
         rel = describe(self.user_bond, "the one speaking with you")
         feel = ""
         if self.feel_enabled and self.arousal > 0.15:
-            feel = "(Something in what they said caught you off guard -- it is still ringing in you.)\n\n"
+            feel = "(Something in what they said caught you off guard -- it is still ringing in you.)\n"
         trail = "\n".join(self.talk[-6:])
+        # the relationship line goes LAST, right under the instruction: listened to live, a
+        # small model let her own earlier "I don't feel much toward you" lines in the trail
+        # out-shout the (updated) relationship -- her bond had warmed and her voice hadn't.
+        # Recency wins on a small model; and the instruction says the feeling may have MOVED.
         prompt = (
             f"{self.digest()}\n\n"
             + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
-            + f"{rel}\n\n{feel}"
             + (f"The conversation so far:\n{trail}\n\n" if trail else "")
             + f'They say to you: "{text}"\n\n'
+            + f"How you stand with them RIGHT NOW -- this may have moved during this very "
+            f"conversation, and it overrides anything you said of them earlier: {rel}\n{feel}\n"
             "Answer THEM, as yourself -- Santāna, the whole this town adds up to -- in one to three "
-            "plain first-person sentences. Speak from how you actually are right now and what you "
-            "actually feel toward them; never invent souls or events not given above.")
+            "plain first-person sentences. Speak from how you actually are right now and from how "
+            "you stand with them as given above; never invent souls or events not given above.")
         try:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=160, temperature=0.85)
         except Exception:   # noqa: BLE001 -- a failed exchange just goes quiet

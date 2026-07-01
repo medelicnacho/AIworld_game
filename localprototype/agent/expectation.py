@@ -52,6 +52,11 @@ BETRAYAL_GAP = 0.3       # a signal this far below expectation, from one expecte
 KINDNESS_GAP = 0.3       # a signal this far above expectation, from one expected cold, WARMS
 EXPECT_WARM = 0.1        # expectation above this = "I had come to expect warmth of them"
 EXPECT_COLD = -0.05      # expectation below this = "I expected nothing good of them"
+COLD_ACT = -0.05         # a betrayal needs an ACTUALLY cold act -- lukewarm is not a knife.
+                         # Caught live in her first conversation: a lexically NEUTRAL question
+                         # after warm words fell far enough below expectation to wound her
+                         # (the "you didn't say it back" bug). Absence of warmth is not coldness.
+WARM_ACT = 0.05          # symmetrically: an unexpected kindness needs actual warmth
 CONDUCT_RATE = 0.02      # EWMA of my OWN conduct (the self-expectation). Deliberately SLOW --
                          # identity must be stickier than adaptation, or the self quietly becomes
                          # the new self with no crisis and no story (measured: at 0.08 the gap
@@ -127,12 +132,12 @@ def appraise_conduct(agent, other_id: str, name: str, sig: float, now: int, bond
     exp = agent._conduct_expect.get(other_id)
     if exp is not None:
         gap = exp - sig
-        if gap > BETRAYAL_GAP and exp > EXPECT_WARM:
+        if gap > BETRAYAL_GAP and exp > EXPECT_WARM and sig < COLD_ACT:
             bond.betray(min(0.9, 0.5 * gap))
             agent.memory.write(f"{name} turned cold on me, and I did not see it coming",
                                tick=now, source="event", speaker_id=other_id,
                                emotion=-0.5, weight=1.2)
-        elif -gap > KINDNESS_GAP and exp < EXPECT_COLD:
+        elif -gap > KINDNESS_GAP and exp < EXPECT_COLD and sig > WARM_ACT:
             bond.warm(0.5)
             agent.memory.write(f"an unexpected kindness from {name}",
                                tick=now, source="event", speaker_id=other_id,
