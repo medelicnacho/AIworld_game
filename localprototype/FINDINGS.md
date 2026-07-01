@@ -498,6 +498,48 @@ n-grams like "and the" are not motifs), and a **culture-shared town** source; an
 *uneven* (some towns churn, some ossify — turning the self-limiting knob up crossed the bar). So: real,
 but modest and tuned. It is now live behind `--culture` — her voice moves through cultural eras.
 
+### 5.14 The functional psyche — the workspace is real as an architecture; the mood claims did not survive
+
+PSYCHE.md made live: in `--psyche` mode the six parts stop being a costume. Each **carries one
+faculty** (`agent/psyche.py endow_part`: Dread→grip, Ache→memory salience, Longing→telos,
+Tending→compassion, Watcher→reflect, Ember→somatic) and **bids for the floor of the mind** by that
+faculty's live state; a **global workspace** (`agent/workspace.py`) decides who has the floor —
+selection + *self-limiting fatigue-with-memory* (neuronal adaptation + hysteresis; the §5.13
+share-penalty formula was tried first and **measured to freeze on the quietest bidder** under steady
+bids). The floor-holder gets the town's voice (speak-urge) and is named in Santāna's digest; Dread's
+presence sets the whole mind's grip, Ache's holds the loss-ledger against forgetting, the Watcher's
+reflections broadcast mind-wide. The wheel, inside a psyche, re-arises a **drive** carrying the
+departed part's *function* — never a townsperson.
+
+**Falsified honestly** (`experiment_psyche.py`; substrate-only, three regimes per seed — harsh /
+gentle / mixed; knobs tuned on seeds 11–15 across three recorded design iterations, **verdict from
+untouched held-out seeds 21–25**, a claim passes at ≥4/5):
+
+- **WORLD-TRACKING — PASS 5/5.** The floor follows the world, not a fixed ranking: the grief pair
+  holds 46–62% of a harsh world's floor and **0%** of a kind one's. Not cosmetic — a bare
+  argmax-of-temperament cannot move its shares.
+- **STRUCTURE — PASS 4/5.** Which part follows which is structured beyond a marginal-matched-chain
+  null (H(next|cur) ≈ 2–4σ below null).
+- **COALITION — FAIL 0/5.** "When Dread reigns, Ache presses close behind" (the grief-spiral mood)
+  did **not** beat a circular-shift null (z 0.2–1.7). *Coalitions-as-moods is NOT established.*
+- **PREDICTION — FAIL 0/5.** The reigning part does **not** predict where the mind's lived mood
+  heads next beyond the null. *The floor is a readout, not (yet) a forecaster.*
+
+Three tuning-phase catches worth keeping: **(1)** unbounded memory-load bids swamp bounded faculties
+(fixed: saturating activation); **(2)** Dread and Ache reading the *same* aversive load move as one
+undifferentiated pair (fixed: Dread reads *fresh* charge — the arriving — Ache the accumulated
+ledger); **(3)** the cast's dark identity poetry, re-heard and re-reinforced, made a mind in a *kind*
+world grow ever more grief-bound — **rumination by rehearsal is real in this substrate** — so the
+loss-ledger (Dread/Ache's fuel) reads only what the *world* did (source="event"), while the mutter
+still darkens felt mood and thereby rouses Tending/Ember. Also a null-integrity lesson: periodic
+event schedules quietly hand a circular-shift null the very structure under test — jitter the times.
+
+**Honest read:** the psyche is now a *functioning workspace architecture* — distinct organs, a floor
+that tracks the world, structured succession — but its stream of consciousness carries **no
+established mood-coalitions and no predictive power** over the mind's trajectory. Those were the
+poetic halves of the GWT story; they are open questions, not features. §7 unchanged: architecture,
+not an inhabitant.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

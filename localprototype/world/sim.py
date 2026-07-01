@@ -86,6 +86,11 @@ class World:
         # and 'hoard' drains -- the contested thing the affective faculties act on.
         self.stakes_enabled = False
         self.commons = 3.0
+        # The functional psyche (PSYCHE.md): when set to an agent.workspace.Workspace,
+        # the agents are PARTS OF ONE MIND -- each tick they bid for the floor, the
+        # winner is the mind's focus/voice, and the faculty couplings run. Default None:
+        # every ordinary world (and saved snapshot) is untouched.
+        self.psyche = None
         # how much of a strong bond's trust survives the bardo as a faint leaning in
         # the reborn stream (0 = love does not survive death; 0.5 = half, faded)
         self.bond_vasana = 0.5
@@ -150,6 +155,8 @@ class World:
         self.lock = threading.RLock()
         if self.bus is None:
             self.bus = EventBus()
+        # snapshots saved before the functional psyche existed lack the attribute
+        self.__dict__.setdefault("psyche", None)
 
     def _remember_said(self, text: str) -> None:
         self.recent.append(text)
@@ -213,6 +220,10 @@ class World:
         if self.stakes_enabled:
             from world import stakes
             stakes.step(self)
+        # 1.7) the global workspace: parts bid for the mind's floor; the winner gains
+        #      the urge to speak BEFORE this tick's floor is contested below
+        if self.psyche is not None:
+            self.psyche.step(self)
         # 2) urge-based turn: highest urge over threshold grabs the floor
         ready = [a for a in self.agents if a.wants_to_speak(self.speak_threshold)] if speak else []
         if ready:
@@ -296,6 +307,9 @@ class World:
             "grip": soul.grip,
             "prajna": soul.prajna,
             "bodhicitta": getattr(soul, "bodhicitta", 0.0),
+            # psyche mode: the FUNCTION re-arises even as the drive fades -- a mind does
+            # not lose its capacity to grieve when a particular grief passes
+            "psyche_faculty": getattr(soul, "psyche_faculty", ""),
         })
         self.bus.publish("dissolution", soul.id)
 
@@ -326,30 +340,51 @@ class World:
         if self.llm is None:
             return
         self._births += 1
+        # psyche mode: the dying stream was a PART OF ONE MIND. What re-arises is a new
+        # DRIVE carrying the departed part's FUNCTION (its faculty), wearing a fresh
+        # drive-name -- never a townsperson with a trade dreamed into a psyche.
+        fac = entry.get("psyche_faculty", "")
+        in_psyche = self.psyche is not None and bool(fac)
         # A name coined fresh from nothing -- never the same soul dying over and over, but
         # a different one born each turn, avoiding both the living and the lately-departed
         # (which then fade from _spent_names and from others' decaying memories alike).
         living = {a.name for a in self.agents}
-        name = coined_name(self._rng, taken=living | set(self._spent_names))
+        if in_psyche:
+            from agent import psyche as _psyche
+            name = _psyche.coined_drive(self._rng, taken=living | set(self._spent_names))
+        else:
+            name = coined_name(self._rng, taken=living | set(self._spent_names))
         self._spent_names.append(name)
         sid = f"stream:{self._births}"
         seeds = entry["seeds"] or ["something stirs in the quiet"]
-        a = Agent(sid, name, entry["position"],
-                  f"You are {name}, a soul who speaks your own mind.",
+        if in_psyche:
+            func = _psyche.FUNCTION_OF.get(fac, "a nameless stirring in us")
+            persona = f"You are {name}, {func} -- a part of one mind, not a person."
+        else:
+            persona = f"You are {name}, a soul who speaks your own mind."
+        a = Agent(sid, name, entry["position"], persona,
                   list(seeds), self.llm, seed=self._rng.randint(0, 10 ** 6),
                   temperament=entry["temperament"],
                   lifespan=entry.get("lifespan", 2000))   # not the default 60!
         a.belief = max(seeds, key=len)   # a nascent stance from the strongest vasana
-        role, tasks = self._rng.choice(ROLES)   # a new life, a new trade in the realm
-        a.role, a.task = role, self._rng.choice(tasks)
-        # the reborn stream wakes a FULL soul (the standard affective endowment -- compassion,
-        # ground, joy, prajñā…), with a FRESH aim from its new trade (anatta: the dead soul's
-        # project does NOT cross), driven by the carried THIRST -- a clinging death wakes hungry,
-        # a wise one at rest. Only the disposition transmigrates; the faculties begin fresh, so no
-        # stream is doomed to its predecessor's exact kleśas.
-        endow_faculties(a, self._rng)
-        a.aim = _telos.fresh_aim(role)
-        if self.bodhisattva_wheel:
+        if in_psyche:
+            # the FUNCTION is the identity: differential endowment, the faculty carried
+            # loud again. The bodhisattva-carry is bypassed on purpose -- it would fade
+            # Dread's grip toward the liberated ground and dissolve the part's very organ.
+            a.role, a.task = func, ""
+            _psyche.endow_part(a, fac, self._rng)
+            a.aim = _psyche.AIM_OF.get(fac, "")
+        else:
+            role, tasks = self._rng.choice(ROLES)   # a new life, a new trade in the realm
+            a.role, a.task = role, self._rng.choice(tasks)
+            # the reborn stream wakes a FULL soul (the standard affective endowment -- compassion,
+            # ground, joy, prajñā…), with a FRESH aim from its new trade (anatta: the dead soul's
+            # project does NOT cross), driven by the carried THIRST -- a clinging death wakes hungry,
+            # a wise one at rest. Only the disposition transmigrates; the faculties begin fresh, so no
+            # stream is doomed to its predecessor's exact kleśas.
+            endow_faculties(a, self._rng)
+            a.aim = _telos.fresh_aim(role)
+        if self.bodhisattva_wheel and not in_psyche:
             # carry the CULTIVATED LEAN across the bardo, faded toward the liberated ground (the
             # buddha-nature tilt), overriding the fresh endowment's wisdom wing -- so practice and the
             # lineage's drift toward liberation persist instead of resetting. Bodhicitta is carried too;
@@ -362,7 +397,7 @@ class World:
             a.somatic_enabled = True       # the bottom-up floor active in the live world
             a.cultivate_enabled = True     # within-life practice grooves the faculties ...
             a.reflect_enabled = True       # ... fed by reflect_turn(), so the soul EARNS the lean, not only inherits it
-        else:
+        elif not in_psyche:
             a.telos = _telos.reborn_telos(entry.get("telos", 0.0), entry.get("eff_grip", 0.0))
         for frag in seeds:
             a.memory.write(frag, tick=self.tick, source="self", speaker_id=sid, weight=0.8)
@@ -538,6 +573,8 @@ class World:
             if self.stakes_enabled:        # stakes: provisions/actions/hardship
                 from world import stakes
                 stakes.step(self)
+            if self.psyche is not None:    # the workspace: parts bid for the floor
+                self.psyche.step(self)
             self._reap()
             self._process_bardo()    # streams ripen out of the bardo into new lives
             if self.breed_enabled and not self.rebirth_enabled:   # living reproduction
@@ -608,7 +645,19 @@ class World:
             cur = next((x for x in self.agents if x.id == aid), None)
             if cur is None:
                 return None
-            return _reflect.imprint(cur, raw, self.tick)
+            text = _reflect.imprint(cur, raw, self.tick)
+            # psyche mode: the Watcher's seeing is BROADCAST -- a reflection is the mind
+            # observing itself, so it enters EVERY part's memory (the workspace's global
+            # availability), not only the reflecting part's own store.
+            if (text and self.psyche is not None
+                    and getattr(cur, "psyche_faculty", "") == "reflect"):
+                emo = next((m.emotion for m in reversed(cur.memory.items)
+                            if m.text == text), 0.0)
+                for other in self.agents:
+                    if other is not cur and getattr(other, "psyche_faculty", ""):
+                        other.memory.write(text, tick=self.tick, source="reflection",
+                                           speaker_id=cur.id, emotion=emo, weight=0.6)
+            return text
 
     # --- collective consciousness: one mind per faith --------------------------
     # The agents are NEURONS -- they murmur, drift, and cross-pollinate on the

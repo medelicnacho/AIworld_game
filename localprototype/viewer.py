@@ -215,12 +215,14 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                 else rng.randint(6000, 15000))            # ~10-25 min
         if psyche:
             # a PART OF ONE MIND (a drive), not a townsperson -- see agent/psyche.py
-            from agent.psyche import PSYCHE_CAST
-            pname, prole, ptemp, paim, pseeds = PSYCHE_CAST[i % len(PSYCHE_CAST)]
+            from agent import psyche as _psyche
+            pname, prole, ptemp, paim, pseeds = _psyche.PSYCHE_CAST[i % len(_psyche.PSYCHE_CAST)]
             a = Agent(cid, pname, pos, f"You are {pname}, {prole} -- a part of one mind, not a person.",
                       list(pseeds), llm, seed=hash(cid) % 9999, temperament=ptemp, style="",
                       lifespan=life, religion=None)
             a.role, a.aim = prole, paim
+            # the FUNCTIONAL psyche: this part CARRIES one faculty, loud (PSYCHE.md)
+            _psyche.endow_part(a, _psyche.FACULTY_OF.get(pname, ""), a._rng)
             a.seed_opinion_text(pseeds[0])
             a.seed_stance(random.Random(rng.randrange(2 ** 31)))   # moods emerge as coalitions of drives
             colours[cid] = CAMP_GREY
@@ -252,6 +254,10 @@ def build_world(backend: str, move_seed: int = 0, move: bool = True,
                       style="", lifespan=life, religion=relig)
             colours[cid] = RELIGION_COLOUR[faith]
         world.add(a)
+    if psyche:
+        # the global workspace: parts bid for the mind's floor each tick (agent/workspace.py)
+        from agent.workspace import Workspace
+        world.psyche = Workspace()
     return world, colours
 
 

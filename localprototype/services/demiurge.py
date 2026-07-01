@@ -57,6 +57,23 @@ _USER_TMPL = (
     "- <something strange they half-believe>\n"
     "- <a private line of their faith or their dread>\n")
 
+# psyche mode: the town IS one mind, so the Demiurge dreams inner DRIVES, not tradesmen --
+# a new movement of feeling arising in the psyche (like Dread, Ache, Longing), never a villager.
+_PSY_SYS = ("You invent PARTS OF ONE MIND -- semi-personified inner drives (like Dread, Ache, "
+            "Longing: a movement of feeling, not a person), each with a short word-name, a function "
+            "in the psyche, a ruling want, and a few murmured first-person lines. Terse, inward, a "
+            "little strange. No preamble, no commentary, no markdown. Output ONLY the requested block.")
+_PSY_TMPL = (
+    "Invent ONE new inner drive just arisen in a mind. Use EXACTLY this format, nothing else:\n"
+    "NAME: <one short evocative word-name that BEGINS WITH the letter '{initial}', like Dread or Ache>\n"
+    "TRADE: <its function in the mind: 'one who <what it does in us>', under ten words>\n"
+    "FEAR: <its inner aim -- the one thing it is FOR, a short phrase>\n"
+    "LINES:\n"
+    "- <a short thing it murmurs inside, first person, under 12 words>\n"
+    "- <what it watches for or reaches toward, first person>\n"
+    "- <something it half-believes about the mind it lives in>\n"
+    "- <a private line of its longing or its dread>\n")
+
 
 def _name_of(s: str) -> str | None:
     toks = re.sub(r"[^A-Za-z'\-]", " ", s).split()
@@ -70,8 +87,10 @@ class Demiurge:
     """Dreams new souls via a local 8B. invent() is the SLOW call (run it off any sim lock);
     apply() is fast (run it under the lock); seed_corpus() is plain file IO."""
 
-    def __init__(self, model: str = DEFAULT_MODEL, temperature: float = 1.15) -> None:
+    def __init__(self, model: str = DEFAULT_MODEL, temperature: float = 1.15,
+                 psyche: bool = False) -> None:
         self.model = model
+        self.psyche = psyche      # dream inner DRIVES (parts of one mind), not villagers
         self._rng = random.Random()
         # high temperature -- the caller asked for chaos; novelty is the whole point
         self._llm = OllamaLLM(model=model, temperature=temperature, num_predict=240)
@@ -95,13 +114,15 @@ class Demiurge:
         souls spread across the town even when the model wants to groove into one mode."""
         trade = self._rng.choice(_TRADES)
         initial = self._rng.choice(_INITIALS)
+        tmpl = (_PSY_TMPL if self.psyche else _USER_TMPL)
+        sys_prompt = _PSY_SYS if self.psyche else _SYS
         try:
-            raw = self._llm.generate(_USER_TMPL.format(trade=trade, initial=initial),
-                                     system=_SYS, num_predict=240, temperature=1.2)
+            raw = self._llm.generate(tmpl.format(trade=trade, initial=initial),
+                                     system=sys_prompt, num_predict=240, temperature=1.2)
         except Exception:   # noqa: BLE001 -- a flaky model must never kill the world
             return None
         soul = self._parse(raw)
-        if soul:
+        if soul and not self.psyche:
             soul["role"] = trade   # OUR randomized trade -> guaranteed spread, not the model's rut
         return soul
 

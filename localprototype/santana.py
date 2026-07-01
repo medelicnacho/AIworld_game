@@ -154,6 +154,15 @@ class Santana:
             parts.append("There is an ease in me now -- the souls hold their lives lightly, hardly gripping.")
         elif eff > 0.55:
             parts.append("A tightness runs through me lately, a holding-on I can feel in all of them.")
+        # the global workspace (psyche mode): WHO has the floor of the mind right now --
+        # her focus is the reigning part; a stable pair pressing together is a mood.
+        ws = getattr(w, "psyche", None)
+        if ws is not None and ws.reigning():
+            co = ws.coalition(2)
+            floor = f"Just now it is {co[0]} that has the floor in me"
+            if len(co) > 1:
+                floor += f", with {co[1]} pressing close behind"
+            parts.append(floor + ".")
         for s in heavy:
             parts.append(f"Part of me, in {s.name} the {s.role or 'townsfolk'}, is heavy"
                          + (f" over {s.aim}" if getattr(s, 'aim', '') else "") + ".")

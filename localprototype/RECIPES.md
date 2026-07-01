@@ -181,6 +181,35 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
 - **port:** a special NPC whose "memory" is the town's collective speech; useful as a narrator, a town's
   "spirit," an oracle, or ambient world-voice. Cheap (Markov). A genuinely novel game element.
 
+## G2. The psyche — ONE deep NPC as a society of parts *(the companion/boss recipe)*
+
+- **what:** the inverse of the crowd recipes: one character whose inner drives (Dread, Ache, Longing,
+  Tending, Watcher, Ember) are cheap sub-agents, each **carrying one faculty** (threat-clutch, loss-ledger,
+  wanting, care, metacognition, will-to-recover), competing in a **global workspace** for "the floor" —
+  the current dominant drive. The floor-holder is a single discrete state per tick: drive it into
+  animation, dialogue tone, and behaviour selection directly. Crowd-tier cheap (a handful of floats);
+  the LLM is only needed for the integrating voice.
+- **knobs (validated values):** activation = `sat(gain × faculty signal)` — the **saturation
+  (x/(1+x)) is load-bearing** (unbounded memory-load bids otherwise swamp bounded drives; measured).
+  Split the aversive signals: the fear-drive reads **fresh** charge (window ~20 ticks), the grief-drive
+  the **accumulated ledger** — same fuel and they move as one part (measured). Workspace: leaky presence
+  `decay 0.80` + **fatigue-with-memory** (`build 0.06` while holding the floor, `recover ×0.95` while
+  resting) + **hysteresis** (`challenger > 1.25× incumbent`). Two traps, both measured: an
+  *instantaneous* share-penalty (the F1 formula) freezes on the QUIETEST bidder under steady bids, and
+  no-hysteresis flickers the floor every tick. Fatigue-with-memory is also free game design: it's why a
+  boss can't stay Enraged forever.
+- **validated (held-out seeds, FINDINGS §5.14):** the floor **tracks the world** (grief-drives hold
+  ~half a harsh world's floor, none of a kind one's — it cannot be faked by a fixed ranking) and the
+  drive-succession is **structured** vs chance. That's exactly what a game needs: a mood system that
+  responds to what the player does, with non-random texture.
+- **NOT validated — don't ship these claims (see H):** recurring drive-*coalitions* ("moods") and the
+  floor *predicting* the character's emotional trajectory both failed falsification (0/5).
+- **port:** per-drive: a handful of floats + one activation formula reading the NPC's existing
+  memory/mood state. Workspace: ~30 lines. One bonus dynamic worth keeping: score the loss-ledger only
+  from **world events**, not the NPC's own generated lines — otherwise dark flavour text feeds back as
+  grief and the character sinks regardless of what happens (rumination-by-rehearsal; measured, and it
+  will happen in any engine that writes generated dialogue back into memory).
+
 ---
 
 ## H. Validated NULLS — what NOT to expect (this section saves you weeks)
@@ -197,6 +226,12 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
   add a social mechanic, build the check that it's *emergent* and not just "similar things clump."
 - **Personality-level emergence on small models is not established** (content emerges; personality is contrast-
   gated). Don't promise "NPCs develop personalities from nothing" on a small local model.
+- **The psyche's "moods" and "foreshadowing" are not established** (§5.14, held-out 0/5 both): drive
+  coalitions (Dread+Ache as a recurring pair) don't beat a shift null, and the reigning drive does NOT
+  predict where the character's felt life goes next. The workspace is a world-tracking *readout* — ship
+  it as reactive mood display, not as an inner life that anticipates. Also a measurement trap for your
+  own tests: aperiodic event schedules only — periodic ones hand a circular-shift null the structure
+  you're testing for.
 
 ---
 

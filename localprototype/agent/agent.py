@@ -163,6 +163,8 @@ class Agent:
         self._others_mood: dict = {}         # id -> last overheard felt mood (who is suffering)
         self._others_name: dict = {}         # id -> name, for turning toward them
         self.somatic_enabled = False         # bottom-up circuit-breaker (the window of tolerance); off by default
+        self.psyche_faculty = ""             # psyche mode: the ONE faculty this part carries for the whole
+                                             # mind ("grip"/"salience"/...); "" = an ordinary townsperson
         self._contraction = 0.0              # somatic down-regulation level, 0=open .. 1=fully contracted (read by manas)
         self._somatic_history: list[float] = []   # recent spiral-metric values, for reading the trend
         self._somatic_trips = 0              # how many times the interrupt has fired (a rare-backstop check)

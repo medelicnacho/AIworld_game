@@ -78,11 +78,25 @@ def build_world(town_llm, fast_wheel: bool, psyche: bool = False) -> World:
         phrases = list(seeds) if seeds else [f"I am {name} the {role}", aim]
         persona = (f"You are {name}, {role} -- a part of one mind, not a person."
                    if psyche else f"You are {name} the {role}.")
-        a = Agent(f"s{i}", name, (rng.uniform(0, 900), rng.uniform(0, 600)),
+        # parts of one mind share one place (all in earshot of each other -- one inner
+        # conversation); townsfolk are scattered across the map as before
+        pos = ((450 + rng.uniform(-20, 20), 300 + rng.uniform(-20, 20)) if psyche
+               else (rng.uniform(0, 900), rng.uniform(0, 600)))
+        a = Agent(f"s{i}", name, pos,
                   persona, phrases, town_llm, seed=i, temperament=temp, lifespan=span())
-        _genesis.endow_faculties(a, a._rng)
+        if psyche:
+            # the FUNCTIONAL psyche (PSYCHE.md): each part carries ONE faculty, loud
+            from agent import psyche as _psyche
+            _psyche.endow_part(a, _psyche.FACULTY_OF.get(name, ""), a._rng)
+        else:
+            _genesis.endow_faculties(a, a._rng)
         a.role, a.aim = role, aim
         w.add(a)
+    if psyche:
+        # the global workspace: parts bid for the floor each tick; the winner is the
+        # mind's focus/voice and the faculty couplings run (see agent/workspace.py)
+        from agent.workspace import Workspace
+        w.psyche = Workspace()
     return w
 
 
@@ -129,6 +143,11 @@ def main() -> None:
     resumed_town = w is not None
     if w is None:
         w = build_world(town_llm, args.fast_wheel, psyche=args.psyche)
+    elif args.psyche and getattr(w, "psyche", None) is None:
+        # a world resumed from before the workspace existed: attach one (a no-op
+        # unless the resumed agents actually carry psyche faculties)
+        from agent.workspace import Workspace
+        w.psyche = Workspace()
     mind = Santana(w, santana_llm, culture=args.culture)
     mind.lifetime = 0.0
 
@@ -144,7 +163,7 @@ def main() -> None:
     demiurge = None
     if args.demiurge:
         from services.demiurge import Demiurge
-        demiurge = Demiurge(model=args.author_model)
+        demiurge = Demiurge(model=args.author_model, psyche=args.psyche)
         if not demiurge.available():
             print(f"  (--demiurge: ollama/model '{args.author_model}' not reachable -- running without it)")
             demiurge = None
@@ -169,6 +188,16 @@ def main() -> None:
             except Exception:   # noqa: BLE001
                 pass
             time.sleep(0.6)
+
+    def run_reflect():
+        # psyche mode: the Watcher practices -- one reflection every so often, imprinted
+        # on itself and BROADCAST mind-wide (World.reflect_turn); the mind seeing itself
+        while not stop.is_set():
+            time.sleep(12.0)
+            try:
+                w.reflect_turn()
+            except Exception:   # noqa: BLE001
+                pass
 
     def run_demiurge():
         # the 8B author: on rebirth, dream a NEW soul, write it onto the reborn stream, and feed the
@@ -203,6 +232,8 @@ def main() -> None:
     threads = [threading.Thread(target=run_wheel, daemon=True)]
     if real_town:
         threads.append(threading.Thread(target=run_speech, daemon=True))
+    if args.psyche:
+        threads.append(threading.Thread(target=run_reflect, daemon=True))
     if demiurge is not None:
         threads.append(threading.Thread(target=run_demiurge, daemon=True))
     for t in threads:
