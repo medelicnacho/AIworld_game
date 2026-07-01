@@ -101,6 +101,94 @@ class FacultiesTest(unittest.TestCase):
         self.assertEqual(len(soul.memory.items), before)
 
 
+class RelationshipDepthTest(unittest.TestCase):
+    """The five depth mechanics (§5.17 follow-up): episodes, a person-model, initiative,
+    absence-as-event, and wounds that age into scars once trust is rebuilt."""
+
+    def setUp(self):
+        embed.use_jaccard_only(True)
+
+    def tearDown(self):
+        embed.use_jaccard_only(False)
+
+    def test_a_talk_becomes_one_remembered_episode(self):
+        class Spy:   # a clean voice, so the episode is distinct from the chatter (MockLLM's
+            def generate(self, prompt, **_kw):   # canned block merges into earlier memories)
+                if "just had" in prompt:
+                    return "they were kind to me and I told them of the mill; it left me lighter"
+                return "I hear you."
+        m = _mind()
+        m.llm = Spy()
+        m.converse(WARM)
+        m.converse("tell me of the mill")
+        episode = m.end_talk(now_wall=1000.0)
+        self.assertIn("mill", episode)
+        self.assertTrue(any(mm.source == "talk" for mm in m.memory.items))
+        self.assertEqual(m.last_talk_wall, 1000.0)
+
+    def test_she_keeps_what_they_tell_her_of_themselves(self):
+        m = _mind()
+        m.converse("I love fishing and I built my own boat last spring")
+        m.converse("what is the weather like in you today")   # not about them
+        self.assertEqual(len(m.known_of_them), 1)
+        self.assertIn("boat", m.known_of_them[0])
+
+    def test_an_absence_is_an_event_valenced_by_the_bond(self):
+        m = _mind()
+        m.user_bond.trust = 0.5
+        m.last_talk_wall = 1000.0
+        note = m.begin_talk(now_wall=1000.0 + 3 * 86400)
+        self.assertIn("gone", note)
+        mem = next(mm for mm in m.memory.items if "come back to me" in mm.text)
+        self.assertGreater(mem.emotion, 0.0)          # a loved one's return is warm
+        # no meaningful gap -> no event
+        m2 = _mind()
+        m2.last_talk_wall = 1000.0
+        self.assertEqual(m2.begin_talk(now_wall=1000.0 + 60), "")
+
+    def test_a_wound_ages_into_a_scar_only_after_warmth_since(self):
+        from agent.bond import Bond, describe
+        open_wound = Bond(trust=-0.1, wounds=1, last_event="betrayal")
+        fresh_knife = Bond(trust=0.5, wounds=1, last_event="betrayal")   # loyalty held trust up
+        healed = Bond(trust=0.5, wounds=1, last_event="warmth")
+        self.assertIn("wounded you", describe(open_wound, "them"))
+        self.assertIn("wounded you", describe(fresh_knife, "them"))     # no warmth since -> open
+        self.assertIn("come past it", describe(healed, "them"))
+
+    def test_her_state_shapes_the_form_of_her_speech(self):
+        class Spy:
+            def __init__(self):
+                self.prompts = []
+            def generate(self, prompt, **_kw):
+                self.prompts.append(prompt)
+                return "I hear you."
+        # wounded + low trust -> guarded and brief
+        hurt = _mind()
+        hurt.llm = Spy()
+        hurt.user_bond.wounds, hurt.user_bond.trust = 1, 0.0
+        hurt.converse("hello")
+        self.assertIn("guardedly", hurt.llm.prompts[-1])
+        # deep trust -> at ease, offers more
+        easy = _mind()
+        easy.llm = Spy()
+        easy.user_bond.trust = 0.6
+        easy.converse("hello")
+        self.assertIn("at ease", easy.llm.prompts[-1])
+
+    def test_an_unresolved_wound_gives_her_the_impulse_to_ask(self):
+        class Spy:
+            def __init__(self):
+                self.prompts = []
+            def generate(self, prompt, **_kw):
+                self.prompts.append(prompt)
+                return "why did you hurt me"
+        m = _mind()
+        m.llm = Spy()
+        m.user_bond.wounds, m.user_bond.trust = 1, 0.0
+        m.converse("hello there")
+        self.assertIn("name it and ask", m.llm.prompts[-1])
+
+
 class PersistenceTest(unittest.TestCase):
     def setUp(self):
         embed.use_jaccard_only(True)
@@ -122,6 +210,8 @@ class PersistenceTest(unittest.TestCase):
         self.assertAlmostEqual(fresh.exp_fast, m.exp_fast)
         self.assertEqual(fresh.talk, m.talk)
         self.assertIn("user", fresh._conduct_expect)
+        self.assertEqual(fresh.known_of_them, m.known_of_them)
+        self.assertEqual(fresh.last_talk_wall, m.last_talk_wall)
 
     def test_a_pre_faculty_snapshot_loads_cleanly(self):
         old = {"identity": "an old mind", "last": "", "said": [], "mt": 40,

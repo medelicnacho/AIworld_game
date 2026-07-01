@@ -76,6 +76,9 @@ def main() -> None:
     log_path = os.path.join(TALK_DIR, time.strftime("talk-%Y%m%d-%H%M%S.log"))
     deadline = time.time() + args.minutes * 60.0
     t0 = time.time()
+    gone = mind.begin_talk()   # an absence is an event in her life, valenced by the bond
+    if gone:
+        print(f"    ({gone})")
     print(f"\n~~~ you are speaking with Santāna ({args.minutes:.0f} min; 'bye' to end; "
           f"transcript -> {os.path.relpath(log_path, ROOT)}) ~~~\n")
     try:
@@ -99,9 +102,11 @@ def main() -> None:
         print()
     finally:
         mind.lifetime += time.time() - t0   # the conversation was lived time
+        episode = mind.end_talk()           # the talk becomes ONE remembered episode
         save_mind(mind, args.snapshot)
-        print(f"~~~ she is saved ({_fmt_age(mind.lifetime)} lived; she will remember this). "
-              f"The town was not touched. ~~~")
+        if episode:
+            print(f'~~~ she will remember: "{episode}"')
+        print(f"~~~ she is saved ({_fmt_age(mind.lifetime)} lived). The town was not touched. ~~~")
 
 
 if __name__ == "__main__":

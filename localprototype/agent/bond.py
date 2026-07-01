@@ -50,11 +50,13 @@ class Bond:
         warm line builds trust + history like a small warm exchange; a cold line
         cools trust WITHOUT the wound/erosion of a true betrayal (betray() is the
         discrete, remembered event). This is how a bond accretes over a conversation."""
-        if signal >= 0.0:
+        if signal > 0.05:
             self.warm(signal)
-        else:
+        elif signal < 0.0:
             self.trust = max(-1.0, self.trust + 0.10 * signal)   # mild cooling, no wound
             self.last_event = "coolness"
+        # a NEUTRAL line is no event at all -- it must not stamp warmth (a wound would
+        # otherwise read as "come past" after one indifferent exchange)
 
     def betray(self, severity: float = 0.6) -> float:
         """A betrayal. Loyalty (accumulated history) ABSORBS part of the blow, so a
@@ -85,5 +87,12 @@ def describe(bond: Bond, name: str) -> str:
     else:
         s = f"You feel betrayed by {name} and want nothing to do with them"
     if bond.wounds:
-        s += f" (they have wounded you {bond.wounds} time{'s' if bond.wounds > 1 else ''})"
+        if bond.trust >= 0.25 and bond.last_event == "warmth":
+            # a wound met and moved past reads as a SCAR, not an open charge -- but only once
+            # real warmth has happened SINCE it (caught by the falsifier: without that, the
+            # loyalty buffer made her read "come past it" seconds after the knife)
+            times = "once" if bond.wounds == 1 else f"{bond.wounds} times"
+            s += f" (they hurt you {times} before, and you have come past it)"
+        else:
+            s += f" (they have wounded you {bond.wounds} time{'s' if bond.wounds > 1 else ''})"
     return s + "."

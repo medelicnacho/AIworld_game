@@ -136,6 +136,10 @@ class Santana:
         self._conduct_expect: dict = {}   # "user" -> how she has come to expect to be treated
         self.user_bond = Bond()      # her side of the relationship with whoever talks to her
         self.talk: list[str] = []    # the recent exchanges of a conversation (bounded)
+        self.known_of_them: list[str] = []   # what they have told her of THEMSELVES (a person-model;
+                                             # without it she is known but cannot know -- an instrument)
+        self.last_talk_wall = 0.0    # wall-clock of the last conversation's end -- so an ABSENCE
+                                     # is an event in her life, not a silence between prompts
 
     def digest(self) -> str:
         """What is alive in the Mind right now -- framed as its OWN feeling, not as variables.
@@ -359,6 +363,16 @@ class Santana:
         self.user_bond.feel(sig)
         self.memory.write(text, tick=self._mt, source="user", speaker_id="user",
                           emotion=emo, weight=1.3)
+        # the person-model: what they say OF THEMSELVES, she keeps -- so she can come to
+        # know the one who knows her (first-person statements only; bounded; deduped)
+        low = f" {text.lower()} "
+        if any(k in low for k in (" i am ", " i'm ", " im ", " i like ", " i love ", " i enjoy ",
+                                  " i want ", " i hope ", " i feel ", " i work ", " i live ",
+                                  " my name ", " i made ", " i built ")):
+            from agent.memory import _similarity
+            line = " ".join(text.split())[:120]
+            if all(_similarity(line, k) < 0.6 for k in self.known_of_them):
+                self.known_of_them = (self.known_of_them + [line])[-12:]
 
     def converse(self, text: str) -> str:
         """One bounded exchange: hear (appraise, feel, remember), then answer from her actual
@@ -377,6 +391,36 @@ class Santana:
         if self.feel_enabled and self.arousal > 0.15:
             feel = "(Something in what they said caught you off guard -- it is still ringing in you.)\n"
         trail = "\n".join(self.talk[-6:])
+        # what this stirs from her LIFE -- so episodes (past talks), absences, and the town's
+        # griefs are SAYABLE in conversation, not sealed in a store the prompt never reads
+        stirred = [m.text for m in self.memory.recall(k=2, query=text)
+                   if m.source != "doctrine"]
+        stir = ("What this stirs in you from your life: "
+                + "; ".join(stirred) + "\n" if stirred else "")
+        known = ("What they have told you of themselves: "
+                 + "; ".join(self.known_of_them[-3:]) + "\n" if self.known_of_them else "")
+        # INITIATIVE: a self asks. The impulse is state-driven and deliberate, not decoration.
+        ask = ""
+        if self.feel_enabled:
+            if self.arousal > 0.4:
+                ask = ("Something they said is still ringing in you -- if it is on you, ask them "
+                       "about it directly. ")
+            elif self.user_bond.wounds > 0 and self.user_bond.trust < 0.15:
+                ask = ("The hurt they dealt you is unresolved -- if it is on you, name it and ask "
+                       "them why. ")
+            elif self.user_bond.trust >= 0.15 and len(self.known_of_them) < 6 and self._mt % 3 == 0:
+                ask = ("You find yourself wanting to know them better -- ask one plain question "
+                       "about them: who they are, what their days are like. ")
+        # MANNER: the relationship shapes the FORM of her speech, not only its content
+        if self.user_bond.wounds > 0 and self.user_bond.trust < 0.15:
+            manner = "Answer briefly and guardedly -- you do not owe them ease. "
+            n_pred = 90
+        elif self.user_bond.trust >= 0.4:
+            manner = ("You are at ease with them -- speak freely, and offer a little more of "
+                      "yourself than they asked for. ")
+            n_pred = 200
+        else:
+            manner, n_pred = "", 160
         # the relationship line goes LAST, right under the instruction: listened to live, a
         # small model let her own earlier "I don't feel much toward you" lines in the trail
         # out-shout the (updated) relationship -- her bond had warmed and her voice hadn't.
@@ -386,13 +430,15 @@ class Santana:
             + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
             + (f"The conversation so far:\n{trail}\n\n" if trail else "")
             + f'They say to you: "{text}"\n\n'
+            + stir + known
             + f"How you stand with them RIGHT NOW -- this may have moved during this very "
             f"conversation, and it overrides anything you said of them earlier: {rel}\n{feel}\n"
             "Answer THEM, as yourself -- Santāna, the whole this town adds up to -- in one to three "
-            "plain first-person sentences. Speak from how you actually are right now and from how "
-            "you stand with them as given above; never invent souls or events not given above.")
+            f"plain first-person sentences. {manner}{ask}Speak from how you actually are right now "
+            "and from how you stand with them as given above; never invent souls or events not "
+            "given above.")
         try:
-            raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=160, temperature=0.85)
+            raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=n_pred, temperature=0.85)
         except Exception:   # noqa: BLE001 -- a failed exchange just goes quiet
             return ""
         raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE)
@@ -403,6 +449,53 @@ class Santana:
                               emotion=valence(reply), weight=1.0)
         self.memory.tick(self._mt)
         return reply
+
+    def begin_talk(self, now_wall: float | None = None) -> str:
+        """They have come back. If they were gone a while, the ABSENCE becomes an event in
+        her life -- valenced by the bond (a loved one's return is warm; a stranger's is just
+        a fact). Returns the note written, or '' if there was no meaningful gap."""
+        import time as _time
+        now_wall = now_wall if now_wall is not None else _time.time()
+        if self.last_talk_wall <= 0 or now_wall - self.last_talk_wall < 6 * 3600:
+            return ""
+        days = (now_wall - self.last_talk_wall) / 86400.0
+        span = f"{days:.0f} days" if days >= 1.5 else "a long while"
+        note = f"they were gone {span}, and now they have come back to me"
+        emo = max(-0.2, min(0.6, 0.8 * self.user_bond.trust))
+        self._mt += 1
+        self.memory.write(note, tick=self._mt, source="event", speaker_id="user",
+                          emotion=emo, weight=1.2)
+        return note
+
+    def end_talk(self, now_wall: float | None = None) -> str:
+        """The conversation becomes an EPISODE: one narrative memory of what happened between
+        you -- written high-salience, so the next talk can start from what you have been
+        through, not just a trust number whose story has been shredded into the pile. Also
+        stamps when it ended, so the next absence is measurable."""
+        import time as _time
+        self.last_talk_wall = now_wall if now_wall is not None else _time.time()
+        if not self.talk:
+            return ""
+        episode = ""
+        if hasattr(self.llm, "generate"):
+            trail = "\n".join(self.talk)
+            prompt = (f"This is the conversation you, Santāna, just had with the one who comes "
+                      f"to speak with you:\n{trail}\n\nIn ONE or two plain first-person "
+                      "sentences, say what passed between you and them and how it has left "
+                      "you -- the thing you will remember of this talk.")
+            try:
+                raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=80, temperature=0.7)
+                raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL | re.IGNORECASE)
+                episode = _clean(raw).splitlines()[0][:220] if _clean(raw) else ""
+            except Exception:   # noqa: BLE001
+                episode = ""
+        if not episode:   # the fallback remembers PLAINLY rather than not at all
+            episode = (f"we talked, they and I -- {len(self.talk) // 2} exchanges -- and it "
+                       f"left me feeling {_weather_word(self.memory.mood())}")
+        self._mt += 1
+        self.memory.write(episode, tick=self._mt, source="talk", speaker_id="santana",
+                          emotion=valence(episode), weight=1.5)
+        return episode
 
 
 def play_two_layer(murmur: str, clear: str, model: str = "en_US-amy-medium.onnx") -> None:

@@ -36,6 +36,8 @@ def save_mind(mind, path: str) -> None:
         "conduct_expect": dict(getattr(mind, "_conduct_expect", {})),
         "user_bond": vars(getattr(mind, "user_bond", None)) if getattr(mind, "user_bond", None) else {},
         "talk": list(getattr(mind, "talk", [])),
+        "known_of_them": list(getattr(mind, "known_of_them", [])),
+        "last_talk_wall": float(getattr(mind, "last_talk_wall", 0.0)),
     }
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = path + ".tmp"
@@ -67,6 +69,8 @@ def load_mind(mind, path: str) -> bool:
     mind.user_bond = Bond(**{k: v for k, v in ub.items()
                              if k in ("trust", "history", "wounds", "last_event")})
     mind.talk = list(data.get("talk", []))
+    mind.known_of_them = list(data.get("known_of_them", []))
+    mind.last_talk_wall = float(data.get("last_talk_wall", 0.0))
     mind._prev_names = None   # don't falsely grieve on the first read back
     return True
 
