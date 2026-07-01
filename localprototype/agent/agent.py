@@ -702,7 +702,8 @@ class Agent:
             from agent import expectation as _expectation
             emo = _expectation.appraise_event(self, ev.emotion)
         self.memory.write(ev.description, tick=now, source="event",
-                          speaker_id=None, emotion=emo)
+                          speaker_id=None, emotion=emo,
+                          lore_id=getattr(ev, "lore_id", ""))
         self.last_event_text = ev.description
         self.speak_urge += ev.urge
 

@@ -190,6 +190,28 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
 
 ### F2. Factions — see **A4** (bounded confidence). Same family: local rules → global structure.
 
+### F4. Legends — gossip that mutates into myth *(§5.16 — the "the town misremembers what you did" recipe)*
+- **what:** a real event (a hardship, a player's deed) outlives its witnesses as a **legend**: NPCs
+  retell their *current, already-drifted* memory of it to a few nearby hearers; each copy keeps
+  blurring (A1's mutation) while a provenance tag survives every retelling. Generations later, no
+  witness alive, the town still tells a changed-but-traceable version — and the player can trace the
+  myth back to the true event they caused. No shipped game has this; the substrate is ~60 lines.
+- **knobs (validated):** retell every `25-60` ticks per NPC, to **`fanout 2`** hearers (sparse is
+  LOAD-BEARING: a broadcast keeps every copy "rehearsed" and rehearsal blocks mutation → verbatim
+  fossil; a fireside leaves quiet stretches to drift) · retell weight `0.5`, teller self-reinforce
+  `0.15` (rehearsal ages well-told stories slowly — for free, since mutation only fires on untouched
+  memories) · **communal repair with a margin**: on merging the same story, adopt the incoming text
+  only if it's **≥2 words fuller** — both failure modes measured: no repair → half the legends decay
+  to mush; repair-on-any-longer → verbatim fossilization, no path-dependence.
+- **validated (held-out seeds, §5.16):** outlives all witnesses 5/5 (ambient murmur alone: 0/5 —
+  retelling is the mechanism); changed in the telling 5/5; traceable 4/5 (the 1/5 loss is honest —
+  **a myth can still die**, which for a game is drama, not a bug); converges on a canonical telling
+  5/5; each seed's legend drifts differently (cross-seed overlap 0.55).
+- **port:** one `lore_id` string per memory + a retell timer per NPC + the margin rule in the memory
+  merge. Feed the current dominant variant to the LLM tier as "the story everyone tells" for named
+  NPCs to voice in character. Quest hook for free: the discrepancy between the legend and the
+  provenance-linked truth *is* a mystery plot.
+
 ### F3. The whole emergence recipe (the load-bearing idea)
 > **variation** (Demiurge / mutation) + **heredity** (the wheel carries disposition) + **selection with
 > self-limiting fitness** (cultural eras / faction dynamics) = structure the designer didn't script, different

@@ -125,7 +125,10 @@ def hardship(world, victims, now, kind="flood") -> None:
         if getattr(v, "expect_enabled", False):
             from agent import expectation
             emo = expectation.appraise_event(v, emo)
-        v.memory.write(f"the {kind} took my provisions", now, source="event", emotion=emo)
+        # tagged with provenance: a hardship is a STORY SEED -- with lore on, the flood's
+        # survivors retell it, and it can outlive them as the legend of this very tick
+        v.memory.write(f"the {kind} took my provisions", now, source="event", emotion=emo,
+                       lore_id=f"{kind}:{now}")
     for i, v in enumerate(victims):
         for w in victims[i + 1:]:
             amt = COSUFFER_BOND * 0.5 * (v.compassion + w.compassion)

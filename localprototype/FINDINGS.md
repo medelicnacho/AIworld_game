@@ -584,6 +584,42 @@ Honest frame (§7): a self that expects, is surprised, is betrayed *by the viola
 act*, and turns its own story at a real break is more **functionally** realistic. Nothing here
 touches "is anyone home".
 
+### 5.16 Lore — a true event outlives its witnesses as a mutating, convergent, traceable legend
+
+Gossip→legend, built by *chaining two dynamics the substrate already had*: memories BLUR as they
+age (`MemoryStore._mutate`) and speech seeds listeners' memories. `agent/lore.py` (opt-in
+`World.lore_enabled`, viewer `--lore`) makes souls **retell their most salient story** — their
+memory's *current, already-drifted* text — to a **few** nearby hearers; provenance (`Memory.lore_id`,
+carried through every retelling, stamped on stakes hardships too) is ground truth back to the event
+while the words change. Three mechanism findings, each measured:
+
+- **Sparse gossip is load-bearing** (`RETELL_FANOUT 2`): rehearsal (being re-heard) shields a copy
+  from mutation, so a *broadcast* freezes the legend into a verbatim record; a fireside leaves the
+  quiet stretches in which each holder's copy drifts.
+- **Communal error-correction with a margin** (a merge adopts an incoming telling of the same story
+  only if it is **≥2 words fuller**): both failure modes were hit first — *no* repair and ~half the
+  runs decayed to untraceable mush ("Remember glow the those"); repair on *any* longer telling and
+  the legend fossilised verbatim (path-dependence died, cross-seed overlap 0.94). The margin lets
+  blur, reorder, and single-word loss drift while catastrophic loss is caught.
+- **Rehearsal stabilizes for free**: `_mutate` only fires on memories untouched for 20 ticks, so
+  well-told stories drift slowly and neglected copies rot — no new machinery.
+
+**Falsified (`experiment_lore.py`): one event at t=50, 3 witnesses of 8 souls, lifespans 250–450 of
+a 2000-tick run — every founder dead by the end. Tuned on seeds 11–15 (both repair failure modes
+recorded), verdict from held-out 21–25 — ALL FIVE PASS:** TRANSMISSION 5/5 (the murmur-only null
+carried the story to **zero** souls in every run — retelling is load-bearing); LEGEND 5/5 (changed
+in the telling); TRACEABLE 4/5 (overlap 0.62–0.69; the 1/5 miss — "glow and half child and yet
+and" — is the honest bound: **a myth can still be lost**); CONVERGENCE 5/5 (top-variant share
+0.58–1.00 — a canonical telling emerges); PATH-DEPENDENCE (cross-seed overlap 0.55 — each town's
+legend drifts its own way). The held-out legends, verbatim: *"the flood in the dark took the child
+and the winter stores"*, *"the great flood in the dark the child and half the winter stores"* —
+night→dark is the BLUR table living its purpose.
+
+Honest bounds: substrate-only (the *voice* retelling legends in character needs a real model, not
+claimed); the survival metric is word-overlap (a legend that drifted semantically-faithfully but
+lexically far would read as lost); convergence is partly the merge rule's doing (designed), the
+*direction* of drift is the emergent part. §7 unchanged.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

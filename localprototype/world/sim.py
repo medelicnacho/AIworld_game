@@ -91,6 +91,10 @@ class World:
         # winner is the mind's focus/voice, and the faculty couplings run. Default None:
         # every ordinary world (and saved snapshot) is untouched.
         self.psyche = None
+        # Lore (agent/lore.py): souls retell their most salient story -- gossip whose
+        # text mutates holder to holder while its provenance tag survives, so a real
+        # event can outlive its witnesses as a LEGEND. Off by default.
+        self.lore_enabled = False
         # how much of a strong bond's trust survives the bardo as a faint leaning in
         # the reborn stream (0 = love does not survive death; 0.5 = half, faded)
         self.bond_vasana = 0.5
@@ -155,8 +159,9 @@ class World:
         self.lock = threading.RLock()
         if self.bus is None:
             self.bus = EventBus()
-        # snapshots saved before the functional psyche existed lack the attribute
+        # snapshots saved before the functional psyche / lore existed lack the attributes
         self.__dict__.setdefault("psyche", None)
+        self.__dict__.setdefault("lore_enabled", False)
 
     def _remember_said(self, text: str) -> None:
         self.recent.append(text)
@@ -224,6 +229,10 @@ class World:
         #      the urge to speak BEFORE this tick's floor is contested below
         if self.psyche is not None:
             self.psyche.step(self)
+        # 1.8) lore: souls retell their stories (gossip -> legend), memory-only like murmur
+        if self.lore_enabled:
+            from agent import lore
+            lore.retell(self)
         # 2) urge-based turn: highest urge over threshold grabs the floor
         ready = [a for a in self.agents if a.wants_to_speak(self.speak_threshold)] if speak else []
         if ready:
@@ -575,6 +584,9 @@ class World:
                 stakes.step(self)
             if self.psyche is not None:    # the workspace: parts bid for the floor
                 self.psyche.step(self)
+            if self.lore_enabled:          # lore: stories are retold (gossip -> legend)
+                from agent import lore
+                lore.retell(self)
             self._reap()
             self._process_bardo()    # streams ripen out of the bardo into new lives
             if self.breed_enabled and not self.rebirth_enabled:   # living reproduction

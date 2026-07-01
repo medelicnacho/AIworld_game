@@ -152,6 +152,10 @@ class Memory:
     speaker_id: str | None = None
     emotion: float = 0.0         # valence -1..1 (placeholder for now)
     mutation_count: int = 0
+    lore_id: str = ""            # provenance: the event this memory descends from, carried
+                                 # through retellings (agent/lore.py) -- ground truth for
+                                 # tracing a LEGEND back to what actually happened. The text
+                                 # mutates; the tag does not. "" = not a story.
 
 
 class MemoryStore:
@@ -165,12 +169,14 @@ class MemoryStore:
 
     # --- writing -----------------------------------------------------------
     def write(self, text: str, tick: int, source: str, speaker_id: str | None = None,
-              emotion: float = 0.0, weight: float = 1.0) -> Memory:
+              emotion: float = 0.0, weight: float = 1.0, lore_id: str = "") -> Memory:
         """Store a new memory, or reinforce an existing similar one.
 
         `weight` scales how strongly the memory lands: a graced speaker's words
         imprint hard (high weight), a fallen one's barely stick. Sacred doctrine
         is written with high weight too, so it sits near-permanent in the soul.
+        `lore_id` carries provenance (which event a retold story descends from);
+        a merge inherits it if the resident copy has none.
         """
         # derive emotional charge from the words unless the caller gave one
         emo = emotion if emotion else valence(text)
@@ -179,10 +185,21 @@ class MemoryStore:
                 m.salience = min(1.0, m.salience + REINFORCE_BUMP * weight)
                 m.last_touched_tick = tick
                 m.emotion = (m.emotion + emo) / 2
+                if lore_id and not getattr(m, "lore_id", ""):
+                    m.lore_id = lore_id
+                elif lore_id and getattr(m, "lore_id", "") == lore_id:
+                    # communal error-correction (oral tradition): a NOTICEABLY fuller telling
+                    # of the same story displaces my more-decayed version. The >=2-word margin
+                    # is load-bearing, both failure modes measured: repair on ANY longer
+                    # telling freezes the legend verbatim (path-dependence dies); no repair
+                    # and ~half the runs decay to untraceable mush. Single-word losses, blur,
+                    # and reorder still drift -- catastrophic loss gets caught.
+                    if len(text.split()) >= len(m.text.split()) + 2:
+                        m.text = text
                 return m
         mem = Memory(text=text, salience=min(1.0, WRITE_SALIENCE * weight),
                      created_tick=tick, last_touched_tick=tick, source=source,
-                     speaker_id=speaker_id, emotion=emo)
+                     speaker_id=speaker_id, emotion=emo, lore_id=lore_id)
         self.items.append(mem)
         return mem
 

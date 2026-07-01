@@ -467,6 +467,10 @@ def main() -> None:
     ap.add_argument("--psyche", action="store_true",
                     help="the souls are PARTS OF ONE MIND (Dread, Ache, Longing...) not townsfolk -- so she "
                          "reads as a mind in motion, not a narrator of a village (see agent/psyche.py)")
+    ap.add_argument("--lore", action="store_true",
+                    help="gossip -> legend (agent/lore.py): souls RETELL their most salient story; the "
+                         "text mutates teller to teller while its provenance survives, so a hardship "
+                         "can outlive its witnesses as a legend of the thing that really happened")
     ap.add_argument("--demiurge", action="store_true",
                     help="an 8B (ollama) dreams up NEW souls at rebirth + seeds the living corpus the "
                          "markov + consolidation read (novelty injection -- see services/demiurge.py)")
@@ -591,6 +595,8 @@ def main() -> None:
                                        rebirth=args.rebirth or args.bodhisattva, start=start,
                                        fast_wheel=args.fast_wheel, bodhisattva=args.bodhisattva,
                                        culture=args.culture, psyche=args.psyche)
+            if args.lore:   # gossip -> legend: souls retell, stories outlive their witnesses
+                _built["wc"][0].lore_enabled = True
         except Exception as exc:  # noqa: BLE001
             _built["err"] = exc
 

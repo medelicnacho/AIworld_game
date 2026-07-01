@@ -44,6 +44,8 @@ class WorldEvent:
     emotion: float = 0.0                   # emotional charge written into memory, -1..1
     urge: float = 0.4                      # how strongly it makes agents want to react
     scope: tuple[str, ...] | None = None   # agent ids it reaches; None = everyone
+    lore_id: str = ""                      # provenance tag: set it and the witnesses' memories
+                                           # are traceable through retellings (agent/lore.py)
 
 
 class EventBus:
