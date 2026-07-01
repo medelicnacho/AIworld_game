@@ -162,6 +162,14 @@ null.** What survives is humbler and real — *continuity = stability-by-dilutio
 the Markov voice; whether the attention-bearing **GPT** does more than dilute is the honest next test.
 Written up as FINDINGS §5.12. The best kind of result: a beautiful claim, killed by our own instrument.
 
+Then the follow-up §5.12 demanded (`experiment_continuity_gpt.py`): the same test on the from-scratch
+**GPT**. It is *not* the Markov — the out/in novelty ratio collapses **1.44 → 0.38 → 0.00** with memory
+(the chain was flat 1.0), strongly non-proportional. But we refused to crown it "digestion": three
+confounds (rare-token underweighting, undertraining at fixed steps, char-level exact-match) all push
+that way. Honest verdict: the attention model does something the chain cannot (real) but "contextual
+digestion vs artifacts" is **unresolved** — the romantic reading is un-refuted for the GPT, not confirmed.
+The clean test (frequency-matched placebo token + matched-loss + prob metric) is specified, pending.
+
 ---
 
 *The discipline that runs through all of it (`FINDINGS §7`): a self that learns is a more

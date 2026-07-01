@@ -430,6 +430,23 @@ this indicts the **Markov** voice, which can only dilute; the **slow GPT** has a
 re-weight novelty by context in a way a chain cannot — **untested, the genuine next experiment.** This
 is the section we are most glad to have: a pretty claim, killed by our own instrument. See [[method]] §4.
 
+**The GPT follow-up — different from the chain, but too confounded to crown** (`experiment_continuity_gpt.py`).
+The Markov *structurally* can only dilute, so we re-ran the identical test with a from-scratch GPT (the
+attention-bearing voice, which *could* re-weight by context). It is emphatically **not** the Markov: the
+out/in novelty ratio **collapses 1.44 → 0.38 → 0.00** as memory mass grows (0 → 30 → 180 lines) — strongly
+*non-proportional*, over-representing novelty when blank and emitting none when memory-heavy. Tempting to
+read as "the structured self *digests* novelty to nothing." We do not, because the drop is **badly
+confounded**, every confound pushing the same way: (1) markers become rare (10.9% → 0.9%) and neural nets
+under-emit rare tokens; (2) at fixed steps the bigger corpus is *less converged* (loss 0.14 → 0.21), and
+rare tokens drop first; (3) char-level exact-match scores garbled near-misses as zero, so the `0.000` is
+partly a *measurement* artifact. Honest status: **the attention model does something the chain cannot
+(real), in the direction of super-linear suppression — but "contextual digestion" vs
+frequency/undertraining/measurement artifacts is UNRESOLVED.** The romantic reading is *un-refuted for the
+GPT, not confirmed.* The clean test is specified: a **frequency-matched placebo token** in the *anchor*
+(if the novelty is suppressed *more* than it ⇒ a genuine contextual effect), **matched-loss** training,
+and a **teacher-forced-probability** metric robust to garbling. Pending — the discipline is to not claim
+the exciting version until that runs.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
