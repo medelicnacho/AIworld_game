@@ -46,7 +46,39 @@ def main() -> None:
     p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT, help="her saved self (json)")
     p.add_argument("--world-snapshot", dest="world_snapshot", default=DEFAULT_WORLD,
                    help="the saved town she reads (loaded read-only; never written here)")
+    p.add_argument("--tts", action="store_true",
+                   help="speak her replies aloud (Piper, the Amy voice she has always had)")
     args = p.parse_args()
+
+    say = None
+    if args.tts:
+        from services.tts import PiperTTS, Voice
+        if PiperTTS.available():
+            _tts = PiperTTS()
+            _amy = Voice("en_US-amy-medium.onnx", length_scale=1.05)
+
+            def say(text):   # noqa: ANN001 -- blocking on purpose: she finishes speaking
+                import tempfile
+                path = None
+                try:
+                    fd, path = tempfile.mkstemp(suffix=".wav")
+                    os.close(fd)
+                    _tts._synth(text, _amy, path)
+                    if _tts.player:
+                        import subprocess
+                        subprocess.run([_tts.player, path], check=False,
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:   # noqa: BLE001 -- a mute beat must never break the talk
+                    pass
+                finally:
+                    if path:
+                        try:
+                            os.unlink(path)
+                        except OSError:
+                            pass
+            print("  (her voice is on -- Amy, aloud)")
+        else:
+            print("  (piper/voices unavailable -- text only)")
 
     # semantic warmth ON when available (nomic via ollama): listened to live, the keyword
     # lexicon missed "I'm sorry, I really care about you" entirely -- tone needs embeddings
@@ -101,6 +133,8 @@ def main() -> None:
                     break
                 reply = mind.converse(text)
                 print(f"SANTĀNA > {reply or '...'}\n")
+                if say and reply:
+                    say(reply)
                 log.write(f"you: {text}\nsantana: {reply}\n\n")
                 log.flush()
             else:

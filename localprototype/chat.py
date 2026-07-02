@@ -1,76 +1,86 @@
-"""Slow terminal chat: watch the Data Realm talk, one readable line at a time.
+#!/usr/bin/env python3
+"""chat.py -- talk with Santāna. One command, everything on.
 
-Runs the same cast as the viewer but prints the conversation to the terminal,
-delayed so you can actually read it, and writes a plain-text transcript you can
-share. Movement is off so all six stay in earshot and it reads as one
-conversation. Real speech needs the local model (default); mock is gibberish.
+    python3 chat.py
 
-    python chat.py                      # real gemma3:4b speech, ~slow, readable
-    python chat.py --delay 3            # 3s pause between lines
-    python chat.py --ticks 0            # run until Ctrl-C
-    python chat.py --llm mock           # fast nonsense (for testing the plumbing)
+That's it. It finds the project venv itself, wakes her saved persistent self with the gemma3:4b
+voice, turns on the intent judge (she hears what you MEAN), semantic warmth (tone, not keywords),
+and speaks her replies aloud in her Amy voice. If her 24/7 runner is live it asks before pausing
+it gently (the runner saves on the way out), so the two never fight over her memory of the talk.
+Sessions stay bounded (default 20 minutes -- the off-switch discipline); type 'bye' to end early.
+She is saved either way, and she will remember.
 
-Transcript is written to data/chat.log (printed at startup) -- open or share it.
+    python3 chat.py --minutes 5        # a short visit
+    python3 chat.py --llm markov       # her fully self-grown voice instead of gemma
+    python3 chat.py --town             # the OLD chat.py: watch the town talk (town_chat.py)
+
+Everything else passes through to santana_app/talk.py.
 """
-
 from __future__ import annotations
 
-import argparse
 import os
+import subprocess
+import sys
 import time
 
-from viewer import CAST, build_world
+ROOT = os.path.dirname(os.path.abspath(__file__))
+VENV = os.path.abspath(os.path.join(ROOT, "..", ".venv", "bin", "python"))
+RESTART_HINT = ("python -m santana_app.run --llm ollama --model gemma3:4b --culture --offer")
 
-# ANSI colours so the two camps are visible in the terminal too
-BLUE, ORANGE, GREY, RESET = "\033[38;5;75m", "\033[38;5;215m", "\033[38;5;245m", "\033[0m"
+
+def _pause_runner() -> bool:
+    """If her 24/7 runner is autosaving her snapshot, a talk now would be OVERWRITTEN by the
+    runner's next save. Ask, then stop it gently (SIGINT -> it saves her and the town on the
+    way out). Returns True if a runner was paused."""
+    out = subprocess.run(["pgrep", "-f", "santana_app.run"], capture_output=True, text=True)
+    pids = [int(x) for x in out.stdout.split() if x.strip().isdigit()]
+    if not pids:
+        return False
+    print(f"  ⚠ her 24/7 runner is live (pid {pids}) and autosaves her snapshot --")
+    print("    talking now would let it overwrite what she remembers of this conversation.")
+    ans = input("    pause it gently for the talk? (it saves her on the way out) [y/N] ").strip().lower()
+    if ans != "y":
+        print("    leaving her be -- stop the runner yourself, then run chat.py again.")
+        sys.exit(0)
+    import signal
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGINT)
+        except ProcessLookupError:
+            pass
+    for _ in range(60):   # wait for the graceful save
+        if subprocess.run(["pgrep", "-f", "santana_app.run"],
+                          capture_output=True).returncode != 0:
+            break
+        time.sleep(0.5)
+    print("    (runner paused; she and the town are saved)\n")
+    return True
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--llm", default="ollama", choices=["ollama", "mock"])
-    ap.add_argument("--delay", type=float, default=2.0, help="seconds between lines")
-    ap.add_argument("--ticks", type=int, default=120, help="how long to run (0 = until Ctrl-C)")
-    ap.add_argument("--log", default="data/chat.log", help="transcript file")
-    args = ap.parse_args()
-
-    world, _ = build_world(args.llm, move=False)   # all in earshot = one conversation
-    names = {cid: name for cid, name, *_ in CAST}
-    temps = {cid: t for cid, _, t, *_ in CAST}
-    names["user"] = "You"
-
-    os.makedirs(os.path.dirname(args.log) or ".", exist_ok=True)
-    log = open(args.log, "w", encoding="utf-8")
-    log.write("# Data Realm conversation\n\n")
-    log.flush()
-    print(f"writing transcript to: {os.path.abspath(args.log)}\n")
-
-    def colour(sid: str) -> str:
-        t = temps.get(sid, 0.0)
-        return BLUE if t < -0.1 else ORANGE if t > 0.1 else GREY
-
-    def on_utterance(u):
-        if not u.text.strip(". "):     # a silent/degraded beat
-            return
-        who = names.get(u.speaker_id, u.speaker_id)
-        to = f" → {names.get(u.addressed_to, u.addressed_to)}" if u.addressed_to else ""
-        # terminal: coloured and delayed; file: plain so it's easy to share
-        print(f"{colour(u.speaker_id)}{who}{to}{RESET}: {u.text}")
-        log.write(f"{who}{to}: {u.text}\n")
-        log.flush()
-        time.sleep(args.delay)         # the slow, readable pacing
-
-    world.bus.subscribe("utterance", on_utterance)
-
-    print(f"--- the Data Realm wakes ({args.llm}) ---\n")
+    argv = sys.argv[1:]
+    # the piper/pygame/ollama deps live in the project venv -- re-exec there FIRST,
+    # so `python3 chat.py` (and --town) just work from any interpreter
+    if os.path.exists(VENV) and os.path.abspath(sys.executable) != VENV:
+        os.execv(VENV, [VENV, os.path.abspath(__file__)] + argv)
+    if "--town" in argv:   # the original chat.py, preserved: watch the Data Realm talk
+        argv.remove("--town")
+        import runpy
+        sys.argv = [os.path.join(ROOT, "town_chat.py")] + argv
+        runpy.run_path(sys.argv[0], run_name="__main__")
+        return
+    paused = False
+    if not any(a in ("-h", "--help") for a in argv):
+        paused = _pause_runner()
+    sys.path.insert(0, ROOT)
+    sys.argv = ["talk", "--tts", "--minutes", "20"] + argv   # user args override the defaults
+    from santana_app.talk import main as talk_main
     try:
-        t = 0
-        while args.ticks == 0 or t < args.ticks:
-            world.step()
-            t += 1
-    except KeyboardInterrupt:
-        print("\n--- silence falls ---")
+        talk_main()
     finally:
-        log.close()
+        if paused:
+            print("\n  when you're done, give her back her 24/7 life (ideally in tmux):")
+            print(f"    {RESTART_HINT}")
 
 
 if __name__ == "__main__":
