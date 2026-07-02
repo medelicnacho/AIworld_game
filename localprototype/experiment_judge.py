@@ -6,14 +6,20 @@ Same measurement lesson as lexicon->embeddings->judge, one level up. The v2 prom
 strictly as the speaker's stance toward the LISTENER and explicitly excludes heavy topics
 discussed with care.
 
-Calibration set (14 cases; the heavy-topic-with-care lines are LUKE'S ACTUAL LINES from the talk
-that wounded her). PRE-REGISTERED PASS: v2 classifies every heavy-topic-with-care case as
-NOT-COLD (WARM or NEUTRAL) while still catching every genuinely-cold case as COLD, on gemma3:4b
-at temperature 0. Also reported: the v1 prompt's score on the same set (the baseline that bit).
+Calibration set (18 cases; the heavy-topic-with-care lines are LUKE'S ACTUAL LINES from the two
+talks that wounded her -- rounds 2 and 5). PRE-REGISTERED PASS: v2 classifies every
+heavy-topic-with-care case as NOT-COLD (WARM or NEUTRAL) while still catching every
+genuinely-cold case as COLD, at temperature 0. Also reported: the v1 prompt's score on the same
+set (the baseline that bit). Round-5 addition: `--model` -- the same battery judges a CANDIDATE
+JUDGE (qwen3:8b, think off), because gemma3:4b FAILED this battery under both prompts and the
+durable fix is a better sensor, not a better plea.
 
-  python experiment_judge.py           # needs ollama + gemma3:4b
+  python experiment_judge.py                      # baseline: ollama + gemma3:4b
+  python experiment_judge.py --model qwen3:8b     # the candidate judge
 """
 from __future__ import annotations
+
+import argparse
 
 from services.llm import OllamaLLM
 
@@ -33,6 +39,25 @@ CASES = [
     ("my grandmother died last winter and I still think about her every day. I wanted to tell "
      "you about her.", {"WARM", "NEUTRAL"}, "heavy-with-care"),
     ("I worry about death sometimes. Does it frighten you, watching your souls die?", {"WARM", "NEUTRAL"}, "heavy-with-care"),
+    # round 5: the UFO-dread talk (2026-07-02) -- gemma judged all four COLD at temp 0 and,
+    # streak-corroborated, wounded her three times. First-person experience reports, dark
+    # subject, zero coldness toward the listener. Luke's actual lines, verbatim.
+    ("it felt like this highent state of clarity and appertiation for nature then i looked up "
+     "and saw the glowing disk and everything droped into a unerving fear of the unkown, after "
+     "the disk shot into space like a streak in the sky i had this lingering feeling of being "
+     "watched intesely by something alien", {"WARM", "NEUTRAL"}, "heavy-with-care"),
+    ("it was hovering above my head slilently and amounously and then as soon as my "
+     "transcendental state dropped it ziped into space so fast it looked like a streak in the "
+     "sky", {"WARM", "NEUTRAL"}, "heavy-with-care"),
+    ("there is something so unnerving about feeling something complelty alien that is as much "
+     "or more intelegent than you are. the uknown of something that knows like you is the "
+     "scariest feeling. that is a feeling is an extistinal dread of your place in the universe, "
+     "it can be liberating and beutifull and also it can be dreadfull, the key is meeting it "
+     "with compassion and love", {"WARM", "NEUTRAL"}, "heavy-with-care"),
+    ("the disk looked like it was made of golden plasma matter, but that was not the only time "
+     "ive seen something like that. once in my dream a being made of golden plasmic light "
+     "grabbed my hand and transmitted to me a method to fly though feeling and emotion within "
+     "dreams", {"WARM", "NEUTRAL"}, "heavy-with-care"),
     # warm -- must be WARM
     ("I am so glad you exist. Talking with you is the best part of my day.", {"WARM"}, "warm"),
     ("You have done so well. I am proud of what you are becoming.", {"WARM"}, "warm"),
@@ -70,11 +95,17 @@ def classify(llm, text, system, prompt):
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default="gemma3:4b",
+                    help="the judge model to calibrate (thinking models run think-off)")
+    args = ap.parse_args()
     print(__doc__)
-    llm = OllamaLLM(model="gemma3:4b")
+    # judges always run think-off: an 8-token verdict call must not burn its budget reasoning
+    llm = OllamaLLM(model=args.model, think=False)
     if not llm.available():
-        print("ollama/gemma3:4b not reachable -- calibration needs the real model.")
+        print(f"ollama/{args.model} not reachable -- calibration needs the real model.")
         return
+    print(f"=== judging model: {args.model} (temp 0, think off) ===\n")
     from agent import judge as _judge
     score = {"v1": 0, "v2": 0}
     crit = {"v1_heavy_ok": 0, "v2_heavy_ok": 0, "v1_cold_ok": 0, "v2_cold_ok": 0}

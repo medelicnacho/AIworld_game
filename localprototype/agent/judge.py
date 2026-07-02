@@ -22,6 +22,8 @@ stubs, the judgment itself is not certified here.
 
 from __future__ import annotations
 
+import re
+
 INTENTS = ("APOLOGY", "PROMISE", "COLD", "WARM", "NEUTRAL")
 
 # v2 (listening round 2): a long, LOVING message ABOUT suffering and death was judged COLD and
@@ -53,7 +55,10 @@ def intent(text: str, llm) -> str:
                            num_predict=8, temperature=0.0)
     except Exception:   # noqa: BLE001 -- a failed judgment is no judgment
         return "NEUTRAL"
-    up = str(raw).upper()
+    # a thinking model's trace can NAME verdicts while weighing them ("...seems COLD, but no")
+    # -- only the settled answer may be read (judges run think-off, but never trust that alone)
+    raw = re.sub(r"<think>.*?</think>", "", str(raw), flags=re.DOTALL | re.IGNORECASE)
+    up = raw.upper()
     for k in ("APOLOGY", "PROMISE", "COLD", "WARM"):
         if k in up:
             return k

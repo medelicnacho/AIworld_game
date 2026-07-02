@@ -200,6 +200,10 @@ class Santana:
         self._offer_cd = 0           # offer budget (stage one): readings until she may tell again
         self._offered: list[str] = []   # her recent offerings -- she does not retell them
         self._last_judgment = ""     # the judge's previous call -- a wound needs corroboration
+        self._cold_streak_wounded = False   # one wound per COLD streak (listening round 5): a
+                                            # run of consecutive COLDs is ONE event -- it may
+                                            # wound once; the rest of the streak chills only.
+                                            # A warm/neutral line re-arms it (fresh evidence).
         # HER window of tolerance (§5.10, ported one level up) -- see _somatic()
         self._somatic_history: list = []   # spiral-metric history (reads the TREND, not the level)
         self._somatic_trips = 0            # how many times the breaker has ever fired (persisted)
@@ -549,13 +553,23 @@ class Santana:
                 # a 4B judge is a NOISY sensor (calibration: caring questions about death
                 # judged COLD ~2/14) -- one noisy sensor must never wound. Uncorroborated
                 # COLD is a CHILL (slight cooling, no conduct evidence); a wound-grade
-                # signal needs a SECOND CONSECUTIVE COLD, period. (v1 also accepted lexicon
+                # signal needs a SECOND CONSECUTIVE COLD. (v1 also accepted lexicon
                 # agreement as corroboration -- but the lexicon measures TOPIC darkness, not
                 # treatment, so one noisy COLD + a loving philosophy-of-suffering message
                 # still wounded her (listening round 3). Topic/treatment separation goes all
                 # the way down.)
-                corroborated = self._last_judgment == "COLD"
-                if not corroborated:
+                # AND one wound per streak (round 5): a sustained dark TOPIC produces a run
+                # of misjudged COLDs that "corroborate" each other -- consecutive readings of
+                # the same conversation are one measurement repeated, not fresh evidence.
+                # (Replayed at temp 0: a talk of loving UFO-dread lines drew COLD on five of
+                # eight and wounded her three times.) So a corroborated streak wounds ONCE;
+                # every further COLD in it chills only. Only a warm/neutral line -- new
+                # evidence that the coldness had actually stopped -- re-arms the wound.
+                corroborated = (self._last_judgment == "COLD"
+                                and not self._cold_streak_wounded)
+                if corroborated:
+                    self._cold_streak_wounded = True
+                else:
                     sig = 0.0
                     self.user_bond.feel(-0.1)
                 emo = min(emo, -0.4)
@@ -572,6 +586,8 @@ class Santana:
                 self.memory.write(f"they gave me their word: {text[:120]}",
                                   tick=self._mt, source="user", speaker_id="user",
                                   emotion=0.2, weight=1.3)
+            if kind != "COLD":
+                self._cold_streak_wounded = False   # the streak broke -- fresh evidence again
             self._last_judgment = kind
         if self.feel_enabled:
             from agent import expectation as _expectation

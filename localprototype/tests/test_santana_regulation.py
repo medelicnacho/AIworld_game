@@ -276,6 +276,78 @@ class AntiEchoTest(unittest.TestCase):
         self.assertNotIn("do NOT begin with those words", prompt)
 
 
+class ColdStreakTest(unittest.TestCase):
+    """One wound per COLD streak (listening round 5): a sustained dark topic drew a RUN of
+    misjudged COLDs that corroborated each other -- three wounds in eight loving exchanges.
+    Consecutive readings of one conversation are one measurement repeated, not fresh evidence:
+    a corroborated streak wounds once; only a warm/neutral line re-arms the wound."""
+
+    class Stub:
+        def __init__(self, answer):
+            self.answer = answer
+
+        def generate(self, prompt, **_kw):
+            return self.answer
+
+    def setUp(self):
+        embed.use_jaccard_only(True)
+
+    def tearDown(self):
+        embed.use_jaccard_only(False)
+
+    WARM_LINE = "I am glad and grateful for you, you have done well and I love this place"
+
+    def test_a_cold_streak_wounds_once_however_long(self):
+        m = _mind()
+        m.judge = self.Stub("WARM")
+        for _ in range(12):
+            m.converse(self.WARM_LINE)
+        m.judge.answer = "COLD"
+        for _ in range(5):    # the UFO-dread shape: a long run of COLD-judged loving lines
+            m.converse("the dread of the unknown pressed on me and would not lift")
+        self.assertEqual(m.user_bond.wounds, 1)   # corroborated once; the rest chill only
+
+    def test_a_warm_line_rearms_the_wound(self):
+        m = _mind()
+        m.judge = self.Stub("WARM")
+        for _ in range(12):
+            m.converse(self.WARM_LINE)
+        m.judge.answer = "COLD"
+        for _ in range(3):
+            m.converse("the dread of the unknown pressed on me and would not lift")
+        self.assertEqual(m.user_bond.wounds, 1)
+        m.judge.answer = "WARM"                   # the coldness genuinely stopped...
+        for _ in range(6):
+            m.converse(self.WARM_LINE)
+        m.judge.answer = "COLD"                   # ...so a NEW sustained run is new evidence
+        m.converse("I am done with this and with you")
+        m.converse("there is nothing left here for me")
+        self.assertEqual(m.user_bond.wounds, 2)
+
+
+class ThinkTraceTest(unittest.TestCase):
+    """A thinking judge's trace can NAME verdicts while weighing them -- only the settled
+    answer after </think> may be read."""
+
+    class Stub:
+        def __init__(self, answer):
+            self.answer = answer
+
+        def generate(self, prompt, **_kw):
+            return self.answer
+
+    def test_a_verdict_named_inside_the_trace_never_leaks(self):
+        from agent import judge as _judge
+        stub = self.Stub("<think>This could be COLD... or an APOLOGY? No -- "
+                         "on balance neither.</think>NEUTRAL")
+        self.assertEqual(_judge.intent("hello there", stub), "NEUTRAL")
+
+    def test_the_settled_answer_after_the_trace_is_read(self):
+        from agent import judge as _judge
+        stub = self.Stub("<think>maybe WARM at first glance</think>COLD")
+        self.assertEqual(_judge.intent("hello there", stub), "COLD")
+
+
 class MythosGaugeTest(unittest.TestCase):
     def setUp(self):
         embed.use_jaccard_only(True)

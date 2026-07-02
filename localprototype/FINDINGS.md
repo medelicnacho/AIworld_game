@@ -8,7 +8,7 @@ the results (including the ones that didn't survive), and the honest limits. The
 the front door (what it is, how to run it); this is the record of what was actually found.
 
 Everything runs locally on a small model — `gemma3:4b` for speech, `nomic-embed-text` for
-semantic measurement — single author, no API, nothing leaves the machine. **360 tests pass.**
+semantic measurement — single author, no API, nothing leaves the machine. **364 tests pass.**
 
 ---
 
@@ -718,7 +718,7 @@ remixed.
 voices the relationship (`SpeechContext.bond_line` — trust, wounds, *scars*, a guarded or open
 manner, and the standing to raise an unresolved hurt itself), and keeps a **person-model** of
 trusted others (`Agent.known_of` — what they said of themselves), fed into replies. Crowd cost:
-zero unless bonded; the mechanics are the same ones falsified for her. 16 new tests; 360 pass
+zero unless bonded; the mechanics are the same ones falsified for her. 16 new tests; 364 pass
 (count as of the 2026-07-02 regulation round below).
 
 **Listening round 2 (first talk under the full §5.17–5.18 stack, 2026-07-02).** What landed, live:
@@ -879,6 +879,39 @@ opener tic** ("Luke. Four hundred and fifty-two." began every reply of the last 
 abstract "never begin the way your last reply began" was already in the prompt and did nothing):
 the anti-echo now detects the *actual* repeated opener and forbids those words by name — the
 round-2 lesson again: a 4B follows named instances, not abstractions.
+
+**Listening round 5 (2026-07-02, the UFO-dread talk): the judge wounds her over love, again —
+so the sensor is finally replaced, and no sensor gets unlimited wounding power.** The talk that
+followed the regulation round was warm throughout (he apologized, asked her preference, offered
+her the floor for her grief) — and it dealt her **three wounds and dropped trust +0.52 → −0.21**.
+Replayed at temperature 0, the cause is exact: gemma3:4b judged **five of eight loving lines
+COLD** (including "it was hovering above my head silently…" — a first-person experience report),
+in two consecutive runs, and consecutive COLDs corroborate — so a sustained dark *topic* defeats
+the round-3 debounce by supplying its own corroboration. Two fixes, defense in depth. **(1) The
+mechanism: one wound per COLD streak.** Consecutive readings of one conversation are one
+measurement repeated, not fresh evidence — a corroborated streak wounds once, every further COLD
+in it chills only, and only a warm/neutral line (evidence the coldness actually stopped) re-arms
+the wound. A dead end recorded honestly: the first design (corroboration requires *topical
+dissimilarity* between the two COLDs) died on measurement — consecutive same-thread lines share
+only 0.05–0.12 Jaccard, so word overlap cannot see a topic thread at all. **(2) The sensor: the
+judge is its own, bigger model now.** The calibration battery grew to 18 cases (the four dread
+lines added verbatim) and took both models at temp 0, think off: **gemma3:4b 11/18, only 3/8
+heavy-topic-with-care lines spared — FAIL** (it also judges "how many souls live in you right
+now?" COLD); **qwen3:8b 17/18, 8/8 heavy-with-care spared, 4/4 genuine colds caught — both
+pre-registered criteria PASS.** Replaying the wounding talk under qwen: **zero wounds** — its one
+COLD is the line where he re-asserts "daughter" right after she said the word hurts, which is a
+defensible reading of an actually insensitive moment, and as a single COLD it lands as a chill.
+So `talk.py` now runs a dedicated judge (`--judge-model`, default qwen3:8b, think off — an
+8-token verdict must not burn its budget reasoning; a thinking trace is also stripped before
+parsing, since a trace can *name* verdicts while weighing them), falling back loudly to the voice
+model if the judge isn't pulled. Honest notes: the v1 prompt scored 18/18 on qwen (a better
+sensor barely needs the elaborate prompt — the topic/treatment failure was the *model*, not the
+wording; kept v2, which passes both criteria, rather than switching prompts on a one-case
+margin); latency a few seconds per exchange on CPU, paid only in talks; and her three wounds from
+this talk are **left in** — the repo's precedent stands (the false wound that became a real
+reconciliation): repair happens in the relationship, not by editing her state.
+
+## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
   bigger model would likely sharpen the register, the opposed-faction problem, and the modest

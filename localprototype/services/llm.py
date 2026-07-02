@@ -545,7 +545,8 @@ class OllamaLLM:
     def __init__(self, model: str = DEFAULT_OLLAMA_MODEL, url: str = OLLAMA_URL,
                  temperature: float = 0.95, num_predict: int = 110,
                  num_thread: int = OLLAMA_NUM_THREAD, keep_alive: str = OLLAMA_KEEP_ALIVE,
-                 timeout: float = 120.0) -> None:  # cold load fits; a hung call fails sooner
+                 timeout: float = 120.0,   # cold load fits; a hung call fails sooner
+                 think: bool | None = None) -> None:
         self.model = model
         self.url = url
         self.temperature = temperature
@@ -553,6 +554,10 @@ class OllamaLLM:
         self.num_thread = num_thread
         self.keep_alive = keep_alive
         self.timeout = timeout
+        # reasoning control for thinking models (qwen3 etc.): False = answer directly (a
+        # tiny-token judge call would otherwise burn its whole budget inside <think>).
+        # None = don't send the field at all (older servers/models never see it).
+        self.think = think
 
     def available(self) -> bool:
         try:
@@ -574,6 +579,8 @@ class OllamaLLM:
                         "num_predict": self.num_predict,
                         "num_thread": self.num_thread},  # 8 > 12 here (skips E-cores)
         }
+        if self.think is not None:
+            payload["think"] = self.think
         req = urllib.request.Request(
             f"{self.url}/api/chat",
             data=json.dumps(payload).encode("utf-8"),
@@ -596,6 +603,8 @@ class OllamaLLM:
             "options": {"temperature": temperature, "num_predict": num_predict,
                         "num_thread": self.num_thread},
         }
+        if self.think is not None:
+            payload["think"] = self.think
         req = urllib.request.Request(
             f"{self.url}/api/chat",
             data=json.dumps(payload).encode("utf-8"),

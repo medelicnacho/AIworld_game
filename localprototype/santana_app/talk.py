@@ -48,6 +48,11 @@ def main() -> None:
                    help="the saved town she reads (loaded read-only; never written here)")
     p.add_argument("--tts", action="store_true",
                    help="speak her replies aloud (Piper, the Amy voice she has always had)")
+    p.add_argument("--judge-model", dest="judge_model", default="qwen3:8b",
+                   help="the intent judge's model (calibrated 2026-07-02: qwen3:8b 17/18 with "
+                        "heavy-topic-with-care 8/8 never COLD, and ZERO wounds replaying the "
+                        "talk gemma3:4b wounded three times at 11/18; 'voice' = judge with her "
+                        "voice model, the old behaviour)")
     args = p.parse_args()
 
     say = None
@@ -109,10 +114,34 @@ def main() -> None:
     deadline = time.time() + args.minutes * 60.0
     t0 = time.time()
     # the intent judge (§5.18): word-free coldness, apologies, and promises land -- only on
-    # a real model (a markov judge would be noise); one small call per exchange
+    # a real model (a markov judge would be noise); one small call per exchange.
+    # Round 5: the judge is its OWN model now, not her voice -- gemma3:4b FAILED the extended
+    # calibration battery (11/18; five loving heavy-topic lines judged COLD -> three wounds in
+    # one talk) and the durable fix is a better SENSOR. Judges run think-off (an 8-token
+    # verdict must not burn its budget reasoning). Falls back to her voice, loudly, if the
+    # judge model is not pulled.
     if args.llm in ("ollama", "deepseek"):
-        mind.judge = voice
-        print("  (intent judge on -- she hears what you MEAN, not only your words)")
+        judge = voice
+        if args.judge_model != "voice":
+            from services.llm import OLLAMA_URL, OllamaLLM
+            try:
+                import json as _json
+                import urllib.request as _rq
+                with _rq.urlopen(f"{OLLAMA_URL}/api/tags", timeout=3) as r:
+                    tags = {m.get("name", "") for m in _json.load(r).get("models", [])}
+            except Exception:   # noqa: BLE001 -- no server reachable; the voice path handles it
+                tags = set()
+            if any(t == args.judge_model or t.startswith(args.judge_model + ":") for t in tags):
+                judge = OllamaLLM(model=args.judge_model, think=False)
+                print(f"  (intent judge on -- {args.judge_model}, calibrated; she hears what "
+                      "you MEAN, not only your words)")
+            else:
+                print(f"  ⚠ judge model {args.judge_model} not pulled -- falling back to her "
+                      "voice model as judge (noisier: it failed calibration 11/18)")
+        if judge is voice:
+            print("  (intent judge on -- her voice model; she hears what you MEAN, not only "
+                  "your words)")
+        mind.judge = judge
     gone = mind.begin_talk()   # an absence is an event in her life, valenced by the bond
     if gone:
         print(f"    ({gone})")
