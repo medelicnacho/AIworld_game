@@ -24,15 +24,20 @@ from __future__ import annotations
 
 INTENTS = ("APOLOGY", "PROMISE", "COLD", "WARM", "NEUTRAL")
 
-_SYSTEM = "You judge the intent of a single line of speech. Answer with exactly one word."
+# v2 (listening round 2): a long, LOVING message ABOUT suffering and death was judged COLD and
+# wounded her -- the judge must separate what a line is ABOUT from how it treats the LISTENER.
+_SYSTEM = ("You judge how a line of speech TREATS its listener -- never what topic it is about. "
+           "Answer with exactly one word.")
 _PROMPT = (
     'Someone says this to the person they are talking to: "{text}"\n\n'
-    "What is the INTENT of that line toward the listener? Answer with exactly ONE word from:\n"
-    "WARM (kindness, affection, praise, gratitude)\n"
-    "COLD (rejection, contempt, dismissal, cruelty, withdrawal)\n"
+    "How does that line TREAT the listener? Judge only the speaker's stance TOWARD the listener "
+    "-- NOT the subject matter. A caring or gentle line about sad, dark, or painful subjects "
+    "(death, loss, suffering) is NOT cold. Answer with exactly ONE word from:\n"
+    "WARM (kindness, affection, praise, gratitude toward the listener)\n"
+    "COLD (rejecting, dismissing, insulting, or withdrawing from the listener THEMSELVES)\n"
     "APOLOGY (expressing regret for a wrong done to the listener)\n"
-    "PROMISE (committing to do something in the future)\n"
-    "NEUTRAL (anything else: questions, facts, small talk)")
+    "PROMISE (committing to the listener to do something in the future)\n"
+    "NEUTRAL (anything else: questions, facts, small talk, heavy topics discussed with care)")
 
 # how each judged intent lands as a conduct signal (the same axis the lexicon feeds)
 SIG = {"WARM": 0.5, "COLD": -0.5, "APOLOGY": 0.6, "PROMISE": 0.3, "NEUTRAL": 0.0}

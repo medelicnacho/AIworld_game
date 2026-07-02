@@ -37,6 +37,9 @@ RETELL_FANOUT = 2            # a telling reaches a FEW hearers, not the whole sq
                              # quiet stretches in which each holder's copy drifts
 RETELL_WEIGHT = 0.5          # lands harder than an overheard mutter (0.3), softer than speech
 RETELL_REINFORCE = 0.15      # telling re-engraves the teller's own copy (rehearsal)
+REP_RATE = 0.15              # reputation (C3): how far a heard CONDUCT story moves the hearer's
+                             # expectation of its subject -- weaker than direct experience (0.2),
+                             # because gossip is testimony, not a scar of one's own
 
 
 def pick(agent):
@@ -71,4 +74,13 @@ def retell(world) -> None:
             b.memory.write(story.text, tick=world.tick, source="lore",
                            speaker_id=a.id, weight=RETELL_WEIGHT,
                            lore_id=story.lore_id)
+            # REPUTATION (C3): a conduct story moves the hearer's expectation of its SUBJECT --
+            # reputation as transmitted expectation, riding the same mutating channel as any
+            # legend (so reputations travel, distort, and can be unfair). Third parties only:
+            # the subject hearing gossip about itself is not evidence of how it treats people.
+            if story.lore_id.startswith("conduct:") and getattr(b, "expect_enabled", False):
+                subject = story.lore_id.split(":", 1)[1]
+                if subject and subject != b.id:
+                    exp = b._conduct_expect.get(subject, 0.0)
+                    b._conduct_expect[subject] = exp + REP_RATE * (story.emotion - exp)
         world.bus.publish("lore", (a.id, story.lore_id, story.text))

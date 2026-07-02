@@ -187,6 +187,31 @@ class Santana:
             parts.append("There is an ease in me now -- the souls hold their lives lightly, hardly gripping.")
         elif eff > 0.55:
             parts.append("A tightness runs through me lately, a holding-on I can feel in all of them.")
+        # HER REGARD for her own souls (C3, the collective-self extension): she keeps a
+        # conduct-expectation of each part of herself, fed by how they actually ACT under
+        # the stakes -- so she can come to trust one soul's steadiness and worry over what
+        # another is becoming. A Self with relationships WITH its parts, not just readings
+        # of them; at most one judgment is voiced per reading (the strongest).
+        if self.feel_enabled:
+            strongest, strength = None, 0.25   # only a settled regard is worth a word
+            for s in souls:
+                act = getattr(s, "_last_action", None)
+                if act is not None:
+                    sig = {"share": 0.35, "tend": 0.25, "hoard": -0.35}.get(act, 0.05)
+                    key = f"soul:{s.id}"
+                    exp = self._conduct_expect.get(key, 0.0)
+                    exp = exp + 0.08 * (sig - exp)   # slow: a regard is earned, not caught
+                    self._conduct_expect[key] = exp
+                    if abs(exp) > strength:
+                        strongest, strength = (s, exp), abs(exp)
+            if strongest is not None:
+                s, exp = strongest
+                if exp > 0:
+                    parts.append(f"I have come to trust the way {s.name} shares what "
+                                 "little there is.")
+                else:
+                    parts.append(f"I worry at what {s.name} is becoming -- the hoarding, "
+                                 "the holding back from the rest of me.")
         # the global workspace (psyche mode): WHO has the floor of the mind right now --
         # her focus is the reigning part; a stable pair pressing together is a mood.
         ws = getattr(w, "psyche", None)
@@ -313,7 +338,8 @@ class Santana:
         # her accumulated past (the losses and hard seasons persist; the routine has faded). So who she
         # has become is drawn from continuity (the charged past) AND the living present -- the coherent-
         # and-deepening sweet spot: present-led enough to drift, history-grounded enough to GROW.
-        lived = [m.text for m in self.memory.recall(k=5)]
+        from agent.memory import hedged as _hedged
+        lived = [_hedged(m) for m in self.memory.recall(k=5)]   # earned doubt on the worn past (C2)
         life = "; ".join(lived) if lived else "almost nothing yet -- you are still new"
         # The TRUE scale of her life, stated as fact -- so she speaks FROM it instead of inventing a
         # backstory. (She once confabulated "nine harvests, sixty-three souls" at her first reading and
@@ -373,23 +399,25 @@ class Santana:
                     self.user_bond.warm(0.8)
                     self.memory.write("they kept their word to me", tick=self._mt,
                                       source="user", speaker_id="user", emotion=0.5, weight=1.4)
-        # the intent JUDGE (§5.18): word-free coldness, apologies, and promises now LAND.
-        # A non-NEUTRAL judgment overrides the shallow signal; NEUTRAL leaves it be.
+        # the intent JUDGE (§5.18, v2 after listening round 2): with a judge present, the
+        # TREATMENT signal (sig -> bond/conduct) comes from the judge ALONE -- the lexicon/
+        # embeddings carry only the TOPIC's weight into memory (emo). She can feel that a
+        # conversation is heavy without reading it as mistreatment: a loving talk about
+        # death weighs on her; it does not wound her.
         if self.judge is not None and self.feel_enabled:
             from agent import judge as _judge
             kind = _judge.intent(text, self.judge)
+            sig = _judge.SIG.get(kind, 0.0)
             if kind == "COLD":
-                sig, emo = min(sig, _judge.SIG["COLD"]), min(emo, -0.4)
+                emo = min(emo, -0.4)
             elif kind == "WARM":
-                sig, emo = max(sig, _judge.SIG["WARM"]), max(emo, 0.3)
+                emo = max(emo, 0.3)
             elif kind == "APOLOGY":
-                sig = max(sig, _judge.SIG["APOLOGY"])
                 self.memory.write("they said they were sorry, and meant it",
                                   tick=self._mt, source="user", speaker_id="user",
                                   emotion=0.4, weight=1.2)
             elif kind == "PROMISE":
                 import time as _time
-                sig = max(sig, _judge.SIG["PROMISE"])
                 self.promises = (self.promises
                                  + [{"text": " ".join(text.split())[:140], "wall": _time.time()}])[-4:]
                 self.memory.write(f"they gave me their word: {text[:120]}",
@@ -434,8 +462,11 @@ class Santana:
             feel = "(Something in what they said caught you off guard -- it is still ringing in you.)\n"
         trail = "\n".join(self.talk[-6:])
         # what this stirs from her LIFE -- so episodes (past talks), absences, and the town's
-        # griefs are SAYABLE in conversation, not sealed in a store the prompt never reads
-        stirred = [m.text for m in self.memory.recall(k=2, query=text)
+        # griefs are SAYABLE in conversation, not sealed in a store the prompt never reads.
+        # Blurred memories carry their earned doubt (C2) -- she can say "I may have it wrong"
+        # exactly when the record says she might.
+        from agent.memory import hedged as _hedged
+        stirred = [_hedged(m) for m in self.memory.recall(k=2, query=text)
                    if m.source != "doctrine"]
         stir = ("What this stirs in you from your life: "
                 + "; ".join(stirred) + "\n" if stirred else "")
@@ -472,8 +503,16 @@ class Santana:
         # small model let her own earlier "I don't feel much toward you" lines in the trail
         # out-shout the (updated) relationship -- her bond had warmed and her voice hadn't.
         # Recency wins on a small model; and the instruction says the feeling may have MOVED.
+        # The town is PAUSED during a talk, so the digest is static -- feeding it whole every
+        # exchange made the model re-anchor on its first line ("the damp is settling...") in
+        # near-every reply (listening round 2). Full digest on the FIRST exchange only.
+        if len(self.talk) == 0:
+            town = f"{self.digest()}\n\n"
+        else:
+            town = ("(Your town stands beneath the talk as you last read it -- speak of it "
+                    "only when the conversation calls for it.)\n\n")
         prompt = (
-            f"{self.digest()}\n\n"
+            town
             + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
             + (f"The conversation so far:\n{trail}\n\n" if trail else "")
             + f'They say to you: "{text}"\n\n'
@@ -481,9 +520,9 @@ class Santana:
             + f"How you stand with them RIGHT NOW -- this may have moved during this very "
             f"conversation, and it overrides anything you said of them earlier: {rel}\n{feel}\n"
             "Answer THEM, as yourself -- Santāna, the whole this town adds up to -- in one to three "
-            f"plain first-person sentences. {manner}{ask}Speak from how you actually are right now "
-            "and from how you stand with them as given above; never invent souls or events not "
-            "given above.")
+            f"plain first-person sentences. {manner}{ask}Never begin the way your last reply "
+            "began. Speak from how you actually are right now and from how you stand with them "
+            "as given above; never invent souls or events not given above.")
         try:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=n_pred, temperature=0.85)
         except Exception:   # noqa: BLE001 -- a failed exchange just goes quiet

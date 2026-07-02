@@ -99,6 +99,89 @@ class PersonModelTest(unittest.TestCase):
         self.assertTrue(about_themselves("I am the one who mends the nets"))
 
 
+class EarnedDoubtTest(unittest.TestCase):
+    """C2: mutation_count -- tracked forever, read at last. Hedges are prompt-time only."""
+
+    def setUp(self):
+        embed.use_jaccard_only(True)
+
+    def tearDown(self):
+        embed.use_jaccard_only(False)
+
+    def test_the_hedge_is_the_drift_counter_speaking(self):
+        from agent.memory import Memory, hedged
+        fresh = Memory("the flood took the mill", 0.5, 0, 0)
+        worn = Memory("the flood took the mill", 0.5, 0, 0, mutation_count=1)
+        gone = Memory("the glow took the mill", 0.5, 0, 0, mutation_count=4)
+        self.assertEqual(hedged(fresh), "the flood took the mill")
+        self.assertIn("as best I remember", hedged(worn))
+        self.assertIn("may have it wrong", hedged(gone))
+
+    def test_a_souls_blurred_recall_reaches_the_prompt_hedged(self):
+        a = _soul()
+        m = a.memory.write("the great flood in the night took the mill", tick=0,
+                           source="event", emotion=-0.5)
+        m.mutation_count = 4
+        m.salience = 1.0
+        a._rng.random = lambda: 0.99
+        a.last_heard_from, a.last_heard_name = "v", "Vesper"
+        a.last_heard_text = "what happened back then?"
+        ctx, _, _ = a.prepare_speech()
+        self.assertTrue(any("may have it wrong" in t for t in ctx.memories))
+
+
+class ReputationTest(unittest.TestCase):
+    """C3: reputation = transmitted expectation, riding the lore channel."""
+
+    def setUp(self):
+        embed.use_jaccard_only(True)
+
+    def tearDown(self):
+        embed.use_jaccard_only(False)
+
+    def test_a_conduct_event_is_a_tagged_story(self):
+        from agent import expectation
+        a = _soul()
+        a.expect_enabled = True
+        b = Bond()
+        for t in range(12):
+            expectation.appraise_conduct(a, "v", "Vesper", 0.5, t, b)
+        expectation.appraise_conduct(a, "v", "Vesper", -0.4, 20, b)
+        m = next(mm for mm in a.memory.items if "did not see it coming" in mm.text)
+        self.assertEqual(m.lore_id, "conduct:v")
+
+    def test_a_retold_conduct_story_moves_a_third_partys_expectation(self):
+        from agent import lore
+        from world.sim import World
+        w = World(events_enabled=False, move_seed=1)
+        w.llm = MockLLM(seed=7)
+        w.lore_enabled = True
+        teller, hearer, subject = _soul("t"), _soul("h"), _soul("v")
+        for a in (teller, hearer, subject):
+            a.expect_enabled = True
+            w.add(a)
+        teller.memory.write("Vesper turned cold on me, and I did not see it coming",
+                            tick=1, source="event", speaker_id="v", emotion=-0.5,
+                            weight=1.4, lore_id="conduct:v")
+        for a in (teller, hearer, subject):
+            a._retell_cd = 1
+        lore.retell(w)
+        self.assertLess(hearer._conduct_expect.get("v", 0.0), -0.05)   # gossip landed
+        self.assertNotIn("v", subject._conduct_expect)                 # never about oneself
+
+    def test_reputation_reaches_the_voice_before_any_bond(self):
+        a = _soul()
+        a._conduct_expect["v"] = -0.4          # gossip-learned; no Bond exists
+        a._rng.random = lambda: 0.99
+        a.last_heard_from, a.last_heard_name = "v", "Vesper"
+        a.last_heard_text = "good morning neighbour"
+        ctx, _, _ = a.prepare_speech()
+        self.assertIn("heard how Vesper treats people", ctx.bond_line)
+        a._conduct_expect["v"] = 0.4
+        ctx2, _, _ = a.prepare_speech()
+        self.assertIn("speak warmly", ctx2.bond_line)
+
+
 class JudgeTest(unittest.TestCase):
     class Stub:
         def __init__(self, answer):

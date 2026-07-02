@@ -132,16 +132,19 @@ def appraise_conduct(agent, other_id: str, name: str, sig: float, now: int, bond
     exp = agent._conduct_expect.get(other_id)
     if exp is not None:
         gap = exp - sig
+        # conduct events are STORIES (C3): lore-tagged with their subject, so a retelling
+        # carries not just words but a REPUTATION -- the hearer's expectation of the subject
+        # moves (see agent/lore.py). Per-pair id: repeated events reinforce one story.
         if gap > BETRAYAL_GAP and exp > EXPECT_WARM and sig < COLD_ACT:
             bond.betray(min(0.9, 0.5 * gap))
             agent.memory.write(f"{name} turned cold on me, and I did not see it coming",
                                tick=now, source="event", speaker_id=other_id,
-                               emotion=-0.5, weight=1.2)
+                               emotion=-0.5, weight=1.2, lore_id=f"conduct:{other_id}")
         elif -gap > KINDNESS_GAP and exp < EXPECT_COLD and sig > WARM_ACT:
             bond.warm(0.5)
             agent.memory.write(f"an unexpected kindness from {name}",
                                tick=now, source="event", speaker_id=other_id,
-                               emotion=0.5, weight=1.0)
+                               emotion=0.5, weight=1.0, lore_id=f"conduct:{other_id}")
         agent._conduct_expect[other_id] = exp + BOND_EXPECT_RATE * (sig - exp)
     else:
         agent._conduct_expect[other_id] = sig

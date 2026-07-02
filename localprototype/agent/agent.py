@@ -19,6 +19,7 @@ from agent import joy as _joy_mod
 from agent import ideology
 from agent.doctrine import DOCTRINES, creator_stance
 from agent.memory import MemoryStore
+from agent.memory import hedged as _memory_hedged
 from agent.religion import RELIGIONS
 from services.embed import topic_match
 from agent.thought import ThoughtLoop
@@ -869,6 +870,17 @@ class Agent:
                     bond_line += (" You are at ease with them -- offer a little more of "
                                   "yourself than they asked.")
             known_of = list(self.known_of.get(target, []))[-3:]
+        if not bond_line and target:
+            # REPUTATION (C3): no history of my own, but the town's stories have reached me --
+            # gossip-learned expectation colours the meeting before a bond exists
+            rep = self._conduct_expect.get(target, 0.0)
+            tname = reply_name or self.last_heard_name or "them"
+            if rep < -0.2:
+                bond_line = (f"You have only heard how {tname} treats people, and what you "
+                             "have heard makes you wary of them.")
+            elif rep > 0.25:
+                bond_line = (f"You know {tname} mostly by reputation, and people speak "
+                             "warmly of how they treat others.")
         ctx = SpeechContext(
             name=self.name,
             persona=self.persona,
@@ -880,7 +892,7 @@ class Agent:
             drift=self.thought.current(RAW_DRIFT_N if (self.raw_speech or self.concept_speech) else 2),
             raw_mind=self.raw_speech,
             concept_mind=self.concept_speech,
-            memories=[m.text for m in recalled],
+            memories=[_memory_hedged(m) for m in recalled],   # earned doubt on blurred recalls (C2)
             reply_to_name=reply_name,
             reply_to_text=reply_text,
             event=event_text,

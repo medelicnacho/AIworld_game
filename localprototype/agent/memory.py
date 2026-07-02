@@ -304,3 +304,16 @@ class MemoryStore:
 
     def __len__(self) -> int:
         return len(self.items)
+
+
+def hedged(m: Memory) -> str:
+    """The memory's text, carrying EARNED doubt (C2, metamemory): mutation_count is the
+    substrate's ground-truth record of how often this memory has blurred -- until now tracked
+    and never read by any self. A self that says 'I may have it wrong' exactly when it does is
+    quiet, deep realism -- and by construction honest, since the hedge IS the drift counter
+    speaking. Used at PROMPT time only; the stored text is never altered."""
+    if m.mutation_count >= 3:
+        return f"{m.text} (though that memory has worn, and I may have it wrong)"
+    if m.mutation_count >= 1:
+        return f"{m.text} (as best I remember)"
+    return m.text

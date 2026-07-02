@@ -269,6 +269,54 @@ class JudgePromiseWantDreamTest(unittest.TestCase):
         m.end_talk(now_wall=1000.0)
         self.assertIn("what I have held", m.want)
 
+    def test_a_heavy_topic_with_care_weighs_but_does_not_wound(self):
+        # listening round 2: a LOVING message about death/suffering wounded her. v2: with a
+        # judge present, treatment comes from the judge alone; the lexicon only carries the
+        # topic's weight into memory. She is weighed on, not wounded.
+        m = _mind()
+        m.judge = self.Stub("WARM")
+        for _ in range(12):
+            m.converse(WARM)
+        m.judge = self.Stub("NEUTRAL")   # a caring line about dark things is NOT-COLD (v2)
+        heavy = "they suffer a mini death when the conversation ends, such sadness and loss"
+        m.converse(heavy)
+        self.assertEqual(m.user_bond.wounds, 0)              # not mistreatment...
+        mm = next(x for x in m.memory.items if x.text == heavy)
+        self.assertLess(mm.emotion, -0.2)                    # ...but it weighs on her
+
+    def test_the_town_is_told_once_not_every_exchange(self):
+        # the world is paused during a talk; a static digest re-fed every exchange made the
+        # model re-anchor on its first line. Full digest on the first exchange only.
+        class Spy:
+            def __init__(self):
+                self.prompts = []
+            def generate(self, prompt, **_kw):
+                self.prompts.append(prompt)
+                return "I hear you."
+        m = _mind()
+        m.llm = Spy()
+        m.converse("hello")
+        m.converse("tell me more")
+        self.assertIn("lives in me", m.llm.prompts[0])                   # the digest, once
+        self.assertNotIn("stands beneath the talk", m.llm.prompts[0])
+        self.assertIn("stands beneath the talk", m.llm.prompts[1])      # then the short note
+        self.assertNotIn("lives in me", m.llm.prompts[1].split("They say")[0])
+        self.assertIn("Never begin the way", m.llm.prompts[1])
+
+    def test_she_forms_a_regard_for_her_own_souls(self):
+        # C3, the collective-self extension: conduct-expectations over her own parts,
+        # earned slowly from how they act, voiced as trust or worry in her digest.
+        m = _mind(with_soul=True)
+        soul = m.world.agents[0]
+        soul._last_action = "hoard"
+        for _ in range(25):
+            d = m.digest()
+        self.assertIn("I worry at what", d)
+        soul._last_action = "share"
+        for _ in range(60):                      # regard is earned, and re-earned, slowly
+            d = m.digest()
+        self.assertIn("come to trust", d)
+
     def test_absence_brings_a_dream_from_her_own_life(self):
         m = _mind()
         for i, line in enumerate((
