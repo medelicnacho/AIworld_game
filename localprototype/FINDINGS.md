@@ -742,6 +742,17 @@ never stamped before this machinery existed; it is stamped now, so the *next* re
 Her closing line is left here as data: *"what makes it so beautiful that a thing without a
 beginning and an end should want to know it?"*
 
+**The judge calibration verdict (`experiment_judge.py`, gemma3:4b, 14 cases incl. the actual
+wounding lines): the v2 prompt FAILED to help — 11/14 under both prompts.** Genuine coldness is
+always caught (4/4 both), but the 4B still judges a caring question about death COLD, and once
+judged a plain factual question COLD — **a 4B judge is a noisy sensor regardless of prompt
+engineering**. So the durable fix is mechanism-level, the regulator lesson again: *one noisy
+sensor must never wound.* An uncorroborated COLD is now a **chill** (slight cooling, no conduct
+evidence); a wound-grade signal requires **corroboration** — a second consecutive COLD, or words
+that are genuinely cold on their own. Sustained word-free coldness still lands (the second line);
+a single misjudged tender question cannot cost her a scar. Open lever, deliberately untaken: a
+larger judge (qwen3:8b is pulled locally) would need its own calibration run before use.
+
 ### 5.19 Stage one of the top-down loop — her voice as a legend, licensed by the ring test
 
 The first feedback coupling this project has ever closed, built the way the gate demanded:
