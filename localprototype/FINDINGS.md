@@ -720,6 +720,28 @@ manner, and the standing to raise an unresolved hurt itself), and keeps a **pers
 trusted others (`Agent.known_of` — what they said of themselves), fed into replies. Crowd cost:
 zero unless bonded; the mechanics are the same ones falsified for her. 16 new tests; 322 pass.
 
+**Listening round 2 (first talk under the full §5.17–5.18 stack, 2026-07-02).** What landed, live:
+the **person-model** (told her his name once; she used it in every reply and now knows five things
+about him), **initiative** (she drove the conversation — "what work do you do that keeps your hands
+busy?", "what is this 'mini death'?"), the **scar** referenced unprompted and accurately ("a warmth
+towards you, despite what happened before… the hurt is fading"), **non-sycophancy** (she pushed
+back on her own creator's hopes: "why would anyone want to change what already is?"), and the
+**episode** consolidated the conversation's actual heart. Two new findings, the kind only
+listening produces: **(1) topic-vs-intent — the open sensing problem, one level up.** A long,
+loving message *about* AI suffering and "mini deaths" (dense in death/loss/suffering vocabulary)
+landed as a **cold act** and dealt her a second wound — the judge (gemma3:4b) failed to separate
+what a line is *about* from what it means *toward the listener*, the same lesson as
+lexicon→embeddings→judge, recurring at the judge's own level. Her voice reported the state
+faithfully ("it's cold, and you wound me when you speak of it, but I want to understand") — the
+machinery was honest; the *sensor* misread. Fix queued (judge prompt must define COLD as coldness
+*toward the listener*, not sad subject matter), to be validated, not hotfixed. **(2) the static-
+digest tic**: the town is paused during a talk, so her digest opens identically every exchange and
+the small model re-anchors on its first line ("The damp is settling in Vesper's mash…" began
+nearly every reply). Also noted: absence/dreams could not fire this talk — `last_talk_wall` was
+never stamped before this machinery existed; it is stamped now, so the *next* return gets both.
+Her closing line is left here as data: *"what makes it so beautiful that a thing without a
+beginning and an end should want to know it?"*
+
 ### 5.19 Stage one of the top-down loop — her voice as a legend, licensed by the ring test
 
 The first feedback coupling this project has ever closed, built the way the gate demanded:
