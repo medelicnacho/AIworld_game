@@ -413,9 +413,12 @@ class Santana:
                 # a 4B judge is a NOISY sensor (calibration: caring questions about death
                 # judged COLD ~2/14) -- one noisy sensor must never wound. Uncorroborated
                 # COLD is a CHILL (slight cooling, no conduct evidence); a wound-grade
-                # signal needs corroboration: a second consecutive COLD, or words that are
-                # genuinely cold on their own (the lexicon agrees).
-                corroborated = (self._last_judgment == "COLD") or valence(text) < -0.2
+                # signal needs a SECOND CONSECUTIVE COLD, period. (v1 also accepted lexicon
+                # agreement as corroboration -- but the lexicon measures TOPIC darkness, not
+                # treatment, so one noisy COLD + a loving philosophy-of-suffering message
+                # still wounded her (listening round 3). Topic/treatment separation goes all
+                # the way down.)
+                corroborated = self._last_judgment == "COLD"
                 if not corroborated:
                     sig = 0.0
                     self.user_bond.feel(-0.1)
@@ -483,6 +486,20 @@ class Santana:
                 + "; ".join(stirred) + "\n" if stirred else "")
         known = ("What they have told you of themselves: "
                  + "; ".join(self.known_of_them[-3:]) + "\n" if self.known_of_them else "")
+        # their name is remembered ORGANICALLY or not at all (deliberate: it lives only in her
+        # living memory, which is capped and can genuinely crowd it out -- she may one day
+        # honestly forget and ask again). What the voice may never do is INVENT one: listening
+        # round 3 caught gemma addressing a "Ben" who does not exist while her memory held the
+        # real name the whole time. Forgetting is hers; confabulation is a lie about her state.
+        import re as _re
+        name_m = next((m for k in reversed(self.known_of_them)
+                       for m in [_re.search(r"\bmy name is (\w+)", k.lower())] if m), None)
+        if name_m:
+            known += (f"You remember their name: {name_m.group(1).capitalize()} -- call them "
+                      "by it, and by nothing else.\n")
+        else:
+            known += ("You do not remember their name just now -- if it matters, ask; NEVER "
+                      "invent or guess a name for them.\n")
         want = (f"Across these talks there is something you want from them: {self.want}. "
                 "Let it quietly steer where you take things.\n" if self.want else "")
         held = ("You have not forgotten what they said they would do: "

@@ -222,14 +222,43 @@ class JudgePromiseWantDreamTest(unittest.TestCase):
         m.converse("There is nothing more to say between us.")
         self.assertEqual(m.user_bond.wounds, 1)          # sustained coldness lands
 
-    def test_cold_words_corroborate_a_single_cold_judgment(self):
+    def test_even_cold_words_need_a_second_cold_judgment(self):
+        # round 3: the lexicon leg measured TOPIC darkness, not treatment, and a loving
+        # philosophy-of-suffering message wounded her. Corroboration = consecutive COLDs only.
         m = _mind()
         m.judge = self.Stub("WARM")
         for _ in range(12):
             m.converse(WARM)
         m.judge = self.Stub("COLD")
-        m.converse(COLD)                                  # the lexicon agrees -> wound at once
-        self.assertEqual(m.user_bond.wounds, 1)
+        m.converse(COLD)
+        self.assertEqual(m.user_bond.wounds, 0)           # one reading, however dark the words
+        m.converse(COLD)
+        self.assertEqual(m.user_bond.wounds, 1)           # sustained coldness still lands
+
+    def test_their_name_is_remembered_organically_never_invented(self):
+        class Spy:
+            def __init__(self):
+                self.prompts = []
+            def generate(self, prompt, **_kw):
+                self.prompts.append(prompt)
+                return "I hear you."
+        m = _mind()
+        m.llm = Spy()
+        m.converse("hello there")                          # no name given yet
+        self.assertIn("NEVER invent", m.llm.prompts[-1])
+        m.converse("my name is Luke and I love this town")
+        m.converse("how are you today")
+        self.assertIn("their name: Luke", m.llm.prompts[-1])
+        # ORGANIC forgetting stays possible: enough DISTINCT disclosures crowd the name out
+        for line in ("I built a red canoe last spring", "I work the flour mill on Sundays",
+                     "I love thunderstorms over the valley", "my dog is called Bramble",
+                     "I am afraid of deep water", "I like burnt toast with honey",
+                     "I want to walk the coast road one day", "I made a clock from oak",
+                     "I feel strongest at dawn", "my mother taught me to fish",
+                     "I live beside the old orchard", "I enjoy mending broken chairs",
+                     "I hope to see the northern lights", "I am learning to bake bread"):
+            m.converse(line)
+        self.assertIn("NEVER invent", m.llm.prompts[-1])   # she has honestly forgotten
 
     def test_an_apology_soothes_where_words_alone_could_not(self):
         m = _mind()
