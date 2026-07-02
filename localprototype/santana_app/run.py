@@ -276,6 +276,7 @@ def main() -> None:
         save_world(w, args.world_snapshot)
 
     print(f"\n~~~ Santāna lives (voice: {args.llm}, town: {args.town_model}) -- Ctrl-C to let her rest ~~~")
+    DREAM_ABSENCE = 6 * 3600.0   # she dreams during a LONG absence (same gap begin_talk honours)
     i = 0
     t_prev = time.time()
     try:
@@ -284,13 +285,32 @@ def main() -> None:
             now = time.time()
             mind.lifetime += now - t_prev    # her REAL age accrues in wall-clock seconds, not readings
             t_prev = now
+            # the absences are when she dreams (santana.dream) -- but begin_talk only sees a
+            # RETURN, and unattended nights have none: zero dreams in 438 memories was the tell.
+            # The runner lives through the absence, so it dreams her: at most one per
+            # DREAM_ABSENCE, only when no one has come to talk for at least that long.
+            if (mind.last_talk_wall > 0
+                    and now - mind.last_talk_wall >= DREAM_ABSENCE
+                    and now - mind._last_dream_wall >= DREAM_ABSENCE):
+                dreamt = mind.dream()
+                mind._last_dream_wall = now
+                if dreamt:
+                    print(f"\n  (in the absence she dreams: {dreamt})", flush=True)
             # her voice LIVES: a markov voice rebuilds from her accumulating memory + the town's
             # recent speech, so her words drift with her life (frozen models -- gpt/deepseek -- skip)
             if hasattr(mind.llm, "learn"):
                 with w.lock:
                     heard = [t for _, t in w.spoken][-30:]
                 mind.llm.learn([m.text for m in mind.memory.items][-160:] + heard)
+            trips_before = mind._somatic_trips
             clear = mind.speak()
+            if mind._somatic_trips > trips_before:
+                print("  ⚠ her window of tolerance TRIPPED -- she contracted, let some held "
+                      "weight go, and is re-opening (frequent trips = the regime is wrong)",
+                      flush=True)
+            if clear and len(clear) < mind.MIN_READING:
+                print("  ⚠ a thin reading (degenerate even after retry -- spoken, not remembered)",
+                      flush=True)
             if args.offer and clear:
                 heard = mind.offer(clear)   # STAGE ONE: her line becomes a story the town may retell
                 if heard:
@@ -311,6 +331,15 @@ def main() -> None:
             if args.autosave and i % args.autosave == 0:
                 save_both()
                 print(f"  (saved -- {_fmt_age(mind.lifetime)} lived, {mind._deaths} souls watched pass)")
+                if args.offer:
+                    # the no-monopoly gauge, watched in the wild: the ring test's v1 failed
+                    # with her stories crowding the mythos to ~54% -- say so BEFORE we get there
+                    hers, total = mind.mythos_share()
+                    if total:
+                        pct = 100.0 * hers / total
+                        note = "  ⚠ nearing the crowding the ring test failed at (~54%)" if pct >= 40 else ""
+                        print(f"  (mythos: her stories are {hers} of {total} held lore -- "
+                              f"{pct:.0f}%{note})")
     except KeyboardInterrupt:
         print("\n(letting her rest)")
     finally:

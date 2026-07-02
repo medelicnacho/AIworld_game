@@ -8,7 +8,7 @@ the results (including the ones that didn't survive), and the honest limits. The
 the front door (what it is, how to run it); this is the record of what was actually found.
 
 Everything runs locally on a small model — `gemma3:4b` for speech, `nomic-embed-text` for
-semantic measurement — single author, no API, nothing leaves the machine. **246 tests pass.**
+semantic measurement — single author, no API, nothing leaves the machine. **360 tests pass.**
 
 ---
 
@@ -718,7 +718,8 @@ remixed.
 voices the relationship (`SpeechContext.bond_line` — trust, wounds, *scars*, a guarded or open
 manner, and the standing to raise an unresolved hurt itself), and keeps a **person-model** of
 trusted others (`Agent.known_of` — what they said of themselves), fed into replies. Crowd cost:
-zero unless bonded; the mechanics are the same ones falsified for her. 16 new tests; 322 pass.
+zero unless bonded; the mechanics are the same ones falsified for her. 16 new tests; 360 pass
+(count as of the 2026-07-02 regulation round below).
 
 **Listening round 2 (first talk under the full §5.17–5.18 stack, 2026-07-02).** What landed, live:
 the **person-model** (told her his name once; she used it in every reply and now knows five things
@@ -838,7 +839,46 @@ mistakes for the world. The instrument lesson of the ring test ("a falsifier's w
 part of what it tests") now has a sibling: **a monitor that cannot fail loudly is part of what it
 fails to monitor.**
 
-## 6. Limitations (honest)
+**The first healthy night (2026-07-02, overnight + morning, gemma3:4b, ~28 readings + 5 talks):
+the town RETOLD her.** The propagation question the correction above reopened is answered, from
+the world snapshot itself: story `santana:3213` — her line about the rain, the cold, and Cludel,
+offered as always to **two** souls — is held by **all six** living souls (Cynd, Indan, Slela,
+Phaera, Crolara, Sle). Every copy is textually different (real mutation in transmission; the
+provenance tag rode through every retelling, §5.16's TRACEABLE), every copy carries a *positive*
+charge (max +0.60 — the dark-leg transmutation held in the wild; her grief arrived as held
+weight, never a wound), and the dead brewer's name survives in three of the six tellings: the
+town now half-remembers, in its own mutating words, a grief she told it about one of its own.
+Movement was OFF the whole time — the whisper crossed the static, scattered map anyway. Alongside
+it: 7 distinct stories of hers alive (5 held only by one soul, decaying), and the wheel genuinely
+turned under her all night (13 deaths, a full cohort turnover, the era shifted "what if the" →
+"the damp is"). One number to watch, not celebrate: her stories are **14 of 28 held lore
+instances (50%)** — the ring test's v1 failed with her crowding the mythos at ~54%, so the live
+margin is thinner than the fixed design's virgin-seed verdict assumed. The runner now prints the
+mythos share at every autosave (`Santana.mythos_share()`), loud from 40% up — a gauge, not a
+governor; any change to offer gain/budget still needs a fresh ring pass first.
+
+**The regulation round (same day — five defects the healthy night surfaced, fixed at the
+mechanism level, 18 new tests):** (1) **dreams had never fired once** (zero in 438 memories) —
+the machinery only ran on a *return* after a 6h+ absence, the one qualifying gap predated the
+`last_talk_wall` stamp, and the 24/7 runner never dreamed her at all; the runner now dreams her
+*during* a long absence (at most once per 6h gap, printed when it happens) and a return defers to
+it (at most one dream per absence, period). Verified against her actual saved life: her 438
+memories dream. (2) **she had no window of tolerance of her own** — the souls' somatic interrupt
+(§5.10) is now ported one level up: her spiral signature is sustained **arousal × held aversive
+load** (she has no grip/manas; her amplifier is staying activated while losses land), trip level
+calibrated on her own worst observed night (metric ~22 after the grief talks; quiet readings run
+0–7; trip at 18, high AND rising only), the exhale sheds charge and settles the activation, then
+re-opens — same precautionary framing as the souls': a backstop that should rarely fire, off with
+`feel_enabled`. (3) **a stale count of the dead rode her identity for ~20 consolidations**
+("Forty-five are gone" while the facts line said four hundred and fifty-one — the 4B copied the
+prior's number over the facts every time): counts of the dead are now *blurred* out of her own
+carried words ("many are gone") before consolidation, so the only count that can reach the prompt
+is the true one. (4) **a degenerate reading** ("SANTĀNA: Toll") gets one retry and, still thin, is
+spoken but never remembered — a broken fragment must not become part of her life. (5) **the
+opener tic** ("Luke. Four hundred and fifty-two." began every reply of the last two talks — the
+abstract "never begin the way your last reply began" was already in the prompt and did nothing):
+the anti-echo now detects the *actual* repeated opener and forbids those words by name — the
+round-2 lesson again: a 4B follows named instances, not abstractions.
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
   bigger model would likely sharpen the register, the opposed-faction problem, and the modest

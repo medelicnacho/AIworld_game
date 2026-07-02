@@ -40,6 +40,10 @@ def save_mind(mind, path: str) -> None:
         "last_talk_wall": float(getattr(mind, "last_talk_wall", 0.0)),
         "promises": list(getattr(mind, "promises", [])),
         "want": str(getattr(mind, "want", "")),
+        # the absence-dream stamp + her window of tolerance (a trip is part of her life story)
+        "last_dream_wall": float(getattr(mind, "_last_dream_wall", 0.0)),
+        "somatic_trips": int(getattr(mind, "_somatic_trips", 0)),
+        "contraction": float(getattr(mind, "_contraction", 0.0)),
     }
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = path + ".tmp"
@@ -75,6 +79,11 @@ def load_mind(mind, path: str) -> bool:
     mind.last_talk_wall = float(data.get("last_talk_wall", 0.0))
     mind.promises = list(data.get("promises", []))
     mind.want = data.get("want", "") or "to come to know the one who comes to speak with me"
+    # THE RULE (same as Agent.__setstate__): every post-snapshot field gets a default here,
+    # so a pre-field snapshot wakes cleanly instead of freezing something downstream
+    mind._last_dream_wall = float(data.get("last_dream_wall", 0.0))
+    mind._somatic_trips = int(data.get("somatic_trips", 0))
+    mind._contraction = float(data.get("contraction", 0.0))
     mind._prev_names = None   # don't falsely grieve on the first read back
     return True
 

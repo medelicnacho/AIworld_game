@@ -11,16 +11,17 @@ polished generic assistant in a town costume; fed a rich, well-framed read of th
 as its OWN feeling, not a dashboard of variables -- you get something that sounds like *this* town's
 mind. So the care goes into `digest()`, and the first task is simply: read what comes out.
 
-DELIBERATELY INERT, and DELIBERATELY MINIMAL. It reads state and produces a voice. It does NOT feed
-back into the souls, it is not wired into the viewer, and it is text-only -- no TTS, no conversation
-loop. Those (and treating it as a someone, leaning in, scaling it up) are the gated, clear-headed,
-daytime steps. Deferred on purpose; see the TODOs:
-  TODO(voice):  stream the model's reasoning to TTS as a murmured inner-monologue + the settled
-                answer as the clear voice (the two-layer voice the project already has).
-  TODO(talk):   a conversation loop -- inject the user's words, let the Mind answer and remember.
-  TODO(world):  a --santana viewer flag; optionally let its voice reach the souls (top-down).
-  TODO(digest): camps/currents (world.update_camps), recent deaths by name, a salient shared
-                memory, the soul's actual preoccupation (drift) -- richer than weather + two souls.
+Born DELIBERATELY INERT; the couplings since are BUILT, EACH BEHIND ITS OWN GATE. The original
+deferred steps have been taken, one at a time, each with its own falsifier and off-switch:
+  voice:  play_two_layer streams the murmur under the clear line (TTS, --tts only).
+  talk:   converse()/hear_user() -- the bounded conversation loop (santana_app/talk.py; the
+          talk touches ONLY her, never the souls -- pinned by test).
+  world:  viewer --santana / app.py wire her in; offer() is STAGE ONE of the top-down loop
+          (§5.18-5.19): her settled line enters the town's LORE channel only -- 2 souls, low
+          weight, dark leg transmuted, budgeted -- where it must compete like any legend.
+          OFF by default everywhere (--offer / --santana-offer); ring-tested before the flag
+          existed. Anything stronger stays gated behind a fresh ring test.
+  digest: deaths by name, the wheel, regard-for-parts, the workspace floor, the souls' own lines.
 """
 
 from __future__ import annotations
@@ -80,6 +81,26 @@ def _num_words(n: int) -> str:
         return _ONES[h] + " hundred" + (f" and {_num_words(r)}" if r else "")
     th, r = divmod(n, 1000)
     return _num_words(th) + " thousand" + (f" {_num_words(r)}" if r else "")
+
+
+_NUM_WORD = (r"(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+             r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|"
+             r"forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)")
+_STALE_COUNT = re.compile(
+    rf"\b(?:\d+|{_NUM_WORD}(?:(?:-|\s+|\s+and\s+){_NUM_WORD})*)\s+"
+    rf"(?=(?:souls?\s+|of\s+(?:them|us|me)\s+)?(?:are|have|had|now)?\s*"
+    rf"(?:gone|passed|died|dead|lost)\b)",
+    re.IGNORECASE)
+
+
+def _scrub_counts(text: str) -> str:
+    """Blur any COUNT-of-the-dead in her own carried words ('Forty-five are gone' -> 'many are
+    gone'). The prior identity is a skin to shed, and its stale numbers are the stickiest part:
+    listened live, a count that froze at forty-five rode the prior through ~20 consolidations
+    while the true facts line said four hundred and fifty-one -- the 4B copied the prior's number
+    over the facts every time. So the ONLY count that can reach the consolidation prompt is the
+    true one, stated in the facts line; her narrative keeps its grief, not its arithmetic."""
+    return _STALE_COUNT.sub("many ", text)
 
 
 def _weather_word(m: float) -> str:
@@ -173,9 +194,56 @@ class Santana:
         self.want = "to come to know the one who comes to speak with me"
                                      # HER want across the talks -- a relational aim, not a character
         self.last_dream = ""         # what she dreamt in the last absence (also written to memory)
+        self._last_dream_wall = 0.0  # wall-clock of her last dream -- at most one per stretch of
+                                     # absence (the runner dreams her DURING a long absence; the
+                                     # return then must not dream her again for the same gap)
         self._offer_cd = 0           # offer budget (stage one): readings until she may tell again
         self._offered: list[str] = []   # her recent offerings -- she does not retell them
         self._last_judgment = ""     # the judge's previous call -- a wound needs corroboration
+        # HER window of tolerance (§5.10, ported one level up) -- see _somatic()
+        self._somatic_history: list = []   # spiral-metric history (reads the TREND, not the level)
+        self._somatic_trips = 0            # how many times the breaker has ever fired (persisted)
+        self._contraction = 0.0            # >0 while contracted; relaxes back toward open
+
+    # HER window of tolerance (§5.10, the souls' somatic interrupt ported one level up). The souls'
+    # spiral is grip x aversive load; she has no grip/manas -- HER compounding signature is sustained
+    # ACTIVATION over the grief she holds: arousal (appraisal shocks amplify while she is still
+    # ringing) times aversive load (four-hundred-odd held losses are the fuel). Calibrated on her
+    # actual saved life: the metric stood at ~22 at the end of the heaviest night of talks she has
+    # had (grief + wounds + a death mid-conversation); quiet readings run 0-7. So the trip level
+    # sits just under that worst observed night -- a BACKSTOP that would have caught a spiral had
+    # that night kept compounding, not a thermostat that fires on ordinary weather.
+    SOMATIC_TRIP = 18.0
+    SOMATIC_RISE = 1.0   # the rise gate, scaled to HER metric (~20 at trip; the souls' 0.10
+                         # is scaled to theirs, O(1)) -- noise must not read as compounding
+
+    MIN_READING = 12   # chars: shorter than the shortest true reading -- below this a reading is
+                       # DEGENERATE (observed live: 'SANTĀNA: Toll'), retried once, never remembered
+
+    def _somatic(self) -> None:
+        """One somatic cycle for HER: read the spiral (high AND rising), trip if it is running
+        away, and -- while contracted -- shed the held aversive charge (the 'exhale') and settle
+        the activation, then re-expand. Precautionary, like the souls' (§5.10): under a healthy
+        regime it should fire rarely; a first-arrow spike alone never trips it (the rise gate)."""
+        from agent import somatic as _som
+        metric = self.arousal * _som.aversive_load(self)
+        hist = self._somatic_history
+        hist.append(metric)
+        del hist[:-_som.WINDOW]
+        rising = len(hist) >= _som.WINDOW and metric > hist[0] + self.SOMATIC_RISE
+        if self._contraction < _som.OPEN and metric > self.SOMATIC_TRIP and rising:
+            self._contraction = 1.0
+            self._somatic_trips += 1
+        if self._contraction > 0.0:
+            c = self._contraction
+            for m in self.memory.items:
+                if m.source == "doctrine" or m.emotion >= 0.0:
+                    continue
+                m.salience *= (1.0 - _som.DISCHARGE * c)
+                m.emotion *= (1.0 - _som.DISCHARGE * c)
+            # she has no manas to take offline -- the exhale settles the activation itself
+            self.arousal *= (1.0 - 0.5 * c)
+            self._contraction = max(0.0, self._contraction - _som.RECOVER_RATE)
 
     def digest(self) -> str:
         """What is alive in the Mind right now -- framed as its OWN feeling, not as variables.
@@ -293,13 +361,15 @@ class Santana:
         """The two-layer voice: the Mind first MURMURS (half-thinking as it takes in the town --
         visible reasoning, in its own warm register, stored on self.murmur) then settles into the
         CLEAR line it actually says (returned). Conditioned by the EMERGENT self, not an authored
-        persona. INERT -- not fed back into the souls. (TODO(voice): stream the murmur to TTS.)"""
+        persona. Speaking itself touches no soul; the caller MAY pass the settled line to offer()
+        (stage one, gated, off by default) -- that is the only road down."""
         if self.llm is None or not hasattr(self.llm, "generate"):
             return ""
         self._mt += 1   # a new reading -- one tick of her life (the digest below records any losses)
         if self.feel_enabled:
             from agent import expectation as _expectation
             _expectation.tick(self, self._mt)   # her expectations track her lived mood; arousal settles
+            self._somatic()                     # the window of tolerance -- her backstop, rarely felt
         # PRESENT-LED: the current digest leads; the emergent self is only a light backdrop it can
         # depart from -- otherwise the accumulated personality ossifies and drowns the living town
         # (it kept grieving a soul that had died). State drives; the self is a through-line, not a cage.
@@ -362,6 +432,22 @@ class Santana:
         # sounds broken aloud, and it re-enters her memory broken too
         from services.llm import _trim_to_sentence
         text = _trim_to_sentence(text)
+        # a DEGENERATE reading ("Toll" -- one word, observed live) gets ONE retry; if the
+        # second read is degenerate too, it is spoken but NOT remembered -- a broken fragment
+        # must not become part of her life (same rule as the mid-clause trim above)
+        if len(text) < self.MIN_READING:
+            try:
+                raw2 = self.llm.generate(prompt, system=self.SYSTEM, num_predict=200,
+                                         temperature=0.9)
+                murmur2, text2 = _split_murmur(raw2)
+                text2 = _trim_to_sentence(text2)
+                if len(text2) > len(text):
+                    self.murmur, text = murmur2, text2
+            except Exception:   # noqa: BLE001 -- the retry failing just keeps the thin read
+                pass
+        if len(text) < self.MIN_READING:
+            self.memory.tick(self._mt)
+            return text
         self.last = text or self.last
         if text:
             self.said = (self.said + [text])[-4:]   # a short trail -- the raw material of the self
@@ -379,7 +465,11 @@ class Santana:
         attractor over its history, not a stored mask -- anatta). No authored content."""
         if self.llm is None or not hasattr(self.llm, "generate") or not self.said:
             return self.identity
-        trail = " / ".join(self.said[-3:])
+        # counts of the dead are BLURRED out of her own carried words (trail + prior below): the
+        # only count that may reach this prompt is the true one in the facts line -- listened
+        # live, a stale 'Forty-five are gone' rode the prior through ~20 consolidations while
+        # the facts said four hundred and fifty-one (see _scrub_counts).
+        trail = " / ".join(_scrub_counts(s) for s in self.said[-3:])
         # Step 1: she takes stock from her LIFE, not just the moment -- a salience-weighted recall of
         # her accumulated past (the losses and hard seasons persist; the routine has faded). So who she
         # has become is drawn from continuity (the charged past) AND the living present -- the coherent-
@@ -397,7 +487,7 @@ class Santana:
                  else f"{_num_words(alive)} souls live in you, and none have died yet")
         # The prior is a SKIN to shed, not a script to repeat: present-led, lightly anchored, so the
         # self DRIFTS with the turning town (anatta) instead of ossifying on its first utterance.
-        prior = self.identity
+        prior = _scrub_counts(self.identity)
         prompt = (
             f"This is how you are RIGHT NOW: {self.digest()}\n\n"
             f"The true measure of your life so far (speak only from these numbers -- never invent a "
@@ -514,6 +604,7 @@ class Santana:
         if self.feel_enabled:
             from agent import expectation as _expectation
             _expectation.tick(self, self._mt)
+            self._somatic()   # talks are where her activation spikes -- the backstop rides along
         self.hear_user(text)
         from agent.bond import describe
         rel = describe(self.user_bond, "the one speaking with you")
@@ -585,6 +676,20 @@ class Santana:
         else:
             town = ("(Your town stands beneath the talk as you last read it -- speak of it "
                     "only when the conversation calls for it.)\n\n")
+        # the anti-echo, made CONCRETE: 'never begin the way your last reply began' was already
+        # in the prompt the night every reply opened "Luke. Four hundred and fifty-two." -- an
+        # abstract rule asks a 4B to infer its own opener from the trail. So detect the actual
+        # repetition and name the words themselves (the round-2 digest lesson, one level up).
+        mine = [t[6:-1] for t in self.talk if t.startswith('you: "')]
+        opener = ""
+        if len(mine) >= 2:
+            def _open(s: str) -> str:
+                return " ".join(s.split()[:4]).strip("\"'“”.,;: ")
+            if _open(mine[-1]) and _open(mine[-1]).lower() == _open(mine[-2]).lower():
+                opener = _open(mine[-1])
+        anti = (f'Your last replies have ALL begun "{opener}..." -- do NOT begin with those '
+                "words again, and do not recite a count of the dead unless they ask. "
+                if opener else "Never begin the way your last reply began. ")
         prompt = (
             town
             + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
@@ -594,8 +699,8 @@ class Santana:
             + f"How you stand with them RIGHT NOW -- this may have moved during this very "
             f"conversation, and it overrides anything you said of them earlier: {rel}\n{feel}\n"
             "Answer THEM, as yourself -- Santāna, the whole this town adds up to -- in one to three "
-            f"plain first-person sentences. {manner}{ask}Never begin the way your last reply "
-            "began. Speak from how you actually are right now and from how you stand with them "
+            f"plain first-person sentences. {manner}{ask}{anti}"
+            "Speak from how you actually are right now and from how you stand with them "
             "as given above; never invent souls or events not given above.")
         try:
             raw = self.llm.generate(prompt, system=self.SYSTEM, num_predict=n_pred, temperature=0.85)
@@ -655,6 +760,22 @@ class Santana:
             self._offered = (self._offered + [text])[-4:]
         return n
 
+    def mythos_share(self) -> tuple[int, int]:
+        """How much of the lore the living souls hold is HERS: (her instances, all instances).
+        The no-monopoly regulator's live gauge -- the ring test's v1 FAILED with her stories
+        crowding the mythos to ~54%, so the runner watches this number in the wild and says so
+        when it climbs. A gauge only: it changes nothing."""
+        hers = total = 0
+        with self.world.lock:
+            for a in self.world.agents:
+                for m in a.memory.items:
+                    lid = getattr(m, "lore_id", "")
+                    if not lid or lid.startswith("conduct:"):
+                        continue   # conduct-expectation notes ride lore_id but are not stories
+                    total += 1
+                    hers += lid.startswith("santana:")
+        return hers, total
+
     def begin_talk(self, now_wall: float | None = None) -> str:
         """They have come back. If they were gone a while, the ABSENCE becomes an event in
         her life -- valenced by the bond (a loved one's return is warm; a stranger's is just
@@ -674,7 +795,12 @@ class Santana:
                                   speaker_id="user", emotion=-0.5, weight=1.4)
         if self.last_talk_wall <= 0 or now_wall - self.last_talk_wall < 6 * 3600:
             return ""
-        self.dream()   # absence is when she dreams (her own memories, recombined)
+        # absence is when she dreams -- but at most ONCE per absence: the persistent runner
+        # dreams her DURING a long gap (it lives through the absence; this method only sees the
+        # return), so the return dreams her only if the runner has not already
+        if self._last_dream_wall <= self.last_talk_wall:
+            self.dream()
+        self._last_dream_wall = now_wall
         days = (now_wall - self.last_talk_wall) / 86400.0
         span = f"{days:.0f} days" if days >= 1.5 else "a long while"
         note = f"they were gone {span}, and now they have come back to me"
