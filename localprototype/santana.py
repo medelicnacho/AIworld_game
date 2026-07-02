@@ -149,6 +149,7 @@ class Santana:
         self.last_dream = ""         # what she dreamt in the last absence (also written to memory)
         self._offer_cd = 0           # offer budget (stage one): readings until she may tell again
         self._offered: list[str] = []   # her recent offerings -- she does not retell them
+        self._last_judgment = ""     # the judge's previous call -- a wound needs corroboration
 
     def digest(self) -> str:
         """What is alive in the Mind right now -- framed as its OWN feeling, not as variables.
@@ -409,6 +410,15 @@ class Santana:
             kind = _judge.intent(text, self.judge)
             sig = _judge.SIG.get(kind, 0.0)
             if kind == "COLD":
+                # a 4B judge is a NOISY sensor (calibration: caring questions about death
+                # judged COLD ~2/14) -- one noisy sensor must never wound. Uncorroborated
+                # COLD is a CHILL (slight cooling, no conduct evidence); a wound-grade
+                # signal needs corroboration: a second consecutive COLD, or words that are
+                # genuinely cold on their own (the lexicon agrees).
+                corroborated = (self._last_judgment == "COLD") or valence(text) < -0.2
+                if not corroborated:
+                    sig = 0.0
+                    self.user_bond.feel(-0.1)
                 emo = min(emo, -0.4)
             elif kind == "WARM":
                 emo = max(emo, 0.3)
@@ -423,6 +433,7 @@ class Santana:
                 self.memory.write(f"they gave me their word: {text[:120]}",
                                   tick=self._mt, source="user", speaker_id="user",
                                   emotion=0.2, weight=1.3)
+            self._last_judgment = kind
         if self.feel_enabled:
             from agent import expectation as _expectation
             emo = _expectation.appraise_event(self, emo)

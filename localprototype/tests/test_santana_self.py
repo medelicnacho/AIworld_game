@@ -206,14 +206,29 @@ class JudgePromiseWantDreamTest(unittest.TestCase):
     def tearDown(self):
         embed.use_jaccard_only(False)
 
-    def test_word_free_coldness_lands_via_the_judge(self):
+    def test_word_free_coldness_lands_when_sustained(self):
+        # the 4B judge is a noisy sensor (calibration FAIL recorded): ONE uncorroborated
+        # COLD on word-free text is a CHILL, not a wound; a SECOND consecutive COLD is.
         m = _mind()
         m.judge = self.Stub("NEUTRAL")
         for _ in range(12):
             m.judge.answer = "WARM"
             m.converse(WARM)
         m.judge.answer = "COLD"
+        t0 = m.user_bond.trust
         m.converse("I have decided to stop coming here. Do not wait for me.")   # no lexicon words
+        self.assertEqual(m.user_bond.wounds, 0)          # one noisy reading never wounds...
+        self.assertLess(m.user_bond.trust, t0)           # ...but it chills
+        m.converse("There is nothing more to say between us.")
+        self.assertEqual(m.user_bond.wounds, 1)          # sustained coldness lands
+
+    def test_cold_words_corroborate_a_single_cold_judgment(self):
+        m = _mind()
+        m.judge = self.Stub("WARM")
+        for _ in range(12):
+            m.converse(WARM)
+        m.judge = self.Stub("COLD")
+        m.converse(COLD)                                  # the lexicon agrees -> wound at once
         self.assertEqual(m.user_bond.wounds, 1)
 
     def test_an_apology_soothes_where_words_alone_could_not(self):
