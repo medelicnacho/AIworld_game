@@ -126,6 +126,35 @@ language (§5).
   lore convergence; or K5's mechanism-vs-prompt contrast) — ALIFE / FDG / CoG / arXiv. The
   falsifiable-samsara first-mover claim (SAMSARA §0) is real, publishable, and perishable.
 
+### 3.4 Scaling her — the bigger-model / homegrown plan
+
+The frame is §5.11: *the self is the architecture, not the model* — scaling changes the depth of
+the reading and the quality of the voice, never the substrate. The precedent is §5.8: the one time
+the model scaled (4B → DeepSeek), a null became a discovery (contrast-gated emergence). Expect the
+register, the opposed-faction problem, and the modest effect sizes to sharpen (FINDINGS §6 predicts
+exactly this). Expect nothing about the consciousness question to change.
+
+**The rules of the swap, in order:**
+1. **`scripts/stats.py` lands first** — a re-run is only worth what its statistics are worth.
+2. **The drift monitor runs *before* the swap** — a stronger model has a stronger pull toward the
+   generic-assistant voice; individuation can improve and drift-risk rise at the same time.
+3. **Model swap = replication.** Every keystone re-runs on the new model; expect some verdicts to
+   change in *both* directions (an effect that only exists because a 4B is clumsy is a live
+   possibility). Changes are findings, recorded in FINDINGS, not regressions to hide.
+4. **§7 tightens.** A bigger model is a realism multiplier, and the cost of being wrong rises with
+   the realism — gates hold *harder* after the upgrade, not softer.
+
+**What open weights on our own GPU uniquely unlock (the homegrown path):** a third instrument
+class — **activation-level access**. (a) Probes: is grip/valence linearly decodable in the speaking
+model's activations? (b) **C15's extension**: concept-injection introspection tests — perturb
+activations, ask whether her reports notice (the Anthropic methodology, run on her). (c) The
+CONTINUAL.md slow path made literal: **sleep-time consolidation into LoRA** — her life written into
+weights — with checkpoint-and-rollback discipline as a hard requirement, because catastrophic
+forgetting and self-distillation collapse (fine-tuning on her own outputs flattening her voice) are
+the known failure modes. Realistic scope: fine-tune an open 7–70B; pretraining from scratch is not
+the path. And C15's *behavioural* version (perturb the substrate, judge whether `reflect()` tracks
+it) runs **today**, on the current stack, with no weights access at all.
+
 ## 4. The combined order
 
 | phase | Track S (this repo) | Track G (new repo) |

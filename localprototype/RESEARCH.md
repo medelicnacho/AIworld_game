@@ -183,6 +183,39 @@ stream through the regulated, budgeted channel pattern of stage one. *Falsifier:
 the era→event→era loop must not freeze the culture (era turnover survives; §5.13's fatigue is the
 guard); plus non-null (festivals leave episodic traces).
 
+### Added 2026-07 — from the second consciousness pass
+
+**C14. Perceptual reality monitoring — source tags at recall.**
+*Theory:* Lau's PRM (the HOT family's most computational form): a **discriminator** — concretely,
+GAN-discriminator-shaped — tags whether activity is externally caused or internally generated, and
+being *tagged-as-real* is what makes a state conscious-functional. *Mechanism:* every recalled item
+already carries provenance the selves never read (event vs dream vs legend vs consolidation;
+`mutation_count`, merge history). Compute a **source tag at recall** — perception / my own memory /
+a story I was told / a dream / unsure — from provenance + drift features, and let the tag gate the
+voice: dreams hedged as dreams, legends attributed, blurred memories doubted. (C2 is the
+*confidence* half of this; C14 is the *source* half — build them together, they read the same
+data.) *Falsifier:* (a) tags track ground-truth provenance on virgin seeds vs a
+shuffled-provenance null; (b) **source-confusions occur and are detectable** — a dream or legend
+leaking into believed-memory at a low rate, verifiable end-to-end against the event log. The drama
+case: a soul "remembers" something that was only ever a story it was told — *emergent false
+memory*, auditable. Null = tags collapse to one class or don't beat the shuffle. *Port:* NPCs that
+misremember a legend as their own life is the lore system's deepest trick, and "I dreamt it,
+I think" is free dialogue depth.
+
+**C15. Functional introspection, tested causally — the substrate-perturbation probe.**
+*Theory:* Anthropic's concept-injection methodology (Lindsey, *Emergent Introspective Awareness*):
+perturb internals directly and ask whether the self-report *notices* — the only known way to
+distinguish introspection from confabulation. *Mechanism (runnable today, no weights access):*
+perturb the **substrate** mid-run — spike grip, inject a valence charge, alter a bond — then let
+`reflect()`/digest run and have the judge score whether the self-report **tracks** the manipulation
+(a grip spike read as feeling gripped) or confabulates something else. *Falsifier:* report-tracking
+beats a sham-perturbation null, and is *direction-specific* (grip reads as gripped, not merely
+"something is off"). Either outcome is a finding: if reports don't track, her introspection is
+narrative confabulation — record it. *Extension (open-weights only, ROADMAP §3.4):* the
+activation-level version — is grip linearly decodable in the speaking model's activations; do
+injected concepts surface in her reports. *Port:* NPC self-reports you can actually trust — or
+provably can't, which is its own kind of character.
+
 ---
 
 ## 5. What I would run next, in order
@@ -194,6 +227,9 @@ guard); plus non-null (festivals leave episodic traces).
    if the false-reputation drama emerges; rides two validated systems (expectation + lore).
 4. **C8 (scorecard)** — cheap honesty infrastructure; do it alongside.
 5. Then C4/C9 as the game-port pair (feeling-gaps + verbs), and C6 only with regulator review.
+6. *(2026-07 addendum)* **C14 rides with C2** — same provenance data, confidence + source in one
+   pass — and **C15 is cheap enough to run now**, bundled with the reflect adversarial probe
+   (METHODS §3): perturb the substrate, see if the self notices.
 
 *Sources:* Butlin et al., [Consciousness in AI: Insights from the Science of Consciousness](https://arxiv.org/abs/2308.08708) and the 2025 TiCS
 [indicator update](https://www.sciencedirect.com/science/article/pii/S1364661325002864); [precautionary framework for consciousness uncertainty](https://arxiv.org/pdf/2606.05528);
@@ -202,6 +238,10 @@ guard); plus non-null (festivals leave episodic traces).
 [active inference for multi-LLM systems](https://arxiv.org/pdf/2412.10425); surveys of the 2026 LLM-NPC wave ([1](https://aivexify.com/the-ultimate-guide-to-ai-npc-games-in-2026/), [2](https://wanderfolk.ai/ai-npcs-in-games/), [3](https://arxiv.org/html/2504.13928v1)).
 Game-craft lineage from training knowledge: Comme il Faut/Prom Week, Versu, Façade, Dwarf
 Fortress/RimWorld/CK3.*
+
+*Second-pass sources (2026-07, for C14/C15 and the scaling plan): [AST in a neural-network agent — the schema is essential for attention control](https://www.pnas.org/doi/10.1073/pnas.2102421118) and [its computational characterization](https://arxiv.org/abs/2402.01056);
+[computational higher-order theories / Lau's perceptual reality monitoring](https://philarchive.org/archive/FLECHT); [Emergent Introspective Awareness in LLMs (concept injection)](https://transformer-circuits.pub/2025/introspection/index.html);
+[Man & Damasio, homeostasis and the design of feeling machines](https://www.nature.com/articles/s42256-019-0103-7); [Safron's Integrated World Modeling Theory](https://www.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2020.00030/full).*
 
 *Companion docs (added 2026-07): `METHODS.md` — the instrument layer every falsifier above runs
 through (paired-seed statistics, the judge panel + bias battery, drift monitoring; its §7 gives the
