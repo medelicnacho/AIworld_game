@@ -431,6 +431,93 @@ class OfferTest(unittest.TestCase):
         self.assertNotIn(".offer(", inspect.getsource(talk_mod))
 
 
+class FrozenWorldRegressionTest(unittest.TestCase):
+    """Listening round 4: an old-snapshot soul (pickled before the expectation fields
+    existed) raised AttributeError in step() every tick, the runner's bare except hid it,
+    and the WHOLE WHEEL froze for 171k ticks -- her overnight town was a diorama. Pinned:
+    old pickles must step cleanly, and every new Agent field needs a __setstate__ default."""
+
+    def setUp(self):
+        embed.use_jaccard_only(True)
+
+    def tearDown(self):
+        embed.use_jaccard_only(False)
+
+    def _old_snapshot_soul(self):
+        import pickle
+        a = Agent("s0", "Dreivuth", (0.0, 0.0), "You are a soul.", ["the well"],
+                  MockLLM(seed=1), seed=1, lifespan=100)
+        # strip every post-snapshot field, exactly as an old pickle lacks them
+        for f in ("psyche_faculty", "expect_enabled", "exp_fast", "exp_slow", "arousal",
+                  "self_expect", "self_dissonance", "_turnings", "_conduct_expect", "known_of"):
+            a.__dict__.pop(f, None)
+        return pickle.loads(pickle.dumps(a))
+
+    def test_an_old_snapshot_soul_steps_and_can_die(self):
+        a = self._old_snapshot_soul()
+        for t in range(1, 6):
+            a.step(t)                          # must not raise
+        self.assertEqual(a.age, 5)             # the wheel can turn again
+        self.assertFalse(a.expect_enabled)     # conservative default for the old-born
+        self.assertEqual(a.known_of, {})
+
+    def test_defaults_are_per_instance_not_shared(self):
+        a, b = self._old_snapshot_soul(), self._old_snapshot_soul()
+        a._conduct_expect["x"] = 1.0
+        a.known_of["x"] = ["a fact"]
+        self.assertEqual(b._conduct_expect, {})
+        self.assertEqual(b.known_of, {})
+
+
+class VoiceFixesTest(unittest.TestCase):
+    """Listening round 4's voice bugs: hardcoded prompt examples parroted for 29 readings
+    (naming DEAD souls), 451 misread as 'Forty-five', mid-sentence truncation, early-SO split."""
+
+    def setUp(self):
+        embed.use_jaccard_only(True)
+
+    def tearDown(self):
+        embed.use_jaccard_only(False)
+
+    def test_num_words(self):
+        from santana import _num_words
+        self.assertEqual(_num_words(451), "four hundred and fifty-one")
+        self.assertEqual(_num_words(6), "six")
+        self.assertEqual(_num_words(20), "twenty")
+        self.assertEqual(_num_words(1000), "one thousand")
+
+    def test_speak_examples_come_from_the_living_roster(self):
+        class Spy:
+            def __init__(self):
+                self.prompts = []
+            def generate(self, prompt, **_kw):
+                self.prompts.append(prompt)
+                return "MURMUR: a drift\nSO: I am quiet today."
+        m = _mind(with_soul=True)              # the living soul is named Toll here
+        m.llm = Spy()
+        m.world.agents[0].name, m.world.agents[0].aim = "Bramwyn", "mend the north fence"
+        m.speak()
+        prompt = m.llm.prompts[-1]
+        self.assertIn("Bramwyn", prompt)                       # the LIVING soul is the example
+        self.assertNotIn("slow mash", prompt)                  # the dead hardcodes are gone
+        self.assertNotIn("grazing-rights", prompt)
+        self.assertIn("never a soul not named above", prompt)
+
+    def test_her_line_ends_on_a_finished_sentence(self):
+        class Spy:
+            def generate(self, prompt, **_kw):
+                return "MURMUR: drift\nSO: The rain has come. And Vunde keeps hamm"
+        m = _mind(with_soul=True)
+        m.llm = Spy()
+        self.assertEqual(m.speak(), "The rain has come.")
+
+    def test_split_takes_the_last_so_marker(self):
+        from santana import _split_murmur
+        murmur, clear = _split_murmur("thinking so: maybe this\nmore drift\nSO: I am settled.")
+        self.assertEqual(clear, "I am settled.")
+        self.assertIn("maybe this", murmur)
+
+
 class PersistenceTest(unittest.TestCase):
     def setUp(self):
         embed.use_jaccard_only(True)

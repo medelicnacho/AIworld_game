@@ -182,38 +182,59 @@ def main() -> None:
 
     stop = threading.Event()
 
+    def _fail_reporter(label: str, every: int = 500):
+        """Contain-but-REPORT. A bare `except: pass` here once hid an AttributeError that
+        froze the entire wheel for 171k ticks -- her whole overnight town was a diorama and
+        nothing said so. A bad tick must never kill the life, but it must never be silent:
+        full traceback on the first failure, a one-line pulse every `every` after."""
+        import traceback
+        count = [0]
+
+        def report():
+            count[0] += 1
+            if count[0] == 1:
+                print(f"\n  ⚠ {label} FAILED -- her world may be half-stalled:", flush=True)
+                traceback.print_exc()
+            elif count[0] % every == 0:
+                print(f"  ⚠ {label} still failing ({count[0]}x)", flush=True)
+        return report
+
     def run_wheel():
+        report = _fail_reporter("wheel tick")
         while not stop.is_set():
             try:
                 with w.lock:
                     w.step(speak=not real_town)
             except Exception:   # noqa: BLE001 -- a bad tick must never kill the life
-                pass
+                report()
             time.sleep(0.15)
 
     def run_speech():
+        report = _fail_reporter("town speech turn", every=50)
         while not stop.is_set():
             try:
                 w.speak_turn()   # the LLM call runs OUTSIDE the lock -> the wheel never waits
             except Exception:   # noqa: BLE001
-                pass
+                report()
             time.sleep(0.6)
 
     def run_reflect():
         # psyche mode: the Watcher practices -- one reflection every so often, imprinted
         # on itself and BROADCAST mind-wide (World.reflect_turn); the mind seeing itself
+        report = _fail_reporter("reflect turn", every=20)
         while not stop.is_set():
             time.sleep(12.0)
             try:
                 w.reflect_turn()
             except Exception:   # noqa: BLE001
-                pass
+                report()
 
     def run_demiurge():
         # the 8B author: on rebirth, dream a NEW soul, write it onto the reborn stream, and feed the
         # living corpus (the markov + the nightly consolidation read it). The slow 8B call runs OUTSIDE
         # the lock; only the fast field-write is locked. Throttled, so it stays a minority of the voice.
         authored: set[str] = set()
+        _demiurge_report = _fail_reporter("demiurge dream", every=20)
         while not stop.is_set():
             time.sleep(2.0)
             try:
@@ -237,6 +258,7 @@ def main() -> None:
                       f"({len(soul['lines'])} lines into the living corpus)", flush=True)
                 time.sleep(15.0)               # bound the 8B to a MINORITY injection
             except Exception:   # noqa: BLE001 -- the author must never kill the life
+                _demiurge_report()
                 time.sleep(5.0)
 
     threads = [threading.Thread(target=run_wheel, daemon=True)]

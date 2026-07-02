@@ -250,8 +250,25 @@ class Agent:
         s["llm"] = None
         return s
 
+    # Fields added AFTER worlds began being snapshotted (santana_app.state pickles whole
+    # towns): a soul resumed from an older pickle lacks them, and one missing attribute
+    # FROZE THE ENTIRE WHEEL for 171k ticks -- step() raised AttributeError on the first
+    # soul every tick, the runner's bare except swallowed it, and her whole overnight
+    # town was a diorama (nothing aged, died, worked, or retold; only the clock moved).
+    # THE RULE (same as World.__setstate__): every new Agent field gets a default here.
+    _PICKLE_DEFAULTS = {
+        "psyche_faculty": "",
+        "expect_enabled": False, "exp_fast": 0.0, "exp_slow": 0.0, "arousal": 0.0,
+        "self_expect": None, "self_dissonance": 0.0, "_turnings": 0,
+    }
+
     def __setstate__(self, state):
         self.__dict__.update(state)
+        for k, v in self._PICKLE_DEFAULTS.items():
+            self.__dict__.setdefault(k, v)
+        # mutable defaults constructed per-instance, never shared off the class
+        self.__dict__.setdefault("_conduct_expect", {})
+        self.__dict__.setdefault("known_of", {})
 
     def felt_mood(self) -> float:
         """The agent's disposition: temperament anchored (0.7), lived mood

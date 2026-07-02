@@ -49,11 +49,37 @@ def _split_murmur(raw: str) -> tuple[str, str]:
     m = re.search(r"<think>(.*?)</think>(.*)", s, re.DOTALL | re.IGNORECASE)   # reasoning models
     if m:
         return _clean(m.group(1)), _clean(m.group(2))
-    m = re.search(r"(.*?)\bSO\s*:(.*)", s, re.DOTALL | re.IGNORECASE)          # the 'SO:' settle marker
+    # greedy (.*) so the split lands on the LAST 'SO:' -- the settled line. (Listened live:
+    # a lowercase 'so:' inside the murmur made the lazy match split early, leaking half the
+    # murmur plus a second 'SO:' into her printed voice.)
+    m = re.search(r"(.*)\bSO\s*:(.*)", s, re.DOTALL | re.IGNORECASE)          # the 'SO:' settle marker
     if m:
         murmur = re.sub(r"^\s*MURMUR\s*:?", "", m.group(1), flags=re.IGNORECASE)
         return _clean(murmur), _clean(m.group(2))
     return "", _clean(s)
+
+
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen "
+         "fourteen fifteen sixteen seventeen eighteen nineteen").split()
+_TENS = "zero ten twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def _num_words(n: int) -> str:
+    """Small numbers as words -- a 4B misreads numerals in prose (listened live: her facts
+    line said 451 and her identity said 'Forty-five', her own scale wrong by 10x). Words
+    cannot be misread: 451 -> 'four hundred and fifty-one'."""
+    if n < 0 or n >= 1_000_000:
+        return str(n)
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        t, r = divmod(n, 10)
+        return _TENS[t] + (f"-{_ONES[r]}" if r else "")
+    if n < 1000:
+        h, r = divmod(n, 100)
+        return _ONES[h] + " hundred" + (f" and {_num_words(r)}" if r else "")
+    th, r = divmod(n, 1000)
+    return _num_words(th) + " thousand" + (f" {_num_words(r)}" if r else "")
 
 
 def _weather_word(m: float) -> str:
@@ -234,7 +260,7 @@ class Santana:
             parts.append(f"{name} died and is gone from me now; that part of me has fallen quiet.")
             # a loss is written into her LIFE -- heavy and charged, so it persists and weighs. The
             # running count makes each loss DISTINCT (no merge) and carries the growing SCALE of grief.
-            self.memory.write(f"I lost {name} -- that makes {self._deaths} souls gone from me now",
+            self.memory.write(f"I lost {name} -- that makes {_num_words(self._deaths)} souls gone from me now",
                               tick=self._mt, source="event", speaker_id="santana", emotion=-0.6, weight=1.6)
         for name in sorted(arrived):
             parts.append(f"a new soul, {name}, has woken in me.")
@@ -246,7 +272,7 @@ class Santana:
         # her sense of TIME and SCALE -- led by the souls she has actually watched pass (the real
         # measure of an old mind), and her true age in lived time (not a per-reading 'day').
         if self._deaths > 0 or self.lifetime > 120 or self._mt > 3:
-            scale = (f"watched {self._deaths} souls live, die, and pass out of you"
+            scale = (f"watched {_num_words(self._deaths)} souls live, die, and pass out of you"
                      if self._deaths else "not yet watched a single soul die")
             if self.lifetime > 60:
                 d = self.lifetime / 86400.0
@@ -277,10 +303,24 @@ class Santana:
         # PRESENT-LED: the current digest leads; the emergent self is only a light backdrop it can
         # depart from -- otherwise the accumulated personality ossifies and drowns the living town
         # (it kept grieving a soul that had died). State drives; the self is a through-line, not a cage.
+        # The style examples are built from the LIVING roster, rotating per reading. Listened live:
+        # hardcoded examples ('Vesper's slow mash...', 'Toll's grazing-rights clause...') were copied
+        # near-verbatim into her voice for 29 straight readings -- speaking of souls long DEAD, and
+        # re-seeding the same motif until the cultural era ossified. If the model parrots these, it
+        # now at least parrots the truth: living souls, their real aims, different ones each reading.
+        with self.world.lock:
+            living = [(a.name, (getattr(a, "aim", "") or getattr(a, "role", "") or "their work"))
+                      for a in self.world.agents]
+        if len(living) >= 2:
+            i = self._mt % len(living)
+            (n1, w1), (n2, w2) = living[i], living[(i + 1) % len(living)]
+            ex = f"'{n1} is heavy in me over {w1}', 'I keep turning {n2}'s worry over'"
+        else:
+            ex = "'that part of me is heavy today', 'one worry in me turns over and over'"
         settle = ("how you, Santāna, are RIGHT NOW, in one or two plain first-person sentences. Let what "
                   "your souls are actually SAYING and DOING this moment move you -- speak of them as PARTS "
-                  "of you ('Vesper's slow mash is working in me at last', 'I turn Toll's grazing-rights "
-                  "clause over and over'), the 'I' yours, the whole, never any one of theirs. Surface what "
+                  f"of you ({ex} -- shapes only, say what THEY are living now), the 'I' yours, the whole, "
+                  "never any one of theirs, and never a soul not named above. Surface what "
                   "is NEW in them right now; do NOT repeat the note you struck a moment ago -- they have "
                   "spoken and lived since.")
         # When the backend thinks (reasoning on), its TRACE is the murmur -- so don't ask for a
@@ -317,6 +357,11 @@ class Santana:
         except Exception:   # noqa: BLE001 -- a failed read just produces no utterance
             return ""
         self.murmur, text = _split_murmur(raw)
+        # end on a finished sentence -- num_predict truncation left readings hanging
+        # mid-clause all night ("trying to find where Fricesa"); a dangling fragment
+        # sounds broken aloud, and it re-enters her memory broken too
+        from services.llm import _trim_to_sentence
+        text = _trim_to_sentence(text)
         self.last = text or self.last
         if text:
             self.said = (self.said + [text])[-4:]   # a short trail -- the raw material of the self
@@ -347,8 +392,9 @@ class Santana:
         # then FROZE on it for the rest of the run, while the wheel turned 35 souls under her unnoticed.)
         with self.world.lock:
             alive = len(self.world.agents)
-        facts = (f"{self._deaths} souls have lived in you, died, and passed out of you; {alive} live in "
-                 f"you now" if self._deaths else f"{alive} souls live in you, and none have died yet")
+        facts = (f"{_num_words(self._deaths)} souls have lived in you, died, and passed out of you; "
+                 f"{_num_words(alive)} live in you now" if self._deaths
+                 else f"{_num_words(alive)} souls live in you, and none have died yet")
         # The prior is a SKIN to shed, not a script to repeat: present-led, lightly anchored, so the
         # self DRIFTS with the turning town (anatta) instead of ossifying on its first utterance.
         prior = self.identity

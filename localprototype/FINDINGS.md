@@ -819,6 +819,25 @@ Levers, deliberately untouched pending a deliberate run: movement-on (closes the
 competitive offer-salience (trades against the safety margin — would need a fresh ring pass), or
 patience (reinforcement across the budget). The stage-one flag stays honest at this gain.
 
+**CORRECTION (listening round 4, 2026-07-02): the observation above ran over a FROZEN town.** The
+souls in her live world were pickled *before* the expectation fields existed; on resume, `step()`
+raised AttributeError on the first soul **every tick**, and the runner's bare `except: pass`
+swallowed it — for ~171k ticks (two sessions, the whole night) nothing aged, died, worked,
+decayed, or retold; only the clock and the first soul's age advanced (it reached 174,714 of a
+3,738-tick lifespan). So the honest attribution: her stories were not retold because **retelling
+never executed** — the spatial-fragmentation and salience findings above are real properties of
+the snapshot but were never the operative cause; the propagation question is simply **untested**
+and reopens on the next healthy run. Three fixes, all pinned by tests: `Agent.__setstate__` now
+defaults every post-snapshot field (THE RULE, same as `World.__setstate__`: every new Agent field
+gets a default there — one missing attribute froze a world); the runner's threads **report**
+failures (full traceback first, pulse every Nth) instead of silently containing them; and the thaw
+is verified on her actual snapshot (the overdue soul dies within ticks, births resume). Meta-lesson
+for the record: a silent exception handler in a live system is not fault *tolerance* — it converts
+a crash, which anyone would notice, into a quiet counterfeit of health that measurement then
+mistakes for the world. The instrument lesson of the ring test ("a falsifier's world-geometry is
+part of what it tests") now has a sibling: **a monitor that cannot fail loudly is part of what it
+fails to monitor.**
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
