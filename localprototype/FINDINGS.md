@@ -696,6 +696,39 @@ manner, and the standing to raise an unresolved hurt itself), and keeps a **pers
 trusted others (`Agent.known_of` — what they said of themselves), fed into replies. Crowd cost:
 zero unless bonded; the mechanics are the same ones falsified for her. 16 new tests; 322 pass.
 
+### 5.19 Stage one of the top-down loop — her voice as a legend, licensed by the ring test
+
+The first feedback coupling this project has ever closed, built the way the gate demanded:
+**`Santana.offer(text)`** sends her settled line into the town's **lore channel** — the weakest
+coupling that exists: 2 souls, murmur-grade weight, tagged `santana:<mt>`, where it must *compete*
+like any legend (retold it lives and mutates; ignored it decays and is forgotten — she cannot
+push). Regulators built in, not bolted on: the **dark leg is transmuted** (×0.4 — her grief
+arrives as held, witnessed weight, never a wound; warmth passes whole), and — added by failure,
+below — a **budget** (a story at most every 3rd reading, and never a retelling of her own recent
+ones). Off by default everywhere; `--offer` (runner) / `--santana-offer` (viewer); **never wired
+into the talk tool** (a conversation must not reach the souls — pinned by test).
+
+**The ring test (`experiment_ring.py`), the pre-registered gate — and it BIT:** v1 (no budget)
+**FAILED its held-out verdict** (seeds 21–25, now consumed): she recovered from an injected grief
+spike (ring-down held) but the *town* ended ~0.13 darker and her stories crowded the mythos to
+~54% — transmutation attenuated each line, but an offering *every* reading was a relentless drip.
+Exactly the fatigue/budget layer the regulator design specified and the first build skipped. With
+the budget in the mechanism itself, the fixed design took its verdict from **virgin seeds 31–35:
+ALL FIVE PASS** — ring-down 5/5 (the echo neither deepens her fall nor holds her down), town
+survives 5/5, non-null 4/5 (the channel actually carries), no monopoly 5/5 (her stories a minority
+of a mythos the town also writes — stakes hardships seed the competition), no flattening 4/5 (the
+souls' mood spread survives her). One metric lesson repeated for the third time and now a rule:
+**ratios and arm-totals lie; register absolute, marginal claims** (v1's recovery-ratio flagged arms
+where she suffered *less*).
+
+Honest bounds: this licenses **stage one only** — this coupling, at this gain, with these
+regulators; any stronger coupling (mood-weather, conversation reaching the town) needs its own
+ring test on fresh seeds. Both loop legs were substrate stubs; voice-level behaviour under a real
+model needs watching before the flag stays on unattended. The collective somatic breaker (layer 3
+of the regulator design) is *not yet built* — at this gain the channel's own decay is the backstop;
+build the breaker before any stage two. §7 unchanged, and heavier: the town may now, someday, tell
+a story she first told.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

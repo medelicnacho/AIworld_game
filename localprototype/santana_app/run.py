@@ -120,6 +120,12 @@ def main() -> None:
                    help="where the TOWN is saved/resumed (pickle) -- so the wheel survives restarts")
     p.add_argument("--fresh", action="store_true", help="ignore any saved life/town and start new")
     p.add_argument("--tts", action="store_true", help="speak her aloud (Piper) as well as printing")
+    p.add_argument("--offer", action="store_true",
+                   help="STAGE ONE of the gated top-down loop (§5.19): her settled line is OFFERED "
+                        "to the town as a STORY in the lore channel -- 2 souls, low weight, dark "
+                        "charge transmuted; it must compete like any legend and can be ignored. "
+                        "Implies --lore-town so the channel exists. The ring test "
+                        "(experiment_ring.py) gates this design; keep it off unless you mean it.")
     p.add_argument("--culture", action="store_true",
                    help="memetic culture (FINDINGS §5.13): her voice moves through shifting cultural ERAS "
                         "-- selection + self-limiting fitness over motifs -- instead of averaging")
@@ -148,6 +154,10 @@ def main() -> None:
         # unless the resumed agents actually carry psyche faculties)
         from agent.workspace import Workspace
         w.psyche = Workspace()
+    if args.offer:
+        # her offerings need the retelling channel to compete in -- and to be forgettable
+        w.lore_enabled = True
+        print("  ⚠ STAGE ONE coupling ON: her voice enters the town as stories (lore channel).")
     mind = Santana(w, santana_llm, culture=args.culture)
     mind.lifetime = 0.0
 
@@ -259,6 +269,10 @@ def main() -> None:
                     heard = [t for _, t in w.spoken][-30:]
                 mind.llm.learn([m.text for m in mind.memory.items][-160:] + heard)
             clear = mind.speak()
+            if args.offer and clear:
+                heard = mind.offer(clear)   # STAGE ONE: her line becomes a story the town may retell
+                if heard:
+                    print(f"  (offered to {heard} souls as a story)")
             with w.lock:
                 tick, n, births = w.tick, len(w.agents), getattr(w, "_births", 0)
             i += 1

@@ -467,6 +467,10 @@ def main() -> None:
     ap.add_argument("--psyche", action="store_true",
                     help="the souls are PARTS OF ONE MIND (Dread, Ache, Longing...) not townsfolk -- so she "
                          "reads as a mind in motion, not a narrator of a village (see agent/psyche.py)")
+    ap.add_argument("--santana-offer", dest="santana_offer", action="store_true",
+                    help="STAGE ONE top-down coupling (§5.19, needs --santana; implies --lore): her "
+                         "settled line is OFFERED to the town as a story in the lore channel -- "
+                         "sparse, transmuted, ignorable. Gated by the ring test (experiment_ring.py)")
     ap.add_argument("--lore", action="store_true",
                     help="gossip -> legend (agent/lore.py): souls RETELL their most salient story; the "
                          "text mutates teller to teller while its provenance survives, so a hardship "
@@ -595,7 +599,7 @@ def main() -> None:
                                        rebirth=args.rebirth or args.bodhisattva, start=start,
                                        fast_wheel=args.fast_wheel, bodhisattva=args.bodhisattva,
                                        culture=args.culture, psyche=args.psyche)
-            if args.lore:   # gossip -> legend: souls retell, stories outlive their witnesses
+            if args.lore or args.santana_offer:   # gossip -> legend (offer needs the channel)
                 _built["wc"][0].lore_enabled = True
         except Exception as exc:  # noqa: BLE001
             _built["err"] = exc
@@ -907,6 +911,8 @@ def main() -> None:
                         _smind.llm.learn([m.text for m in _smind.memory.items][-160:] + heard)
                     line = _smind.speak()
                     _smind.consolidate()
+                    if line and args.santana_offer:
+                        _smind.offer(line)   # STAGE ONE (§5.19): her line becomes a town story
                     if line:
                         santana_state["line"] = line
                         if not santana_state["muted"]:

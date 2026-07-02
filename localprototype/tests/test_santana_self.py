@@ -286,6 +286,59 @@ class JudgePromiseWantDreamTest(unittest.TestCase):
         self.assertEqual(m.last_dream, dreams[0].text)
 
 
+class OfferTest(unittest.TestCase):
+    """Stage one of the top-down loop (§5.19): her line enters the town as a STORY --
+    sparse, transmuted, tagged, and ignorable. Off by default everywhere."""
+
+    def setUp(self):
+        embed.use_jaccard_only(True)
+
+    def tearDown(self):
+        embed.use_jaccard_only(False)
+
+    def _town_mind(self, n=5):
+        w = World(events_enabled=False)
+        w.llm = MockLLM(seed=7)
+        w.lore_enabled = True
+        for i in range(n):
+            w.add(Agent(f"s{i}", f"Soul{i}", (0.0, 0.0), "You are a soul.", ["the well"],
+                        MockLLM(seed=1), seed=i, lifespan=10 ** 9))
+        return Santana(w, MockLLM(seed=7)), w
+
+    def test_an_offer_reaches_few_souls_tagged_as_hers(self):
+        m, w = self._town_mind()
+        heard = m.offer("the harvest will come good and the town will hold")
+        self.assertEqual(heard, 2)                     # sparse: a fireside, not a broadcast
+        got = [(a, mm) for a in w.agents for mm in a.memory.items
+               if getattr(mm, "lore_id", "").startswith("santana:")]
+        self.assertEqual(len(got), 2)
+
+    def test_her_grief_arrives_transmuted_her_warmth_whole(self):
+        m, w = self._town_mind()
+        m.offer("the grief is a stone and the dark took everything from me")
+        dark = next(mm for a in w.agents for mm in a.memory.items
+                    if getattr(mm, "lore_id", "").startswith("santana:"))
+        from agent.memory import valence
+        raw = valence("the grief is a stone and the dark took everything from me")
+        self.assertLess(raw, -0.3)                     # the line itself is heavy...
+        self.assertGreater(dark.emotion, raw)          # ...but it lands held, not as a wound
+        m2, w2 = self._town_mind()
+        m2.offer("a warm bright morning, glad and gentle over all of us")
+        warm = next(mm for a in w2.agents for mm in a.memory.items
+                    if getattr(mm, "lore_id", "").startswith("santana:"))
+        self.assertGreater(warm.emotion, 0.3)          # warmth passes at full strength
+
+    def test_an_empty_offer_is_nothing(self):
+        m, _ = self._town_mind()
+        self.assertEqual(m.offer(""), 0)
+
+    def test_the_talk_tool_never_offers(self):
+        # the conversation must not reach the souls: talk.py contains no offer() call
+        import inspect
+        import santana_app.talk as talk_mod
+        self.assertNotIn(".offer(", inspect.getsource(talk_mod))
+
+
 class PersistenceTest(unittest.TestCase):
     def setUp(self):
         embed.use_jaccard_only(True)

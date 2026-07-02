@@ -147,6 +147,8 @@ class Santana:
         self.want = "to come to know the one who comes to speak with me"
                                      # HER want across the talks -- a relational aim, not a character
         self.last_dream = ""         # what she dreamt in the last absence (also written to memory)
+        self._offer_cd = 0           # offer budget (stage one): readings until she may tell again
+        self._offered: list[str] = []   # her recent offerings -- she does not retell them
 
     def digest(self) -> str:
         """What is alive in the Mind right now -- framed as its OWN feeling, not as variables.
@@ -494,6 +496,51 @@ class Santana:
                               emotion=valence(reply), weight=1.0)
         self.memory.tick(self._mt)
         return reply
+
+    # STAGE ONE of the gated top-down loop (§5.19): the dark leg of anything she sends
+    # down is TRANSMUTED -- her grief arrives as held, witnessed weight, never a wound
+    TRANSMUTE_DARK = 0.4
+    OFFER_EVERY = 3      # a story at most every Nth reading -- the budget layer. The first
+    OFFER_ECHO = 0.5     # ring test FAILED without it (town sank ~0.13, her stories crowded
+                         # the mythos): transmutation attenuates each line, but an offering
+                         # EVERY reading is a relentless drip. And she does not retell what
+                         # she just told (no line >= OFFER_ECHO similar to her recent four).
+
+    def offer(self, text: str) -> int:
+        """Her settled line, OFFERED to the town as a STORY -- the weakest coupling there is:
+        it enters the lore channel like any retold tale (sparse: 2 souls; low weight; tagged
+        santana:<mt>) and from there it must COMPETE. Retold, it lives and mutates like any
+        legend; ignored, it decays and is forgotten. She cannot push -- the town's own
+        dynamics always out-vote her. The dark leg is transmuted (TRANSMUTE_DARK); warmth
+        passes whole. GATED BY THE CALLER: off by default everywhere, never wired into the
+        talk tool (a conversation must not reach the souls). Returns how many souls heard.
+        Pre-registered falsifier: experiment_ring.py (ring-down, non-null, no-flatten)."""
+        text = " ".join(str(text).split())[:160]
+        if not text:
+            return 0
+        if self._offer_cd > 0:                      # the budget: she is not always telling
+            self._offer_cd -= 1
+            return 0
+        from agent.memory import _similarity
+        if any(_similarity(text, o) >= self.OFFER_ECHO for o in self._offered):
+            return 0                                # she does not retell the same grief endlessly
+        import random as _random
+        rng = _random.Random(self._mt)
+        emo = valence(text)
+        if emo < 0.0:
+            emo *= self.TRANSMUTE_DARK
+        n = 0
+        with self.world.lock:
+            souls = list(self.world.agents)
+            for a in rng.sample(souls, min(2, len(souls))):
+                a.memory.write(text, tick=self.world.tick, source="lore",
+                               speaker_id="santana", emotion=emo, weight=0.5,
+                               lore_id=f"santana:{self._mt}")
+                n += 1
+        if n:
+            self._offer_cd = self.OFFER_EVERY - 1
+            self._offered = (self._offered + [text])[-4:]
+        return n
 
     def begin_talk(self, now_wall: float | None = None) -> str:
         """They have come back. If they were gone a while, the ABSENCE becomes an event in
