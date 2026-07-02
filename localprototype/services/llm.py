@@ -93,6 +93,8 @@ class SpeechContext:
     self_liberation: float = 0.0                          # a feeling recognized as empty frees itself as it arises (like a line on water)
     grounded_voice: bool = False                          # speak plainly/concretely (ordinary register), not abstract-existential
     stakes: str = ""                                      # the soul's material situation (scarcity, a flood, plenty) -> ground talk in it
+    bond_line: str = ""                                   # the RELATIONSHIP toward the reply target, voiced (trust/wounds/scars + manner)
+    known_of: list[str] = field(default_factory=list)     # what the reply target has told this soul of THEMSELVES (the person-model)
 
 
 def _mood_word(mood: float) -> str:
@@ -447,6 +449,14 @@ def build_user(ctx: SpeechContext) -> str:
                          "defend your conviction in your own words.")
     elif ctx.reply_to_text:
         who = ctx.reply_to_name or "someone"
+        # the relationship enters the reply: how this soul STANDS with the speaker
+        # (trust, wounds, scars -- agent/bond.describe) and what it has come to KNOW
+        # of them from their own words (the person-model). Named-tier depth (§5.17).
+        if ctx.known_of:
+            lines.append(f"What {who} has told you of themselves: "
+                         + "; ".join(ctx.known_of) + ".")
+        if ctx.bond_line:
+            lines.append(ctx.bond_line)
         lines.append(f"{who} said: \"{ctx.reply_to_text}\". Answer from YOUR OWN "
                      "nature -- agree, argue back, or take it somewhere new. Do not "
                      "mirror their mood or words, and never give a one-word echo.")

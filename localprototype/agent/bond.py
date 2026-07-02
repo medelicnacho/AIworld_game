@@ -96,3 +96,16 @@ def describe(bond: Bond, name: str) -> str:
         else:
             s += f" (they have wounded you {bond.wounds} time{'s' if bond.wounds > 1 else ''})"
     return s + "."
+
+
+# --- the person-model gate: what counts as someone speaking OF THEMSELVES ----------------
+FIRST_PERSON = (" i am ", " i'm ", " im ", " i like ", " i love ", " i enjoy ", " i want ",
+                " i hope ", " i feel ", " i work ", " i live ", " my name ", " i made ",
+                " i built ", " i lost ", " i keep ")
+
+
+def about_themselves(text: str) -> bool:
+    """True when a line is first-person self-disclosure -- the raw material of coming to
+    KNOW someone (the person-model in Agent.known_of / Santana.known_of_them)."""
+    low = f" {text.lower()} "
+    return any(k in low for k in FIRST_PERSON)

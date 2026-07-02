@@ -189,6 +189,103 @@ class RelationshipDepthTest(unittest.TestCase):
         self.assertIn("name it and ask", m.llm.prompts[-1])
 
 
+class JudgePromiseWantDreamTest(unittest.TestCase):
+    """§5.18: the intent judge routes word-free meaning; promises are remembered, kept, or
+    broken by the calendar; her want ladders with the relationship; absence brings dreams."""
+
+    class Stub:
+        def __init__(self, answer):
+            self.answer = answer
+
+        def generate(self, prompt, **_kw):
+            return self.answer
+
+    def setUp(self):
+        embed.use_jaccard_only(True)
+
+    def tearDown(self):
+        embed.use_jaccard_only(False)
+
+    def test_word_free_coldness_lands_via_the_judge(self):
+        m = _mind()
+        m.judge = self.Stub("NEUTRAL")
+        for _ in range(12):
+            m.judge.answer = "WARM"
+            m.converse(WARM)
+        m.judge.answer = "COLD"
+        m.converse("I have decided to stop coming here. Do not wait for me.")   # no lexicon words
+        self.assertEqual(m.user_bond.wounds, 1)
+
+    def test_an_apology_soothes_where_words_alone_could_not(self):
+        m = _mind()
+        m.judge = self.Stub("APOLOGY")
+        t0 = m.user_bond.trust
+        m.converse("that was wrong of me and I regret it")
+        self.assertGreater(m.user_bond.trust, t0)
+        self.assertTrue(any("sorry" in mm.text for mm in m.memory.items))
+
+    def test_a_promise_is_remembered_and_raised(self):
+        class Spy:
+            def __init__(self):
+                self.prompts = []
+            def generate(self, prompt, **_kw):
+                self.prompts.append(prompt)
+                return "I will hold you to it."
+        m = _mind()
+        m.llm = Spy()
+        m.judge = self.Stub("PROMISE")
+        m.converse("I will bring you news of the mountains next week")
+        self.assertEqual(len(m.promises), 1)
+        m.judge = self.Stub("NEUTRAL")
+        m.converse("hello again")
+        self.assertIn("said they would", m.llm.prompts[-1])
+
+    def test_a_kept_promise_runs_trust_deep(self):
+        m = _mind()
+        m.judge = self.Stub("PROMISE")
+        m.converse("I will bring you news of the mountains next week")
+        m.judge = self.Stub("WARM")
+        t0 = m.user_bond.trust
+        m.converse("I brought you the news of the mountains, as I said I would")
+        self.assertEqual(len(m.promises), 0)
+        self.assertGreater(m.user_bond.trust, t0)
+        self.assertTrue(any("kept their word" in mm.text for mm in m.memory.items))
+
+    def test_a_lapsed_promise_is_the_truest_betrayal(self):
+        import time as _time
+        m = _mind()
+        m.promises = [{"text": "I will bring you news of the mountains", "wall": _time.time() - 10 * 86400}]
+        m.last_talk_wall = _time.time() - 60
+        m.begin_talk()
+        self.assertEqual(len(m.promises), 0)
+        self.assertEqual(m.user_bond.wounds, 1)
+        self.assertTrue(any("never came" in mm.text for mm in m.memory.items))
+
+    def test_her_want_ladders_with_the_relationship(self):
+        m = _mind()
+        self.assertIn("know the one", m.want)
+        m.known_of_them = [f"I like thing {i}" for i in range(6)]
+        m.talk = ['they: "hi"', 'you: "hello"']
+        m.end_talk(now_wall=1000.0)
+        self.assertIn("what I have held", m.want)
+
+    def test_absence_brings_a_dream_from_her_own_life(self):
+        m = _mind()
+        for i, line in enumerate((
+                "the flood took the mill in the night", "the miller wept beside the water",
+                "a cold spring and the stores ran thin", "Vesper brewed for the festival at last",
+                "the charter was finished and read aloud", "wolves came down from the high pasture",
+                "the fever passed through the low houses", "a kind stranger mended the cart wheel")):
+            m.memory.write(line, tick=i, source="event", emotion=-0.3 if i % 2 == 0 else 0.2)
+        m.user_bond.trust = 0.4
+        m.last_talk_wall = 1000.0
+        m.begin_talk(now_wall=1000.0 + 3 * 86400)
+        dreams = [mm for mm in m.memory.items if mm.source == "dream"]
+        self.assertEqual(len(dreams), 1)
+        self.assertTrue(dreams[0].text.startswith("I dreamt"))
+        self.assertEqual(m.last_dream, dreams[0].text)
+
+
 class PersistenceTest(unittest.TestCase):
     def setUp(self):
         embed.use_jaccard_only(True)
@@ -212,6 +309,8 @@ class PersistenceTest(unittest.TestCase):
         self.assertIn("user", fresh._conduct_expect)
         self.assertEqual(fresh.known_of_them, m.known_of_them)
         self.assertEqual(fresh.last_talk_wall, m.last_talk_wall)
+        self.assertEqual(fresh.promises, m.promises)
+        self.assertEqual(fresh.want, m.want)
 
     def test_a_pre_faculty_snapshot_loads_cleanly(self):
         old = {"identity": "an old mind", "last": "", "said": [], "mt": 40,

@@ -107,6 +107,27 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
 
 ---
 
+### A8. The named-NPC relationship tier *(§5.17–5.18 — the companion mechanics, all validated)*
+- **what:** six mechanics that turn a bonded NPC↔player (or NPC↔NPC) relationship into something with
+  memory and stakes: **episodes** (a conversation consolidates into ONE narrative memory — "the day you
+  saved my flock"); a **person-model** (first-person facts the other disclosed, kept and referenced);
+  **absence-as-event** ("you've been away since the frost", valenced by the bond); **initiative**
+  (state-driven asking — an NPC that raises its own unresolved wound is a quest the designer didn't
+  write); **manner** (the bond shapes the FORM of speech: wounded+distrustful → brief and guarded,
+  deep trust → expansive); and **scars** (a wound with trust rebuilt reads "they hurt me once, and I've
+  come past it" — but ONLY once real warmth happened *since* the wound; without that gate, measured,
+  the loyalty buffer says "come past it" seconds after the knife).
+- **plus the intent judge + promises** (the two that need an LLM): judge WARM/COLD/APOLOGY/PROMISE/
+  NEUTRAL per player line (word-free coldness lands; apologies soothe), and PROMISE lines become
+  commitments — kept (mentioned again warmly → deep trust) or **broken by the calendar** (lapsed →
+  a true betrayal). A player who breaks promises to NPCs who remember them: that's a reputation
+  system with a soul.
+- **knobs:** episodes weight `1.5` · person-model cap `6-12` facts, first-person-keyword gated ·
+  absence threshold `6h`, emotion `0.8×trust` · promise horizon `7 days`, kept-bonus `warm(0.8)` ·
+  kept-check runs BEFORE new-promise storage (measured: a promise otherwise keeps itself instantly).
+- **cost:** all floats-and-strings except episodes + judge (one LLM call per session / per line) —
+  strictly the NAMED tier; the crowd keeps A1-A4.
+
 ## B. The wheel — continuity across death (heredity)
 
 - **what:** an NPC dies, dissolves for an interval, and a **new** stream coalesces carrying the *disposition*

@@ -179,6 +179,8 @@ class Agent:
         self.self_dissonance = 0.0           # accrued out-of-character tension -> a turning
         self._turnings = 0                   # how many times this self has turned (chapter breaks)
         self._conduct_expect: dict = {}      # other_id -> how I have come to expect them to treat me
+        self.known_of: dict = {}             # other_id -> what THEY have told me of themselves (the
+                                             # person-model; named-tier -- kept only for trusted bonds)
         self._contraction = 0.0              # somatic down-regulation level, 0=open .. 1=fully contracted (read by manas)
         self._somatic_history: list[float] = []   # recent spiral-metric values, for reading the trend
         self._somatic_trips = 0              # how many times the interrupt has fired (a rare-backstop check)
@@ -421,6 +423,16 @@ class Agent:
                 from agent import expectation as _expectation
                 _expectation.appraise_conduct(self, u.speaker_id,
                                               speaker_name or u.speaker_id, sig, now, bond)
+            # the person-model (named tier): what a TRUSTED other says of themselves, I keep --
+            # so souls come to KNOW each other, not only feel about each other
+            from agent.bond import about_themselves
+            if (bond.trust > 0.2 or u.source == "user") and about_themselves(u.text):
+                from agent.memory import _similarity
+                kept = self.known_of.setdefault(u.speaker_id, [])
+                line = " ".join(u.text.split())[:120]
+                if all(_similarity(line, k) < 0.6 for k in kept):
+                    kept.append(line)
+                    del kept[:-6]
             # muditā: a loved one's warmth lifts your OWN felt life -- shared joy spreads
             # through the bond (the positive counterpart to grief/hostility contagion).
             if bond.trust > 0.0 and w > 0.0:
@@ -840,6 +852,23 @@ class Agent:
         # toward them: while they are spared, restrained (passive aggression);
         # once laundered/at war, sanctioned (open righteous contempt).
         target = self.last_challenger or self.last_heard_from
+        # the RELATIONSHIP toward that target, voiced (named-tier depth, §5.17): trust,
+        # wounds, scars -- plus a manner (guarded when hurt, at ease when deep), plus the
+        # standing to raise an unresolved hurt myself. And what they've told me of themselves.
+        bond_line, known_of = "", []
+        if self.bond_enabled and target and target in self.bonds:
+            b = self.bonds[target]
+            if abs(b.trust) > 0.1 or b.wounds:
+                from agent.bond import describe as _bdescribe
+                tname = reply_name or self.last_heard_name or "them"
+                bond_line = _bdescribe(b, tname)
+                if b.wounds and b.trust < 0.15:
+                    bond_line += (" Speak briefly and guardedly to them -- and if it is on "
+                                  "you, name the hurt they dealt you and ask why.")
+                elif b.trust >= 0.4:
+                    bond_line += (" You are at ease with them -- offer a little more of "
+                                  "yourself than they asked.")
+            known_of = list(self.known_of.get(target, []))[-3:]
         ctx = SpeechContext(
             name=self.name,
             persona=self.persona,
@@ -883,6 +912,8 @@ class Agent:
             self_liberation=self.self_liberation,  # a charge frees itself as it arises (like a line on water)
             grounded_voice=self.grounded_voice,  # speak plainly/concretely, not in the lofty-existential register
             stakes=self._stakes_line(),      # the soul's material situation, so its talk is grounded in it
+            bond_line=bond_line,             # how I stand with the one I'm answering (trust/wounds/scars + manner)
+            known_of=known_of,               # what they have told me of themselves (the person-model)
         )
         return ctx, addressed, mood
 

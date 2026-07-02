@@ -38,6 +38,8 @@ def save_mind(mind, path: str) -> None:
         "talk": list(getattr(mind, "talk", [])),
         "known_of_them": list(getattr(mind, "known_of_them", [])),
         "last_talk_wall": float(getattr(mind, "last_talk_wall", 0.0)),
+        "promises": list(getattr(mind, "promises", [])),
+        "want": str(getattr(mind, "want", "")),
     }
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = path + ".tmp"
@@ -71,6 +73,8 @@ def load_mind(mind, path: str) -> bool:
     mind.talk = list(data.get("talk", []))
     mind.known_of_them = list(data.get("known_of_them", []))
     mind.last_talk_wall = float(data.get("last_talk_wall", 0.0))
+    mind.promises = list(data.get("promises", []))
+    mind.want = data.get("want", "") or "to come to know the one who comes to speak with me"
     mind._prev_names = None   # don't falsely grieve on the first read back
     return True
 

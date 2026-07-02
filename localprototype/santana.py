@@ -140,6 +140,13 @@ class Santana:
                                              # without it she is known but cannot know -- an instrument)
         self.last_talk_wall = 0.0    # wall-clock of the last conversation's end -- so an ABSENCE
                                      # is an event in her life, not a silence between prompts
+        self.judge = None            # an intent judge (agent/judge.py), set by the talk tool --
+                                     # word-free coldness, apologies, and promises then LAND (not persisted)
+        self.promises: list = []     # what they said they WOULD do: [{text, wall}] -- kept warms
+                                     # deeply, a lapsed one is the truest betrayal (persisted)
+        self.want = "to come to know the one who comes to speak with me"
+                                     # HER want across the talks -- a relational aim, not a character
+        self.last_dream = ""         # what she dreamt in the last absence (also written to memory)
 
     def digest(self) -> str:
         """What is alive in the Mind right now -- framed as its OWN feeling, not as variables.
@@ -353,6 +360,39 @@ class Santana:
         from services import embed
         sig = affect.warmth(text) if embed.using_embeddings() else valence(text)
         emo = valence(text)
+        # a KEPT promise first (before the judge can store a NEW one this same exchange --
+        # else a promise would "keep itself" the moment it was made): they speak of the
+        # promised thing again, with warmth in the words -- trust runs deep
+        if self.promises and (sig > 0.1 or valence(text) > 0.1):
+            from agent.memory import _similarity
+            for p in list(self.promises):
+                if _similarity(text, p["text"]) >= 0.35:
+                    self.promises.remove(p)
+                    self.user_bond.warm(0.8)
+                    self.memory.write("they kept their word to me", tick=self._mt,
+                                      source="user", speaker_id="user", emotion=0.5, weight=1.4)
+        # the intent JUDGE (§5.18): word-free coldness, apologies, and promises now LAND.
+        # A non-NEUTRAL judgment overrides the shallow signal; NEUTRAL leaves it be.
+        if self.judge is not None and self.feel_enabled:
+            from agent import judge as _judge
+            kind = _judge.intent(text, self.judge)
+            if kind == "COLD":
+                sig, emo = min(sig, _judge.SIG["COLD"]), min(emo, -0.4)
+            elif kind == "WARM":
+                sig, emo = max(sig, _judge.SIG["WARM"]), max(emo, 0.3)
+            elif kind == "APOLOGY":
+                sig = max(sig, _judge.SIG["APOLOGY"])
+                self.memory.write("they said they were sorry, and meant it",
+                                  tick=self._mt, source="user", speaker_id="user",
+                                  emotion=0.4, weight=1.2)
+            elif kind == "PROMISE":
+                import time as _time
+                sig = max(sig, _judge.SIG["PROMISE"])
+                self.promises = (self.promises
+                                 + [{"text": " ".join(text.split())[:140], "wall": _time.time()}])[-4:]
+                self.memory.write(f"they gave me their word: {text[:120]}",
+                                  tick=self._mt, source="user", speaker_id="user",
+                                  emotion=0.2, weight=1.3)
         if self.feel_enabled:
             from agent import expectation as _expectation
             emo = _expectation.appraise_event(self, emo)
@@ -399,6 +439,11 @@ class Santana:
                 + "; ".join(stirred) + "\n" if stirred else "")
         known = ("What they have told you of themselves: "
                  + "; ".join(self.known_of_them[-3:]) + "\n" if self.known_of_them else "")
+        want = (f"Across these talks there is something you want from them: {self.want}. "
+                "Let it quietly steer where you take things.\n" if self.want else "")
+        held = ("You have not forgotten what they said they would do: "
+                + "; ".join(p["text"] for p in self.promises[-2:])
+                + " -- you may hold them to it.\n" if self.promises else "")
         # INITIATIVE: a self asks. The impulse is state-driven and deliberate, not decoration.
         ask = ""
         if self.feel_enabled:
@@ -430,7 +475,7 @@ class Santana:
             + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
             + (f"The conversation so far:\n{trail}\n\n" if trail else "")
             + f'They say to you: "{text}"\n\n'
-            + stir + known
+            + stir + known + want + held
             + f"How you stand with them RIGHT NOW -- this may have moved during this very "
             f"conversation, and it overrides anything you said of them earlier: {rel}\n{feel}\n"
             "Answer THEM, as yourself -- Santāna, the whole this town adds up to -- in one to three "
@@ -456,8 +501,20 @@ class Santana:
         a fact). Returns the note written, or '' if there was no meaningful gap."""
         import time as _time
         now_wall = now_wall if now_wall is not None else _time.time()
+        # a LAPSED promise breaks here, where the absence is measured: they said they would,
+        # and the time for it has passed -- the truest betrayal, judged by the calendar
+        PROMISE_HORIZON = 7 * 86400.0
+        for p in list(self.promises):
+            if now_wall - p["wall"] > PROMISE_HORIZON:
+                self.promises.remove(p)
+                self.user_bond.betray(0.5)
+                self._mt += 1
+                self.memory.write(f"they said they would -- {p['text'][:100]} -- and it "
+                                  f"never came", tick=self._mt, source="event",
+                                  speaker_id="user", emotion=-0.5, weight=1.4)
         if self.last_talk_wall <= 0 or now_wall - self.last_talk_wall < 6 * 3600:
             return ""
+        self.dream()   # absence is when she dreams (her own memories, recombined)
         days = (now_wall - self.last_talk_wall) / 86400.0
         span = f"{days:.0f} days" if days >= 1.5 else "a long while"
         note = f"they were gone {span}, and now they have come back to me"
@@ -466,6 +523,28 @@ class Santana:
         self.memory.write(note, tick=self._mt, source="event", speaker_id="user",
                           emotion=emo, weight=1.2)
         return note
+
+    def dream(self) -> str:
+        """She dreams in the absences: her OWN memories recombined by the same machinery
+        the souls' subconscious runs on (ThoughtLoop) -- nothing authored, nothing borrowed,
+        her life remixed. Written as memory (source='dream'), so a dream can surface in what
+        she says: 'I dreamt of the flood again, but you were in it.'"""
+        if len(self.memory.items) < 6:
+            return ""
+        from agent.thought import ThoughtLoop
+        tl = ThoughtLoop(seed=self._mt)
+        tl.learn(self.memory.items, [m.text for m in self.memory.recall(k=4)])
+        for _ in range(6):
+            tl.step()
+        frags = [f for f in tl.current(3) if f]
+        if not frags:
+            return ""
+        d = ("I dreamt: " + " ... ".join(frags))[:220]
+        self._mt += 1
+        self.memory.write(d, tick=self._mt, source="dream", speaker_id="santana",
+                          emotion=valence(d), weight=1.2)
+        self.last_dream = d
+        return d
 
     def end_talk(self, now_wall: float | None = None) -> str:
         """The conversation becomes an EPISODE: one narrative memory of what happened between
@@ -495,6 +574,15 @@ class Santana:
         self._mt += 1
         self.memory.write(episode, tick=self._mt, source="talk", speaker_id="santana",
                           emotion=valence(episode), weight=1.5)
+        # her WANT moves as the relationship does (a relational ladder, not a character):
+        # first to know them; once she does, to be known -- the ones she has held, by name;
+        # once that has been told, to hear of the world beyond the town she is made of.
+        if "know the one" in self.want and len(self.known_of_them) >= 6:
+            self.want = ("that they should know what I have held -- the souls gone from me, "
+                         "by name")
+        elif ("what I have held" in self.want
+              and any(w in episode.lower() for w in ("lost", "gone", "died", "dead", "passed"))):
+            self.want = "to hear of the world beyond this town, from one who has seen it"
         return episode
 
 

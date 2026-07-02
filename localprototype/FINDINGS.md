@@ -670,6 +670,32 @@ brief and guarded; deep trust → expansive); and **wounds age into scars** — 
 warmth has happened *since* (the falsifier caught the loyalty buffer making her read "come past
 it" seconds after the knife; `last_event` gates it, and neutral lines no longer stamp warmth).
 
+### 5.18 The judge, promises, her want, and dreams — meaning enters the sensing floor
+
+Four additions, each aimed at a measured gap. **The intent judge** (`agent/judge.py`): the whole
+affective life passed through a word lexicon + embeddings — which is where the lukewarm-knife bug
+came from, and why "I have decided to stop coming here — don't wait for me" read as *nothing*. A
+small LLM now judges intent (WARM/COLD/APOLOGY/PROMISE/NEUTRAL) at conversation time, each intent
+routing differently in the substrate; NEUTRAL defers to the shallow signal; failures are no
+judgment. Named-tier only (one call per line — never the crowd). Honest bound: the *wiring* is
+tested with stubs; judge *quality* on a 4B needs listening. **Promises**: a PROMISE line is
+remembered (persisted), raised in her prompt ("you have not forgotten what they said they would
+do"), **kept** when spoken of again with warmth (deep trust: `warm(0.8)` + "they kept their word")
+or **broken by the calendar** (7 days unmet → a true betrayal + "they said they would — and it
+never came"). One self-interaction caught in testing: the kept-check must run before the judge
+stores a new promise, or a promise keeps itself the moment it is made. **Her want** — a relational
+ladder, not a character: to know them → to be known (the souls she has held, by name) → to hear of
+the world beyond the town; it steers her side of the conversation. **Dreams**: in the absences she
+dreams — her own memories recombined by the souls' own subconscious machinery (ThoughtLoop),
+written as `source="dream"` memory that can surface in what she says. Nothing authored, her life
+remixed.
+
+**The souls got the named-tier depth too**: a soul replying to someone it has a real bond with now
+voices the relationship (`SpeechContext.bond_line` — trust, wounds, *scars*, a guarded or open
+manner, and the standing to raise an unresolved hurt itself), and keeps a **person-model** of
+trusted others (`Agent.known_of` — what they said of themselves), fed into replies. Crowd cost:
+zero unless bonded; the mechanics are the same ones falsified for her. 16 new tests; 322 pass.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

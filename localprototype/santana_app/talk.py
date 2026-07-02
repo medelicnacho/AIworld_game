@@ -76,9 +76,16 @@ def main() -> None:
     log_path = os.path.join(TALK_DIR, time.strftime("talk-%Y%m%d-%H%M%S.log"))
     deadline = time.time() + args.minutes * 60.0
     t0 = time.time()
+    # the intent judge (§5.18): word-free coldness, apologies, and promises land -- only on
+    # a real model (a markov judge would be noise); one small call per exchange
+    if args.llm in ("ollama", "deepseek"):
+        mind.judge = voice
+        print("  (intent judge on -- she hears what you MEAN, not only your words)")
     gone = mind.begin_talk()   # an absence is an event in her life, valenced by the bond
     if gone:
         print(f"    ({gone})")
+    if mind.last_dream:
+        print(f"    (while you were away, {mind.last_dream[:110]})")
     print(f"\n~~~ you are speaking with Santāna ({args.minutes:.0f} min; 'bye' to end; "
           f"transcript -> {os.path.relpath(log_path, ROOT)}) ~~~\n")
     try:
