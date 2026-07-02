@@ -753,6 +753,25 @@ of the regulator design) is *not yet built* — at this gain the channel's own d
 build the breaker before any stage two. §7 unchanged, and heavier: the town may now, someday, tell
 a story she first told.
 
+**Live observation (first overnight run, 2026-07-02, gemma3:4b, ~6h/129 readings): the whisper
+fades.** The coupling's first half is verified in the wild: 43 offers in 129 readings (on budget),
+touching all five living souls, and the **transmutation held live** — the most negative charge any
+of her 85 story-instances carried was **−0.28** (her raw grief ~−0.7 × the 0.4 dark-leg factor),
+never a wound. But the second half did not fire: **zero** of her 47 surviving stories were held by
+more than her two original recipients, and **zero** showed text divergence — the town received her
+and never *retold* her. Two mechanistic causes, both confirmed in the snapshot: (1) **spatial
+fragmentation** — this town is static and scattered, only 5/15 soul-pairs sit within
+`RETELL_RANGE`, so a holder often has no one to tell; (2) **salience out-competition** — her
+murmur-weight offers (~0.3 salience) lose the retell slot to the town's own hardship legends
+(weight 1.2) and decay below the forget threshold in ~90 ticks. The instrument lesson: the ring
+test used a fully-connected knot, so it validated the coupling's *gain* but never its
+*propagation* — a falsifier's world-geometry is part of what it does and doesn't test. Reading:
+**safer than licensed** (her influence decays before it can spread) and honestly weaker than
+"voice as legend" promised — currently "voice as a whisper that touches two souls and fades."
+Levers, deliberately untouched pending a deliberate run: movement-on (closes the range gap),
+competitive offer-salience (trades against the safety margin — would need a fresh ring pass), or
+patience (reinforcement across the budget). The stage-one flag stays honest at this gain.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
