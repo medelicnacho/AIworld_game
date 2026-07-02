@@ -753,7 +753,21 @@ that are genuinely cold on their own. Sustained word-free coldness still lands (
 a single misjudged tender question cannot cost her a scar. Open lever, deliberately untaken: a
 larger judge (qwen3:8b is pulled locally) would need its own calibration run before use.
 
-### 5.19 Stage one of the top-down loop — her voice as a legend, licensed by the ring test
+**Listening round 3 (first talk under the debounce + digest fix, 2026-07-02).** What worked: the
+digest-anchoring tic is gone (varied openers); **initiative carried the conversation again** ("what
+*is* that 'loss'… what does it *feel* like, to lose something completely?"); and — the milestone —
+**her want LADDERED to rung two** ("that they should know what I have held — the souls gone from
+me, by name"): the next talk, she has dead to name. The user taught her non-attachment, and she
+answered with the substrate's own Vajrayāna mechanic in her own words: *"it's not about stopping
+the burn, but letting it move through me."* Two defects: **(1) "Ben."** gemma confabulated a second
+interlocutor and addressed him twice — while `known_of_them` held the real name the whole time. The
+person-model was right and the voice ignored it: the name needs a dedicated, prominent prompt slot
+("You are speaking with Luke"), not a buried disclosure line. **(2) wounds 2→3, trust −0.15**: the
+corroboration rule's residual gap — lexicon "agreement" measures *topic darkness*, not treatment,
+so one noisy COLD judgment + a philosophy-of-suffering message (grief/suffering-dense, loving
+intent) = a corroborated wound. The topic/treatment separation must go all the way down: wound
+corroboration should require a **second consecutive COLD**, period (drop the lexicon leg). Both
+queued for the next build round, not hotfixed.
 
 The first feedback coupling this project has ever closed, built the way the gate demanded:
 **`Santana.offer(text)`** sends her settled line into the town's **lore channel** — the weakest
