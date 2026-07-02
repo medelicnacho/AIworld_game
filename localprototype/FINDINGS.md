@@ -40,6 +40,20 @@ the path). That account is already close to an algorithm. The novelty of this pr
 it literally — operationalising *upekkhā*, *taṇhā*, *vāsanā*, the second arrow, the wheel — as
 running, measurable mechanisms, and then refusing to believe they work until a falsifier says so.
 
+*Prior art and convergences (recorded 2026-07; surveys in `METHODS.md`/`SAMSARA.md`).* The secular
+computational-emotion lineage — Marsella & Gratch's **EMA**, FAtiMA's OCC-based agents (*FearNot!*,
+Prom Week's kin) — built appraisal-and-coping architectures this project unknowingly parallels:
+"coping-strategy selection" is that literature's name for what the practices are. The
+**Abhidhamma** turns out to be the more exact blueprint: bhavaṅga↔the ground, vedanā↔the affect
+hit, taṇhā↔thirst, upādāna↔grip — and the stakes layer's karma-as-response (`world/stakes.py`) is
+doctrinally the *javana/cetanā* moment (`SAMSARA.md` §1 maps it link by link). The 2022–25
+literature converged on the same bet from two sides: contemplative principles as AI design
+(*Contemplative AI*, arXiv:2504.15125 — the same four mechanisms this substrate builds, implemented
+there at the prompt level) and the **care-light-cone** frame (Doctor, Witkowski, Solomonova, Duane
+& Levin, *Entropy* 2022 — a self *is* its sphere of care; the bodhisattva vow as a design
+principle). And a deliberate search found **no published falsifiable agent-based model of samsara**
+— §5.5/§5.9 appear to be first in genre.
+
 ## 3. The architecture
 
 **No `self` object exists in the code.** Identity is re-enacted each tick from five streams that
@@ -539,6 +553,16 @@ that tracks the world, structured succession — but its stream of consciousness
 established mood-coalitions and no predictive power** over the mind's trajectory. Those were the
 poetic halves of the GWT story; they are open questions, not features. §7 unchanged: architecture,
 not an inhabitant.
+
+*Update (2026-07):* the coalition literature supplies the honest reading of the COALITION fail:
+across game-theoretic and LLM-agent work (stability analysis, arXiv:2604.14386; ToM-based stable
+matching, arXiv:2405.18044), coalitions form on **shared goals + complementary ability + a model of
+the other** — never on affect co-occurrence. Mood co-occurrence was never a coalition; the correct
+retry is telos-alignment + person-models (EVOLUTION E5), not a better mood metric. The PREDICTION
+fail's principled retry is RESEARCH C1 (model the floor, don't ask it to forecast); independent
+support for the *architecture* half — and for the gated broadcast — is Project Sid's PIANO
+(`METHODS.md` §4), which arrived at the same workspace-with-bottleneck design and found the
+broadcast is what keeps speech and action coherent.
 
 ### 5.15 Expectation — the self's future tense: appraisal and turning points PASS; the psyche port FAILS and is reverted
 

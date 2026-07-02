@@ -202,3 +202,9 @@ guard); plus non-null (festivals leave episodic traces).
 [active inference for multi-LLM systems](https://arxiv.org/pdf/2412.10425); surveys of the 2026 LLM-NPC wave ([1](https://aivexify.com/the-ultimate-guide-to-ai-npc-games-in-2026/), [2](https://wanderfolk.ai/ai-npcs-in-games/), [3](https://arxiv.org/html/2504.13928v1)).
 Game-craft lineage from training knowledge: Comme il Faut/Prom Week, Versu, Façade, Dwarf
 Fortress/RimWorld/CK3.*
+
+*Companion docs (added 2026-07): `METHODS.md` — the instrument layer every falsifier above runs
+through (paired-seed statistics, the judge panel + bias battery, drift monitoring; its §7 gives the
+coalition-literature reading behind C1's motivation); `SAMSARA.md` — the Buddhist-model and
+player-facing candidates (its P3 completes C3 with the player as its subject; its K1 chain trace is
+a natural instrument for C5's tagging); `EVOLUTION.md` — the ecology stages E1–E6.*

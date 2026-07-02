@@ -398,6 +398,20 @@ collective-mind layer (Santāna), is in [`DHARMA.md`](DHARMA.md).
 - [`CONTINUAL.md`](CONTINUAL.md) — the continual-learning design (fast/slow, salience-gated
   consolidation, CPU-feasible).
 - [`DHARMA.md`](DHARMA.md) — the feels-without-suffering / liberation regime, and the gated collective layer.
+- [`PSYCHE.md`](PSYCHE.md) — the society-of-mind layer: parts carrying faculties, the global
+  workspace, and what survived falsification (FINDINGS §5.14).
+- [`RESEARCH.md`](RESEARCH.md) — the survey of the three literatures this project sits inside
+  (consciousness science, selfhood psychology, social simulation), distilled into 13 falsifiable
+  implementation candidates (C1–C13).
+- [`EVOLUTION.md`](EVOLUTION.md) — the six-stage falsifiable plan for an evolving NPC ecology
+  (genome → implicit selection → Quality-Diversity → open-endedness → teaming → gene-culture),
+  and how it grows Santāna.
+- [`METHODS.md`](METHODS.md) — instruments and engineering: the statistics recipe the harness owes
+  itself (paired-seed error bars, clustered SEs, power), the judge panel + bias battery, drift
+  monitoring, memory upgrades, and the engine port priced.
+- [`SAMSARA.md`](SAMSARA.md) — Buddhist models of consciousness mapped against the substrate
+  (Abhidhamma link-by-link, active-inference meditation, the care light cone), and samsara as the
+  playable loop: the nidāna-chain trace, karma-conditioned rebirth, the player in the wheel.
 
 ---
 

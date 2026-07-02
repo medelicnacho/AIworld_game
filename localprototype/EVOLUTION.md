@@ -217,4 +217,7 @@ Santāna is the mind an evolving ecology makes far richer than a static one, in 
 [Species: Artificial Life, Real Evolution](https://store.steampowered.com/app/774541/Species_Artificial_Life_Real_Evolution/); [Thrive vs Species (Auto-Evo / CPA design)](https://www.revolutionarygamesstudio.com/devblog-5-thrive-vs-species);
 [The Bibites (neuroevolution creatures)](https://thebibites.itch.io/the-bibites); [Spore (authored-evolution reference)](https://en.wikipedia.org/wiki/Spore_(2008_video_game));
 [NVIDIA ACE autonomous companions (PUBG Ally)](https://www.nvidia.com/en-us/geforce/news/nvidia-ace-autonomous-ai-companions-pubg-naraka-bladepoint/). Companion docs: `RECIPES.md` (F3 the emergence trinity), `RESEARCH.md`
-(the consciousness/selfhood candidates), `FINDINGS.md` §5.13 (cultural evolution, the null that governs this whole plan).*
+(the consciousness/selfhood candidates), `FINDINGS.md` §5.13 (cultural evolution, the null that governs this whole plan),
+`METHODS.md` (the statistics discipline E1's drift null and E2's dose-response verdict must run through),
+`SAMSARA.md` (K2's karma channel stays orthogonal to E1's genome — karma buys *circumstances*, the genome carries
+*traits*; K4's care-cone instrument feeds E5's teaming).*
