@@ -412,6 +412,10 @@ collective-mind layer (Santāna), is in [`DHARMA.md`](DHARMA.md).
 - [`SAMSARA.md`](SAMSARA.md) — Buddhist models of consciousness mapped against the substrate
   (Abhidhamma link-by-link, active-inference meditation, the care light cone), and samsara as the
   playable loop: the nidāna-chain trace, karma-conditioned rebirth, the player in the wheel.
+- [`ROADMAP.md`](ROADMAP.md) — the long-term fork: a **JavaScript browser game** of living NPCs in
+  a new repo (port-as-replication, WebLLM tiers, build order), and **this repo as Santāna's
+  selfhood lab** (instruments first, the selfhood agenda, her gated ladder) — one contract, and
+  the welfare gates that survive the fork.
 
 ---
 
