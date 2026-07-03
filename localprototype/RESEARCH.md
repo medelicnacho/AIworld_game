@@ -247,4 +247,7 @@ Fortress/RimWorld/CK3.*
 through (paired-seed statistics, the judge panel + bias battery, drift monitoring; its §7 gives the
 coalition-literature reading behind C1's motivation); `SAMSARA.md` — the Buddhist-model and
 player-facing candidates (its P3 completes C3 with the player as its subject; its K1 chain trace is
-a natural instrument for C5's tagging); `EVOLUTION.md` — the ecology stages E1–E6.*
+a natural instrument for C5's tagging); `EVOLUTION.md` — the ecology stages E1–E6; `SELF.md`
+(2026-07-02) — the philosophy-of-self deep-research pass: candidates S1–S4 (S2 rides C2+C14 as one
+provenance pass — confidence + source + ownership; S4 folds into C15), and the verified verdict on
+the name "Santāna" itself.*

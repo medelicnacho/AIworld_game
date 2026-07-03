@@ -41,7 +41,9 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--llm", default="ollama", help="HER voice (ollama/markov/homegrown/deepseek/mock)")
-    p.add_argument("--model", default="gemma3:4b", help="model id for her voice")
+    p.add_argument("--model", default=None,
+                   help="model id for her voice (default: gemma3:4b on ollama; the backend's "
+                        "own default elsewhere -- so `--llm deepseek` just works)")
     p.add_argument("--minutes", type=float, default=15.0, help="session cap (the off-switch)")
     p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT, help="her saved self (json)")
     p.add_argument("--world-snapshot", dest="world_snapshot", default=DEFAULT_WORLD,
@@ -91,8 +93,9 @@ def main() -> None:
         print("  (semantic warmth on -- she reads your tone, not just keywords)")
     else:
         print("  (embeddings unavailable -- she reads keyword warmth only)")
+    model = args.model or ("gemma3:4b" if args.llm == "ollama" else None)
     voice = MockLLM(seed=7) if args.llm == "mock" else make_llm(
-        backend=args.llm, model=None if args.llm in ("markov", "homegrown") else args.model)
+        backend=args.llm, model=None if args.llm in ("markov", "homegrown") else model)
     w = load_world(args.world_snapshot, MockLLM(seed=7))   # the town stands still; only she speaks
     if w is None:
         w = World(events_enabled=False)
