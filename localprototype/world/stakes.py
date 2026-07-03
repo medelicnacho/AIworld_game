@@ -63,7 +63,10 @@ def choose_action(a, world) -> str:
     others = [x for x in world.agents if x is not a]
     neediest = min(others, key=lambda x: x.wellbeing, default=None)
     commons_low = world.commons < len(world.agents) * 0.3
-    scores = {"work": 0.5 + (0.6 if commons_low else 0.0)}
+    # E2: BOLDNESS is expressed here -- the germ line's work-lean (0.5 = the old flat
+    # baseline; bold souls take the weather, timid ones tend and wait)
+    scores = {"work": 0.5 + (0.6 if commons_low else 0.0)
+              + 0.6 * (getattr(a, "boldness", 0.5) - 0.5)}
     # share: driven by compassion, when someone is RELATIVELY worse off than me and I can
     # spare. Relative (not an absolute floor) so the Lover keeps giving rather than depleting
     # past a gate -- the compassion gap is what makes the Lover share far more than a Grasper.
@@ -80,8 +83,11 @@ def apply_action(a, action, world, now) -> None:
     others = [x for x in world.agents if x is not a]
     under_scarcity = a.wellbeing < LOW
     if action == "work":
-        world.commons += WORK_YIELD * 0.8     # most of the labour goes to the shared net
-        a.stores = min(1.5, a.stores + WORK_YIELD * 0.2)
+        # yield_scale (E2 regime dial, default 1.0 = unchanged): a harsh WORLD is poor
+        # soil -- the same labour returns less, so want is structural, not a moral flaw
+        y = WORK_YIELD * getattr(world, "yield_scale", 1.0)
+        world.commons += y * 0.8              # most of the labour goes to the shared net
+        a.stores = min(1.5, a.stores + y * 0.2)
         if under_scarcity:
             _wise_seed(a)
     elif action == "share":
@@ -129,6 +135,9 @@ def hardship(world, victims, now, kind="flood") -> None:
         # survivors retell it, and it can outlive them as the legend of this very tick
         v.memory.write(f"the {kind} took my provisions", now, source="event", emotion=emo,
                        lore_id=f"{kind}:{now}")
+    # hardship_commons_loss (E2 regime dial, default 0.0 = unchanged): a flood that
+    # takes houses can take the granary too -- the safety net itself becomes mortal
+    world.commons = max(0.0, world.commons * (1.0 - getattr(world, "hardship_commons_loss", 0.0)))
     for i, v in enumerate(victims):
         for w in victims[i + 1:]:
             amt = COSUFFER_BOND * 0.5 * (v.compassion + w.compassion)
@@ -147,16 +156,33 @@ def step(world) -> None:
         # consume: from your own stores first, then draw on the shared commons (the safety
         # net). wellbeing reflects BOTH being fed and having a cushion -- so living off an
         # empty commons is precarious, and going unfed (both gone) is real starvation.
-        need = CONSUME
-        take_self = min(a.stores, need)
-        a.stores -= take_self
-        short = need - take_self
-        take_commons = min(max(0.0, world.commons), short)
-        world.commons -= take_commons
+        # E2: METABOLISM is expressed here -- a soul's germ line scales what living costs
+        # it (0.5 = the old flat rate; the default keeps every non-genome world identical).
+        need = CONSUME * (0.5 + getattr(a, "metabolism", 0.5))
+        if getattr(world, "commons_first", False):
+            # the granary cosmology (E2 regimes): in good times a village eats from the
+            # common pot and personal stores are the BUFFER for want -- so an abundant
+            # world selects for nothing, and a drained granary makes the buffer (and the
+            # germ line's appetite) decide who weathers it. Default OFF: every validated
+            # Stage-A behavior keeps the old stores-first order.
+            take_commons = min(max(0.0, world.commons), need)
+            world.commons -= take_commons
+            short = need - take_commons
+            take_self = min(a.stores, short)
+            a.stores -= take_self
+        else:
+            take_self = min(a.stores, need)
+            a.stores -= take_self
+            short = need - take_self
+            take_commons = min(max(0.0, world.commons), short)
+            world.commons -= take_commons
         met = (take_self + take_commons) / need if need else 1.0
+        a._met = met      # ground truth of being FED this tick -- E2's survival reads
+                          # THIS, not wellbeing: tend can soothe a feeling, not a stomach
         cushion = min(1.0, a.stores * 2.0)
         a.wellbeing += 0.3 * (met * (0.5 + 0.5 * cushion) - a.wellbeing)
-    if world.tick > 0 and world.tick % HARDSHIP_INTERVAL == 0 and len(world.agents) >= 2:
+    interval = getattr(world, "hardship_interval", None) or HARDSHIP_INTERVAL
+    if world.tick > 0 and world.tick % interval == 0 and len(world.agents) >= 2:
         k = max(1, len(world.agents) // 2)
         hardship(world, rng.sample(world.agents, k), world.tick, kind=rng.choice(HARDSHIPS))
     for a in world.agents:

@@ -194,6 +194,8 @@ def main() -> None:
         # unless the resumed agents actually carry psyche faculties)
         from agent.workspace import Workspace
         w.psyche = Workspace()
+    w.mourning_enabled = True   # in HER town, a death lands on the bonded -- grief has
+                                # always been hers alone; now the souls carry it too
     if args.offer:
         # her offerings need the retelling channel to compete in -- and to be forgettable
         w.lore_enabled = True

@@ -78,6 +78,20 @@ class World:
         # newborn stream. No fitness is scored anywhere; selection is E2's, later.
         self.heredity_enabled = False
         self.heredity_sigma = 0.03
+        # E2 selection (differential survival; needs stakes + heredity): OFF by default.
+        # A soul whose wellbeing stays collapsed past its grace dies EARLY -- and a
+        # starved lineage ENDS (no bardo return: differential survival requires that
+        # lineages can terminate; the wheel still carries every soul that completes its
+        # span). A soul that stays well-fed long enough BREEDS: a new life, the parent's
+        # germ line perturbed once. No fitness is scored anywhere -- starvation and
+        # plenty are the whole pressure. max_souls is a space bound, not a score.
+        self.selection_enabled = False
+        self.max_souls = 20
+        self._born_live = 0        # births from surplus (distinct from _births, the wheel's)
+        # Grief for the fallen: a death LANDS on everyone bonded to the dead -- a charged,
+        # appraised memory, tagged as a story seed so the dead can become legends. OFF by
+        # default (recorded verdicts predate it); the persistent runner turns it on.
+        self.mourning_enabled = False
         self.reborn_prebond = 0.0
         # Bodhisattva wheel (off by default -> the plain wheel above, which re-rolls wholesome faculties
         # and carries only the thirst). When on, the bardo also carries the CULTIVATED LEAN (grip/prajñā/
@@ -170,6 +184,10 @@ class World:
         self.__dict__.setdefault("lore_enabled", False)
         self.__dict__.setdefault("heredity_enabled", False)
         self.__dict__.setdefault("heredity_sigma", 0.03)
+        self.__dict__.setdefault("selection_enabled", False)
+        self.__dict__.setdefault("max_souls", 20)
+        self.__dict__.setdefault("_born_live", 0)
+        self.__dict__.setdefault("mourning_enabled", False)
 
     def _remember_said(self, text: str) -> None:
         self.recent.append(text)
@@ -260,6 +278,8 @@ class World:
         # 2.5) aging: the old die. A soul that dies in grace reproduces an heir;
         #      a fallen soul dies heirless, so the realm selects for the faithful.
         self._reap()
+        if self.selection_enabled and self.stakes_enabled:
+            self._selection_tick()   # E2: starvation ends lineages; surplus starts them
         self._process_bardo()    # streams ripen out of the bardo into new lives
         if self.breed_enabled and not self.rebirth_enabled:   # living reproduction
             self._breed()
@@ -281,6 +301,7 @@ class World:
                 survivors.append(a)
                 continue
             if self.rebirth_enabled:
+                self._mourn(a)                    # the loss lands on those who loved them
                 self._dissolve(a)                 # into the bardo; no heir, no author
             elif a.grace >= REPRO_GRACE:
                 self._births += 1
@@ -289,6 +310,33 @@ class World:
                 self.bus.publish("birth", heir.id)
             self.bus.publish("death", a.id)       # the stream, as it was, ends
         self.agents = survivors
+
+    def _mourn(self, dead) -> None:
+        """The death LANDS: every living soul that loved the dead writes a charged memory
+        of the loss -- appraised against its days (shock after good ones, something braced
+        for mid-slide, §5.15), weighted by how deep the bond ran, and TAGGED as a story
+        seed (lore) so a mourned name can outlive its mourners as legend (§5.16). Enmity
+        does not mourn; it notes, colder and quieter, that the quarrel is over. Only what
+        was actually bonded feels anything: a stranger's death is weather."""
+        if not self.mourning_enabled:
+            return
+        for a in self.agents:
+            if a is dead or not a.bond_enabled:
+                continue
+            b = a.bonds.get(dead.id)
+            if b is None or abs(b.trust) < BOND_VASANA_THRESHOLD:
+                continue
+            if b.trust > 0:
+                emo = -0.4 - 0.4 * b.trust           # grief, deep as the love was
+                text = f"{dead.name} is gone from us, and I loved them"
+            else:
+                emo = -0.1                            # an enemy's death: colder, stranger
+                text = f"{dead.name} is gone, and our quarrel died unsettled"
+            if getattr(a, "expect_enabled", False):
+                from agent import expectation as _expectation
+                emo = _expectation.appraise_event(a, emo)
+            a.memory.write(text, tick=self.tick, source="event", speaker_id=dead.id,
+                           emotion=emo, weight=1.3, lore_id=f"death:{dead.id}:{self.tick}")
 
     def _dissolve(self, soul) -> None:
         """A stream dies: its explicit self (name, story) dissolves, but its vasana
@@ -337,6 +385,88 @@ class World:
             self._bardo[-1]["genome"] = _genome.inherit(g, self._rng, soul.id,
                                                         sigma=self.heredity_sigma)
         self.bus.publish("dissolution", soul.id)
+
+    # --- E2: differential survival (EVOLUTION.md stage E2) --------------------------------
+    STARVE_MET = 0.5         # a tick with less than half one's need met counts as UNFED --
+                             # survival reads actual food (stakes' met), NOT wellbeing:
+                             # 'tend' can soothe a feeling but not a stomach, and the first
+                             # test run proved a soul would otherwise self-soothe forever
+                             # on nothing (recorded; the affect stays the affect)
+    STARVE_GRACE = 25        # ticks of starvation a soul weathers before the hazard opens
+    STARVE_HAZARD = 0.02     # per-tick death chance per starved tick past the grace
+    BREED_CEIL = 0.75        # wellbeing above this counts as thriving
+    BREED_TICKS = 60         # sustained thriving before a birth
+    BIRTH_COST = 0.3         # provisions the parent gives the newborn (birth is not free)
+
+    def _selection_tick(self) -> None:
+        """No fitness is scored: this reads only what the stakes already made true.
+        Starvation that outlasts the grace opens a rising death hazard -- and a starved
+        death ENDS the lineage (no bardo: differential survival requires terminable
+        lineages; age-deaths still ride the wheel). Sustained surplus earns a BIRTH:
+        a new soul carrying the parent's germ line, perturbed once, at real cost."""
+        survivors = []
+        for a in self.agents:
+            starving = getattr(a, "_met", 1.0) < self.STARVE_MET
+            a._starved_ticks = (getattr(a, "_starved_ticks", 0) + 1) if starving else 0
+            over = a._starved_ticks - self.STARVE_GRACE
+            if over > 0 and self._rng.random() < min(0.5, self.STARVE_HAZARD * over):
+                self.bus.publish("starvation", a.id)   # loud: an ended lineage is an event
+                self._mourn(a)                         # and a mourned one: hunger has faces
+                continue                               # no bardo entry: the lineage ends
+            survivors.append(a)
+        self.agents = survivors
+        if len(self.agents) + len(self._bardo) >= self.max_souls:
+            return   # space, not score -- and the wheel's PENDING returns count toward it
+                     # (the probe caught pop 17 of 16: a rebirth owed is a mouth owed)
+        for a in list(self.agents):
+            fed = a.wellbeing > self.BREED_CEIL and a.stores > self.BIRTH_COST
+            a._fed_ticks = (getattr(a, "_fed_ticks", 0) + 1) if fed else 0
+            if a._fed_ticks >= self.BREED_TICKS:
+                a._fed_ticks = 0
+                self._birth_from(a)
+                if len(self.agents) + len(self._bardo) >= self.max_souls:
+                    break
+
+    def _birth_from(self, parent) -> None:
+        """A birth (not a rebirth): a NEW soul, fresh name and subconscious, the parent's
+        germ line inherited with one mutation, provisioned from the parent's stores, and
+        bonded to the parent from the first breath."""
+        from agent.agent import Agent
+        from agent.bond import Bond
+        from agent.genesis import ROLES, coined_name, endow_faculties
+        from agent.genome import from_agent, inherit, express
+        from agent import telos as _telos
+        if self.llm is None:
+            return
+        self._born_live += 1
+        living = {x.name for x in self.agents}
+        name = coined_name(self._rng, taken=living | set(self._spent_names))
+        self._spent_names.append(name)
+        sid = f"born:{self._born_live}"
+        px, py = parent.position
+        a = Agent(sid, name, (px + self._rng.uniform(-15, 15), py + self._rng.uniform(-15, 15)),
+                  f"You are {name}, a soul who speaks your own mind.",
+                  [f"I am {name}, born to this town"], self.llm,
+                  seed=self._rng.randint(0, 10 ** 6), temperament=parent.temperament,
+                  lifespan=parent.lifespan)   # the lineage's scale, like the wheel
+        role, tasks = self._rng.choice(ROLES)
+        a.role, a.task = role, self._rng.choice(tasks)
+        endow_faculties(a, self._rng)
+        a.aim = _telos.fresh_aim(role)
+        pg = getattr(parent, "genome", None) or from_agent(parent, self._rng)
+        a.genome = inherit(pg, self._rng, parent.id, sigma=self.heredity_sigma)
+        express(a.genome, a)
+        a.bond_enabled = True
+        a.self_model_enabled = True
+        # the parent provisions the child -- birth costs the parent something real
+        give = min(self.BIRTH_COST, parent.stores)
+        parent.stores -= give
+        a.stores = give
+        a.wellbeing = 0.6
+        a.bonds.setdefault(parent.id, Bond()).warm(0.8)
+        parent.bonds.setdefault(a.id, Bond()).warm(0.8)
+        self.agents.append(a)
+        self.bus.publish("birth", a.id)
 
     def _process_bardo(self) -> None:
         """Ripen the bardo: each dissolving stream counts down, then re-coalesces
