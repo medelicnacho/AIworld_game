@@ -151,6 +151,13 @@ def main() -> None:
     p.add_argument("--no-ui", dest="no_ui", action="store_true",
                    help="don't serve the cockpit (god view + stream + art + talk) on 127.0.0.1:8765")
     p.add_argument("--ui-port", dest="ui_port", type=int, default=8765)
+    p.add_argument("--chat-voice", dest="chat_voice", default="ollama",
+                   choices=("ollama", "deepseek", "town"),
+                   help="the cockpit TALK panel's voice (her replies + soul asides): "
+                        "'ollama' = local gemma (default), 'deepseek' = the richer API "
+                        "voice (leaves the machine; key in .env), 'town' = the self-grown "
+                        "voices. Her ambient READINGS always stay on --llm (local by "
+                        "default) -- only the conversation borrows this mouth.")
     p.add_argument("--autosave", type=int, default=5, help="save every N readings")
     p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT, help="where HER self is saved/resumed (json)")
     p.add_argument("--world-snapshot", dest="world_snapshot", default=DEFAULT_WORLD,
@@ -425,13 +432,19 @@ def main() -> None:
             # the talk panel's CLEAR voice (tiered speech, RECIPES C): local gemma if
             # ollama is up, else None -> the panel falls back to the self-grown voices
             chat_voice = None
-            try:
-                from services.llm import OllamaLLM
-                _cv = OllamaLLM(model="gemma3:4b")
-                if _cv.available():
-                    chat_voice = _cv
-            except Exception:   # noqa: BLE001 -- no local model is a mode, not an error
-                pass
+            if args.chat_voice == "deepseek":
+                try:
+                    chat_voice = make_llm(backend="deepseek")   # prints its privacy notice
+                except RuntimeError as exc:
+                    print(f"  ⚠ {exc} -- cockpit talk falls back to local gemma", flush=True)
+            if chat_voice is None and args.chat_voice != "town":
+                try:
+                    from services.llm import OllamaLLM
+                    _cv = OllamaLLM(model="gemma3:4b")
+                    if _cv.available():
+                        chat_voice = _cv
+                except Exception:   # noqa: BLE001 -- no local model is a mode, not an error
+                    pass
             url = _ui.serve(mind, w, mind_lock, _draw_dir, ui_readings, ui_drift,
                             port=args.ui_port, chat_voice=chat_voice)
             print(f"  ✦ the cockpit is open: {url}  (god view + stream + art + talk"
