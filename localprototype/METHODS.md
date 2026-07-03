@@ -44,6 +44,21 @@ reduction, nearly free on a local model.
 later reversed under replication as underpowered — the harness's own recorded failure is the
 calibration case.
 
+> **STATUS (2026-07-03): BUILT.** `scripts/stats.py` — `summary` / `paired` / `clustered` /
+> `power_n` / `resample_means` / `sign_test`, exact t (incomplete-beta, no tables), stdlib only;
+> `tests/test_stats.py` checks it against table values, and the calibration case is pinned:
+> `summary()` of n=1 refuses the error bar and prints UNPOWERED. Retrofitted the same day into
+> the six single-run experiments with a substrate arm (appropriation, ground, prajna,
+> selfliberation, transmutation, liberation — all now default `--replicates 5`, verdicts
+> error-barred, **published numbers reproduce exactly**) and into `experiment.py`'s `compare()`
+> (which now also returns `sem`/`ci95`/`p`/`sign`). Honest finding surfaced by the retrofit: the
+> substrate deltas are **bit-identical across seeds** (the protocol is seed-invariant on these
+> metrics), and the instrument says so in words rather than printing `± 0.0000`. Still open from
+> §1: the M2 clustered re-audit of the headline claims, and M3 power registration alongside new
+> falsifiers. `experiment_judge.py` keeps its own design (a fixed case battery — its rigor is
+> coverage at temp 0, not seeds); bodhicitta/compassion scene probes keep their recorded 2026-06-27
+> multi-seed replications as the standing evidence.
+
 ## 2. The judge — from one validated judge to a bias-proofed panel
 
 The §5.7-era lesson ("rhetorical stance needs an LLM judge, not embeddings") made the judge

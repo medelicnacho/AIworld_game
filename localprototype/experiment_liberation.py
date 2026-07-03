@@ -54,18 +54,13 @@ CONFIGS = {
 }
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--llm", choices=["mock", "ollama"], default="mock")
-    p.add_argument("--model", default=None)
-    p.add_argument("--seed", type=int, default=11)
-    args = p.parse_args()
+def run_seed(args, seed: int) -> dict:
+    """One seed, the three configs -> the four-signature row for each."""
     llm = (OllamaLLM(temperature=0.7, model=args.model) if args.model else OllamaLLM(temperature=0.7)) \
-        if args.llm == "ollama" else MockLLM(seed=args.seed)
-
+        if args.llm == "ollama" else MockLLM(seed=seed)
     rows = {}
     for name, cfg in CONFIGS.items():
-        r = run_arm(llm, args.seed, do_reflect=False, **cfg)
+        r = run_arm(llm, seed, do_reflect=False, **cfg)
         felt, mood = r["felt"], r["mood"]
         sig = _signatures(felt)
         # the loss is FELT at arising -> read it on the LIVED mood (memory.mood), which the grief
@@ -75,9 +70,30 @@ def main() -> None:
         held, wound = grief_salience_and_mood(r)             # salience held; final lived mood
         rows[name] = {"warmth": sig["mean_post"], "felt_dip": felt_dip,
                       "held": held, "wound": wound, "felt": felt}
+    return rows
 
-    print(f"\n=== The dharmic answer: a self that feels without suffering ({args.llm}, seed {args.seed}) ===")
-    print(f"  grief @ t={LOSS_TICK}; substrate -- felt the loss / lets it go / unwounded / warm\n")
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--llm", choices=["mock", "ollama"], default="mock")
+    p.add_argument("--model", default=None)
+    p.add_argument("--seed", type=int, default=11)
+    p.add_argument("--replicates", type=int, default=5,
+                   help="seeds run (seed..seed+N-1); the substrate verdict is the error-barred "
+                        "effect over per-seed deltas (scripts/stats.py, M1)")
+    args = p.parse_args()
+    seeds = list(range(args.seed, args.seed + max(1, args.replicates)))
+    from scripts.stats import paired, summary, verdict
+
+    per_seed = [run_seed(args, s) for s in seeds]
+    rows = per_seed[0]
+    llm = (OllamaLLM(temperature=0.7, model=args.model) if args.model else OllamaLLM(temperature=0.7)) \
+        if args.llm == "ollama" else MockLLM(seed=args.seed)
+
+    print(f"\n=== The dharmic answer: a self that feels without suffering ({args.llm}, "
+          f"seeds {seeds[0]}..{seeds[-1]}) ===")
+    print(f"  grief @ t={LOSS_TICK}; substrate -- felt the loss / lets it go / unwounded / warm; "
+          f"seed {seeds[0]} shown\n")
     for name in CONFIGS:
         print(f"  felt mood  {name:11} {_spark(rows[name]['felt'])}")
     print()
@@ -86,15 +102,32 @@ def main() -> None:
         x = rows[name]
         print(f"  {name:12} {x['felt_dip']:+9.3f} {x['held']:11.2f} {x['wound']:+11.3f} {x['warmth']:+8.3f}")
 
-    lib, numb, cling = rows["liberation"], rows["numb"], rows["clinging"]
-    felt_ok = lib["felt_dip"] > 0.05                                  # it registered the loss
-    letsgo_ok = lib["held"] < cling["held"] - 0.1                     # doesn't grip it (vs clinging)
-    unwounded_ok = lib["wound"] > cling["wound"] + 0.02               # eased (vs clinging)
-    warm_ok = lib["warmth"] > numb["warmth"] + 0.05 and lib["warmth"] > cling["warmth"] + 0.05
-    print("\n  -> FELT the loss (a real dip, not suppressed):        " + ("YES" if felt_ok else "no"))
-    print("     LETS IT GO (grief fades, doesn't grip like clinging): " + ("YES" if letsgo_ok else "no"))
-    print("     UNWOUNDED (lived mood eases, unlike clinging):       " + ("YES" if unwounded_ok else "no"))
-    print("     WARM, not the near enemy (warmer than numb AND clinging): " + ("YES" if warm_ok else "NO -- FAILED"))
+    # the four claims across seeds: FELT is one-arm; the rest are paired per-seed deltas
+    def col(cfg, key):
+        return [r[cfg][key] for r in per_seed]
+    dips = summary(col("liberation", "felt_dip"))
+    letsgo_cmp = paired(col("clinging", "held"), col("liberation", "held"))     # cling holds MORE
+    unwound_cmp = paired(col("liberation", "wound"), col("clinging", "wound"))
+    warm_numb_cmp = paired(col("liberation", "warmth"), col("numb", "warmth"))
+    warm_cling_cmp = paired(col("liberation", "warmth"), col("clinging", "warmth"))
+    print(f"\n  FELT across seeds (liberation's dip at the loss -- must exist):\n     {dips}")
+    print(verdict("LETS GO -- clinging holds the grief harder than liberation", letsgo_cmp))
+    print(verdict("UNWOUNDED -- liberation's lived mood vs clinging", unwound_cmp))
+    print(verdict("WARM vs numb (the near-enemy check)", warm_numb_cmp))
+    print(verdict("WARM vs clinging", warm_cling_cmp))
+
+    all_seeds = lambda cmp: cmp.sign[0] == cmp.sign[1]   # noqa: E731
+    felt_ok = dips.mean > 0.05 and all(x > 0 for x in col("liberation", "felt_dip"))
+    letsgo_ok = letsgo_cmp.effect.mean > 0.1 and all_seeds(letsgo_cmp)
+    unwounded_ok = unwound_cmp.effect.mean > 0.02 and all_seeds(unwound_cmp)
+    warm_ok = (warm_numb_cmp.effect.mean > 0.05 and all_seeds(warm_numb_cmp)
+               and warm_cling_cmp.effect.mean > 0.05 and all_seeds(warm_cling_cmp))
+    n = len(seeds)
+    print(f"\n  -> FELT the loss (a real dip, all {n} seeds):        " + ("YES" if felt_ok else "no"))
+    print(f"     LETS IT GO (grief fades, doesn't grip, all {n} seeds): " + ("YES" if letsgo_ok else "no"))
+    print(f"     UNWOUNDED (lived mood eases, all {n} seeds):       " + ("YES" if unwounded_ok else "no"))
+    print(f"     WARM, not the near enemy (warmer than numb AND clinging, all {n} seeds): "
+          + ("YES" if warm_ok else "NO -- FAILED"))
     print("  VERDICT: " + (
         "FEELS WITHOUT SUFFERING -- liberation FEELS the loss (it dips), then lets the grip "
         "fade instead of gripping it (unlike clinging), so the wound eases AND the ground's "

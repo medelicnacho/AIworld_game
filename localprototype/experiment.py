@@ -21,7 +21,6 @@ Run:  python experiment.py                          # 8 replicates, 50 ticks
 from __future__ import annotations
 
 import argparse
-import math
 import statistics
 
 from agent.agent import Agent
@@ -64,44 +63,46 @@ def run_replicate(seed: int, events_enabled: bool, ticks: int,
     return statistics.fmean(samples)
 
 
-# --- statistics (stdlib only) ----------------------------------------------
+# --- statistics: the SHARED instrument (scripts/stats.py, METHODS.md M1) -------------------
+# This file used to carry its own cohens_d_paired/paired_t; they were the pattern every
+# other experiment copy-pasted (or skipped). The originals now live, tested against table
+# values, in scripts/stats.py -- kept as thin aliases here so old callers keep working.
+from scripts.stats import paired as _paired  # noqa: E402 -- sits with the section it feeds
+
+
 def cohens_d_paired(diffs: list[float]) -> float:
-    """Standardized effect size for paired data: mean difference / its std."""
-    if len(diffs) < 2:
-        return 0.0
-    sd = statistics.stdev(diffs)
-    return statistics.fmean(diffs) / sd if sd else math.inf
+    """Standardized effect size for paired data (delegates to scripts/stats.py)."""
+    return _paired([d for d in diffs], [0.0] * len(diffs)).d if len(diffs) >= 2 else 0.0
 
 
 def paired_t(diffs: list[float]) -> float:
-    """One-sample t of the per-seed differences against zero."""
-    n = len(diffs)
-    if n < 2:
-        return 0.0
-    sd = statistics.stdev(diffs)
-    if sd == 0:
-        return math.inf if statistics.fmean(diffs) else 0.0
-    return statistics.fmean(diffs) / (sd / math.sqrt(n))
+    """One-sample t of the per-seed differences against zero (delegates to scripts/stats.py)."""
+    return _paired([d for d in diffs], [0.0] * len(diffs)).t if len(diffs) >= 2 else 0.0
 
 
 def compare(seeds: list[int], ticks: int,
             build=build_world, metric=mean_felt_mood) -> dict:
-    """Paired treatment-vs-control comparison over a list of seeds."""
+    """Paired treatment-vs-control comparison over a list of seeds (M1: the per-seed delta
+    is the unit of analysis; the error bar comes from the shared instrument)."""
     treatment = [run_replicate(s, True, ticks, build, metric) for s in seeds]
     control = [run_replicate(s, False, ticks, build, metric) for s in seeds]
-    diffs = [t - c for t, c in zip(treatment, control)]
+    cmp = _paired(treatment, control)
     return {
         "seeds": seeds,
         "ticks": ticks,
         "treatment": treatment,
         "control": control,
-        "diffs": diffs,
-        "treatment_mean": statistics.fmean(treatment),
-        "control_mean": statistics.fmean(control),
-        "effect_mean": statistics.fmean(diffs),
-        "effect_std": statistics.stdev(diffs) if len(diffs) > 1 else 0.0,
-        "cohens_d": cohens_d_paired(diffs),
-        "t": paired_t(diffs),
+        "diffs": cmp.diffs,
+        "treatment_mean": cmp.treatment_mean,
+        "control_mean": cmp.control_mean,
+        "effect_mean": cmp.effect.mean,
+        "effect_std": cmp.effect.sd or 0.0,
+        "effect_sem": cmp.effect.sem,          # new: the honest bar (M1)
+        "ci95": cmp.effect.ci95,               # new: exact-t confidence interval
+        "cohens_d": cmp.d,
+        "t": cmp.t,
+        "p": cmp.p,                            # new: exact two-sided p
+        "sign": cmp.sign,                      # new: exact one-sided sign test
     }
 
 

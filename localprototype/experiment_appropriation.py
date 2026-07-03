@@ -30,29 +30,55 @@ from services.llm import MockLLM, OllamaLLM
 from experiment_affect import LOSS_TICK, REMINDER_TICK, _signatures, run_arm
 
 
+def run_seed(args, seed: int):
+    llm = (OllamaLLM(temperature=0.7, model=args.model) if args.model else OllamaLLM(temperature=0.7)) \
+        if args.llm == "ollama" else MockLLM(seed=seed)
+    released = run_arm(llm, seed, do_reflect=False, grip=0.0)
+    clamped = run_arm(llm, seed, do_reflect=False, grip=1.0)
+    return released, clamped
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--llm", choices=["mock", "ollama"], default="mock")
     p.add_argument("--model", default=None)
     p.add_argument("--seed", type=int, default=11)
+    p.add_argument("--replicates", type=int, default=5,
+                   help="seeds run (seed..seed+N-1); the verdict is the error-barred effect "
+                        "over per-seed deltas (scripts/stats.py, M1), not one seed's anecdote")
     args = p.parse_args()
+    seeds = list(range(args.seed, args.seed + max(1, args.replicates)))
+    from scripts.stats import paired, verdict
+
+    runs = [run_seed(args, s) for s in seeds]
+    released, clamped = runs[0]
     llm = (OllamaLLM(temperature=0.7, model=args.model) if args.model else OllamaLLM(temperature=0.7)) \
         if args.llm == "ollama" else MockLLM(seed=args.seed)
-
-    released = run_arm(llm, args.seed, do_reflect=False, grip=0.0)
-    clamped = run_arm(llm, args.seed, do_reflect=False, grip=1.0)
     sr, sc = _signatures(released["mood"]), _signatures(clamped["mood"])
 
     print(f"\n=== Stage 4: manas, the appropriating grip ({args.llm}"
-          f"{'/'+args.model if args.model else ''}, seed {args.seed}) ===")
-    print(f"  loss @ t={LOSS_TICK}, reminder @ t={REMINDER_TICK}; construct held fixed, grip toggled\n")
+          f"{'/'+args.model if args.model else ''}, seeds {seeds[0]}..{seeds[-1]}) ===")
+    print(f"  loss @ t={LOSS_TICK}, reminder @ t={REMINDER_TICK}; construct held fixed, grip "
+          f"toggled; seed {seeds[0]} shown\n")
     print(f"  lived mood, grip RELEASED (0):  {_spark(released['mood'])}")
     print(f"  lived mood, grip CLAMPED (1):   {_spark(clamped['mood'])}\n")
-    print(f"  HABITUATION (recovery over the quiet days after the loss):")
+    print(f"  HABITUATION (recovery over the quiet days after the loss, seed {seeds[0]}):")
     print(f"     released: {sr['habituation']:+.3f}    clamped: {sc['habituation']:+.3f}")
     print(f"  mean lived mood after loss:  released {sr['mean_post']:+.3f}   clamped {sc['mean_post']:+.3f}")
     print(f"  final lived mood:            released {sr['final']:+.3f}   clamped {sc['final']:+.3f}")
-    suppressed = sc["habituation"] < sr["habituation"] - 0.02 and sc["mean_post"] < sr["mean_post"] - 0.02
+
+    # the second arrow, error-barred: released-minus-clamped, per seed, both metrics
+    habit_cmp = paired([_signatures(r["mood"])["habituation"] for r, _ in runs],
+                       [_signatures(c["mood"])["habituation"] for _, c in runs])
+    post_cmp = paired([_signatures(r["mood"])["mean_post"] for r, _ in runs],
+                      [_signatures(c["mood"])["mean_post"] for _, c in runs])
+    print("\n  HABITUATION suppressed by the grip (released vs clamped, per-seed):")
+    print(verdict("habituation delta", habit_cmp))
+    print("  POST-LOSS mood held down by the grip (released vs clamped, per-seed):")
+    print(verdict("mean-post delta", post_cmp))
+
+    suppressed = (habit_cmp.effect.mean > 0.02 and habit_cmp.sign[0] == habit_cmp.sign[1]
+                  and post_cmp.effect.mean > 0.02 and post_cmp.sign[0] == post_cmp.sign[1])
     print("  -> " + (
         "THE SECOND ARROW: the grip suppresses habituation -- the wound will not fade, "
         "and the appropriated tone keeps mood lower. Releasing it lets recovery resume."
