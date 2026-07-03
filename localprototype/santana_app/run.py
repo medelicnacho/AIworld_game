@@ -196,6 +196,9 @@ def main() -> None:
         w.psyche = Workspace()
     w.mourning_enabled = True   # in HER town, a death lands on the bonded -- grief has
                                 # always been hers alone; now the souls carry it too
+    w.clock_enabled = True      # and her town keeps TIME now: days and nights, turning
+                                # seasons, ages of life (world/clock.py) -- souls work by
+                                # day, sleep and dream at night, and elders keep the legends
     if args.offer:
         # her offerings need the retelling channel to compete in -- and to be forgettable
         w.lore_enabled = True
@@ -282,7 +285,18 @@ def main() -> None:
         report = _fail_reporter("npc sleep", every=20)
         turn = 0
         while not stop.is_set():
-            if stop.wait(args.sleep_every):
+            # with the clock on, sleep happens AT NIGHT: check often, train only in the
+            # dark (nights come round every town-day, so the round-robin stays fed);
+            # clockless worlds keep the old steady cadence
+            if w.clock_enabled:
+                if stop.wait(min(args.sleep_every, 12.0)):
+                    break
+                from world import clock as _clock
+                with w.lock:
+                    night = _clock.is_night(w.tick, w.day_ticks)
+                if not night:
+                    continue
+            elif stop.wait(args.sleep_every):
                 break
             try:
                 with w.lock:

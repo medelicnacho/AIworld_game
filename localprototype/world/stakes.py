@@ -84,8 +84,15 @@ def apply_action(a, action, world, now) -> None:
     under_scarcity = a.wellbeing < LOW
     if action == "work":
         # yield_scale (E2 regime dial, default 1.0 = unchanged): a harsh WORLD is poor
-        # soil -- the same labour returns less, so want is structural, not a moral flaw
+        # soil -- the same labour returns less, so want is structural, not a moral flaw.
+        # With the clock on, the SEASON multiplies it (harvest plenty, winter want),
+        # and an ELDER's labour returns half -- they tire; their wealth is elsewhere.
         y = WORK_YIELD * getattr(world, "yield_scale", 1.0)
+        if getattr(world, "clock_enabled", False):
+            from world import clock as _clock
+            y *= _clock.SEASON_YIELD[_clock.season(world.tick, world.day_ticks)]
+            if _clock.stage(a.age, a.lifespan) == "elder":
+                y *= _clock.ELDER_YIELD
         world.commons += y * 0.8              # most of the labour goes to the shared net
         a.stores = min(1.5, a.stores + y * 0.2)
         if under_scarcity:
@@ -159,6 +166,10 @@ def step(world) -> None:
         # E2: METABOLISM is expressed here -- a soul's germ line scales what living costs
         # it (0.5 = the old flat rate; the default keeps every non-genome world identical).
         need = CONSUME * (0.5 + getattr(a, "metabolism", 0.5))
+        if getattr(world, "clock_enabled", False):
+            from world import clock as _clock
+            if _clock.stage(a.age, a.lifespan) == "child":
+                need *= _clock.CHILD_NEED          # children eat little
         if getattr(world, "commons_first", False):
             # the granary cosmology (E2 regimes): in good times a village eats from the
             # common pot and personal stores are the BUFFER for want -- so an abundant
@@ -182,10 +193,21 @@ def step(world) -> None:
         cushion = min(1.0, a.stores * 2.0)
         a.wellbeing += 0.3 * (met * (0.5 + 0.5 * cushion) - a.wellbeing)
     interval = getattr(world, "hardship_interval", None) or HARDSHIP_INTERVAL
+    clock_on = getattr(world, "clock_enabled", False)
+    if clock_on:
+        from world import clock as _clock
     if world.tick > 0 and world.tick % interval == 0 and len(world.agents) >= 2:
         k = max(1, len(world.agents) // 2)
-        hardship(world, rng.sample(world.agents, k), world.tick, kind=rng.choice(HARDSHIPS))
+        kinds = (_clock.SEASON_HARDSHIPS[_clock.season(world.tick, world.day_ticks)]
+                 if clock_on else HARDSHIPS)       # the weather suits the season
+        hardship(world, rng.sample(world.agents, k), world.tick, kind=rng.choice(kinds))
+    if clock_on and _clock.is_night(world.tick, world.day_ticks):
+        return    # night: the town sleeps -- no labour, no trades (bellies and weather
+                  # above run regardless; sleep is when the soul-minds train and dream)
     for a in world.agents:
+        if clock_on and _clock.stage(a.age, a.lifespan) == "child":
+            a._last_action = "tend"                # children play and learn; they don't
+            continue                               # work the fields or raid the commons
         act = choose_action(a, world)
         apply_action(a, act, world, world.tick)
         a._last_action = act

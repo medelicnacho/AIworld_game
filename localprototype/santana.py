@@ -490,6 +490,11 @@ class Santana:
         facts = (f"{_num_words(self._deaths)} souls have lived in you, died, and passed out of you; "
                  f"{_num_words(alive)} live in you now" if self._deaths
                  else f"{_num_words(alive)} souls live in you, and none have died yet")
+        # the lived hour (world/clock.py): when her town keeps time, she FEELS the time --
+        # deep night reads differently from a harvest morning, in one honest clause
+        if getattr(self.world, "clock_enabled", False):
+            from world import clock as _clock
+            facts += " " + _clock.time_clause(self.world.tick, self.world.day_ticks)
         # The prior is a SKIN to shed, not a script to repeat: present-led, lightly anchored, so the
         # self DRIFTS with the turning town (anatta) instead of ossifying on its first utterance.
         prior = _scrub_counts(self.identity)

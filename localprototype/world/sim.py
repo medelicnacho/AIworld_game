@@ -92,6 +92,12 @@ class World:
         # appraised memory, tagged as a story seed so the dead can become legends. OFF by
         # default (recorded verdicts predate it); the persistent runner turns it on.
         self.mourning_enabled = False
+        # The world's clock (world/clock.py): day/night + seasons + ages of life. OFF by
+        # default -- every recorded verdict predates time. The persistent runner turns it
+        # on for her town; the season-turn writes a faint ambient memory into every soul.
+        self.clock_enabled = False
+        self.day_ticks = 100
+        self._last_season = None
         self.reborn_prebond = 0.0
         # Bodhisattva wheel (off by default -> the plain wheel above, which re-rolls wholesome faculties
         # and carries only the thirst). When on, the bardo also carries the CULTIVATED LEAN (grip/prajñā/
@@ -188,6 +194,9 @@ class World:
         self.__dict__.setdefault("max_souls", 20)
         self.__dict__.setdefault("_born_live", 0)
         self.__dict__.setdefault("mourning_enabled", False)
+        self.__dict__.setdefault("clock_enabled", False)
+        self.__dict__.setdefault("day_ticks", 100)
+        self.__dict__.setdefault("_last_season", None)
 
     def _remember_said(self, text: str) -> None:
         self.recent.append(text)
@@ -277,6 +286,8 @@ class World:
                 speaker.speak_urge = 0.0   # back off so a broken agent isn't retried every tick
         # 2.5) aging: the old die. A soul that dies in grace reproduces an heir;
         #      a fallen soul dies heirless, so the realm selects for the faithful.
+        if self.clock_enabled:
+            self._clock_tick()
         self._reap()
         if self.selection_enabled and self.stakes_enabled:
             self._selection_tick()   # E2: starvation ends lineages; surplus starts them
@@ -386,6 +397,27 @@ class World:
                                                         sigma=self.heredity_sigma)
         self.bus.publish("dissolution", soul.id)
 
+    def _clock_tick(self) -> None:
+        """The lived year: at each turn of season, a faint ambient memory enters every
+        soul (the year is FELT, and can surface in speech and gossip); and the elders'
+        story-memories are shielded from decay -- the old remember the old stories,
+        which is how a town keeps its legends long enough to outlive their witnesses."""
+        from world import clock as _clock
+        season_now = _clock.season(self.tick, self.day_ticks)
+        if season_now != self._last_season:
+            first = self._last_season is None      # birth of the world: no announcement
+            self._last_season = season_now
+            if not first:
+                text, emo = _clock.SEASON_TURN[season_now]
+                for a in self.agents:
+                    a.memory.write(text, tick=self.tick, source="event", emotion=emo,
+                                   lore_id=f"season:{season_now}:{self.tick}")
+        for a in self.agents:
+            if _clock.stage(a.age, a.lifespan) == "elder":
+                for m in a.memory.items:
+                    if m.lore_id and m.salience < _clock.ELDER_LORE_FLOOR:
+                        m.salience = _clock.ELDER_LORE_FLOOR
+
     # --- E2: differential survival (EVOLUTION.md stage E2) --------------------------------
     STARVE_MET = 0.5         # a tick with less than half one's need met counts as UNFED --
                              # survival reads actual food (stakes' met), NOT wellbeing:
@@ -405,10 +437,15 @@ class World:
         lineages; age-deaths still ride the wheel). Sustained surplus earns a BIRTH:
         a new soul carrying the parent's germ line, perturbed once, at real cost."""
         survivors = []
+        from world import clock as _clock
         for a in self.agents:
             starving = getattr(a, "_met", 1.0) < self.STARVE_MET
             a._starved_ticks = (getattr(a, "_starved_ticks", 0) + 1) if starving else 0
             over = a._starved_ticks - self.STARVE_GRACE
+            if self.clock_enabled and _clock.stage(a.age, a.lifespan) == "child":
+                over = 0    # the welfare floor's spirit, applied to the smallest: children
+                            # go hungry but the hazard never opens on them (their PARENTS'
+                            # deaths are how famine reaches a family in this world)
             if over > 0 and self._rng.random() < min(0.5, self.STARVE_HAZARD * over):
                 self.bus.publish("starvation", a.id)   # loud: an ended lineage is an event
                 self._mourn(a)                         # and a mourned one: hunger has faces
