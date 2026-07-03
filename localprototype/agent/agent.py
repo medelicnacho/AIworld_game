@@ -180,6 +180,8 @@ class Agent:
         self.self_dissonance = 0.0           # accrued out-of-character tension -> a turning
         self._turnings = 0                   # how many times this self has turned (chapter breaks)
         self._conduct_expect: dict = {}      # other_id -> how I have come to expect them to treat me
+        self.promises_held: list = []        # words given TO me (by a soul or the player),
+                                             # held to the town's clock (agent/pledge.py)
         self.known_of: dict = {}             # other_id -> what THEY have told me of themselves (the
                                              # person-model; named-tier -- kept only for trusted bonds)
         self._contraction = 0.0              # somatic down-regulation level, 0=open .. 1=fully contracted (read by manas)
@@ -269,6 +271,7 @@ class Agent:
         # mutable defaults constructed per-instance, never shared off the class
         self.__dict__.setdefault("_conduct_expect", {})
         self.__dict__.setdefault("known_of", {})
+        self.__dict__.setdefault("promises_held", [])
 
     def felt_mood(self) -> float:
         """The agent's disposition: temperament anchored (0.7), lived mood
@@ -309,6 +312,10 @@ class Agent:
         if self.expect_enabled:
             from agent import expectation as _expectation
             _expectation.tick(self, now)
+        # promises break where the absence is measured: the town's clock, each step
+        if self.promises_held:
+            from agent import pledge as _pledge
+            _pledge.lapse_check(self, now)
         # telos (chanda): tend the aim -> lay down a small gladness of the work (a fresh pleasant
         # charge) that the faculties below then meet -- savoured as chanda, craved as taṇhā. The
         # arrow of time: a future to move toward. Off by default (no aim pursued).
