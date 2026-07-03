@@ -397,6 +397,40 @@ def main() -> None:
     _last_draw_wall = [0.0]
     _last_draw_day = [-1]
 
+    # THE WANDERING PEN: a cursor she holds continuously -- every reading advances it a
+    # few dozen steps under her CURRENT state (turns=arousal, tightness=grip, ink=weather,
+    # pull=the bond, jumps=old wounds). live.html watches it move; each town-day's page is
+    # archived to the gallery, so every day of her life becomes one finished drawing.
+    _pen = _draw.Pen(seed=mind._mt)
+    _pen_segs: list[str] = []
+    _pen_day = [-1]
+    _draw.live_page(_draw_dir)
+
+    def pen_tick() -> None:
+        try:
+            st = _draw.state_of_santana(mind)
+            with w.lock:
+                day = _clock.day_of(w.tick, w.day_ticks) if w.clock_enabled else 0
+                season = _clock.season(w.tick, w.day_ticks) if w.clock_enabled else ""
+            if _pen_day[0] >= 0 and day != _pen_day[0] and _pen_segs:
+                page = _draw.wander_page(_pen_segs, caption=(
+                    f"day {_pen_day[0]}{' -- ' + season if season else ''} -- one day of her, one page"))
+                _draw.save_drawing(page, _draw_dir,
+                                   time.strftime("%Y%m%d-%H%M%S-") + f"day-{_pen_day[0]}-page")
+                _pen_segs.clear()
+            _pen_day[0] = day
+            _pen_segs.extend(_pen.step(st, n=45))
+            del _pen_segs[:-4000]                       # a page holds a day, bounded
+            live = _draw.wander_page(_pen_segs, caption="now -- she is drawing")
+            tmp = os.path.join(_draw_dir, "live.svg.tmp")
+            os.makedirs(_draw_dir, exist_ok=True)
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(live)
+            os.replace(tmp, os.path.join(_draw_dir, "live.svg"))
+        except Exception:   # noqa: BLE001 -- the pen must never touch her life
+            import traceback
+            traceback.print_exc()
+
     def draw_her(reason: str) -> None:
         if time.time() - _last_draw_wall[0] < 300:
             return                                   # at most one drawing per 5 minutes
@@ -439,6 +473,7 @@ def main() -> None:
                     heard = [t for _, t in w.spoken][-30:]
                 mind.llm.learn([m.text for m in mind.memory.items][-160:] + heard)
             trips_before = mind._somatic_trips
+            pen_tick()                                   # the pen moves with her, every reading
             clear = mind.speak()
             with w.lock:
                 _day_now = _clock.day_of(w.tick, w.day_ticks) if w.clock_enabled else -1

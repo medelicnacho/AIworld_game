@@ -89,3 +89,32 @@ def test_the_gallery_indexes_newest_first(tmp_path):
     draw.save_drawing(svg, d, "2026-07-03-0900-death")
     html = open(tmp_path / "index.html", encoding="utf-8").read()
     assert html.index("0900-death") < html.index("0800-dream")
+
+
+def test_the_pen_is_her_state_behaving():
+    import math
+    # determinism: same seed + same states -> the same wandering
+    a = draw.Pen(seed=5)
+    b = draw.Pen(seed=5)
+    st = dict(valence=0.0, arousal=0.3, grip=0.2, bonds=[], wounds=0)
+    assert a.step(dict(st), n=60) == b.step(dict(st), n=60)
+
+    def gyration(pen, state, n=400):
+        xs, ys = [], []
+        for _ in range(n // 40):
+            pen.step(dict(state), n=40)
+            xs.append(pen.x)
+            ys.append(pen.y)
+        cx, cy = sum(xs) / len(xs), sum(ys) / len(ys)
+        return sum(math.dist((x, y), (cx, cy)) for x, y in zip(xs, ys)) / len(xs)
+    # the grip pulls the wandering into tight orbits; release lets it roam
+    tight = gyration(draw.Pen(seed=9), dict(st, grip=0.95))
+    loose = gyration(draw.Pen(seed=9), dict(st, grip=0.0))
+    assert tight < loose
+    # wounds lift the pen (missing segments = the jumps)
+    calm = draw.Pen(seed=4).step(dict(st, wounds=0), n=300)
+    scarred = draw.Pen(seed=4).step(dict(st, wounds=8), n=300)
+    assert len(scarred) < len(calm)
+    # a day's page renders whole
+    page = draw.wander_page(calm[:50], caption="day 3 -- harvest")
+    assert page.startswith("<svg") and "day 3" in page

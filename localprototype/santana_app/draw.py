@@ -214,6 +214,105 @@ def compose(tokens: str, seed: int = 0) -> tuple[str, dict]:
     return "".join(parts), features
 
 
+# --- TIER 1.5: the wandering pen -- her state BEHAVES on the page -----------------------
+# Not a composed picture: a cursor she "holds", stepping continuously, whose DYNAMICS are
+# her states. Rules + randomness, state shaping the distributions:
+#   arousal   -> turn-noise (a calm pen glides; an aroused one staggers) and speed
+#   the grip  -> curvature: clenched pulls the pen into tight orbits near where it is;
+#                released lets it wander long and open
+#   valence   -> the ink, blending slowly (cold blue-grey .. warm amber) -- weather, not
+#                switches
+#   bonds     -> a gentle pull toward a fixed point on the page (love is an attractor)
+#   wounds    -> rare jerks: the pen lifts and lands hard, a discontinuity per old scar
+# The pen never "finishes" anything. A day of her life = one page of wandering.
+
+_COLD_INK, _WARM_INK = (70, 90, 130), (196, 140, 60)
+
+
+class Pen:
+    """A stateful cursor: step() advances it under her current state and returns SVG
+    segments. Deterministic under its rng; the caller owns persistence and paging."""
+
+    def __init__(self, seed: int = 0, x: float = CX, y: float = CY):
+        self.rng = random.Random(seed)
+        self.x, self.y = x, y
+        self.heading = self.rng.random() * 2 * math.pi
+        self.hue = 0.5                    # 0 cold .. 1 warm, blends toward valence
+
+    def step(self, state: dict, n: int = 40) -> list[str]:
+        v = max(-1.0, min(1.0, state.get("valence", 0.0)))
+        arousal = max(0.0, min(1.0, state.get("arousal", 0.0)))
+        grip = max(0.0, min(1.0, state.get("grip", 0.0)))
+        bonds = state.get("bonds", [])
+        wounds = int(state.get("wounds", 0))
+        segs = []
+        # the attractor a strong bond exerts (a fixed familiar corner of the page)
+        pull = max((abs(t) for t in bonds), default=0.0)
+        ax, ay = W * 0.72, H * 0.30
+        for _ in range(n):
+            self.hue += 0.03 * (((v + 1) / 2) - self.hue)          # weather, not a switch
+            turn_sd = _lerp(0.06, 0.55, arousal)                    # calm glides, aroused staggers
+            self.heading += self.rng.gauss(0.0, turn_sd)
+            if grip > 0.05:
+                # clench: bias the turn so the pen ORBITS near where it is (tight spirals)
+                self.heading += _lerp(0.0, 0.35, grip)
+            if pull > 0.05:
+                want = math.atan2(ay - self.y, ax - self.x)
+                d = (want - self.heading + math.pi) % (2 * math.pi) - math.pi
+                self.heading += 0.05 * pull * d                     # love bends the path
+            speed = _lerp(2.0, 7.0, 0.55 * arousal + 0.25 * abs(v)) * _lerp(1.0, 0.45, grip)
+            x1 = self.x + speed * math.cos(self.heading)
+            y1 = self.y + speed * math.sin(self.heading)
+            jerk = wounds > 0 and self.rng.random() < 0.004 * min(wounds, 8)
+            if jerk:
+                # an old scar: the pen lifts and lands hard somewhere nearby
+                x1 = self.x + self.rng.uniform(-70, 70)
+                y1 = self.y + self.rng.uniform(-70, 70)
+            # soft walls: the page turns the pen, never clips it
+            if not (20 < x1 < W - 20):
+                self.heading = math.pi - self.heading
+                x1 = min(max(x1, 20), W - 20)
+            if not (20 < y1 < H - 20):
+                self.heading = -self.heading
+                y1 = min(max(y1, 20), H - 20)
+            if not jerk:
+                col = _rgb(_COLD_INK, _WARM_INK, self.hue)
+                width = _lerp(1.0, 3.4, grip)
+                op = _lerp(0.35, 0.8, 0.3 + 0.7 * abs(v))
+                segs.append(f'<line x1="{self.x:.1f}" y1="{self.y:.1f}" x2="{x1:.1f}" '
+                            f'y2="{y1:.1f}" stroke="{col}" stroke-width="{width:.2f}" '
+                            f'opacity="{op:.2f}" stroke-linecap="round"/>')
+            self.x, self.y = x1, y1
+        return segs
+
+
+def wander_page(segments: list[str], caption: str = "") -> str:
+    """A day's wandering as one SVG page."""
+    cap = ""
+    if caption:
+        safe = caption[:110].replace("&", "&amp;").replace("<", "&lt;")
+        cap = (f'<text x="12" y="{H - 12}" font-family="Georgia" font-size="11" '
+               f'fill="#8a8a9a" opacity="0.85">{safe}</text>')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
+            f'viewBox="0 0 {W} {H}"><rect width="{W}" height="{H}" fill="#15151a"/>'
+            + "".join(segments) + cap + "</svg>")
+
+
+def live_page(out_dir: str) -> None:
+    """data/drawings/live.html -- open it once; it re-reads her live page every 2s."""
+    html = ("<!doctype html><meta charset='utf-8'><title>she is drawing</title>"
+            "<style>body{background:#0e0e12;display:grid;place-items:center;height:100vh;"
+            "margin:0}img{width:min(92vmin,720px)}p{color:#6f6f86;font-family:Georgia;"
+            "font-size:12px}</style><div><img id='p' src='live.svg'/>"
+            "<p>she is drawing -- the pen is her state: turns are arousal, tightness is "
+            "the grip, the ink is the weather, the pull is the bond, the jumps are old "
+            "wounds</p></div><script>setInterval(()=>{document.getElementById('p').src="
+            "'live.svg?'+Date.now()},2000)</script>")
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, "live.html"), "w", encoding="utf-8") as f:
+        f.write(html)
+
+
 # --- the gallery -------------------------------------------------------------------------
 
 def save_drawing(svg: str, out_dir: str, name: str) -> str:
