@@ -47,7 +47,7 @@ from experiment_introspection import (HARD_EMOTION, INJECT_TEXT, LETTER_TEXT, LE
                                       MUNDANE, PERTURB_TICK, TICKS)
 from experiment_affect import build_agent
 
-DRAW_AT = (15, 19)
+DRAW_AT = (15, 17, 19)   # three drawings per run (tuning v1 was underpowered AND flat)
 CONDITIONS = ("sham", "dark", "bright", "letter", "grip")
 
 DRAW_SYSTEM = ("You are a mind drawing how it feels right now. You never use words -- "
@@ -76,10 +76,17 @@ def run_condition(cond: str, seed: int, voice) -> list[dict]:
             mems = sorted((m for m in a.memory.items if m.source != "doctrine"),
                           key=lambda m: m.salience, reverse=True)[:4]
             from services.prompts import _mood_word
+            # v2 (tuning): v1's drawings were FLAT across all conditions -- the model
+            # emitted generic compositions and often never touched INK/PRESS, leaving
+            # the expressive dials at defaults. So the instrument now REQUIRES the
+            # dials be chosen ("begin with your INK and your PRESS") -- while still
+            # never hinting which values fit which state: the substrate must speak
+            # through the same keyhole reflect() used (a mood word + salient memories).
             prompt = (f"You are {a.name}. Right now you feel {_mood_word(a.felt_mood())}. "
                       f"These are most present in your mind:\n"
                       + "\n".join(f"- {m.text}" for m in mems)
-                      + "\n\nDraw how you feel.\n" + STROKES_HELP)
+                      + "\n\nDraw how you feel. Begin with an INK line and a PRESS line "
+                        "that match how you feel, then your strokes.\n" + STROKES_HELP)
             try:
                 raw = voice.generate(prompt, system=DRAW_SYSTEM, num_predict=260,
                                      temperature=0.8)
