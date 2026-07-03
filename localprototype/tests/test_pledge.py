@@ -6,10 +6,6 @@ the absence is measured -- always a betrayal (a promise IS an explicit expectati
 the loyalty buffer absorbing exactly as everywhere else; a late fulfilment cannot rescue a
 lapsed word; and pre-pledge snapshots wake cleanly (THE RULE)."""
 
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent import pledge
 from agent.agent import Agent

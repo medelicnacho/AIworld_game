@@ -59,6 +59,31 @@ def _make_voice(name: str, model: str | None, culture: bool = False):
     return make_llm(backend=name, model=model, culture=culture)
 
 
+def town_voice(town_model: str | None, world_snapshot: str, culture: bool = False):
+    """The ONE town-voice selector -- the runner and the window share it (the audit found
+    them drifting apart the same way the three duplicated runners once did). Resolves the
+    backend, falls back LOUDLY from the default 'soul' to markov on a box without torch,
+    and pins per-soul minds NEXT TO their world snapshot so a probe or scratch town can
+    never leak trained brains into her real souls (they share ids s0..s5).
+    Returns (llm, effective_town_model)."""
+    _local = ("markov", "homegrown", "soul")
+    try:
+        llm = (MockLLM(seed=7) if town_model in (None, "mock")
+               else _make_voice(town_model if town_model in _local else "deepseek",
+                                None if town_model in _local else town_model,
+                                culture=culture))
+    except RuntimeError as exc:
+        if town_model != "soul":
+            raise
+        print(f"  ⚠ {exc}\n  ⚠ falling back to the markov town voice", flush=True)
+        town_model = "markov"
+        llm = _make_voice("markov", None, culture=culture)
+    from services.llm import SoulVoiceLLM
+    if isinstance(llm, SoulVoiceLLM):
+        llm.dir = os.path.splitext(world_snapshot)[0] + ".minds"
+    return llm, town_model
+
+
 def build_world(town_llm, fast_wheel: bool, psyche: bool = False) -> World:
     rng = random.Random(7)
     w = World(rebirth_enabled=True)
@@ -156,25 +181,8 @@ def main() -> None:
 
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice
     santana_llm = _make_voice(args.llm, args.model, culture=args.culture)
-    _local_town = ("markov", "homegrown", "soul")
-    try:
-        town_llm = (MockLLM(seed=7) if args.town_model in (None, "mock")
-                    else _make_voice(args.town_model if args.town_model in _local_town else "deepseek",
-                                     None if args.town_model in _local_town else args.town_model,
-                                     culture=args.culture))
-    except RuntimeError as exc:
-        if args.town_model != "soul":
-            raise
-        # the default per-soul minds need torch; a box without it still gets a living town
-        print(f"  ⚠ {exc}\n  ⚠ falling back to the markov town voice", flush=True)
-        args.town_model = "markov"
-        town_llm = _make_voice("markov", None, culture=args.culture)
-    from services.llm import SoulVoiceLLM
-    if isinstance(town_llm, SoulVoiceLLM):
-        # each LIFE keeps its own brains: minds live NEXT TO their world snapshot
-        # (data/santana_world.minds/), so a probe or scratch town can never leak its
-        # trained brains into her real souls (they share ids s0..s5)
-        town_llm.dir = os.path.splitext(args.world_snapshot)[0] + ".minds"
+    town_llm, args.town_model = town_voice(args.town_model, args.world_snapshot,
+                                           culture=args.culture)
     real_town = args.town_model not in (None, "mock")
 
     # resume the WHOLE town if we can (so the wheel keeps turning across restarts), else build fresh

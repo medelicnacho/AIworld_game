@@ -15,13 +15,11 @@ from __future__ import annotations
 import io
 import json
 import os
-import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr
 
 # allow `python tests/test_telemetry.py` from anywhere
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent.agent import Agent
 from services.telemetry import Recorder

@@ -11,9 +11,7 @@ three incompatible ways (chat.py pgrep, app.py systemd, bare talk not at all). P
 """
 
 import os
-import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from santana_app import state
 

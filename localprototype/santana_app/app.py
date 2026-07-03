@@ -21,7 +21,7 @@ from tkinter import scrolledtext
 from services import embed
 from santana import Santana, play_two_layer
 from santana_app.run import (DEFAULT_SNAPSHOT, DEFAULT_WORLD, _fmt_age, _make_voice,
-                             build_world)
+                             build_world, town_voice)
 from santana_app.state import (LifeBusy, acquire_life, load_mind, load_world, save_mind,
                                save_world)
 
@@ -39,7 +39,7 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--llm", default="markov")
     p.add_argument("--model", default=None)
-    p.add_argument("--town-model", dest="town_model", default="markov")
+    p.add_argument("--town-model", dest="town_model", default="soul")
     p.add_argument("--interval", type=float, default=7.0)
     p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT)
     p.add_argument("--world-snapshot", dest="world_snapshot", default=DEFAULT_WORLD)
@@ -65,9 +65,9 @@ def main() -> None:
 
     embed.use_jaccard_only(True)
     santana_llm = _make_voice(args.llm, args.model)
-    town_llm = _make_voice(args.town_model if args.town_model in ("markov", "homegrown") else "deepseek",
-                           None if args.town_model in ("markov", "homegrown") else args.town_model) \
-        if args.town_model not in (None, "mock") else _make_voice("mock", None)
+    # the SAME selector the runner uses (soul default, loud markov fallback, per-life
+    # minds dir) -- the window must never drift from the runner's town again
+    town_llm, args.town_model = town_voice(args.town_model, args.world_snapshot)
     real_town = args.town_model not in (None, "mock")
 
     w = None if args.fresh else load_world(args.world_snapshot, town_llm)

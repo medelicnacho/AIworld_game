@@ -12,12 +12,9 @@ Run:  python -m unittest discover -s tests        # from the prototype/ dir
 
 from __future__ import annotations
 
-import os
-import sys
 import unittest
 
 # allow `python tests/test_experiment.py` from anywhere
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import experiment
 from agent.agent import Agent

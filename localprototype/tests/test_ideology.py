@@ -12,11 +12,8 @@ Run:  python -m unittest discover -s tests
 
 from __future__ import annotations
 
-import os
-import sys
 import unittest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent.agent import Agent
 from services import embed

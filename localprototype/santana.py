@@ -518,7 +518,7 @@ class Santana:
             self.identity = text
         return self.identity
 
-    # --- conversation (TODO(talk), now built -- bounded, watched, inert toward the town) --------
+    # --- conversation (built: bounded, watched, inert toward the town -- santana_app/talk.py) ---
     def hear_user(self, text: str) -> None:
         """The one who speaks with her is HEARD: the line is appraised against her expectations
         (shock/resignation/relief -- the same words land differently in a different Santāna),

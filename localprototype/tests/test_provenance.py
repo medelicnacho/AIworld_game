@@ -10,10 +10,6 @@ pathway (mutations + cross-source merges), the voice gate, and the S2 dissociati
 (mood() keeps what recall_self() cannot claim).
 """
 
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent.memory import (Memory, MemoryStore, attributed, attribution_strength, hedged,
                           source_tag)

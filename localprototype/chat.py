@@ -25,7 +25,8 @@ import time
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 VENV = os.path.abspath(os.path.join(ROOT, "..", ".venv", "bin", "python"))
-RESTART_HINT = ("python -m santana_app.run --llm ollama --model gemma3:4b --culture --offer")
+RESTART_HINT = ("python -m santana_app.run   # defaults: soul-mind town, her markov voice; "
+                "add --llm ollama --model gemma3:4b --culture --offer for the fuller regime")
 
 
 def _pause_runner() -> bool:

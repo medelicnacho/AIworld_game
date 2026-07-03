@@ -11,12 +11,9 @@ Pickle's replacement is held to a harder standard than pickle ever was:
     thinner town (the frozen-world lesson, §5.18).
 """
 
-import os
-import sys
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.llm import MockLLM
 from world.serialize import (WorldSnapshotError, world_from_json, world_to_json)
