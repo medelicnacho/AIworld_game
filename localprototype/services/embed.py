@@ -35,6 +35,7 @@ class Embedder:
         self.url = url
         self._cache: dict[str, list[float]] = {}
         self._ok: bool | None = None
+        self._sim_cache: dict = {}
 
     def available(self) -> bool:
         if self._ok is None:
@@ -60,11 +61,23 @@ class Embedder:
         return v
 
     def similarity(self, a: str, b: str) -> float:
+        # pair-cached: the wheel re-asks the SAME text pairs every tick (the grip
+        # scores every memory against unchanging self-anchors) -- recomputing the
+        # cosine each time was ~80% of a big town's step cost. A similarity is a
+        # pure function of its two texts; caching changes nothing but the clock.
+        key = (a, b) if a <= b else (b, a)
+        hit = self._sim_cache.get(key)
+        if hit is not None:
+            return hit
         va, vb = self.embed(a), self.embed(b)
         dot = sum(x * y for x, y in zip(va, vb))
         na = math.sqrt(sum(x * x for x in va)) or 1.0
         nb = math.sqrt(sum(x * x for x in vb)) or 1.0
-        return dot / (na * nb)
+        out = dot / (na * nb)
+        if len(self._sim_cache) > 200_000:      # bounded; a town's working set is far smaller
+            self._sim_cache.clear()
+        self._sim_cache[key] = out
+        return out
 
 
 _E: Embedder | None = None
@@ -87,6 +100,9 @@ def using_embeddings() -> bool:
     """True when real cosine similarity is in use (not the Jaccard fallback).
     Callers normalize their thresholds differently for the two scales."""
     return (not _FORCE_JACCARD) and _embedder().available()
+
+
+_J_CACHE: dict = {}
 
 
 def score(a: str, b: str) -> float:
