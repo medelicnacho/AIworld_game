@@ -423,7 +423,7 @@ def main() -> None:
                 _pen_raw.clear()
                 _pen_total[0] = 0
             _pen_day[0] = day
-            _pen_segs.extend(_pen.step(st, n=45))
+            _pen_segs.extend(_pen.wander(st))
             _pen_raw.extend(_pen.last_segments)
             _pen_total[0] += len(_pen.last_segments)
             del _pen_raw[:-600]                          # the animator only needs the tail

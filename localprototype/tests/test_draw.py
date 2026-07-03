@@ -118,3 +118,20 @@ def test_the_pen_is_her_state_behaving():
     # a day's page renders whole
     page = draw.wander_page(calm[:50], caption="day 3 -- harvest")
     assert page.startswith("<svg") and "day 3" in page
+
+
+def test_the_pen_wanders_in_bouts_with_a_lifes_unevenness():
+    # deterministic under seed, and the aggregates carry ALL bouts (the hand's
+    # childhood log and the live animator both read them)
+    a, b = draw.Pen(seed=11), draw.Pen(seed=11)
+    st = dict(valence=0.0, arousal=0.4, grip=0.1, bonds=[], wounds=0)
+    sa, sb = a.wander(dict(st)), b.wander(dict(st))
+    assert sa == sb
+    assert len(a.last_segments) == len(sa) and len(a.last_trace) >= len(sa)
+    # unevenness: across readings, the amount of motion VARIES a lot
+    p = draw.Pen(seed=2)
+    lengths = [len(p.wander(dict(st))) for _ in range(30)]
+    assert min(lengths) < 20 < max(lengths)       # stirs AND journeys
+    assert max(lengths) > 3 * min(lengths)        # not a metronome
+    # and journeys are longer than the old fixed march of 45
+    assert sorted(lengths)[len(lengths) // 2] > 45

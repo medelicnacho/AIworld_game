@@ -247,7 +247,7 @@ class Pen:
                                           # LIVE page needs to animate the pen actually
                                           # traveling, not just swap finished stills
 
-    def step(self, state: dict, n: int = 40) -> list[str]:
+    def step(self, state: dict, n: int = 40, speed_mult: float = 1.0) -> list[str]:
         v = max(-1.0, min(1.0, state.get("valence", 0.0)))
         arousal = max(0.0, min(1.0, state.get("arousal", 0.0)))
         grip = max(0.0, min(1.0, state.get("grip", 0.0)))
@@ -272,8 +272,10 @@ class Pen:
                 d = (want - self.heading + math.pi) % (2 * math.pi) - math.pi
                 self.heading += 0.05 * pull * d                     # love bends the path
             # long strides: the pen covers real ground each move (3x the first gait),
-            # so a reading's worth of motion sweeps the page instead of stippling it
-            speed = _lerp(6.0, 21.0, 0.55 * arousal + 0.25 * abs(v)) * _lerp(1.0, 0.45, grip)
+            # so a reading's worth of motion sweeps the page instead of stippling it.
+            # speed_mult is the BOUT's tempo (see wander): glides, scrawls, dashes.
+            speed = min(30.0, _lerp(6.0, 21.0, 0.55 * arousal + 0.25 * abs(v))
+                        * _lerp(1.0, 0.45, grip) * speed_mult)
             self.last_trace.append((round(self.heading - h_before, 4),
                                     round(speed, 3), round(self.hue, 4)))
             x1 = self.x + speed * math.cos(self.heading)
@@ -302,6 +304,31 @@ class Pen:
                                            round(width, 2), round(op, 2)])
             self.x, self.y = x1, y1
         return segs
+
+
+    def wander(self, state: dict) -> list[str]:
+        """A reading's worth of MOVEMENT, not a fixed march: a few BOUTS, each with its
+        own random length and tempo -- long slow glides, quick scrawls, the odd dash --
+        and sometimes a reading where she barely stirs at all. The distributions are
+        state-shaped (an aroused hand takes more, faster bouts; a clenched one cramps
+        them short), the draws are random: motion with a life's unevenness."""
+        arousal = max(0.0, min(1.0, state.get("arousal", 0.0)))
+        grip = max(0.0, min(1.0, state.get("grip", 0.0)))
+        segs_all, trace_all, raw_all = [], [], []
+        if self.rng.random() < 0.10:
+            bouts, lo, hi = 1, 4, 16          # a still reading: barely a stir
+        else:
+            bouts = self.rng.randint(2, 3 + int(3 * arousal))
+            lo, hi = 30, int(_lerp(110, 60, grip))    # the grip cramps the journeys
+        for _ in range(bouts):
+            steps = self.rng.randint(lo, max(lo + 2, hi))
+            tempo = self.rng.uniform(0.5, _lerp(1.8, 2.6, arousal))
+            segs_all += self.step(state, n=steps, speed_mult=tempo)
+            trace_all += self.last_trace
+            raw_all += self.last_segments
+        self.last_trace = trace_all
+        self.last_segments = raw_all
+        return segs_all
 
 
 def wander_page(segments: list[str], caption: str = "") -> str:
