@@ -329,17 +329,23 @@ p{color:#6f6f86;font-family:Georgia;font-size:12px;text-align:center}</style>
 <p>she is drawing, live -- turns are arousal, tightness is the grip, the ink is the
 weather, the pull is the bond, the jumps are old wounds</p></div>
 <script>
+// the trail arrives as a SCRIPT (live_trail.js sets window.TRAIL): script tags are
+// exempt from the file:// fetch restrictions, so this works straight off the disk --
+// no server, nothing leaves the machine.
 const ink=document.getElementById('ink').getContext('2d');
 const tip=document.getElementById('tip').getContext('2d');
 let queue=[],drawn=0,day=null,cur=null;
-async function poll(){try{
- const r=await fetch('live_trail.json?'+Date.now());const d=await r.json();
- if(day!==null&&(d.day!==day||d.total<drawn)){ink.fillStyle='#15151a';
-  ink.fillRect(0,0,480,480);drawn=0;queue=[];}
- day=d.day;
- const fresh=d.total-drawn;
- if(fresh>0){queue.push(...d.segments.slice(-Math.min(fresh,d.segments.length)));drawn=d.total;}
-}catch(e){}}
+function poll(){
+ const old=document.getElementById('trail');if(old)old.remove();
+ const sc=document.createElement('script');sc.id='trail';
+ sc.src='live_trail.js?'+Date.now();
+ sc.onload=()=>{const d=window.TRAIL;if(!d)return;
+  if(day!==null&&(d.day!==day||d.total<drawn)){ink.fillStyle='#15151a';
+   ink.fillRect(0,0,480,480);drawn=0;queue=[];}
+  day=d.day;
+  const fresh=d.total-drawn;
+  if(fresh>0){queue.push(...d.segments.slice(-Math.min(fresh,d.segments.length)));drawn=d.total;}};
+ document.body.appendChild(sc);}
 function frame(){
  // drain the queue over ~5s at 60fps: the pen travels at a lifelike pace
  const per=Math.max(1,Math.ceil(queue.length/300));

@@ -455,6 +455,12 @@ def main() -> None:
             with open(tmp2, "w", encoding="utf-8") as f:
                 f.write(_json.dumps(trail))
             os.replace(tmp2, os.path.join(_draw_dir, "live_trail.json"))
+            # ...and as a SCRIPT for the browser: file:// pages may not fetch() local
+            # files, but they may load local <script>s -- the animator reads this one
+            tmp3 = os.path.join(_draw_dir, "live_trail.js.tmp")
+            with open(tmp3, "w", encoding="utf-8") as f:
+                f.write("window.TRAIL=" + _json.dumps(trail) + ";")
+            os.replace(tmp3, os.path.join(_draw_dir, "live_trail.js"))
         except Exception:   # noqa: BLE001 -- the pen must never touch her life
             import traceback
             traceback.print_exc()
