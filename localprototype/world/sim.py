@@ -72,6 +72,12 @@ class World:
         # 'born into its camp', the karmic-transmission lever (0 = bond from scratch).
         self.bardo_ticks = BARDO_TICKS
         self.vasana_noise = 0.06
+        # E1 heredity (agent/genome.py): OFF by default -- the wheel re-rolls faculties
+        # fresh unless a world opts into a germ line. With it on, a dissolving soul's
+        # genome crosses the bardo perturbed once (sigma below) and is expressed onto the
+        # newborn stream. No fitness is scored anywhere; selection is E2's, later.
+        self.heredity_enabled = False
+        self.heredity_sigma = 0.03
         self.reborn_prebond = 0.0
         # Bodhisattva wheel (off by default -> the plain wheel above, which re-rolls wholesome faculties
         # and carries only the thirst). When on, the bardo also carries the CULTIVATED LEAN (grip/prajñā/
@@ -162,6 +168,8 @@ class World:
         # snapshots saved before the functional psyche / lore existed lack the attributes
         self.__dict__.setdefault("psyche", None)
         self.__dict__.setdefault("lore_enabled", False)
+        self.__dict__.setdefault("heredity_enabled", False)
+        self.__dict__.setdefault("heredity_sigma", 0.03)
 
     def _remember_said(self, text: str) -> None:
         self.recent.append(text)
@@ -320,6 +328,14 @@ class World:
             # not lose its capacity to grieve when a particular grief passes
             "psyche_faculty": getattr(soul, "psyche_faculty", ""),
         })
+        if self.heredity_enabled:
+            # E1: the germ line crosses, perturbed ONCE at the bardo (agent/genome.py).
+            # A founder that never carried an explicit genome gets one captured from the
+            # dials it lived with -- so heredity can be switched on over a running town.
+            from agent import genome as _genome
+            g = getattr(soul, "genome", None) or _genome.from_agent(soul, self._rng)
+            self._bardo[-1]["genome"] = _genome.inherit(g, self._rng, soul.id,
+                                                        sigma=self.heredity_sigma)
         self.bus.publish("dissolution", soul.id)
 
     def _process_bardo(self) -> None:
@@ -393,6 +409,15 @@ class World:
             # stream is doomed to its predecessor's exact kleśas.
             endow_faculties(a, self._rng)
             a.aim = _telos.fresh_aim(role)
+            if self.heredity_enabled and entry.get("genome") is not None:
+                # E1: heredity overrides the fresh re-roll -- the lineage's dials descend.
+                # Deliberate precedence: the bodhisattva carry BELOW still outranks the
+                # germ line for grip/prajna/bodhicitta (cultivation is not heredity, and
+                # the Path's validated carry keeps its organ); telos stays with the
+                # THIRST channel (§5.5) for the same reason.
+                from agent.genome import express as _express_genome
+                a.genome = entry["genome"]
+                _express_genome(a.genome, a)
         if self.bodhisattva_wheel and not in_psyche:
             # carry the CULTIVATED LEAN across the bardo, faded toward the liberated ground (the
             # buddha-nature tilt), overriding the fresh endowment's wisdom wing -- so practice and the

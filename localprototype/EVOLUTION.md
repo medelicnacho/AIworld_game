@@ -82,6 +82,18 @@ mean stays put (neutral drift null) — this proves inheritance *works* before s
 means move with no selection, inheritance is leaking a bias.
 **Port:** one float-vector per NPC + a mutate-on-birth. Trivial at any scale.
 
+> **STATUS (2026-07-03): BUILT + VERDICT PASSED.** `agent/genome.py` + the wheel's
+> `heredity_enabled` gate (off by default). Design deviations from the sketch above, both
+> deliberate and documented in the module: **telos stays out of the germ line** (it already
+> crosses as thirst, §5.5 -- double-carrying one dial through two channels would confound
+> both), and under the bodhisattva wheel the **practice-carry outranks the germ line** for
+> grip/prajna/bodhicitta (cultivation is not heredity). Mutation reflects at bounds --
+> clamping piles up on walls and drags the mean inward, exactly the bias G2 exists to catch.
+> `experiment_genome.py` verdict on virgin seeds 81-85, all 5/5: **G1** parent-child
+> r +0.98..0.99 vs shuffle-null ~0.08; **G2** every dial's mean displacement CI95 contains 0
+> (|mean| < 0.05); **G3** grip sd roughly doubles over ~15 generations. Heredity works and
+> does not leak. E2 is next, and now has variation to select on.
+
 ### Stage E2 — differential survival (implicit selection). *The engine.*
 **What:** stop conserving population. Under the stakes layer, a soul whose **wellbeing collapses
 and stays collapsed** dies *early* (not just of age); a soul that stays **well-provisioned long
