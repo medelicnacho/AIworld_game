@@ -136,3 +136,43 @@ def test_the_gate_defaults_off_and_old_snapshots_wake():
     w2 = object.__new__(World)
     w2.__setstate__(state)
     assert w2.clock_enabled is False and w2.day_ticks == 100   # THE RULE
+
+
+def test_the_town_roams_in_relationship_knots_with_state_gaits():
+    """Big-town drift: bonded souls converge (knots roam together), the restless
+    outpace the weary, and night stills every body."""
+    import math
+    import random as _r
+    from agent.bond import Bond
+    from world import clock as _clock
+
+    w = _world(clock_on=False)               # clock joins later, for the night check
+    rng = _r.Random(3)
+    for i in range(60):                      # > 48: the sampled big-town path
+        a = _soul(w, f"s{i}", f"F{i}")
+        a.position = (rng.uniform(0, 900), rng.uniform(0, 600))
+        a.arousal = 0.3
+        a.bond_enabled = True
+    w.move_enabled = True
+    w.bounds = (900, 600)
+    a0, a1 = w.agents[0], w.agents[1]
+    a0.position, a1.position = (100.0, 100.0), (800.0, 500.0)
+    a0.bonds["s1"] = Bond(trust=0.9, history=3.0)
+    a1.bonds["s0"] = Bond(trust=0.9, history=3.0)
+    d_before = math.dist(a0.position, a1.position)
+    restless, weary = w.agents[2], w.agents[3]
+    restless.arousal, restless.wellbeing = 1.0, 1.0
+    weary.arousal, weary.wellbeing = 0.0, 0.05
+    pr, pw = restless.position, weary.position
+    for _ in range(150):
+        w._drift_positions()
+    assert math.dist(a0.position, a1.position) < d_before      # the bond is a road
+    assert math.dist(restless.position, pr) > math.dist(weary.position, pw)
+    # and night stills the body: step() at night must not move anyone
+    w.clock_enabled = True
+    w.tick = int(w.day_ticks * 0.8)                             # deep night
+    assert _clock.is_night(w.tick, w.day_ticks)
+    frozen = [a.position for a in w.agents]
+    with w.lock:
+        w.step(speak=False)
+    assert [a.position for a in w.agents] == frozen

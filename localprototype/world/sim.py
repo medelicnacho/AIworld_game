@@ -295,8 +295,13 @@ class World:
         if self.breed_enabled and not self.rebirth_enabled:   # living reproduction
             self._breed()
         # 2.6) bodies move: drift under social forces so factions take territory.
+        # At night the town is HOME -- bodies rest where they stand (labour already
+        # pauses; wandering does too).
         if self.move_enabled:
-            self._drift_positions()
+            from world import clock as _clock
+            if not (self.clock_enabled
+                    and _clock.is_night(self.tick, self.day_ticks)):
+                self._drift_positions()
         # 3) tick heartbeat: a boundary marker so telemetry/renderers can snapshot
         #    the world's state once everything that happened this tick has settled.
         self.bus.publish("tick", self.tick)
@@ -713,10 +718,22 @@ class World:
         """
         if len(self.agents) < 2:
             return
+        # a big town cannot afford every-pair forces (O(n^2)); past ~48 souls each body
+        # weighs its BONDED ones (the relationship group -- these are what make knots
+        # roam together) plus a small random sample of the crowd (ambient personal
+        # space / strangers' enmity). Small towns keep the exact original physics --
+        # the faction experiments were validated on it.
+        big = len(self.agents) > 48
+        by_id = {b.id: b for b in self.agents} if big else None
         for a in self.agents:
             ax, ay = a.position
             fx = fy = 0.0
-            for b in self.agents:
+            if big:
+                others = [by_id[i] for i in getattr(a, "bonds", {}) if i in by_id]
+                others += self._rng.sample(self.agents, min(16, len(self.agents)))
+            else:
+                others = self.agents
+            for b in others:
                 if b is a:
                     continue
                 bx, by = b.position
@@ -742,7 +759,15 @@ class World:
             if self.bounds is not None:   # gentle pull home so nobody glues to a wall
                 fx += (self.bounds[0] / 2 - ax) * self.center_pull
                 fy += (self.bounds[1] / 2 - ay) * self.center_pull
-            nx, ny = ax + fx * self.move_step, ay + fy * self.move_step
+            # the gait is the STATE walking: restless souls range, the weary drag,
+            # children skitter, elders amble
+            spd = (0.55 + 0.9 * max(0.0, min(1.0, getattr(a, "arousal", 0.0)))) \
+                * (0.45 + 0.55 * max(0.0, min(1.0, a.wellbeing)))
+            if self.clock_enabled:
+                from world import clock as _clk
+                st = _clk.stage(a.age, a.lifespan)
+                spd *= 1.25 if st == "child" else (0.55 if st == "elder" else 1.0)
+            nx, ny = ax + fx * self.move_step * spd, ay + fy * self.move_step * spd
             if self.bounds is not None:
                 w, h = self.bounds
                 nx = min(max(nx, 0.0), w)

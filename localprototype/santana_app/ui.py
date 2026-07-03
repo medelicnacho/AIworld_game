@@ -120,8 +120,8 @@ async function poll(){try{
   map.fillText(s.night&&a.asleep?'asleep':(a.action||''),x+9,y+14);
   // the markov subconscious, murmuring above the head -- the raw mind, drifting
   if(a.drift&&!(s.night&&a.asleep)){
-   map.globalAlpha=0.55;map.fillStyle='#8a8a9a';map.font='italic 9px Georgia';
-   map.fillText(a.drift.slice(0,42),x-10,y-12);}}
+   map.globalAlpha=0.4;map.fillStyle='#8a8a9a';map.font='italic 7px Georgia';
+   map.fillText(a.drift.slice(0,30),x-8,y-10);}}
  map.globalAlpha=1;
 }catch(e){}}
 async function send(){

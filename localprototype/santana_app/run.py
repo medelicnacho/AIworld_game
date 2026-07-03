@@ -89,6 +89,10 @@ def build_world(town_llm, fast_wheel: bool, psyche: bool = False,
     w = World(rebirth_enabled=True)
     w.llm = town_llm
     w.stakes_enabled = True
+    w.move_enabled = True     # bodies roam: relationship knots wander together, gaits
+                              # are states walking (arousal ranges, weariness drags,
+                              # children skitter, elders amble; night is still)
+    w.bounds = (900, 600)
     w.bardo_ticks = (4, 10)
     w.bodhisattva_wheel = True       # the full path runs under her: the lean toward liberation
     w.liberation_tilt = 1.0
