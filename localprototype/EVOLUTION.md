@@ -94,6 +94,17 @@ means move with no selection, inheritance is leaking a bias.
 > (|mean| < 0.05); **G3** grip sd roughly doubles over ~15 generations. Heredity works and
 > does not leak. E2 is next, and now has variation to select on.
 
+> **SCALE ADDENDUM (2026-07-03, experiment_scale.py; seeds 101-105 + 111-115 consumed):**
+> at n=32/64: **legends hold** (SC2 PASS 4/5 -- the flood story converged across 62/63
+> souls; the lore engine is not a small-town artifact); throughput measured (320 t/s at
+> n=64, headless CPU). **Selection's dose-response did NOT confirm at n=32 -- twice,
+> instructively:** mild harsh starved no one (**MUTUAL AID SCALES**: more souls = always a
+> donor above the share threshold; emergent risk-pooling), and deep famine starved
+> indiscriminately (met ~ 0 for all = a lottery). **The differential lives in a narrow band
+> of GRADED scarcity** -- a uniform world's dials bracket it from both sides. The per-soul
+> mechanism stands; the population phenomenon wants HETEROGENEOUS scarcity (regions,
+> gradients), which a spatial engine has natively. Handed over as a design requirement.
+
 > **E2 STATUS (2026-07-03, same day): MECHANISM PROVEN; PHENOMENON GRADED HONESTLY AS
 > DIRECTIONAL-ONLY AT LAB SCALE.** `World.selection_enabled` + three regime dials (poor
 > soil, mortal granary, granary-first eating), `experiment_selection.py`, four arms per

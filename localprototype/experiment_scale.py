@@ -26,6 +26,19 @@ out-share (yield 0.15), storms every 5, granary loss 0.7. Sanity-checked killing
 and 12 starvations at n=32) without extinction. Same bar as v1: sign 5/5 AND CI95
 excluding 0 against the twin-null.
 
+SC1 v2 OUTCOME (111-115 consumed): FAIL -- in the OPPOSITE direction from v1 (effect
+-0.024, d -1.04, 4/5 seeds negative). Deaths happened (1-13/seed) but stopped
+discriminating: at TOTAL famine everyone's met ~ 0, the hazard opens for all, and who
+dies is a lottery, not an appetite. Read the pair of failures together and the lesson
+is complete: THE SELECTION DIFFERENTIAL LIVES IN A NARROW BAND OF GRADED SCARCITY --
+too mild and mutual aid rescues everyone (v1); too deep and famine is indiscriminate
+(v2). Uniform-world dials bracket the band from both sides at n=32. The per-soul
+mechanism stands (E2: the hazard is provably met-driven); the population dose-response
+needs scarcity that is HETEROGENEOUS -- regions, gradients, geography -- which a
+spatial engine has natively and this flat lab does not. Handed to the engine not as an
+excuse but as a DESIGN REQUIREMENT, with the band documented. No SC1 v3 here: two
+consumed verdicts on one claim in one day is the signal to record, not to chase.
+
   SC1 SELECTION AT SCALE (the E2 upgrade): the exact validated E2 harness
       (experiment_selection.run), re-run at n=32 founders / cap 56 / 800 ticks.
       E2's verdict at n=10 was honestly graded DIRECTIONAL (sign 4/5, CI past 0).
