@@ -94,6 +94,24 @@ means move with no selection, inheritance is leaking a bias.
 > (|mean| < 0.05); **G3** grip sd roughly doubles over ~15 generations. Heredity works and
 > does not leak. E2 is next, and now has variation to select on.
 
+> **E2 STATUS (2026-07-03, same day): MECHANISM PROVEN; PHENOMENON GRADED HONESTLY AS
+> DIRECTIONAL-ONLY AT LAB SCALE.** `World.selection_enabled` + three regime dials (poor
+> soil, mortal granary, granary-first eating), `experiment_selection.py`, four arms per
+> seed with no-selection twin worlds as the drift control. On virgin seeds 91-95, all
+> three pre-registered claims PASSED -- but read S2's numbers before repeating the
+> headline: **S1 (machinery) 5/5 clean** -- 32 starved-lineage ends, 100 births, zero
+> extinctions, populations genuinely varying; **S3 (null) beautiful** -- twenty
+> no-selection arms sat on 0.00 ± 0.01; **S2 (harsh selects the cheap-to-feed) passed
+> its bar** (sign 4/5, d +0.45, gentle-harsh gap +0.028) **while the tuning batch had
+> leaned the other way** (-0.021, sign 2/5) and the held-out CI includes 0. Per the M3
+> power rule (scripts/stats.py): an effect of d ~0.45 needs ~40 seeds; five have ~15%
+> power. So the honest grade is: **selection demonstrably acts** (per-run, mortality is
+> metabolism-correlated -- seed 93 starved four and dropped the town's appetite 0.49 ->
+> 0.37) **but the between-regime divergence is under-powered at n=10 founders / 1400
+> ticks / 5 seeds** -- exactly the "n=6 proves mechanism, the engine proves phenomenon"
+> division this document §6 planned. The claim that ships to RECIPES is the mechanism +
+> the direction; the dose-response headline waits for engine-scale n, where it belongs.
+
 ### Stage E2 — differential survival (implicit selection). *The engine.*
 **What:** stop conserving population. Under the stakes layer, a soul whose **wellbeing collapses
 and stays collapsed** dies *early* (not just of age); a soul that stays **well-provisioned long
