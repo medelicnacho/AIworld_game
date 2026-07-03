@@ -271,7 +271,9 @@ class Pen:
                 want = math.atan2(ay - self.y, ax - self.x)
                 d = (want - self.heading + math.pi) % (2 * math.pi) - math.pi
                 self.heading += 0.05 * pull * d                     # love bends the path
-            speed = _lerp(2.0, 7.0, 0.55 * arousal + 0.25 * abs(v)) * _lerp(1.0, 0.45, grip)
+            # long strides: the pen covers real ground each move (3x the first gait),
+            # so a reading's worth of motion sweeps the page instead of stippling it
+            speed = _lerp(6.0, 21.0, 0.55 * arousal + 0.25 * abs(v)) * _lerp(1.0, 0.45, grip)
             self.last_trace.append((round(self.heading - h_before, 4),
                                     round(speed, 3), round(self.hue, 4)))
             x1 = self.x + speed * math.cos(self.heading)
