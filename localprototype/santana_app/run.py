@@ -114,6 +114,8 @@ def build_world(town_llm, fast_wheel: bool, psyche: bool = False) -> World:
             _psyche.endow_part(a, _psyche.FACULTY_OF.get(name, ""), a._rng)
         else:
             _genesis.endow_faculties(a, a._rng)
+        a.bond_enabled = True     # founders relate too (reborn streams always did; the
+                                  # cockpit's word-aside and mourning both read bonds)
         a.role, a.aim = role, aim
         w.add(a)
     if psyche:

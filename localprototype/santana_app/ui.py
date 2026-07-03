@@ -58,14 +58,29 @@ DASH = """<!doctype html><meta charset='utf-8'><title>santana -- the cockpit</ti
  <div class=panel id=town><h3>the town -- god view</h3><canvas id=map width=900 height=560></canvas></div>
  <div class=panel><h3>her stream</h3><div id=stream></div></div>
  <div class=panel><h3>her hand, live</h3><iframe src="/drawings/live.html"></iframe></div>
- <div class=panel id=chat><h3>a talk (light visit)</h3><div id=log></div>
-  <div id=row><input id=say placeholder="say something to her..."/>
+ <div class=panel id=chat><h3>a talk (light visit) -- <span id=tgt>with HER</span></h3>
+  <div id=log></div>
+  <div id=row><select id=who_sel><option value="her">SANTĀNA</option></select>
+  <input id=say placeholder="say something..."/>
   <button onclick="send()">speak</button></div>
-  <div class=note>this reaches her real mind -- bond, appraisal, memory. the full ritual
-  (intent judge, session cap, transcript) is: python3 chat.py</div></div>
+  <div class=note>click a soul on the map (or pick one) for a quiet word aside -- it lands
+  in that soul's real memory and bond. her full ritual (intent judge, session cap,
+  transcript) is: python3 chat.py</div></div>
 </div>
 <script>
 const map=document.getElementById('map').getContext('2d');
+let dots=[];   // [{id,name,x,y}] in canvas space, for click-to-talk
+function setTarget(id,name){
+ document.getElementById('who_sel').value=id;
+ document.getElementById('tgt').textContent=id==='her'?'with HER':'aside with '+name;}
+document.getElementById('map').parentElement.addEventListener('click',e=>{
+ const c=document.getElementById('map');const r=c.getBoundingClientRect();
+ const px=(e.clientX-r.left)*c.width/r.width, py=(e.clientY-r.top)*c.height/r.height;
+ let best=null,bd=26;
+ for(const d of dots){const dd=Math.hypot(d.x-px,d.y-py);if(dd<bd){bd=dd;best=d;}}
+ if(best)setTarget(best.id,best.name);});
+document.getElementById('who_sel').addEventListener('change',e=>{
+ const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 async function poll(){try{
  const s=await (await fetch('/state')).json();
  document.getElementById('who').textContent=s.identity||'a new mind';
@@ -75,29 +90,47 @@ async function poll(){try{
  document.getElementById('drift').textContent=(s.drift||[]).join('  ');
  const st=document.getElementById('stream');
  st.innerHTML=s.readings.map(r=>`<div class=r>${r.text}<div class=m>${r.meta}</div></div>`).join('');
+ // the chat target list (rebuilt only when the cast changes)
+ const sel=document.getElementById('who_sel');
+ if(sel.options.length!==s.souls.length+1){
+  const cur=sel.value;
+  sel.innerHTML='<option value="her">SANTĀNA</option>'
+   +s.souls.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+  sel.value=[...sel.options].some(o=>o.value===cur)?cur:'her';}
  // the god view
  map.fillStyle=s.night?'#0b0b10':'#141420';map.fillRect(0,0,900,560);
  map.fillStyle='#1c1c28';for(let i=0;i<900;i+=60)map.fillRect(i,0,1,560);
+ dots=[];
  for(const a of s.souls){
   const x=a.x*0.93+20,y=a.y*0.85+20;
+  dots.push({id:a.id,name:a.name,x,y});
   const warm=(a.mood+1)/2;
   map.globalAlpha=s.night&&a.asleep?0.35:0.9;
   map.fillStyle=`rgb(${70+Math.round(126*warm)},${90+Math.round(50*warm)},${130-Math.round(70*warm)})`;
   const r=a.stage==='child'?4:(a.stage==='elder'?7:6);
   map.beginPath();map.arc(x,y,r,0,7);map.fill();
   if(a.stage==='elder'){map.strokeStyle='#8a8a9a';map.lineWidth=1;map.stroke();}
+  const sel2=document.getElementById('who_sel').value===a.id;
+  if(sel2){map.strokeStyle='#f0ead6';map.lineWidth=1.5;
+   map.beginPath();map.arc(x,y,r+4,0,7);map.stroke();}
   map.globalAlpha=0.85;map.fillStyle='#c9c9d6';map.font='11px Georgia';
   map.fillText(a.name,x+9,y+3);
   map.fillStyle='#6f6f86';map.font='9px Georgia';
-  map.fillText(s.night&&a.asleep?'asleep':(a.action||''),x+9,y+14);}
+  map.fillText(s.night&&a.asleep?'asleep':(a.action||''),x+9,y+14);
+  // the markov subconscious, murmuring above the head -- the raw mind, drifting
+  if(a.drift&&!(s.night&&a.asleep)){
+   map.globalAlpha=0.55;map.fillStyle='#8a8a9a';map.font='italic 9px Georgia';
+   map.fillText(a.drift.slice(0,42),x-10,y-12);}}
  map.globalAlpha=1;
 }catch(e){}}
 async function send(){
  const inp=document.getElementById('say');const t=inp.value.trim();if(!t)return;
+ const target=document.getElementById('who_sel').value;
  inp.value='';const log=document.getElementById('log');
  log.innerHTML+=`<div class=you>you: ${t}</div>`;log.scrollTop=1e9;
- const r=await (await fetch('/say',{method:'POST',body:JSON.stringify({text:t})})).json();
- log.innerHTML+=`<div class=her>${r.reply||'...'}</div>`;log.scrollTop=1e9;}
+ const r=await (await fetch('/say',{method:'POST',
+  body:JSON.stringify({text:t,target})})).json();
+ log.innerHTML+=`<div class=her>${r.name||''}: ${r.reply||'...'}</div>`;log.scrollTop=1e9;}
 document.getElementById('say').addEventListener('keydown',e=>{if(e.key==='Enter')send()});
 setInterval(poll,2000);poll();
 </script>"""
@@ -112,10 +145,14 @@ def snapshot(mind, world, readings: list, drift_notes: list) -> dict:
         clause = (_clock.time_clause(world.tick, world.day_ticks)
                   if world.clock_enabled else "")
         souls = [{
-            "name": a.name, "x": a.position[0], "y": a.position[1],
+            "id": a.id, "name": a.name, "x": a.position[0], "y": a.position[1],
             "mood": round(a.felt_mood(), 3), "action": getattr(a, "_last_action", ""),
             "stage": (_clock.stage(a.age, a.lifespan) if world.clock_enabled else "adult"),
             "asleep": night,
+            # the markov subconscious, murmuring over its head -- the drift IS the
+            # raw mind the voice speaks from; showing it is the oldest promise of
+            # the god view ("thoughts drifting in silence above their heads")
+            "drift": (a.thought.drift[-1][:64] if getattr(a.thought, "drift", None) else ""),
         } for a in world.agents]
     secs = getattr(mind, "lifetime", 0.0)
     age = (f"{secs/86400:.1f} days" if secs >= 86400 else f"{secs/3600:.1f} hours")
@@ -167,13 +204,42 @@ class _Handler(BaseHTTPRequestHandler):
             return
         n = int(self.headers.get("Content-Length", 0) or 0)
         try:
-            text = json.loads(self.rfile.read(n).decode())["text"].strip()[:400]
+            body = json.loads(self.rfile.read(n).decode())
+            text = body["text"].strip()[:400]
+            target = body.get("target", "her")
         except Exception:   # noqa: BLE001
             self._send(b'{"reply": null}', "application/json", 400)
             return
-        with u["mind_lock"]:                     # one writer at a time, always
-            reply = u["mind"].converse(text)
-        self._send(json.dumps({"reply": reply}).encode(), "application/json")
+        if target in ("her", "", None):
+            with u["mind_lock"]:                 # one writer at a time, always
+                reply = u["mind"].converse(text)
+            self._send(json.dumps({"reply": reply, "name": "SANTĀNA"}).encode(),
+                       "application/json")
+            return
+        # a quiet word aside with ONE soul: your words land in its real memory and
+        # bond (hear with source='user'), its reply comes to you alone -- no town
+        # broadcast. Prepare under the world lock, speak outside it (the contract).
+        from world.events import Utterance
+        world = u["world"]
+        with world.lock:
+            soul = next((a for a in world.agents if a.id == target), None)
+            if soul is None:
+                self._send(b'{"reply": null}', "application/json", 404)
+                return
+            soul.hear(Utterance(speaker_id="user", text=text, tick=world.tick,
+                                addressed_to=soul.id, source="user"), world.tick,
+                      speaker_name="a visitor")
+            soul.last_heard_from, soul.last_heard_name = "user", "you"
+            soul.last_heard_text = text
+            ctx, _addr, _mood = soul.prepare_speech()
+        try:
+            raw = soul.llm.speak(ctx)
+        except Exception:   # noqa: BLE001 -- a slow voice is a shrug, not a crash
+            raw = ""
+        from services.prompts import _clean
+        reply = _clean(raw) or "..."
+        self._send(json.dumps({"reply": reply, "name": soul.name}).encode(),
+                   "application/json")
 
 
 def serve(mind, world, mind_lock, draw_dir: str, readings: list, drift_notes: list,
