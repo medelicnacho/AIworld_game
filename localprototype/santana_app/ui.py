@@ -254,32 +254,65 @@ class _Handler(BaseHTTPRequestHandler):
             soul.last_heard_from, soul.last_heard_name = "user", "the visitor"
             soul.last_heard_text = text
             ctx, _addr, _mood = soul.prepare_speech()
-        # THE TIERED VOICE (RECIPES C, the layered cost model, live): the ambient town
-        # keeps its self-grown murmur -- but the soul you are ACTUALLY TALKING TO
-        # borrows the clear local voice, speaking from its OWN real context (persona,
-        # memories with their provenance, the bond with you, its drift). Falls back to
-        # the town voice, honestly, when no local model is up.
-        # THE INTERPRETER PATTERN, town edition: the soul's OWN grown voice (its tiny
-        # GPT or markov chain) answers first, raw -- and that raw stirring rides into
-        # the clear voice through the drift channel (the same inner-murmur lane the
-        # prompt already colors from). The small mind stays in the loop; the clear
-        # voice translates it instead of replacing it.
+        # THE ASIDE IS A DIALOGUE, not town speech. Reusing the ambient prompt made
+        # souls chat past the visitor about harvests (the user caught it). An aside
+        # builds its own conversational prompt: speak TO the visitor, hold THIS
+        # thread, from the soul's real state -- persona, mood, its memories OF the
+        # visitor, the bond -- with the grown mind's raw stirring as subtext (the
+        # interpreter pattern; translation, never ghostwriting).
+        own = ""
         if chat_voice is not None:
             try:
-                own = str(soul.llm.speak(ctx))
-                own = " ".join(own.split())[:120]
+                own = " ".join(str(soul.llm.speak(ctx)).split())[:120]
                 if own:
-                    ctx.drift = list(ctx.drift) + [f"(a stirring in you, half-formed: {own})"]
                     print(f"  (aside: {soul.name}'s grown mind stirred: {own[:70]!r} "
                           "-- the clear voice interprets it)", flush=True)
             except Exception:   # noqa: BLE001 -- a silent small mind is fine
                 pass
-        try:
-            raw = (chat_voice or soul.llm).speak(ctx)
-        except Exception:   # noqa: BLE001 -- a slow voice is a shrug, not a crash
+        from services.prompts import _clean, _mood_word
+        trail = u.setdefault("aside_trails", {}).setdefault(soul.id, [])
+        if chat_voice is None:
             raw = ""
-        from services.prompts import _clean
+            try:
+                raw = soul.llm.speak(ctx)        # no clear voice: the self-grown one, honestly
+            except Exception:   # noqa: BLE001
+                pass
+        else:
+            with world.lock:
+                of_you = [m.text for m in soul.memory.items
+                          if m.source == "user"][-5:-1]
+                bond = soul.bonds.get("user")
+                mood = _mood_word(soul.felt_mood())
+                persona = getattr(soul, "persona", f"You are {soul.name}.")
+            rel = ""
+            if bond is not None and bond.history > 0.3:
+                rel = ("You have come to trust this visitor." if bond.trust > 0.25 else
+                       "This visitor has hurt you before -- be guarded." if bond.wounds
+                       else "You are still taking this visitor's measure.")
+            system = (f"{persona} You are standing in your small town, in a quiet private "
+                      "conversation with a visitor who is HERE, before you. Speak directly "
+                      "TO THEM -- second person, plain speech, one to three sentences, in "
+                      "character. Never narrate, never address anyone else.")
+            prompt = (f"You feel {mood}.\n"
+                      + (f"{rel}\n" if rel else "")
+                      + ("They have said to you before: " + "; ".join(of_you) + "\n"
+                         if of_you else "")
+                      + (("The conversation so far:\n" + "\n".join(trail[-6:]) + "\n")
+                         if trail else "")
+                      + (f"(A wordless stirring rises in you: \"{own}\" -- half-formed, "
+                         "yours. Let whatever images live in it color your reply; never "
+                         "quote its broken words.)\n" if own else "")
+                      + f'\nThe visitor says to you: "{text}"\n\nAnswer the visitor.')
+            raw = ""
+            try:
+                raw = chat_voice.generate(prompt, system=system, num_predict=160,
+                                          temperature=0.7)
+            except Exception:   # noqa: BLE001 -- a slow voice is a shrug, not a crash
+                pass
         reply = _clean(raw) or "..."
+        trail.append(f'visitor: "{text}"')
+        trail.append(f'{soul.name}: "{reply}"')
+        del trail[:-12]
         self._send(json.dumps({"reply": reply, "name": soul.name}).encode(),
                    "application/json")
 
