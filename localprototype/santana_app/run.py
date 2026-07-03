@@ -403,6 +403,8 @@ def main() -> None:
     # archived to the gallery, so every day of her life becomes one finished drawing.
     _pen = _draw.Pen(seed=mind._mt)
     _pen_segs: list[str] = []
+    _pen_raw: list = []          # the same strokes as draw-ops, for the live animator
+    _pen_total = [0]             # strokes drawn this day (the page uses it to sync)
     _pen_day = [-1]
     _draw.live_page(_draw_dir)
 
@@ -418,8 +420,13 @@ def main() -> None:
                 _draw.save_drawing(page, _draw_dir,
                                    time.strftime("%Y%m%d-%H%M%S-") + f"day-{_pen_day[0]}-page")
                 _pen_segs.clear()
+                _pen_raw.clear()
+                _pen_total[0] = 0
             _pen_day[0] = day
             _pen_segs.extend(_pen.step(st, n=45))
+            _pen_raw.extend(_pen.last_segments)
+            _pen_total[0] += len(_pen.last_segments)
+            del _pen_raw[:-600]                          # the animator only needs the tail
             # her hand's childhood: log (state -> motion) so a future LEARNED hand has a
             # history to train on -- the drawing-GPT rung needs this data to ever exist.
             # One JSON line per reading, rotated at ~40MB (a year of readings, roughly).
@@ -442,6 +449,12 @@ def main() -> None:
             with open(tmp, "w", encoding="utf-8") as f:
                 f.write(live)
             os.replace(tmp, os.path.join(_draw_dir, "live.svg"))
+            import json as _json
+            trail = {"day": _pen_day[0], "total": _pen_total[0], "segments": _pen_raw}
+            tmp2 = os.path.join(_draw_dir, "live_trail.json.tmp")
+            with open(tmp2, "w", encoding="utf-8") as f:
+                f.write(_json.dumps(trail))
+            os.replace(tmp2, os.path.join(_draw_dir, "live_trail.json"))
         except Exception:   # noqa: BLE001 -- the pen must never touch her life
             import traceback
             traceback.print_exc()

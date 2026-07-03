@@ -242,6 +242,10 @@ class Pen:
                                           # (turn, speed, hue) per stroke: the training
                                           # data a future LEARNED hand needs. A hand can
                                           # only learn from a childhood it remembers.
+        self.last_segments: list = []     # the same strokes as raw draw-ops
+                                          # [x0,y0,x1,y1,color,width,opacity] -- what a
+                                          # LIVE page needs to animate the pen actually
+                                          # traveling, not just swap finished stills
 
     def step(self, state: dict, n: int = 40) -> list[str]:
         v = max(-1.0, min(1.0, state.get("valence", 0.0)))
@@ -251,6 +255,7 @@ class Pen:
         wounds = int(state.get("wounds", 0))
         segs = []
         self.last_trace = []
+        self.last_segments = []
         # the attractor a strong bond exerts (a fixed familiar corner of the page)
         pull = max((abs(t) for t in bonds), default=0.0)
         ax, ay = W * 0.72, H * 0.30
@@ -290,6 +295,9 @@ class Pen:
                 segs.append(f'<line x1="{self.x:.1f}" y1="{self.y:.1f}" x2="{x1:.1f}" '
                             f'y2="{y1:.1f}" stroke="{col}" stroke-width="{width:.2f}" '
                             f'opacity="{op:.2f}" stroke-linecap="round"/>')
+                self.last_segments.append([round(self.x, 1), round(self.y, 1),
+                                           round(x1, 1), round(y1, 1), col,
+                                           round(width, 2), round(op, 2)])
             self.x, self.y = x1, y1
         return segs
 
@@ -307,15 +315,44 @@ def wander_page(segments: list[str], caption: str = "") -> str:
 
 
 def live_page(out_dir: str) -> None:
-    """data/drawings/live.html -- open it once; it re-reads her live page every 2s."""
-    html = ("<!doctype html><meta charset='utf-8'><title>she is drawing</title>"
-            "<style>body{background:#0e0e12;display:grid;place-items:center;height:100vh;"
-            "margin:0}img{width:min(92vmin,720px)}p{color:#6f6f86;font-family:Georgia;"
-            "font-size:12px}</style><div><img id='p' src='live.svg'/>"
-            "<p>she is drawing -- the pen is her state: turns are arousal, tightness is "
-            "the grip, the ink is the weather, the pull is the bond, the jumps are old "
-            "wounds</p></div><script>setInterval(()=>{document.getElementById('p').src="
-            "'live.svg?'+Date.now()},2000)</script>")
+    """data/drawings/live.html -- the ANIMATOR: fetches live_trail.json and PERFORMS the
+    strokes, one by one, a glowing pen-tip traveling as she draws. Each reading's new
+    motion drains over a few seconds, so what you watch is the pen actually moving --
+    in her order, at a lifelike pace -- not finished stills swapping."""
+    html = """<!doctype html><meta charset='utf-8'><title>she is drawing</title>
+<style>body{background:#0e0e12;display:grid;place-items:center;height:100vh;margin:0}
+#wrap{position:relative;width:min(92vmin,720px)}canvas{width:100%;display:block}
+#ink{background:#15151a;border-radius:4px}#tip{position:absolute;left:0;top:0}
+p{color:#6f6f86;font-family:Georgia;font-size:12px;text-align:center}</style>
+<div><div id=wrap><canvas id=ink width=480 height=480></canvas>
+<canvas id=tip width=480 height=480></canvas></div>
+<p>she is drawing, live -- turns are arousal, tightness is the grip, the ink is the
+weather, the pull is the bond, the jumps are old wounds</p></div>
+<script>
+const ink=document.getElementById('ink').getContext('2d');
+const tip=document.getElementById('tip').getContext('2d');
+let queue=[],drawn=0,day=null,cur=null;
+async function poll(){try{
+ const r=await fetch('live_trail.json?'+Date.now());const d=await r.json();
+ if(day!==null&&(d.day!==day||d.total<drawn)){ink.fillStyle='#15151a';
+  ink.fillRect(0,0,480,480);drawn=0;queue=[];}
+ day=d.day;
+ const fresh=d.total-drawn;
+ if(fresh>0){queue.push(...d.segments.slice(-Math.min(fresh,d.segments.length)));drawn=d.total;}
+}catch(e){}}
+function frame(){
+ // drain the queue over ~5s at 60fps: the pen travels at a lifelike pace
+ const per=Math.max(1,Math.ceil(queue.length/300));
+ for(let i=0;i<per&&queue.length;i++){const s=queue.shift();
+  ink.strokeStyle=s[4];ink.lineWidth=s[5];ink.globalAlpha=s[6];ink.lineCap='round';
+  ink.beginPath();ink.moveTo(s[0],s[1]);ink.lineTo(s[2],s[3]);ink.stroke();cur=[s[2],s[3],s[4]];}
+ tip.clearRect(0,0,480,480);
+ if(cur){tip.globalAlpha=0.9;tip.fillStyle=cur[2];tip.beginPath();
+  tip.arc(cur[0],cur[1],3.2,0,7);tip.fill();tip.globalAlpha=0.25;tip.beginPath();
+  tip.arc(cur[0],cur[1],8,0,7);tip.fill();}
+ requestAnimationFrame(frame);}
+setInterval(poll,1500);poll();requestAnimationFrame(frame);
+</script>"""
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "live.html"), "w", encoding="utf-8") as f:
         f.write(html)
