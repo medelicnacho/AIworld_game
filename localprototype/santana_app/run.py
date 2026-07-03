@@ -285,12 +285,24 @@ def main() -> None:
                 with w.lock:
                     corpus = "\n".join([soul.persona] + [m.text for m in soul.memory.items])
                     n_mem = len(soul.memory.items)
+                    residue = (max(soul.memory.items, key=lambda m: m.salience).text
+                               if soul.memory.items else soul.persona)   # the day's residue
                 out = town_llm.sleep_text(soul.id, corpus)   # the slow burst, no lock held
                 if out is not None:
                     first, last = out
                     mind = town_llm.mind_for(soul.id)
                     print(f"  (sleep: {soul.name} absorbs {n_mem} memories -- "
                           f"loss {first:.2f}→{last:.2f}, sleep #{mind.sleeps})", flush=True)
+                    # every third sleep the soul DREAMS, in its own grown voice: generated
+                    # with no lock held, written back under it, tagged source='dream' --
+                    # so it says 'I dreamt it, I think' at recall (§5.19), and a worn dream
+                    # can leak into believed memory by the measured pathway
+                    dream = town_llm.dream_line(soul.id, residue)
+                    if dream:
+                        with w.lock:
+                            soul.memory.write(dream, tick=w.tick, source="dream",
+                                              speaker_id=soul.id, weight=0.9)
+                        print(f"  (dream: {soul.name} dreams -- \"{dream[:90]}\")", flush=True)
                 with w.lock:
                     live = {a.id for a in w.agents}
                 town_llm.prune(live)   # a departed soul's mind leaves RAM; the file remains

@@ -459,6 +459,9 @@ class SoulVoiceLLM:
         return _clean(self.mind_for("town").line(prompt=prompt, n=min(num_predict, 200),
                                                  temp=temperature)) or "..."
 
+    DREAM_EVERY = 3   # every third sleep, the soul dreams -- often enough to be a life,
+                      # rare enough that dreams stay a minority of what a soul holds
+
     # --- the sleep cycle (called from the runner's sleep thread) --------------------------
     def sleep_text(self, soul_id: str, corpus: str) -> tuple[float, float] | None:
         """One soul's sleep on a PRE-SNAPSHOTTED corpus (take it under the world lock;
@@ -476,6 +479,35 @@ class SoulVoiceLLM:
         mutated, exactly as lived. Nothing else; a soul dreams only its own life."""
         corpus = "\n".join([agent.persona] + [m.text for m in agent.memory.items])
         return self.sleep_text(agent.id, corpus)
+
+    # --- dreams (NPC dreams ride the sleep cycle, like hers ride her absences) ------------
+    def dream_line(self, soul_id: str, residue: str) -> str:
+        """Every DREAM_EVERY-th sleep, the soul's OWN brain dreams one line -- seeded by
+        the day's residue (its most salient memory), run hotter than waking speech, so it
+        comes out loosened the way dreams do. Returns "" on non-dream sleeps, for infants
+        (no sleeps yet -- a mind that cannot speak cannot dream), or a too-thin dream.
+
+        The caller writes it back as memory with source='dream': the provenance layer
+        (§5.19) then does the rest -- the soul says 'I dreamt it, I think' at recall, and
+        a dream worn by drift and retelling can LEAK into believed memory, auditable,
+        exactly as the C14b falsifier measured for stories."""
+        mind = self.minds.get(soul_id)
+        if mind is None or mind.sleeps == 0 or mind.sleeps % self.DREAM_EVERY:
+            return ""
+        text = _clean(mind.line(prompt=(residue or "")[-40:] + "\n", n=90, temp=1.05))
+        return text if len(text) >= 8 else ""
+
+    def dream_one(self, agent, tick: int) -> str | None:
+        """Convenience (single-threaded callers/tests): dream + write-back in one call.
+        Threaded callers (the runner) use dream_line and write under the world lock."""
+        residue = (max(agent.memory.items, key=lambda m: m.salience).text
+                   if agent.memory.items else agent.persona)
+        dream = self.dream_line(agent.id, residue)
+        if not dream:
+            return None
+        agent.memory.write(dream, tick=tick, source="dream",
+                           speaker_id=agent.id, weight=0.9)
+        return dream
 
     def prune(self, live_ids: set[str]) -> None:
         """Drop minds whose souls have left the world (RAM only -- the files remain as
