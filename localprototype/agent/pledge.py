@@ -67,7 +67,12 @@ def fulfill(agent, promiser_id: str, now: int) -> str | None:
             p["kept"] = True
             if agent.bond_enabled:
                 agent.bonds.setdefault(promiser_id, Bond()).warm(KEPT_WARM)
-            agent.memory.write(f"{p['name']} kept their word to me -- {p['text']}",
+            # the STORY must carry its warmth IN ITS WORDS: gossip transmits feeling
+            # only through the wording (hearers re-derive the charge from the retold
+            # text -- lore hands them words, not our emotion= parameter). A flat-worded
+            # keeping travels as nothing; the v1 falsifier measured exactly that.
+            agent.memory.write(f"a kindness to remember: {p['name']} kept their word "
+                               f"to me -- {p['text']}",
                                tick=now, source="event", speaker_id=promiser_id,
                                emotion=0.5, weight=1.2,
                                lore_id=f"conduct:{promiser_id}")
@@ -86,8 +91,11 @@ def lapse_check(agent, now: int) -> list[str]:
             p["kept"] = False
             if agent.bond_enabled:
                 agent.bonds.setdefault(p["promiser"], Bond()).betray(BROKEN_SEV)
+            # same rule, dark leg -- and mind the stemmer: "broke" is an irregular past
+            # the lexicon cannot reach; "broken" and "bitter" are the words that travel.
             agent.memory.write(
-                f"{p['name']} gave their word -- {p['text']} -- and let it come to nothing",
+                f"{p['name']} has broken their word to me -- {p['text']} -- a bitter "
+                f"thing to carry",
                 tick=now, source="event", speaker_id=p["promiser"],
                 emotion=-0.55, weight=1.3, lore_id=f"conduct:{p['promiser']}")
             _nudge_expect(agent, p["promiser"], BROKEN_SIG)

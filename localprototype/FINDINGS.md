@@ -1045,6 +1045,31 @@ targets: the round-6 deepseek voice (`--voice deepseek`), and the interoception 
 giving `reflect()` a somatic read — arousal, grip, felt-mood *deltas* — opens the mechanism
 channel; a design change, gated behind its own falsifier).
 
+### 5.20 Pledges — a word broken to ONE soul becomes a TOWN's wariness (Phase A of player-as-person)
+
+**The build (`agent/pledge.py`, ported down from HER §5.18 promise-keeping):** any id — another
+soul, or the *player*, who is just another id to the substrate — can give a soul its word,
+held to the town's own clock. Kept in time: trust at the Bond's designed slow pace (one kept
+word is a start, three are a relationship — *never* a trust cheat-code, pinned by test), and
+a warm conduct story. Lapsed: **always a betrayal** (a promise IS an explicit expectation, so
+no gap-test applies — unlike `appraise_conduct`'s weather), with the loyalty buffer absorbing
+exactly as everywhere else, and the breach writes a `conduct:<promiser>` story into the
+validated C3 channel.
+
+**The verdict (`experiment_pledge.py`; v2 on virgin 71–75, all four claims 5/5):** TRAVELS
+DARK — ≥3 of 6 bystanders the player never touched end wary of "player", zero opinions in the
+no-lore null. TRAVELS WARM — kept-word bystanders lean warm, ≥80%, mean positive. SPECIFICITY
+— nobody forms an opinion of a "stranger" who promised nothing. THE VICTIM — wounds + negative
+trust when broken, zero wounds + positive trust when kept. *This is the trust/karma substrate
+the game's join-or-oppose decision will read, measured before anything is built on it.*
+
+**The consumed-verdict lesson (61–65, v1 FAIL on both transmission claims, recorded):**
+**gossip transmits feeling only through the wording.** v1's stories carried their charge in
+the `emotion=` parameter; hearers re-derive charge from the retold *text*, so a flat-worded
+breach scandalized no one (and the stemmer can't reach irregular pasts — "broke" says
+nothing, "broken" travels). The dyad held while the town stayed indifferent — exactly the
+kind of half-alive result only a held-out run exposes. v2 charges the words themselves.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

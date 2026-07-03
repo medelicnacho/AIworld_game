@@ -69,7 +69,7 @@ def test_the_clock_breaks_it_where_the_absence_is_measured():
     assert not a.promises_held[0]["open"] and a.promises_held[0]["kept"] is False
     assert a.bonds["player"].wounds == 1           # always a betrayal: the word WAS the expectation
     assert a.bonds["player"].trust < 0
-    breach = [m for m in a.memory.items if "let it come to nothing" in m.text]
+    breach = [m for m in a.memory.items if "broken their word" in m.text]
     assert breach and breach[0].lore_id == "conduct:player"  # A BROKEN WORD TRAVELS
     assert a._conduct_expect["player"] < 0
 
