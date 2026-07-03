@@ -900,6 +900,7 @@ class Agent:
                              "warmly of how they treat others.")
         ctx = SpeechContext(
             name=self.name,
+            agent_id=self.id,   # per-soul backends route this turn to this soul's own mind
             persona=self.persona,
             mood=mood,
             style=self.style,

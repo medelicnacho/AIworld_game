@@ -79,15 +79,22 @@ This is the payoff of the efficient stance: a continually-learning self that run
 ## What's built / what's next
 
 - **Built:** the fast layer — `MarkovLLM.learn()` (the voice rebuilds from living memory each
-  reading); memory salience; the from-scratch GPT (`homegrown/gpt.py`).
+  reading); memory salience; the from-scratch GPT (`homegrown/gpt.py`) with `--resume`
+  (continue-training = consolidation); the salience harvest + `consolidate.py` sleep job for
+  HER slow brain (verified: absorbs vocabulary it lacked).
+- **Built (2026-07-03) — the per-soul extension, and the town's new DEFAULT:**
+  `homegrown/soulmind.py` + `services.llm.SoulVoiceLLM` — **every NPC carries its OWN ~0.1M-param
+  GPT**: fresh random init at rebirth (a newborn *babbles* — the wheel hands on karma, never
+  weights), grown by a round-robin **sleep thread** in `santana_app/run.py` that trains each soul,
+  bounded seconds at a time, on nothing but its own decaying memory. Forgetting is INHERITED, not
+  simulated: what decays out of memory leaves the next sleep's corpus, and continued training
+  drifts the weights on — catastrophic forgetting doing honest work. Minds persist per-life
+  beside their world snapshot (`data/santana_world.minds/`). **Falsified, not just shipped**
+  (`experiment_soulminds.py`, 5 seeds): newborn marker-count 0 (all seeds) → after three sleeps
+  on a sea-life, +5.4 ± 0.6, d +4.0, 5/5 → after four inland sleeps, back to 0, 5/5. Blank →
+  absorbed → released: the whole claimed cycle, measured.
 - **Next, in order:**
-  1. `homegrown/gpt.py`: a **`--resume`** flag (load `gpt.pt`, continue training) — consolidation
-     needs to continue, not restart.
-  2. A **salience harvester**: pull the world's / Santāna's highest-salience recent transcripts into
-     a consolidation corpus, mixed with a replay sample of the original corpus.
-  3. A **`consolidate` job** (a "sleep" step): continue-train the GPT a few hundred steps on that
-     corpus, save. Run it on a timer / when idle.
-  4. (Later, with a GPU) a bigger slow model; LoRA adapters instead of full continue-training; and,
+  1. (Later, with a GPU) a bigger slow model; LoRA adapters instead of full continue-training; and,
      the research frontier, **MoE expert-expansion** for genuinely new experience.
 
 ## The honest open edges

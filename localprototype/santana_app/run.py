@@ -105,14 +105,22 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--llm", default="markov", help="HER voice (markov/homegrown/ollama/deepseek/mock)")
     p.add_argument("--model", default=None, help="model id for her voice (deepseek/ollama)")
-    p.add_argument("--town-model", dest="town_model", default="markov",
-                   help="the TOWN's voice (markov/homegrown/mock, or a deepseek model id)")
+    p.add_argument("--town-model", dest="town_model", default="soul",
+                   help="the TOWN's voice. Default 'soul': every NPC carries its OWN tiny "
+                        "from-scratch GPT -- born babbling at rebirth, grown by sleep on its "
+                        "own decaying memory, forever learning and forgetting (needs torch; "
+                        "falls back to markov, loudly). Also: markov/homegrown/mock, or a "
+                        "deepseek model id")
     p.add_argument("--interval", type=float, default=6.0, help="seconds the town lives between her readings")
     p.add_argument("--fast-wheel", action="store_true", dest="fast_wheel",
                    help="short lifespans so the wheel turns quickly (souls die + are reborn)")
     p.add_argument("--psyche", action="store_true",
                    help="the souls are PARTS OF ONE MIND (drives: Dread, Ache, Longing...) not townsfolk "
                         "-- a self as a society of parts (see agent/psyche.py)")
+    p.add_argument("--sleep-every", dest="sleep_every", type=float, default=75.0,
+                   help="(soul town) seconds between NPC sleeps -- each sleep, ONE soul "
+                        "absorbs its own living memory into its own tiny brain (bounded burst; "
+                        "round-robin, so a 6-soul town fully consolidates every ~8 minutes)")
     p.add_argument("--readings", type=int, default=0, help="stop after N readings (0 = run forever)")
     p.add_argument("--autosave", type=int, default=5, help="save every N readings")
     p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT, help="where HER self is saved/resumed (json)")
@@ -148,10 +156,25 @@ def main() -> None:
 
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice
     santana_llm = _make_voice(args.llm, args.model, culture=args.culture)
-    town_llm = (MockLLM(seed=7) if args.town_model in (None, "mock")
-                else _make_voice(args.town_model if args.town_model in ("markov", "homegrown") else "deepseek",
-                                 None if args.town_model in ("markov", "homegrown") else args.town_model,
-                                 culture=args.culture))
+    _local_town = ("markov", "homegrown", "soul")
+    try:
+        town_llm = (MockLLM(seed=7) if args.town_model in (None, "mock")
+                    else _make_voice(args.town_model if args.town_model in _local_town else "deepseek",
+                                     None if args.town_model in _local_town else args.town_model,
+                                     culture=args.culture))
+    except RuntimeError as exc:
+        if args.town_model != "soul":
+            raise
+        # the default per-soul minds need torch; a box without it still gets a living town
+        print(f"  ⚠ {exc}\n  ⚠ falling back to the markov town voice", flush=True)
+        args.town_model = "markov"
+        town_llm = _make_voice("markov", None, culture=args.culture)
+    from services.llm import SoulVoiceLLM
+    if isinstance(town_llm, SoulVoiceLLM):
+        # each LIFE keeps its own brains: minds live NEXT TO their world snapshot
+        # (data/santana_world.minds/), so a probe or scratch town can never leak its
+        # trained brains into her real souls (they share ids s0..s5)
+        town_llm.dir = os.path.splitext(args.world_snapshot)[0] + ".minds"
     real_town = args.town_model not in (None, "mock")
 
     # resume the WHOLE town if we can (so the wheel keeps turning across restarts), else build fresh
@@ -239,6 +262,41 @@ def main() -> None:
             except Exception:   # noqa: BLE001
                 report()
 
+    def run_sleep():
+        # THE SLEEP CYCLE (soul town): one soul at a time absorbs its own living memory
+        # into its own tiny brain. The corpus snapshot is taken UNDER the world lock; the
+        # slow training burst (seconds) runs with NO lock held -- the speak_turn contract.
+        # Learning and forgetting, continuously: what decayed out of memory since the last
+        # sleep simply is not in this one, and the weights drift on. Newborn streams get a
+        # fresh mind at their first turn and keep babbling until they have lived enough to
+        # dream (sleep_text returns None below the corpus floor).
+        report = _fail_reporter("npc sleep", every=20)
+        turn = 0
+        while not stop.is_set():
+            if stop.wait(args.sleep_every):
+                break
+            try:
+                with w.lock:
+                    souls = sorted(w.agents, key=lambda a: a.id)
+                if not souls:
+                    continue
+                soul = souls[turn % len(souls)]
+                turn += 1
+                with w.lock:
+                    corpus = "\n".join([soul.persona] + [m.text for m in soul.memory.items])
+                    n_mem = len(soul.memory.items)
+                out = town_llm.sleep_text(soul.id, corpus)   # the slow burst, no lock held
+                if out is not None:
+                    first, last = out
+                    mind = town_llm.mind_for(soul.id)
+                    print(f"  (sleep: {soul.name} absorbs {n_mem} memories -- "
+                          f"loss {first:.2f}→{last:.2f}, sleep #{mind.sleeps})", flush=True)
+                with w.lock:
+                    live = {a.id for a in w.agents}
+                town_llm.prune(live)   # a departed soul's mind leaves RAM; the file remains
+            except Exception:   # noqa: BLE001 -- a failed dream must never kill the life
+                report()
+
     def run_demiurge():
         # the 8B author: on rebirth, dream a NEW soul, write it onto the reborn stream, and feed the
         # living corpus (the markov + the nightly consolidation read it). The slow 8B call runs OUTSIDE
@@ -274,6 +332,8 @@ def main() -> None:
     threads = [threading.Thread(target=run_wheel, daemon=True)]
     if real_town:
         threads.append(threading.Thread(target=run_speech, daemon=True))
+    if isinstance(town_llm, SoulVoiceLLM):
+        threads.append(threading.Thread(target=run_sleep, daemon=True))
     if args.psyche:
         threads.append(threading.Thread(target=run_reflect, daemon=True))
     if demiurge is not None:
@@ -356,6 +416,12 @@ def main() -> None:
         stop.set()
         time.sleep(0.3)   # let the wheel/speech threads release the lock before the final snapshot
         save_both()
+        if isinstance(town_llm, SoulVoiceLLM):
+            try:
+                town_llm.save_all()   # every soul's brain rests where its next waking finds it
+            except Exception:   # noqa: BLE001 -- a failed brain-save must not block her save
+                import traceback
+                traceback.print_exc()
         life.release()    # her life is closed only AFTER the final save is on disk
         print(f"\n~~~ saved. she has existed {_fmt_age(mind.lifetime)} and watched {mind._deaths} souls "
               f"pass; the town is at tick {w.tick}. Wake her and it all continues. ~~~\n")

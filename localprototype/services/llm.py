@@ -403,6 +403,91 @@ class MarkovLLM:
         return _clean(" ".join(self._walk() for _ in range(n))) or "..."
 
 
+class SoulVoiceLLM:
+    """PER-SOUL minds: every NPC speaks from its OWN tiny homegrown GPT.
+
+    One router object serves the whole town (so load_world's re-injection Just Works),
+    but each speak() is routed by ctx.agent_id to that soul's PRIVATE brain
+    (homegrown/soulmind.py): born a fresh random init at rebirth -- a newborn BABBLES,
+    it has not yet learned to speak -- then grown by SLEEP (the runner's sleep thread
+    calls sleep_one) on nothing but its own living memory, which itself decays and
+    mutates. Learning and forgetting are therefore continuous and inherited: what falls
+    out of memory falls out of the next sleep, and the weights drift on. The wheel hands
+    on karma, never weights.
+
+    Minds persist per-soul under data/npc_minds/ (atomic saves), are pruned when their
+    soul leaves the world, and are NEVER part of a world snapshot (Agent.__getstate__
+    already nulls llm; world/serialize.py would loudly refuse a tensor anyway)."""
+
+    def __init__(self, minds_dir: str | None = None, seed: int | None = None) -> None:
+        from homegrown.soulmind import SoulMind   # raises ImportError if torch is absent
+        self._SoulMind = SoulMind
+        root = Path(__file__).resolve().parent.parent
+        self.dir = minds_dir or str(root / "data" / "npc_minds")
+        self.minds: dict[str, object] = {}
+        self._seed = seed
+
+    def _path(self, soul_id: str) -> str:
+        safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in soul_id)
+        return os.path.join(self.dir, f"{safe}.pt")
+
+    def mind_for(self, soul_id: str):
+        """This soul's own brain -- loaded if it has lived before, else born blank."""
+        if soul_id not in self.minds:
+            path = self._path(soul_id)
+            if os.path.isfile(path):
+                try:
+                    self.minds[soul_id] = self._SoulMind.load(path)
+                except Exception:   # noqa: BLE001 -- an unreadable brain is a fresh birth, said aloud
+                    print(f"  ⚠ {soul_id}'s saved mind could not be woken -- born fresh "
+                          f"(the old file stays at {path})", flush=True)
+                    self.minds[soul_id] = self._SoulMind(soul_id, seed=self._seed)
+            else:
+                self.minds[soul_id] = self._SoulMind(soul_id, seed=self._seed)
+        return self.minds[soul_id]
+
+    def speak(self, ctx: SpeechContext) -> str:
+        sid = ctx.agent_id or ctx.name or "town"
+        mind = self.mind_for(sid)
+        # seed the continuation with the soul's own subconscious fragment -- the same
+        # drift-feeds-speech contract every other backend honours
+        prompt = ((ctx.drift[-1] if ctx.drift else ctx.name) + "\n")
+        return _clean(mind.line(prompt=prompt)) or "..."
+
+    def generate(self, prompt: str = "", system: str = "", num_predict: int = 200,
+                 temperature: float = 0.9) -> str:
+        return _clean(self.mind_for("town").line(prompt=prompt, n=min(num_predict, 200),
+                                                 temp=temperature)) or "..."
+
+    # --- the sleep cycle (called from the runner's sleep thread) --------------------------
+    def sleep_text(self, soul_id: str, corpus: str) -> tuple[float, float] | None:
+        """One soul's sleep on a PRE-SNAPSHOTTED corpus (take it under the world lock;
+        the slow training burst then runs with no lock held -- the speak_turn contract).
+        Returns (first_loss, last_loss) or None (too little lived yet: infants babble)."""
+        mind = self.mind_for(soul_id)
+        report = mind.sleep(corpus)
+        if report is not None:
+            mind.save(self._path(soul_id))
+        return report
+
+    def sleep_one(self, agent) -> tuple[float, float] | None:
+        """Convenience (single-threaded callers/tests): snapshot + sleep in one call.
+        The corpus is the soul's persona + the memories it still holds -- decayed,
+        mutated, exactly as lived. Nothing else; a soul dreams only its own life."""
+        corpus = "\n".join([agent.persona] + [m.text for m in agent.memory.items])
+        return self.sleep_text(agent.id, corpus)
+
+    def prune(self, live_ids: set[str]) -> None:
+        """Drop minds whose souls have left the world (RAM only -- the files remain as
+        relics until their name is reborn... which, with fresh-coined names, it isn't)."""
+        for sid in [s for s in self.minds if s not in live_ids and s != "town"]:
+            del self.minds[sid]
+
+    def save_all(self) -> None:
+        for sid, mind in self.minds.items():
+            mind.save(self._path(sid))
+
+
 def make_llm(backend: str = "auto", model: str | None = None,
              seed: int | None = None, culture: bool = False):
     """Pick a backend. Local is the default; DeepSeek is explicit opt-in only.
@@ -428,6 +513,17 @@ def make_llm(backend: str = "auto", model: str | None = None,
         print("[llm] markov -- the world's own authored words recombined (clean, fully self-grown, "
               "nothing trained or borrowed)" + (" + culture (shifting eras, §5.13)" if culture else ""))
         return MarkovLLM(seed=seed, culture=culture)
+
+    if backend == "soul":
+        try:
+            router = SoulVoiceLLM(seed=seed)
+        except ImportError as exc:
+            raise RuntimeError("the per-soul minds need PyTorch (homegrown/soulmind.py) -- "
+                               "pip install torch, or use --town-model markov") from exc
+        print("[llm] soul minds -- every NPC carries its OWN tiny from-scratch GPT: born "
+              "babbling at rebirth, grown by sleep on its own decaying memory (learning and "
+              "forgetting, continuously; homegrown/soulmind.py)")
+        return router
 
     if backend == "deepseek":
         load_dotenv()

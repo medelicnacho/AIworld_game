@@ -26,6 +26,9 @@ class SpeechContext:
     name: str
     persona: str                     # what the agent is about (content/theme)
     mood: float                      # -1 (low/dark) .. +1 (light)
+    agent_id: str = ""               # the SPEAKER's stable id -- lets a per-soul backend
+                                     # (SoulVoiceLLM) route this turn to the right private
+                                     # mind; every shared backend simply ignores it
     style: str = ""                  # how the agent talks (cadence/register)
     drift: list[str] = field(default_factory=list)       # subconscious fragments
     memories: list[str] = field(default_factory=list)    # salient recollections
