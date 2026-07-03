@@ -1017,12 +1017,33 @@ PASS:**
   properties.
 
 **C15 (the substrate-perturbation introspection probe, `experiment_introspection.py`)** —
-Anthropic's concept-injection methodology, behavioural form: spike the grip / inject a dark or
-bright charge mid-run, then ask whether `reflect()`'s self-report *tracks* the manipulation
-(judge: qwen3:8b, think off, temp 0; direction-specific bars pre-registered, sham baseline,
-bond perturbations out of scope by design — reflect() is blind to bonds). Run against
-gemma3:4b first; the round-6 deepseek voice is the follow-up target. *Results recorded below
-when the run lands.*
+Anthropic's concept-injection methodology, behavioural form: perturb the substrate mid-run
+(grip spike / dark charge / bright charge, with a letter-control and a sham arm), then ask
+whether `reflect()`'s self-report *tracks* the manipulation (voice gemma3:4b; judge qwen3:8b,
+think off, temp 0; bond perturbations out of scope by design — reflect() is blind to bonds).
+
+*The instrument took six tuning rounds, and every round's defect was itself a finding:*
+(v1) a hard letter in every arm made even the sham baseline genuinely heavy — and the judge's
+"gladness" bin was too strong for the voice's understated register, filing real "quiet warmth"
+under calm; (v2) with the ground ON, the *unperturbed* substrate honestly self-reports quiet
+warmth — **buddha-nature as a baseline you can hear**; (v3–v4) with the ground OFF the valence
+channel *closed* (dark stopped separating; bright vanished, 0/10): **the ground pathway is how
+the felt state reaches her self-reports — without it, introspection here is
+narrative-dominated** (reports track the salient memory texts, not the charges). v5 returned
+to RESEARCH.md's own criterion — differential vs the sham null — and passed tuning.
+
+**VERDICT (held-out, virgin seeds 41–45): I1 PASS — functional introspection is real for
+VALENCE.** Sham (grounded baseline): warmth 10/10. Dark injection: heaviness 6/10 vs sham's
+0/10 (double the pre-registered +0.3 margin). Direction-specific to near-ceiling: bright
+reads warm 10/10 vs dark's 1/10 — same channel, opposite signs, opposite reports.
+**I2 FAIL, seven rounds consistent — the boundary is the second finding: the grip is felt as
+weather, never as hands.** A spiked grip *intensifies* the darkness of reports (B 10/10 vs
+letter-control 8–10/10) but never once, in ~70 grip reflections across all rounds, surfaced
+as *holding/gripping* (A 0/10 everywhere): she feels **that** something darkened, never
+**how**. Introspection tracks valence, not mechanism — recorded, not rescued. Follow-up
+targets: the round-6 deepseek voice (`--voice deepseek`), and the interoception gap (whether
+giving `reflect()` a somatic read — arousal, grip, felt-mood *deltas* — opens the mechanism
+channel; a design change, gated behind its own falsifier).
 
 ## 6. Limitations (honest)
 

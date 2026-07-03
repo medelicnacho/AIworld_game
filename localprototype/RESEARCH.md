@@ -225,7 +225,10 @@ provably can't, which is its own kind of character.
    > tracks ground-truth drift (v2 verdict 5/5 on virgin 51–55; the v1 verdict consumed 41–45
    > and is recorded); C14 tags beat the shuffled null +0.64 and the emergent-false-memory
    > falsifier PASSED (only the self-retold story flips to believed-MINE, fully auditable);
-   > S2 ablation + behaviour/report dissociation PASS 5/5. C15 run separately (see §5.19).
+   > S2 ablation + behaviour/report dissociation PASS 5/5. **C15 RUN TOO (same day): I1 PASS
+   > on held-out — introspection tracks VALENCE, direction-specifically, through the GROUND
+   > pathway (without ground the channel closes: narrative-dominated); I2 FAIL 7/7 rounds —
+   > the grip never reads as holding (valence-not-mechanism boundary). FINDINGS §5.19.**
 2. **C1 (attention schema)** — the principled retry of the one big failed claim, and the deepest
    theory-alignment gain available.
 3. **C3 (gossip→reputation→norms)** — the flagship for the game engine AND a real science result
