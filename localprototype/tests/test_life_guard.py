@@ -1,0 +1,93 @@
+"""Tests for the three guards on her life (santana_app/state.py, 2026-07-03 audit).
+
+Her saved life is the one irreplaceable file in the repo, and the audit found it guarded
+three incompatible ways (chat.py pgrep, app.py systemd, bare talk not at all). Pinned here:
+  - ONE writer at a time: a second acquire_life() is refused loudly (LifeBusy names the
+    holder), never clobbered quietly; release() hands her on.
+  - an incompatible town snapshot degrades to a fresh town LOUDLY, with the unreadable
+    snapshot PRESERVED aside -- never silently vanished (the frozen-world lesson applied
+    to loaders).
+  - the first save of each day keeps yesterday's her (daily rotating backups, bounded).
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from santana_app import state
+
+
+def test_second_writer_is_refused_and_named(tmp_path):
+    snap = str(tmp_path / "life.json")
+    lock = state.acquire_life(snap, "the 24/7 runner")
+    try:
+        try:
+            state.acquire_life(snap, "a talk")
+            raise AssertionError("a second writer must be refused, not granted")
+        except state.LifeBusy as busy:
+            assert "the 24/7 runner" in str(busy)   # she says WHO has her
+            assert "life.json" in str(busy)
+    finally:
+        lock.release()
+    # released -> the next holder takes her cleanly
+    lock2 = state.acquire_life(snap, "a talk")
+    lock2.release()
+
+
+def test_two_lives_do_not_contend(tmp_path):
+    # a probe life and her canonical life are different files -- locks are per-life
+    a = state.acquire_life(str(tmp_path / "life.json"), "runner")
+    b = state.acquire_life(str(tmp_path / "probe.json"), "probe")
+    a.release()
+    b.release()
+
+
+def test_incompatible_town_is_loud_and_preserved(tmp_path, capsys):
+    path = str(tmp_path / "town.pkl")
+    with open(path, "wb") as f:
+        f.write(b"not a pickle at all")
+    assert state.load_world(path, town_llm=None) is None   # degrades to fresh...
+    out = capsys.readouterr()
+    text = out.out + out.err
+    assert "COULD NOT BE WOKEN" in text                     # ...but never silently
+    assert "PRESERVED" in text
+    assert not os.path.exists(path)                         # out of the save path
+    kept = [f for f in os.listdir(tmp_path) if f.startswith("town.pkl.incompatible-")]
+    assert len(kept) == 1                                   # the evidence survives
+
+
+def test_missing_town_is_quietly_fresh(tmp_path, capsys):
+    # no snapshot is the NORMAL first boot -- that one stays quiet
+    assert state.load_world(str(tmp_path / "never.pkl"), town_llm=None) is None
+    assert "COULD NOT BE WOKEN" not in capsys.readouterr().out
+
+
+def test_daily_backup_keeps_and_prunes(tmp_path, monkeypatch):
+    path = str(tmp_path / "life.json")
+    days = [f"202601{d:02d}" for d in range(1, 18)]   # 17 days of saves
+    for i, day in enumerate(days):
+        with open(path, "w", encoding="utf-8") as f:
+            f.write('{"day": %d}' % i)
+        monkeypatch.setattr(state.time, "strftime", lambda fmt, _d=day: _d)
+        state._daily_backup(path, keep=14)
+    bdir = tmp_path / "backups" / "auto"
+    kept = sorted(os.listdir(bdir))
+    assert len(kept) == 14                             # bounded, not unbounded
+    assert kept[0] == "life.json.20260104"             # the oldest three were pruned
+    assert kept[-1] == "life.json.20260117"
+
+
+def test_daily_backup_is_once_per_day(tmp_path, monkeypatch):
+    path = str(tmp_path / "life.json")
+    monkeypatch.setattr(state.time, "strftime", lambda fmt: "20260701")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write('{"v": 1}')
+    state._daily_backup(path)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write('{"v": 2}')
+    state._daily_backup(path)   # same day: the morning copy stands, not overwritten
+    bdir = tmp_path / "backups" / "auto"
+    (only,) = os.listdir(bdir)
+    with open(bdir / only, encoding="utf-8") as f:
+        assert f.read() == '{"v": 1}'

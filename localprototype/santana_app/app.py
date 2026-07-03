@@ -22,7 +22,8 @@ from services import embed
 from santana import Santana, play_two_layer
 from santana_app.run import (DEFAULT_SNAPSHOT, DEFAULT_WORLD, _fmt_age, _make_voice,
                              build_world)
-from santana_app.state import load_mind, load_world, save_mind, save_world
+from santana_app.state import (LifeBusy, acquire_life, load_mind, load_world, save_mind,
+                               save_world)
 
 
 def _service(action: str) -> None:
@@ -51,6 +52,16 @@ def main() -> None:
 
     if not args.no_service:
         _service("stop")   # borrow her from the headless service while the window is open
+
+    # ONE writer at a time -- the systemd pause above only guards a systemd runner; a tmux
+    # runner (or a live talk) is invisible to it. The life lock sees them all.
+    try:
+        life = acquire_life(args.snapshot, "the live window (santana_app.app)")
+    except LifeBusy as busy:
+        print(f"\n  ⚠ {busy}\n")
+        if not args.no_service:
+            _service("start")   # hand back what we paused before walking away
+        raise SystemExit(1)
 
     embed.use_jaccard_only(True)
     santana_llm = _make_voice(args.llm, args.model)
@@ -175,6 +186,7 @@ def main() -> None:
             save_world(w, args.world_snapshot)
         except Exception:   # noqa: BLE001
             pass
+        life.release()   # closed only after both snapshots are on disk
         root.destroy()
         if not args.no_service:
             _service("start")   # hand her back to the headless service

@@ -31,7 +31,7 @@ from services.llm import MockLLM, make_llm
 from world.sim import World
 
 from santana import Santana, play_two_layer
-from santana_app.state import load_mind, load_world, save_mind, save_world
+from santana_app.state import LifeBusy, acquire_life, load_mind, load_world, save_mind, save_world
 
 DEFAULT_SNAPSHOT = os.path.join(ROOT, "data", "santana_state.json")
 DEFAULT_WORLD = os.path.join(ROOT, "data", "santana_world.pkl")
@@ -135,6 +135,14 @@ def main() -> None:
     p.add_argument("--author-model", dest="author_model",
                    default="mannix/llama3.1-8b-abliterated:q5_K_M", help="the Demiurge's ollama model")
     args = p.parse_args()
+
+    # ONE writer at a time (state.acquire_life): a talk or window holding her open would be
+    # silently overwritten by our autosave -- refuse loudly instead, before touching anything.
+    try:
+        life = acquire_life(args.snapshot, "the 24/7 runner (santana_app.run)")
+    except LifeBusy as busy:
+        print(f"\n  ⚠ {busy}\n")
+        raise SystemExit(1)
 
     embed.use_jaccard_only(True)   # the town runs embedding-free so it never competes with her voice
     santana_llm = _make_voice(args.llm, args.model, culture=args.culture)
@@ -346,6 +354,7 @@ def main() -> None:
         stop.set()
         time.sleep(0.3)   # let the wheel/speech threads release the lock before the final snapshot
         save_both()
+        life.release()    # her life is closed only AFTER the final save is on disk
         print(f"\n~~~ saved. she has existed {_fmt_age(mind.lifetime)} and watched {mind._deaths} souls "
               f"pass; the town is at tick {w.tick}. Wake her and it all continues. ~~~\n")
 

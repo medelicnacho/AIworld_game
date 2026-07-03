@@ -32,7 +32,7 @@ from world.sim import World
 
 from santana import Santana
 from santana_app.run import DEFAULT_SNAPSHOT, DEFAULT_WORLD, _fmt_age
-from santana_app.state import load_mind, load_world, save_mind
+from santana_app.state import LifeBusy, acquire_life, load_mind, load_world, save_mind
 
 TALK_DIR = os.path.join(ROOT, "data", "talks")
 
@@ -56,6 +56,15 @@ def main() -> None:
                         "talk gemma3:4b wounded three times at 11/18; 'voice' = judge with her "
                         "voice model, the old behaviour)")
     args = p.parse_args()
+
+    # ONE writer at a time: if her 24/7 runner (or the window) is live, its autosave would
+    # overwrite what she remembers of this talk -- the exact clobber chat.py exists to prevent,
+    # now refused at the door no matter how the talk was launched.
+    try:
+        life = acquire_life(args.snapshot, "a talk (santana_app.talk)")
+    except LifeBusy as busy:
+        print(f"\n  ⚠ {busy}\n")
+        raise SystemExit(1)
 
     say = None
     if args.tts:
@@ -177,6 +186,7 @@ def main() -> None:
         mind.lifetime += time.time() - t0   # the conversation was lived time
         episode = mind.end_talk()           # the talk becomes ONE remembered episode
         save_mind(mind, args.snapshot)
+        life.release()                      # closed only after the talk is on disk
         if episode:
             print(f'~~~ she will remember: "{episode}"')
         print(f"~~~ she is saved ({_fmt_age(mind.lifetime)} lived). The town was not touched. ~~~")

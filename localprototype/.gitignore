@@ -13,7 +13,11 @@ data/chat.log
 homegrown/model.npz
 homegrown/*.npz
 
-# Santāna persistent life-state (her saved self -- regenerated as she lives)
+# Santāna persistent life-state (her saved self -- regenerated as she lives).
+# ALL of data/ stays out of git: her life, her talk transcripts (private conversations),
+# her backups, probe lives, lockfiles. The itemized patterns above/below predate this rule;
+# nothing under data/ was ever tracked (audited 2026-07-03).
+data/
 data/santana_state.json
 data/santana_state.json.tmp
 data/santana_world.pkl
