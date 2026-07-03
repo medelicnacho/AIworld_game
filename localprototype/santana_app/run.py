@@ -239,6 +239,10 @@ def main() -> None:
     w.clock_enabled = True      # and her town keeps TIME now: days and nights, turning
                                 # seasons, ages of life (world/clock.py) -- souls work by
                                 # day, sleep and dream at night, and elders keep the legends
+    w.move_enabled = True       # bodies roam in relationship knots (a RESUMED world's
+                                # snapshot carries its old False -- the runtime gates are
+                                # re-asserted here after load, all of them, THE RULE)
+    w.bounds = (900, 600)
     if args.offer:
         # her offerings need the retelling channel to compete in -- and to be forgettable
         w.lore_enabled = True
