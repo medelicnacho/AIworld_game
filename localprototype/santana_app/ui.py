@@ -218,10 +218,19 @@ class _Handler(BaseHTTPRequestHandler):
                 if chat_voice is not None:
                     # the cockpit talk borrows the clear voice for HER too (the talk
                     # tool always did); her memory, bond, appraisal are untouched --
-                    # only the mouth changes for the length of one reply
+                    # only the mouth changes for the length of one reply. If her own
+                    # voice is the HOMEGROWN mind, it stays in the loop as the inner
+                    # impulse the clear voice interprets (translation, not ghostwriting).
+                    impulse = ""
+                    if "Homegrown" in type(mind.llm).__name__:
+                        try:
+                            raw = mind.llm.generate(text, num_predict=60, temperature=0.9)
+                            impulse = " ".join(str(raw).split())[:120]
+                        except Exception:   # noqa: BLE001 -- a silent small mind is fine
+                            pass
                     old_llm, mind.llm = mind.llm, chat_voice
                     try:
-                        reply = mind.converse(text)
+                        reply = mind.converse(text, inner_impulse=impulse)
                     finally:
                         mind.llm = old_llm
                 else:
@@ -250,6 +259,19 @@ class _Handler(BaseHTTPRequestHandler):
         # borrows the clear local voice, speaking from its OWN real context (persona,
         # memories with their provenance, the bond with you, its drift). Falls back to
         # the town voice, honestly, when no local model is up.
+        # THE INTERPRETER PATTERN, town edition: the soul's OWN grown voice (its tiny
+        # GPT or markov chain) answers first, raw -- and that raw stirring rides into
+        # the clear voice through the drift channel (the same inner-murmur lane the
+        # prompt already colors from). The small mind stays in the loop; the clear
+        # voice translates it instead of replacing it.
+        if chat_voice is not None:
+            try:
+                own = str(soul.llm.speak(ctx))
+                own = " ".join(own.split())[:120]
+                if own:
+                    ctx.drift = list(ctx.drift) + [f"(a stirring in you, half-formed: {own})"]
+            except Exception:   # noqa: BLE001 -- a silent small mind is fine
+                pass
         try:
             raw = (chat_voice or soul.llm).speak(ctx)
         except Exception:   # noqa: BLE001 -- a slow voice is a shrug, not a crash

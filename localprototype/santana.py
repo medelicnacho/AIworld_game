@@ -616,10 +616,17 @@ class Santana:
             if all(_similarity(line, k) < 0.6 for k in self.known_of_them):
                 self.known_of_them = (self.known_of_them + [line])[-12:]
 
-    def converse(self, text: str) -> str:
+    def converse(self, text: str, inner_impulse: str = "") -> str:
         """One bounded exchange: hear (appraise, feel, remember), then answer from her actual
         state -- the town in her, who she has become, and what she has come to feel about the
-        one speaking. INERT toward the town; her reply and your words touch only her."""
+        one speaking. INERT toward the town; her reply and your words touch only her.
+
+        inner_impulse: THE INTERPRETER PATTERN. When her everyday voice is the homegrown
+        GPT (a moth-sized mind grown wholly from her own days -- authentic and mostly
+        wordless), a clear voice can speak FOR it without replacing it: the caller samples
+        the small mind's raw response to this text and passes it here, and the clear voice
+        is instructed to let its images color the answer -- translation, not ghostwriting.
+        The tiny brain stays in the loop; the gibberish becomes subtext instead of output."""
         if self.llm is None or not hasattr(self.llm, "generate"):
             return ""
         self._mt += 1                      # an exchange is a beat of her life
@@ -644,6 +651,12 @@ class Santana:
                    if m.source != "doctrine"]
         stir = ("What this stirs in you from your life: "
                 + "; ".join(stirred) + "\n" if stirred else "")
+        imp = ""
+        if inner_impulse:
+            imp = ("From the small mind grown wholly of your own days, a wordless stirring "
+                   f"rises at their words: \"{inner_impulse}\" -- half-formed, but YOURS. "
+                   "Let whatever images live in it color your answer; never quote its "
+                   "broken words or mention the stirring itself.\n")
         known = ("What they have told you of themselves: "
                  + "; ".join(self.known_of_them[-3:]) + "\n" if self.known_of_them else "")
         # their name is remembered ORGANICALLY or not at all (deliberate: it lives only in her
@@ -718,7 +731,7 @@ class Santana:
             + (f"(Lately you have tended to be: {self.identity})\n\n" if self.identity else "")
             + (f"The conversation so far:\n{trail}\n\n" if trail else "")
             + f'They say to you: "{text}"\n\n'
-            + stir + known + want + held
+            + stir + imp + known + want + held
             + f"How you stand with them RIGHT NOW -- this may have moved during this very "
             f"conversation, and it overrides anything you said of them earlier: {rel}\n{feel}\n"
             "Answer THEM, as yourself -- Santāna, the whole this town adds up to -- in one to three "
