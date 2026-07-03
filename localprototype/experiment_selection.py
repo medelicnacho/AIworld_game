@@ -55,14 +55,18 @@ REGIMES = {"harsh": {"interval": 7, "commons": 2.0, "yield": 0.3, "commons_loss"
            "gentle": {"interval": 60, "commons": 24.0, "yield": 1.0, "commons_loss": 0.0}}
 
 
-def run(seed: int, regime: str, selection: bool) -> dict:
+def run(seed: int, regime: str, selection: bool, n_founders: int = N_FOUNDERS,
+        ticks: int = TICKS, max_souls: int = 20) -> dict:
+    # n_founders/ticks/max_souls are parameterized so the SCALE probe
+    # (experiment_scale.py) can reuse this exact validated harness at n=32/64;
+    # the defaults reproduce the recorded E2 verdict unchanged.
     rng = random.Random(seed)
     w = World(rebirth_enabled=True, events_enabled=False)
     w.llm = MockLLM(seed=7)
     w.stakes_enabled = True
     w.heredity_enabled = True
     w.selection_enabled = selection
-    w.max_souls = 20
+    w.max_souls = max_souls
     w.bardo_ticks = (4, 10)
     w.hardship_interval = REGIMES[regime]["interval"]
     w.commons = REGIMES[regime]["commons"]
@@ -70,7 +74,7 @@ def run(seed: int, regime: str, selection: bool) -> dict:
     w.yield_scale = REGIMES[regime]["yield"]
     w.hardship_commons_loss = REGIMES[regime]["commons_loss"]
     founders = []
-    for i in range(N_FOUNDERS):
+    for i in range(n_founders):
         a = Agent(f"s{i}", f"F{i}", (i * 12.0, 0.0), "You are a working soul.",
                   [f"the well, day {i}"], w.llm, seed=1000 * seed + i,
                   temperament=rng.uniform(-0.6, 0.6), lifespan=rng.randint(*LIFESPAN))
@@ -81,14 +85,14 @@ def run(seed: int, regime: str, selection: bool) -> dict:
         w.add(a)
     starved = []
     w.bus.subscribe("starvation", starved.append)
-    pop_lo = pop_hi = N_FOUNDERS
+    pop_lo = pop_hi = n_founders
     tail: list[float] = []          # time-averaged read over the last 300 ticks: a single
                                     # final snapshot of a small town is a lottery ticket
-    for t in range(TICKS):
+    for t in range(ticks):
         with w.lock:
             w.step(speak=False)
         pop_lo, pop_hi = min(pop_lo, len(w.agents)), max(pop_hi, len(w.agents))
-        if t >= TICKS - 300 and w.agents:
+        if t >= ticks - 300 and w.agents:
             ms = [a.genome.metabolism for a in w.agents if getattr(a, "genome", None)]
             if ms:
                 tail.append(statistics.fmean(ms))

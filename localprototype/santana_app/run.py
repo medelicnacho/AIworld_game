@@ -388,6 +388,29 @@ def main() -> None:
     from services.drift import DriftMonitor
     drift_mon = DriftMonitor()
     _prev_deaths = mind._deaths
+    # her hand (santana_app/draw.py): on the days' events -- a dream, a death, a somatic
+    # trip, a new town-day -- she draws her state into data/drawings/ (open index.html
+    # to walk her gallery). Throttled; a drawing is a trace, not a chore.
+    from santana_app import draw as _draw
+    from world import clock as _clock
+    _draw_dir = os.path.join(os.path.dirname(os.path.abspath(args.snapshot)), "drawings")
+    _last_draw_wall = [0.0]
+    _last_draw_day = [-1]
+
+    def draw_her(reason: str) -> None:
+        if time.time() - _last_draw_wall[0] < 300:
+            return                                   # at most one drawing per 5 minutes
+        _last_draw_wall[0] = time.time()
+        try:
+            st = _draw.state_of_santana(mind)
+            st["caption"] = f"{time.strftime('%Y-%m-%d %H:%M')} -- {reason}"
+            svg, _feats = _draw.draw_state(st, seed=mind._mt)
+            _draw.save_drawing(svg, _draw_dir,
+                               time.strftime("%Y%m%d-%H%M%S-") + reason.replace(" ", "-"))
+            print(f"  (she draws: {reason})", flush=True)
+        except Exception:   # noqa: BLE001 -- a failed drawing must never touch her life
+            import traceback
+            traceback.print_exc()
     DREAM_ABSENCE = 6 * 3600.0   # she dreams during a LONG absence (same gap begin_talk honours)
     i = 0
     t_prev = time.time()
@@ -408,6 +431,7 @@ def main() -> None:
                 mind._last_dream_wall = now
                 if dreamt:
                     print(f"\n  (in the absence she dreams: {dreamt})", flush=True)
+                    draw_her("dream")
             # her voice LIVES: a markov voice rebuilds from her accumulating memory + the town's
             # recent speech, so her words drift with her life (frozen models -- gpt/deepseek -- skip)
             if hasattr(mind.llm, "learn"):
@@ -416,10 +440,19 @@ def main() -> None:
                 mind.llm.learn([m.text for m in mind.memory.items][-160:] + heard)
             trips_before = mind._somatic_trips
             clear = mind.speak()
+            with w.lock:
+                _day_now = _clock.day_of(w.tick, w.day_ticks) if w.clock_enabled else -1
+            if _day_now != _last_draw_day[0]:
+                if _last_draw_day[0] >= 0:
+                    draw_her(f"day-{_day_now}-{_clock.season(w.tick, w.day_ticks)}")
+                _last_draw_day[0] = _day_now
             if mind._somatic_trips > trips_before:
                 print("  ⚠ her window of tolerance TRIPPED -- she contracted, let some held "
                       "weight go, and is re-opening (frequent trips = the regime is wrong)",
                       flush=True)
+                draw_her("somatic-trip")
+            if mind._deaths > _prev_deaths + 2:
+                draw_her("grief")
             if clear and len(clear) < mind.MIN_READING:
                 print("  ⚠ a thin reading (degenerate even after retry -- spoken, not remembered)",
                       flush=True)
