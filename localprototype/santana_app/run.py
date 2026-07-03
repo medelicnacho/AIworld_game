@@ -422,9 +422,21 @@ def main() -> None:
     if not args.no_ui:
         try:
             from santana_app import ui as _ui
+            # the talk panel's CLEAR voice (tiered speech, RECIPES C): local gemma if
+            # ollama is up, else None -> the panel falls back to the self-grown voices
+            chat_voice = None
+            try:
+                from services.llm import OllamaLLM
+                _cv = OllamaLLM(model="gemma3:4b")
+                if _cv.available():
+                    chat_voice = _cv
+            except Exception:   # noqa: BLE001 -- no local model is a mode, not an error
+                pass
             url = _ui.serve(mind, w, mind_lock, _draw_dir, ui_readings, ui_drift,
-                            port=args.ui_port)
-            print(f"  ✦ the cockpit is open: {url}  (god view + stream + art + talk)")
+                            port=args.ui_port, chat_voice=chat_voice)
+            print(f"  ✦ the cockpit is open: {url}  (god view + stream + art + talk"
+                  + ("; clear talk voice on" if chat_voice else "; self-grown talk voice")
+                  + ")")
         except OSError as exc:
             print(f"  (cockpit not started: {exc})", flush=True)
 

@@ -64,8 +64,9 @@ DASH = """<!doctype html><meta charset='utf-8'><title>santana -- the cockpit</ti
   <input id=say placeholder="say something..."/>
   <button onclick="send()">speak</button></div>
   <div class=note>click a soul on the map (or pick one) for a quiet word aside -- it lands
-  in that soul's real memory and bond. her full ritual (intent judge, session cap,
-  transcript) is: python3 chat.py</div></div>
+  in that soul's real memory and bond. the one you talk to borrows the clear voice
+  (gemma) when ollama is up; the town murmurs stay self-grown. her full ritual is:
+  python3 chat.py</div></div>
 </div>
 <script>
 const map=document.getElementById('map').getContext('2d');
@@ -210,9 +211,21 @@ class _Handler(BaseHTTPRequestHandler):
         except Exception:   # noqa: BLE001
             self._send(b'{"reply": null}', "application/json", 400)
             return
+        chat_voice = u.get("chat_voice")         # the clear local voice (gemma), if up
         if target in ("her", "", None):
             with u["mind_lock"]:                 # one writer at a time, always
-                reply = u["mind"].converse(text)
+                mind = u["mind"]
+                if chat_voice is not None:
+                    # the cockpit talk borrows the clear voice for HER too (the talk
+                    # tool always did); her memory, bond, appraisal are untouched --
+                    # only the mouth changes for the length of one reply
+                    old_llm, mind.llm = mind.llm, chat_voice
+                    try:
+                        reply = mind.converse(text)
+                    finally:
+                        mind.llm = old_llm
+                else:
+                    reply = mind.converse(text)
             self._send(json.dumps({"reply": reply, "name": "SANTĀNA"}).encode(),
                        "application/json")
             return
@@ -229,11 +242,16 @@ class _Handler(BaseHTTPRequestHandler):
             soul.hear(Utterance(speaker_id="user", text=text, tick=world.tick,
                                 addressed_to=soul.id, source="user"), world.tick,
                       speaker_name="a visitor")
-            soul.last_heard_from, soul.last_heard_name = "user", "you"
+            soul.last_heard_from, soul.last_heard_name = "user", "the visitor"
             soul.last_heard_text = text
             ctx, _addr, _mood = soul.prepare_speech()
+        # THE TIERED VOICE (RECIPES C, the layered cost model, live): the ambient town
+        # keeps its self-grown murmur -- but the soul you are ACTUALLY TALKING TO
+        # borrows the clear local voice, speaking from its OWN real context (persona,
+        # memories with their provenance, the bond with you, its drift). Falls back to
+        # the town voice, honestly, when no local model is up.
         try:
-            raw = soul.llm.speak(ctx)
+            raw = (chat_voice or soul.llm).speak(ctx)
         except Exception:   # noqa: BLE001 -- a slow voice is a shrug, not a crash
             raw = ""
         from services.prompts import _clean
@@ -243,10 +261,13 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def serve(mind, world, mind_lock, draw_dir: str, readings: list, drift_notes: list,
-          port: int = PORT):
-    """Start the cockpit (daemon thread, 127.0.0.1 only). Returns the URL."""
+          port: int = PORT, chat_voice=None):
+    """Start the cockpit (daemon thread, 127.0.0.1 only). Returns the URL.
+    chat_voice: an optional CLEAR local voice (e.g. gemma via ollama) that the talk
+    panel borrows -- for her and for asides -- while the ambient town keeps its own."""
     _Handler.ui = {"mind": mind, "world": world, "mind_lock": mind_lock,
-                   "draw_dir": draw_dir, "readings": readings, "drift": drift_notes}
+                   "draw_dir": draw_dir, "readings": readings, "drift": drift_notes,
+                   "chat_voice": chat_voice}
     srv = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return f"http://127.0.0.1:{port}"
