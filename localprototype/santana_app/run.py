@@ -420,6 +420,21 @@ def main() -> None:
                 _pen_segs.clear()
             _pen_day[0] = day
             _pen_segs.extend(_pen.step(st, n=45))
+            # her hand's childhood: log (state -> motion) so a future LEARNED hand has a
+            # history to train on -- the drawing-GPT rung needs this data to ever exist.
+            # One JSON line per reading, rotated at ~40MB (a year of readings, roughly).
+            try:
+                import json as _json
+                hist = os.path.join(_draw_dir, "hand_history.jsonl")
+                if os.path.exists(hist) and os.path.getsize(hist) > 40_000_000:
+                    os.replace(hist, hist + ".1")      # keep one prior epoch, bounded
+                with open(hist, "a", encoding="utf-8") as hf:
+                    hf.write(_json.dumps({"t": round(time.time(), 1),
+                                          "state": {k: (round(v, 4) if isinstance(v, float) else v)
+                                                    for k, v in st.items() if k != "caption"},
+                                          "trace": _pen.last_trace}) + "\n")
+            except Exception:   # noqa: BLE001 -- a lost line of childhood, never a crash
+                pass
             del _pen_segs[:-4000]                       # a page holds a day, bounded
             live = _draw.wander_page(_pen_segs, caption="now -- she is drawing")
             tmp = os.path.join(_draw_dir, "live.svg.tmp")

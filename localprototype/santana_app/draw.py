@@ -238,6 +238,10 @@ class Pen:
         self.x, self.y = x, y
         self.heading = self.rng.random() * 2 * math.pi
         self.hue = 0.5                    # 0 cold .. 1 warm, blends toward valence
+        self.last_trace: list = []        # the raw motion of the last step() call --
+                                          # (turn, speed, hue) per stroke: the training
+                                          # data a future LEARNED hand needs. A hand can
+                                          # only learn from a childhood it remembers.
 
     def step(self, state: dict, n: int = 40) -> list[str]:
         v = max(-1.0, min(1.0, state.get("valence", 0.0)))
@@ -246,10 +250,12 @@ class Pen:
         bonds = state.get("bonds", [])
         wounds = int(state.get("wounds", 0))
         segs = []
+        self.last_trace = []
         # the attractor a strong bond exerts (a fixed familiar corner of the page)
         pull = max((abs(t) for t in bonds), default=0.0)
         ax, ay = W * 0.72, H * 0.30
         for _ in range(n):
+            h_before = self.heading
             self.hue += 0.03 * (((v + 1) / 2) - self.hue)          # weather, not a switch
             turn_sd = _lerp(0.06, 0.55, arousal)                    # calm glides, aroused staggers
             self.heading += self.rng.gauss(0.0, turn_sd)
@@ -261,6 +267,8 @@ class Pen:
                 d = (want - self.heading + math.pi) % (2 * math.pi) - math.pi
                 self.heading += 0.05 * pull * d                     # love bends the path
             speed = _lerp(2.0, 7.0, 0.55 * arousal + 0.25 * abs(v)) * _lerp(1.0, 0.45, grip)
+            self.last_trace.append((round(self.heading - h_before, 4),
+                                    round(speed, 3), round(self.hue, 4)))
             x1 = self.x + speed * math.cos(self.heading)
             y1 = self.y + speed * math.sin(self.heading)
             jerk = wounds > 0 and self.rng.random() < 0.004 * min(wounds, 8)
