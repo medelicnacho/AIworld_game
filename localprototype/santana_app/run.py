@@ -83,7 +83,8 @@ def town_voice(town_model: str | None, world_snapshot: str, culture: bool = Fals
     return llm, town_model
 
 
-def build_world(town_llm, fast_wheel: bool, psyche: bool = False) -> World:
+def build_world(town_llm, fast_wheel: bool, psyche: bool = False,
+                founders: int = 0) -> World:
     rng = random.Random(7)
     w = World(rebirth_enabled=True)
     w.llm = town_llm
@@ -123,6 +124,24 @@ def build_world(town_llm, fast_wheel: bool, psyche: bool = False) -> World:
         # mind's focus/voice and the faculty couplings run (see agent/workspace.py)
         from agent.workspace import Workspace
         w.psyche = Workspace()
+    # --founders N: a BIG town -- the named cast above plus coined-name villagers up
+    # to N souls. Big towns run the lexical (jaccard) similarity everywhere: identical
+    # mechanics, no per-pair embedding cost, no network in the wheel.
+    if founders > len(w.agents):
+        from services import embed as _embed
+        _embed.use_jaccard_only(True)
+        print(f"  (big town: {founders} founders -- lexical similarity mode)")
+        for i in range(len(w.agents), founders):
+            name = _genesis.coined_name(rng)
+            a = Agent(f"s{i}", name, (rng.uniform(0, 900), rng.uniform(0, 600)),
+                      f"You are {name} the villager.",
+                      [f"I am {name}", "the well keeps us", "the season turns"],
+                      town_llm, seed=i, temperament=rng.uniform(-0.6, 0.6),
+                      lifespan=span())
+            _genesis.endow_faculties(a, a._rng)
+            a.bond_enabled = True
+            a.role, a.aim = "villager", "to live well"
+            w.add(a)
     return w
 
 
@@ -151,6 +170,10 @@ def main() -> None:
     p.add_argument("--no-ui", dest="no_ui", action="store_true",
                    help="don't serve the cockpit (god view + stream + art + talk) on 127.0.0.1:8765")
     p.add_argument("--ui-port", dest="ui_port", type=int, default=8765)
+    p.add_argument("--founders", type=int, default=0,
+                   help="scale the town: total founder souls (0 = the named cast of 6). "
+                        "Big towns switch to lexical similarity (no embedding calls in "
+                        "the wheel).")
     p.add_argument("--chat-voice", dest="chat_voice", default="ollama",
                    choices=("ollama", "deepseek", "town"),
                    help="the cockpit TALK panel's voice (her replies + soul asides): "
@@ -200,7 +223,8 @@ def main() -> None:
     w = None if args.fresh else load_world(args.world_snapshot, town_llm)
     resumed_town = w is not None
     if w is None:
-        w = build_world(town_llm, args.fast_wheel, psyche=args.psyche)
+        w = build_world(town_llm, args.fast_wheel, psyche=args.psyche,
+                        founders=args.founders)
     elif args.psyche and getattr(w, "psyche", None) is None:
         # a world resumed from before the workspace existed: attach one (a no-op
         # unless the resumed agents actually carry psyche faculties)
