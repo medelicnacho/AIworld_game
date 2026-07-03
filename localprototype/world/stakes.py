@@ -111,12 +111,21 @@ def apply_action(a, action, world, now) -> None:
             if neediest.bond_enabled:
                 from agent.bond import Bond
                 neediest.bonds.setdefault(a.id, Bond()).warm(0.6)
+            # karma has eyes: a share is a VISIBLE deed -- everyone present warms a
+            # little toward the sharer, and some will tell it (agent/witness.py)
+            from agent import witness as _witness
+            _witness.witnessed(world, a.id, a.name, "kindness", now,
+                               exclude=(neediest,))
         _wise_seed(a)
     elif action == "hoard":
         take = min(HOARD_AMT, max(0.0, world.commons))
         world.commons -= take
         a.stores = min(1.5, a.stores + take)
         _clinging_seed(a, others)
+        if take > 0 and any(o.wellbeing < LOW for o in others):
+            # raiding the commons while others starve is SEEN -- and told
+            from agent import witness as _witness
+            _witness.witnessed(world, a.id, a.name, "meanness", now)
     elif action == "tend":
         a.wellbeing = min(1.0, a.wellbeing + TEND_RECOVER)
         a.stores = min(1.5, a.stores + TEND_RECOVER * 0.5)
