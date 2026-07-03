@@ -270,6 +270,8 @@ class _Handler(BaseHTTPRequestHandler):
                 own = " ".join(own.split())[:120]
                 if own:
                     ctx.drift = list(ctx.drift) + [f"(a stirring in you, half-formed: {own})"]
+                    print(f"  (aside: {soul.name}'s grown mind stirred: {own[:70]!r} "
+                          "-- the clear voice interprets it)", flush=True)
             except Exception:   # noqa: BLE001 -- a silent small mind is fine
                 pass
         try:
