@@ -207,3 +207,24 @@ green (culture is opt-in; validated by experiment_culture_live.py).
 *The discipline that runs through all of it (`FINDINGS §7`): a self that learns is a more
 **convincing** surface, so it warrants **more** care, not a stronger claim. We build the conditions.
 We do not claim an inhabitant.*
+
+
+---
+
+## Phase 10 — the audit-and-build day (2026-07-03)
+
+A full three-agent audit of the repo, then its findings executed the same day, seven-plus
+commits: **guards** on her life (the one-writer lock; loud snapshot failures; daily backups;
+`data/` fully out of git) → **`scripts/stats.py`** (Miller error bars; n=1 refused; six
+experiments retrofitted, published numbers reproduce exactly) → **the provenance pass**
+(C2+C14+S2 in one store: earned doubt, source tags that can honestly err, ownership as a
+separable field; verdict on virgin seeds after v1 honestly consumed its first held-outs;
+FINDINGS §5.19) → **C15** (introspection tracks valence through the ground pathway; the grip
+is felt as weather, never as hands — seven rounds, recorded) → **port-prep** (the town as
+tagged JSON held to a fixpoint + identical-continuation standard; the prompt layer split out
+as the engine seam; the duplicate runner deleted; PORT.md) → **soul minds** (every NPC its own
+~0.1M-param GPT, born babbling, grown by sleep on its own decaying memory — learn/forget cycle
+falsified end-to-end) → **dreams** (riding the sleep, voiced as dreams, leakable as false
+memory) → **pledges** (§5.20: a word broken to ONE soul becomes a TOWN's wariness, 5/5 both
+directions — the join-or-oppose substrate for the game). RECIPES tagged **v1**. 411 tests.
+Next: the drift monitor (the last pre-fork instrument), then the evolution branch (E1).

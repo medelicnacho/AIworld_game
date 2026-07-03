@@ -271,7 +271,16 @@ python experiment_regime.py        # which wheel settings let a faction outlive 
   label and whose membership is *history-dependent* (**emergence**). The ablated
   control collapses to ~0, proving the metric detects absence.
 
-Tests: `python -m pytest` (246 passing). **The full findings — every claim, its
+Tests: `python -m pytest` (411 passing).
+
+**2026-07-03, the audit-and-build day:** her life got its guards (one-writer lock, loud failures,
+daily backups); `scripts/stats.py` — no verdict ships without an error bar; the **provenance
+layer** (she knows what she lived, was told, dreamt, or has worn past knowing — and emergent
+false memory is real and traceable, FINDINGS §5.19); **C15**: perturb her substrate and her
+self-reports track it, valence-only, through the ground pathway; the town is **portable JSON**
+(pickle retired, PORT.md is the engine contract); **soul minds** — every NPC its own tiny GPT,
+born babbling at rebirth, grown by sleep, worn by forgetting, and **dreaming** every third sleep;
+and **pledges** — a word broken to one soul becomes a town's wariness (§5.20). **The full findings — every claim, its
 falsifier, the results (including what failed), and the honest limitations — are
 written up in [`FINDINGS.md`](FINDINGS.md).**
 

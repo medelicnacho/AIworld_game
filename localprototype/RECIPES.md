@@ -1,4 +1,4 @@
-# RECIPES.md — the port-ready mechanism sheet
+# RECIPES.md — the port-ready mechanism sheet **(v1, tagged 2026-07-03)**
 
 *Engine-agnostic recipes for re-implementing this project's selfhood + emergence in a game engine.
 This repo is the **playground**; the game copies the **ideas**, not the code. Each recipe: **what** it
@@ -128,6 +128,34 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
 - **cost:** all floats-and-strings except episodes + judge (one LLM call per session / per line) —
   strictly the NAMED tier; the crowd keeps A1-A4.
 
+### A9. Provenance at recall — confidence, source, ownership *(§5.19 — one pass, three findings)*
+
+- **what:** every memory carries provenance no self reads (source, story-lineage id, drift counters).
+  A **discriminator at recall** reads it *through the drift*: dreams say "I dreamt it, I think", stories
+  say "a story I was told", the worn say "I may have it wrong", the unowned decline the autobiography
+  ("this happened — though not, I think, to me"). Content-doubt and source-doubt are **different axes**:
+  cross-source merges smear the frame fast (retelling a story in your own voice is how it becomes yours,
+  weight `0.9`); pure word-drift wears it slowly (`0.2`).
+- **validated:** §5.19 verdict on virgin seeds, all four claims — hedges track ground-truth drift (d +5.4);
+  tags beat a shuffled-provenance null (+0.64); **emergent false memory occurs, only via self-retelling,
+  and is 100% traceable** through the undecayed lineage id; ownership ablation dissociates cleanly (an
+  unowned wound bends mood while vanishing from the told story).
+- **port:** three ints/floats per memory + one pure classifier + prompt-time annotations. The false-memory
+  leak is the lore system's deepest trick: *the NPC misremembers a legend as its own life, and you can prove it.*
+
+### A10. Pledges — promises with deadlines that become reputation *(§5.20 — the join-or-oppose substrate)*
+
+- **what:** any id (a soul, or the **player** — just another id) gives a soul its word, held to the town
+  clock. Kept in time → trust at the Bond's slow designed pace (never a cheat-code) + a warm conduct story.
+  Lapsed → **always** a betrayal (a promise IS an explicit expectation; loyalty absorbs as everywhere) + a
+  dark conduct story into the A4/F4 gossip channel.
+- **validated:** §5.20 verdict 5/5 both directions — a word broken to ONE soul makes untouched bystanders
+  wary of the promiser (zero opinions in the no-gossip null); kept words travel warm; per-subject.
+- **knobs:** made-nudge `0.15` · kept-sig `0.65` / warm `0.5` · broken-sig `-0.7` / betray `0.6`.
+- **port trap (measured, consumed a verdict): gossip transmits feeling only through the WORDING** — hearers
+  re-derive charge from the retold text, so conduct stories must carry their emotion in words the sentiment
+  sensor can read (and mind irregular pasts: "broke" says nothing, "broken" travels).
+
 ## B. The wheel — continuity across death (heredity)
 
 - **what:** an NPC dies, dissolves for an interval, and a **new** stream coalesces carrying the *disposition*
@@ -158,6 +186,21 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
   cheap trick that makes a crowd feel alive — port it first.
 
 ---
+
+### C2. Soul minds — every NPC its OWN tiny GPT, born babbling, grown by sleep *(new default here)*
+
+- **what:** a ~0.1M-param from-scratch char-GPT **per soul**: fresh random init at rebirth (newborns
+  *babble* — the wheel hands on karma, never weights), trained only by bounded **sleeps** on its own
+  decaying memory. Forgetting is **inherited, not simulated**: what decays out of memory leaves the next
+  sleep's corpus, and the weights drift on (catastrophic forgetting doing honest work).
+- **validated:** the full cycle, 5 seeds — newborn marker-count 0 → absorbed after three sleeps
+  (+5.4 ± 0.6, d +4.0, 5/5) → released after four unrehearsed sleeps (back to 0, 5/5).
+- **dreams ride the sleep:** every 3rd sleep the soul dreams one line in its own grown voice (hotter temp),
+  written back tagged as a dream → A9 voices it as "I dreamt it, I think", and a worn dream can leak into
+  believed memory by the measured pathway.
+- **port:** fixed shared charset (per-soul corpora are tiny/changing — never derive vocab from them);
+  minds persist PER-LIFE beside the world snapshot (a scratch town must never leak brains into the real
+  one — caught in smoke); politeness-cap training threads. Engine version rides AFTER the keystone gate.
 
 ## D. Continual learning — the NPC learns from its life (optional, advanced)
 
@@ -306,6 +349,12 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
   individual-NPC level, where it's fully validated; don't expect the G2 workspace to forecast. And note
   the overfit warning it produced: the coalition claim hit 4/5 on tuning seeds and fell to 2/5 held-out
   — always keep held-out seeds.
+- **Introspection tracks VALENCE, not MECHANISM (§5.19 C15, held-out).** Perturb the substrate and
+  self-reports follow — a dark injection turns reports grey (6/10 vs sham 0/10), bright stays warm
+  (10/10 vs dark 1/10), direction-specific — **but only through the ground pathway** (ground off →
+  the channel closes; reports track memory *content*). And in ~70 grip-spiked reflections across seven
+  rounds, the report NEVER read as "holding" — the grip is felt as weather, never as hands. Don't
+  expect NPC self-reports to explain their own mechanisms; do expect them to track how things feel.
 
 ---
 

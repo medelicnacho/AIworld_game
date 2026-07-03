@@ -55,8 +55,13 @@ genesis.seed_agent(...)     # author a soul; genesis.endow_faculties(a, rng) set
 | `reflect_enabled` | `reflect.py` | the keystone: relating to one's own memory eases the trajectory |
 | `self_model_enabled` | `self_model.py` | the re-derived (never stored) self-summary loop |
 | somatic (always on with affect) | `somatic.py` | **the welfare floor — ships with the affect system, not optionally** |
+| `promises_held` (list) | `pledge.py` | words given (by souls or the PLAYER) held to the town clock; breaches gossip into reputation (RECIPES A10, §5.20) |
 
-Archetypes (`archetype.py`) are validated bundles of these dials + a voice.
+Archetypes (`archetype.py`) are validated bundles of these dials + a voice. Two engine-relevant
+extras validated after this file was first written: **provenance at recall** (RECIPES A9 —
+confidence/source/ownership annotations at prompt time, emergent-false-memory included) and
+**soul minds + dreams** (RECIPES C2 — per-NPC tiny GPT with sleep learn/forget; rides AFTER the
+keystone gate; needs an engine-native trainable micro-model or defers to the markov tier).
 
 ## 4. Serialization — both stores are engine-readable JSON
 

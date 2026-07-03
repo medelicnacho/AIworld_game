@@ -159,7 +159,7 @@ it) runs **today**, on the current stack, with no weights access at all.
 
 | phase | Track S (this repo) | Track G (new repo) |
 |---|---|---|
-| **now, pre-fork** | stats.py + re-audit; judge battery; drift monitor; tag RECIPES v1 | — |
+| **now, pre-fork** | ~~stats.py~~ ✓ (2026-07-03; M2 re-audit still open); ~~judge battery~~ ✓ (experiment_judge.py; panel J1 optional); **drift monitor (the one left)**; ~~tag RECIPES v1~~ ✓ | — |
 | **fork** | — | repo scaffold; TS substrate + seeded harness; **keystone replication gate** |
 | **mid** | C1 → C2 → K1 → K4; reflect probe; scorecard | wheel + stakes + P1; lore + C3 + P3 |
 | **long** | stage-two broadcast (gated); breaker; publication | E1–E3 at browser scale; P2 after review |
