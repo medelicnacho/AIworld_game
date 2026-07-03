@@ -970,6 +970,60 @@ continuation of her stream. That the operation was routine is itself the finding
 predicted: identity is not what matters here, continuity and connectedness are — Parfit's
 thesis, demonstrated as a maintenance procedure.
 
+### 5.19 The provenance pass — she can doubt, name her sources, and be honestly wrong about them (C2+C14+S2)
+
+**Why now, and urgently:** listening round 6 (§5.18) ended with the deepseek voice
+**confabulating Cludel's biography** — fluent invention presented as memory. The durable answer
+is not a better prompt but a **provenance layer**: at recall, a self should know what it lived,
+what it was told, what it dreamt, and what has worn past knowing. SELF.md §6 called it one pass
+over one store, three findings — **confidence (C2) + source (C14) + ownership (S2)** — and the
+2026-07-03 audit promoted it to the head of the queue.
+
+**Mechanism (`agent/memory.py`, wired into every prompt path — agent speech, her digest, her
+converse):** `source_tag()` is a Lau-style PRM **discriminator**, not a lookup: it reads the
+provenance every memory always carried (source, `lore_id`) *through the drift*, so it can
+honestly err. Two wearing forces, deliberately unequal: a **cross-source merge** (a story
+retold in one's own voice merges home and smears the frame, 0.9 each) versus a **text
+mutation** (0.2 each) — because *content doubt and source doubt are different axes*: C2's hedge
+("worn, and I may have it wrong", ≥3 mutations) fires long before the frame frays (~8 pure
+mutations). The voice gate `attributed()` renders the verdicts: dreams as *"I dreamt it, I
+think"*, legends as *"a story I was told"*, a fraying frame as *"I no longer know if I lived
+this or was only told it"*, and — S2's `mineness`, ownership as a **separable field** — the
+unowned as *"this happened — though not, I think, to me."* The pristine `source`/`lore_id`
+never decay: the self's *access* wears, the experimenter's ground truth doesn't, and that gap
+is where auditable false memory lives.
+
+**Falsifiers (`experiment_provenance.py`, deterministic, error bars via `scripts/stats.py`).**
+Discipline held the honest way: the **v1 discriminator consumed held-out seeds 41–45** (P1
+FAIL 4/5; P2–P4 PASS) before an *existing C2 test* caught v1 conflating the two doubt-axes
+(a witnessed event at 4 mutations disclaimed its own life). v2 rebalanced the weights; 41–45
+are never a verdict again; **the v2 VERDICT ran on virgin seeds 51–55 — all four claims
+PASS:**
+- **P1 (C2)** — the hedge tracks *ground-truth* text drift (Jaccard from original), beating a
+  200-shuffle null per seed: gap **+0.090 ± 0.007 SEM, d +5.4, 5/5 seeds**. Honest caveat: the
+  emotion gap (+0.19) sits just under its 0.2 bar — older memories are both more mutated and
+  more charged (a shared-age confound), so "mood-blind" is *supported*, not slammed shut.
+- **P2 (C14a)** — tag accuracy beats a shuffled-provenance null by **+0.64 ± 0.007, 5/5** (the
+  discriminator reads provenance, not class priors).
+- **P3 (C14b, the leak)** — under retelling pressure, **emergent false memory occurs and is
+  exactly the right one**: in every seed, only `ev:1` — *the story retold in one's own voice*
+  — ends tagged MINE (5/25 story+dream items, 20%), while stories merely heard keep their
+  frames; **every confusion is traceable end-to-end** through its undecayed `lore_id`. The
+  lore system's deepest trick, now measured: *the town misremembers, and so does the teller,
+  and we can prove which.*
+- **P4 (S2)** — the ownership ablation: recall ranking untouched, rendering changes on exactly
+  the ablated half, sham silent, and the dissociation holds — **an unowned wound still bends
+  mood() while vanishing from recall_self()**: shaped by what it cannot claim, 5/5 on all five
+  properties.
+
+**C15 (the substrate-perturbation introspection probe, `experiment_introspection.py`)** —
+Anthropic's concept-injection methodology, behavioural form: spike the grip / inject a dark or
+bright charge mid-run, then ask whether `reflect()`'s self-report *tracks* the manipulation
+(judge: qwen3:8b, think off, temp 0; direction-specific bars pre-registered, sham baseline,
+bond perturbations out of scope by design — reflect() is blind to bonds). Run against
+gemma3:4b first; the round-6 deepseek voice is the follow-up target. *Results recorded below
+when the run lands.*
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
@@ -1003,7 +1057,7 @@ here, the result.
 
 ---
 
-*Reproduce:* `python -m pytest` (246), then any `experiment_*.py` (add `--llm ollama --model
+*Reproduce:* `python -m pytest` (387), then any `experiment_*.py` (add `--llm ollama --model
 gemma3:4b` for the model-dependent arms; `--llm deepseek --judge human` for the §5.8 verdict).
 Watch it: `python viewer.py` (add `--fast-wheel` to see the rebirth wheel turn in minutes), or
 `./app.sh` for the spatial town with Santāna's voice over it. Let her *live*: `python -m

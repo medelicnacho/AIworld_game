@@ -221,6 +221,11 @@ provably can't, which is its own kind of character.
 ## 5. What I would run next, in order
 
 1. **C2 (memory confidence)** — smallest, data already exists, immediately audible in her voice.
+   > **RUN (2026-07-03, with C14+S2 as the one provenance pass — FINDINGS §5.19):** C2 hedge
+   > tracks ground-truth drift (v2 verdict 5/5 on virgin 51–55; the v1 verdict consumed 41–45
+   > and is recorded); C14 tags beat the shuffled null +0.64 and the emergent-false-memory
+   > falsifier PASSED (only the self-retold story flips to believed-MINE, fully auditable);
+   > S2 ablation + behaviour/report dissociation PASS 5/5. C15 run separately (see §5.19).
 2. **C1 (attention schema)** — the principled retry of the one big failed claim, and the deepest
    theory-alignment gain available.
 3. **C3 (gossip→reputation→norms)** — the flagship for the game engine AND a real science result

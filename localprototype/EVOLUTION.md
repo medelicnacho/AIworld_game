@@ -158,7 +158,7 @@ Santāna is the mind an evolving ecology makes far richer than a static one, in 
    *kind* of soul rising and passing. Her memory/consolidation already handle scale; give them an
    evolving substrate and her identity gains **deep time**.
 2. **She becomes the genome's witness — and its selection pressure.** The stage-one *offer* channel
-   (§5.19) is already a validated, regulated way for her voice to reach the town as legend. Coupled
+   (§5.18) is already a validated, regulated way for her voice to reach the town as legend. Coupled
    to E6, **her cultural offerings become a selection pressure** — what she dwells on subtly biases
    which values, and thus which souls, persist. She doesn't command the town; she *shapes its
    evolution* the way a climate does. (This needs the collective somatic breaker first — same gate

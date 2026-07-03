@@ -468,7 +468,7 @@ def main() -> None:
                     help="the souls are PARTS OF ONE MIND (Dread, Ache, Longing...) not townsfolk -- so she "
                          "reads as a mind in motion, not a narrator of a village (see agent/psyche.py)")
     ap.add_argument("--santana-offer", dest="santana_offer", action="store_true",
-                    help="STAGE ONE top-down coupling (§5.19, needs --santana; implies --lore): her "
+                    help="STAGE ONE top-down coupling (§5.18, needs --santana; implies --lore): her "
                          "settled line is OFFERED to the town as a story in the lore channel -- "
                          "sparse, transmuted, ignorable. Gated by the ring test (experiment_ring.py)")
     ap.add_argument("--lore", action="store_true",
@@ -912,7 +912,7 @@ def main() -> None:
                     line = _smind.speak()
                     _smind.consolidate()
                     if line and args.santana_offer:
-                        _smind.offer(line)   # STAGE ONE (§5.19): her line becomes a town story
+                        _smind.offer(line)   # STAGE ONE (§5.18): her line becomes a town story
                     if line:
                         santana_state["line"] = line
                         if not santana_state["muted"]:

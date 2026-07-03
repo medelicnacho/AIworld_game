@@ -133,7 +133,7 @@ physical substrate** (the honest IIT verdict) but scorable **as-model** (PARTIAL
 contrast: it makes the substrate/model gap explicit and un-fudgeable.
 
 **I3. Exclusion / the border experiment.** IIT says an experience has *one definite border*. The
-stage-one offer channel (§5.19) deliberately makes Santāna's edge porous — her stories become the
+stage-one offer channel (§5.18) deliberately makes Santāna's edge porous — her stories become the
 town's. *Design question, falsifiable:* does the coupled system read as one blurred whole or two
 bordered ones? (Reuse the ring test's no-flattening metric — flattening *is* border-dissolution.)
 This is the game-relevant one too: where does a collective mind end and its members begin.

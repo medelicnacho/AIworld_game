@@ -19,7 +19,7 @@ from agent import joy as _joy_mod
 from agent import ideology
 from agent.doctrine import DOCTRINES, creator_stance
 from agent.memory import MemoryStore
-from agent.memory import hedged as _memory_hedged
+from agent.memory import attributed as _memory_attributed
 from agent.religion import RELIGIONS
 from services.embed import topic_match
 from agent.thought import ThoughtLoop
@@ -909,7 +909,9 @@ class Agent:
             drift=self.thought.current(RAW_DRIFT_N if (self.raw_speech or self.concept_speech) else 2),
             raw_mind=self.raw_speech,
             concept_mind=self.concept_speech,
-            memories=[_memory_hedged(m) for m in recalled],   # earned doubt on blurred recalls (C2)
+            memories=[_memory_attributed(m) for m in recalled],   # provenance at recall: earned
+            # doubt on the worn (C2), dreams as dreams / stories as stories (C14), unowned
+            # experience declining the autobiography (S2)
             reply_to_name=reply_name,
             reply_to_text=reply_text,
             event=event_text,

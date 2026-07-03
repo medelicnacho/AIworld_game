@@ -156,6 +156,16 @@ class Memory:
                                  # through retellings (agent/lore.py) -- ground truth for
                                  # tracing a LEGEND back to what actually happened. The text
                                  # mutates; the tag does not. "" = not a story.
+    alien_merges: int = 0        # provenance (C14): how often a telling from a DIFFERENT
+                                 # source merged into this memory -- each blend smears the
+                                 # frame ("did I live this or hear it?"). Ground truth for
+                                 # source-confusion; never decays, unlike the felt attribution.
+    mineness: float = 1.0        # ownership (S2, Strawson's I*): whether the remembered
+                                 # experience presents as MINE -- separable from content,
+                                 # accuracy, and provenance. 1 = owned autobiography;
+                                 # < 0.5 = known-but-unowned ("this happened -- but not,
+                                 # I think, to me"). The wheel's carried residue is exactly
+                                 # unowned experience.
 
 
 class MemoryStore:
@@ -169,7 +179,8 @@ class MemoryStore:
 
     # --- writing -----------------------------------------------------------
     def write(self, text: str, tick: int, source: str, speaker_id: str | None = None,
-              emotion: float = 0.0, weight: float = 1.0, lore_id: str = "") -> Memory:
+              emotion: float = 0.0, weight: float = 1.0, lore_id: str = "",
+              mineness: float = 1.0) -> Memory:
         """Store a new memory, or reinforce an existing similar one.
 
         `weight` scales how strongly the memory lands: a graced speaker's words
@@ -177,6 +188,8 @@ class MemoryStore:
         is written with high weight too, so it sits near-permanent in the soul.
         `lore_id` carries provenance (which event a retold story descends from);
         a merge inherits it if the resident copy has none.
+        `mineness` (S2) marks whether the experience presents as OWNED; carried
+        residue from the wheel is written unowned (< 0.5).
         """
         # derive emotional charge from the words unless the caller gave one
         emo = emotion if emotion else valence(text)
@@ -185,6 +198,12 @@ class MemoryStore:
                 m.salience = min(1.0, m.salience + REINFORCE_BUMP * weight)
                 m.last_touched_tick = tick
                 m.emotion = (m.emotion + emo) / 2
+                if source != getattr(m, "source", source):
+                    # a telling from a DIFFERENT source blended in: the words merged, and the
+                    # FRAME smeared with them ("did I live this, or hear it?"). This counter is
+                    # the ground truth source-confusion (C14) grows from -- retelling a story
+                    # in your own voice is precisely how it becomes yours.
+                    m.alien_merges = getattr(m, "alien_merges", 0) + 1
                 if lore_id and not getattr(m, "lore_id", ""):
                     m.lore_id = lore_id
                 elif lore_id and getattr(m, "lore_id", "") == lore_id:
@@ -199,7 +218,8 @@ class MemoryStore:
                 return m
         mem = Memory(text=text, salience=min(1.0, WRITE_SALIENCE * weight),
                      created_tick=tick, last_touched_tick=tick, source=source,
-                     speaker_id=speaker_id, emotion=emo, lore_id=lore_id)
+                     speaker_id=speaker_id, emotion=emo, lore_id=lore_id,
+                     mineness=mineness)
         self.items.append(mem)
         return mem
 
@@ -279,8 +299,14 @@ class MemoryStore:
         'turning' memories (agent/expectation.py) are chapter-breaks in that
         narrative -- self-statements about the self CHANGING -- so they belong
         in the identity recall alongside the plain self-statements.
+
+        UNOWNED memories (S2: mineness < 0.5) are excluded: what one cannot claim
+        cannot be raw material for one's story -- though its charge still moves
+        mood() below. That gap IS the behaviour/report dissociation S2 predicts:
+        shaped by what it cannot tell.
         """
-        mine = [m for m in self.items if m.source in ("self", "turning")]
+        mine = [m for m in self.items if m.source in ("self", "turning")
+                and getattr(m, "mineness", 1.0) >= 0.5]
 
         def score(m: Memory) -> float:
             rel = _similarity(m.text, query) if query else 0.0
@@ -317,3 +343,68 @@ def hedged(m: Memory) -> str:
     if m.mutation_count >= 1:
         return f"{m.text} (as best I remember)"
     return m.text
+
+
+# --- C14: the source discriminator (Lau's perceptual reality monitoring) ---------------------
+# Every item always carried provenance no self ever read (source, lore_id, drift counters).
+# source_tag() is the DISCRIMINATOR that reads it at recall -- and, crucially, it reads it
+# through the drift: attribution is a FEELING about a memory, and it wears out with the words.
+# The pristine `source`/`lore_id` fields never decay (they are the experimenter's ground
+# truth); what decays is the self's ACCESS to them. That gap is where source-confusion lives:
+# a story mutated and retold enough presents as simply KNOWN -- believed-as-lived -- while
+# lore_id still remembers what it really was. Emergent false memory, auditable end-to-end.
+
+_MINE_SOURCES = ("self", "talk", "reflection", "turning")
+
+
+def attribution_strength(m: Memory) -> float:
+    """How firmly this memory's FRAME (where it came from) still holds.
+
+    Two wearing forces, deliberately UNEQUAL: a cross-source merge (0.9 each) smears the
+    frame directly -- retelling a story in your own voice is how it becomes yours -- while
+    a text mutation (0.2 each) wears it only slowly. Content doubt and source doubt are
+    DIFFERENT axes: C2's hedge tier ("worn, may have it wrong" at 3 mutations) fires long
+    before the frame frays (~8 pure mutations), so a worn witnessed event doubts its WORDS
+    without disclaiming its LIFE. v1 weighted mutations 0.35 and conflated the two -- caught
+    by the existing C2 test, rebalanced, and the held-out verdict re-run on fresh seeds."""
+    return 1.0 / (1.0 + 0.2 * getattr(m, "mutation_count", 0)
+                  + 0.9 * getattr(m, "alien_merges", 0))
+
+
+def source_tag(m: Memory) -> str:
+    """The discriminator's verdict at recall: 'dream' | 'story' | 'mine' | 'witnessed' |
+    'doctrine' | 'unsure'. NOT a lookup of the source field -- a read of it THROUGH the
+    drift, so it can honestly err (C14's falsifier (b) measures exactly those errors)."""
+    src = getattr(m, "source", "heard")
+    if src == "doctrine":
+        return "doctrine"                       # scripture never loses its frame
+    s = attribution_strength(m)
+    if s < 0.3:
+        # the frame is gone entirely: whatever this was, it now presents as one's own --
+        # the confident false memory (a legend worn until it reads as lived life)
+        return "mine"
+    if s < 0.5:
+        return "unsure"                         # the honest middle: "did I live this?"
+    if src == "dream":
+        return "dream"
+    if src == "lore" or (getattr(m, "lore_id", "") and src == "heard"):
+        return "story"                          # a telling, received -- not lived
+    if src in _MINE_SOURCES:
+        return "mine"
+    return "witnessed"                          # heard / user / event / ai: lived perception
+
+
+def attributed(m: Memory) -> str:
+    """The full provenance voice-gate (C2 confidence + C14 source + S2 ownership), at PROMPT
+    time only -- the stored text is never altered. Dreams speak as dreams, stories as stories,
+    a lost frame confesses itself, an unowned memory declines the autobiography."""
+    if getattr(m, "mineness", 1.0) < 0.5:
+        return f"{m.text} (this happened -- though not, I think, to me)"
+    tag = source_tag(m)
+    if tag == "dream":
+        return f"{m.text} (I dreamt it, I think)"
+    if tag == "story":
+        return f"{m.text} (a story I was told)"
+    if tag == "unsure":
+        return f"{m.text} (I no longer know if I lived this or was only told it)"
+    return hedged(m)                            # mine / witnessed / doctrine: C2's drift hedge

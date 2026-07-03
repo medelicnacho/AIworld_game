@@ -478,8 +478,9 @@ class Santana:
         # her accumulated past (the losses and hard seasons persist; the routine has faded). So who she
         # has become is drawn from continuity (the charged past) AND the living present -- the coherent-
         # and-deepening sweet spot: present-led enough to drift, history-grounded enough to GROW.
-        from agent.memory import hedged as _hedged
-        lived = [_hedged(m) for m in self.memory.recall(k=5)]   # earned doubt on the worn past (C2)
+        from agent.memory import attributed as _attributed
+        lived = [_attributed(m) for m in self.memory.recall(k=5)]   # provenance at recall (C2+C14+S2):
+        # the worn doubted, dreams owned AS dreams, stories as stories, the unowned unclaimed
         life = "; ".join(lived) if lived else "almost nothing yet -- you are still new"
         # The TRUE scale of her life, stated as fact -- so she speaks FROM it instead of inventing a
         # backstory. (She once confabulated "nine harvests, sixty-three souls" at her first reading and
@@ -630,10 +631,11 @@ class Santana:
         trail = "\n".join(self.talk[-6:])
         # what this stirs from her LIFE -- so episodes (past talks), absences, and the town's
         # griefs are SAYABLE in conversation, not sealed in a store the prompt never reads.
-        # Blurred memories carry their earned doubt (C2) -- she can say "I may have it wrong"
-        # exactly when the record says she might.
-        from agent.memory import hedged as _hedged
-        stirred = [_hedged(m) for m in self.memory.recall(k=2, query=text)
+        # Blurred memories carry their earned doubt (C2), dreams and stories their frames
+        # (C14), the unowned its distance (S2) -- she can say "I may have it wrong", "I
+        # dreamt it, I think", exactly when the record says so.
+        from agent.memory import attributed as _attributed
+        stirred = [_attributed(m) for m in self.memory.recall(k=2, query=text)
                    if m.source != "doctrine"]
         stir = ("What this stirs in you from your life: "
                 + "; ".join(stirred) + "\n" if stirred else "")

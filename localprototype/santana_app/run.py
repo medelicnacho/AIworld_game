@@ -121,7 +121,7 @@ def main() -> None:
     p.add_argument("--fresh", action="store_true", help="ignore any saved life/town and start new")
     p.add_argument("--tts", action="store_true", help="speak her aloud (Piper) as well as printing")
     p.add_argument("--offer", action="store_true",
-                   help="STAGE ONE of the gated top-down loop (§5.19): her settled line is OFFERED "
+                   help="STAGE ONE of the gated top-down loop (§5.18): her settled line is OFFERED "
                         "to the town as a STORY in the lore channel -- 2 souls, low weight, dark "
                         "charge transmuted; it must compete like any legend and can be ignored. "
                         "Implies --lore-town so the channel exists. The ring test "
