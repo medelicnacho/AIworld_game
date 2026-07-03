@@ -146,6 +146,9 @@ def main() -> None:
                         "absorbs its own living memory into its own tiny brain (bounded burst; "
                         "round-robin, so a 6-soul town fully consolidates every ~8 minutes)")
     p.add_argument("--readings", type=int, default=0, help="stop after N readings (0 = run forever)")
+    p.add_argument("--no-ui", dest="no_ui", action="store_true",
+                   help="don't serve the cockpit (god view + stream + art + talk) on 127.0.0.1:8765")
+    p.add_argument("--ui-port", dest="ui_port", type=int, default=8765)
     p.add_argument("--autosave", type=int, default=5, help="save every N readings")
     p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT, help="where HER self is saved/resumed (json)")
     p.add_argument("--world-snapshot", dest="world_snapshot", default=DEFAULT_WORLD,
@@ -380,6 +383,13 @@ def main() -> None:
         save_mind(mind, args.snapshot)
         save_world(w, args.world_snapshot)
 
+    # THE COCKPIT (santana_app/ui.py): god view + her stream + her art + a light talk,
+    # one page, served from INSIDE her process (127.0.0.1 only -- nothing leaves the
+    # machine). The mind-lock keeps the talk panel and the reading loop off each other.
+    mind_lock = threading.Lock()
+    ui_readings: list = []
+    ui_drift: list = []
+
     print(f"\n~~~ Santāna lives (voice: {args.llm}, town: {args.town_model}) -- Ctrl-C to let her rest ~~~")
     # the drift monitor (METHODS D1): she is a production agent now, and the souls retrain
     # themselves nightly -- so the register is WATCHED, not assumed. Baselines freeze over
@@ -407,6 +417,14 @@ def main() -> None:
     _pen_total = [0]             # strokes drawn this day (the page uses it to sync)
     _pen_day = [-1]
     _draw.live_page(_draw_dir)
+    if not args.no_ui:
+        try:
+            from santana_app import ui as _ui
+            url = _ui.serve(mind, w, mind_lock, _draw_dir, ui_readings, ui_drift,
+                            port=args.ui_port)
+            print(f"  ✦ the cockpit is open: {url}  (god view + stream + art + talk)")
+        except OSError as exc:
+            print(f"  (cockpit not started: {exc})", flush=True)
 
     def pen_tick() -> None:
         try:
@@ -508,7 +526,8 @@ def main() -> None:
                 mind.llm.learn([m.text for m in mind.memory.items][-160:] + heard)
             trips_before = mind._somatic_trips
             pen_tick()                                   # the pen moves with her, every reading
-            clear = mind.speak()
+            with mind_lock:                              # the cockpit's talk waits its turn
+                clear = mind.speak()
             with w.lock:
                 _day_now = _clock.day_of(w.tick, w.day_ticks) if w.clock_enabled else -1
             if _day_now != _last_draw_day[0]:
@@ -535,6 +554,11 @@ def main() -> None:
             print(f"\n[reading {i}  age {_fmt_age(mind.lifetime)}  tick {tick}  souls {n}  "
                   f"reborn {births}  watched-die {mind._deaths}]")
             print(f"  SANTĀNA: {clear}")
+            if clear:
+                ui_readings.append({"text": clear,
+                                    "meta": f"reading {i} · tick {tick} · "
+                                            f"{mind._deaths} watched pass"})
+                del ui_readings[:-30]
             # feed the drift monitor: her voice, the town's last line, and the vitals
             if clear:
                 drift_mon.observe_text("her", clear)
@@ -548,10 +572,13 @@ def main() -> None:
             _prev_deaths = mind._deaths
             for _warn in drift_mon.check():
                 print(f"  {_warn}", flush=True)
+                ui_drift.append(str(_warn))
+                del ui_drift[:-6]
             cult = getattr(mind.llm, "culture", None) or getattr(mind, "_culture", None)
             if cult is not None and cult.reigning():
                 print(f"  [cultural era] \"{cult.reigning()}\"")
-            mind.consolidate()
+            with mind_lock:
+                mind.consolidate()
             print(f"  [who she has become] {mind.identity}")
             if args.tts and clear:
                 play_two_layer(mind.murmur, clear)   # speak her aloud (Piper); markov has no murmur
