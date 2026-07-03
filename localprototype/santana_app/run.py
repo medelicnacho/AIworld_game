@@ -27,7 +27,7 @@ sys.path.insert(0, ROOT)
 from agent import genesis as _genesis
 from agent.agent import Agent
 from services import embed
-from services.llm import MockLLM, make_llm
+from services.llm import MockLLM, SoulVoiceLLM, make_llm
 from world.sim import World
 
 from santana import Santana, play_two_layer
@@ -78,7 +78,6 @@ def town_voice(town_model: str | None, world_snapshot: str, culture: bool = Fals
         print(f"  ⚠ {exc}\n  ⚠ falling back to the markov town voice", flush=True)
         town_model = "markov"
         llm = _make_voice("markov", None, culture=culture)
-    from services.llm import SoulVoiceLLM
     if isinstance(llm, SoulVoiceLLM):
         llm.dir = os.path.splitext(world_snapshot)[0] + ".minds"
     return llm, town_model
@@ -366,6 +365,13 @@ def main() -> None:
         save_world(w, args.world_snapshot)
 
     print(f"\n~~~ Santāna lives (voice: {args.llm}, town: {args.town_model}) -- Ctrl-C to let her rest ~~~")
+    # the drift monitor (METHODS D1): she is a production agent now, and the souls retrain
+    # themselves nightly -- so the register is WATCHED, not assumed. Baselines freeze over
+    # the first ~60 readings; warnings are debounced and loud; the axis that matters most
+    # is the slide toward the generic-assistant voice (the register problem, measured).
+    from services.drift import DriftMonitor
+    drift_mon = DriftMonitor()
+    _prev_deaths = mind._deaths
     DREAM_ABSENCE = 6 * 3600.0   # she dreams during a LONG absence (same gap begin_talk honours)
     i = 0
     t_prev = time.time()
@@ -411,6 +417,19 @@ def main() -> None:
             print(f"\n[reading {i}  age {_fmt_age(mind.lifetime)}  tick {tick}  souls {n}  "
                   f"reborn {births}  watched-die {mind._deaths}]")
             print(f"  SANTĀNA: {clear}")
+            # feed the drift monitor: her voice, the town's last line, and the vitals
+            if clear:
+                drift_mon.observe_text("her", clear)
+                drift_mon.observe("reading_words", len(clear.split()))
+            with w.lock:
+                last_town = w.spoken[-1][1] if w.spoken else ""
+            if last_town:
+                drift_mon.observe_text("town", last_town)
+            drift_mon.observe("souls", n)
+            drift_mon.observe("deaths_per_reading", mind._deaths - _prev_deaths)
+            _prev_deaths = mind._deaths
+            for _warn in drift_mon.check():
+                print(f"  {_warn}", flush=True)
             cult = getattr(mind.llm, "culture", None) or getattr(mind, "_culture", None)
             if cult is not None and cult.reigning():
                 print(f"  [cultural era] \"{cult.reigning()}\"")
