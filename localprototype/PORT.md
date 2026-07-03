@@ -5,6 +5,17 @@ RECIPES says WHAT mechanisms are validated; this file says WHERE the seams are a
 port must prove. Written for strapping the town + the faculties onto a game as an emergent
 NPC system, in any engine.)*
 
+## 0. Your first ten minutes (engine side)
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install pytest
+.venv/bin/python -m pytest            # 440 pass on a bare venv (torch tests skip)
+.venv/bin/python watch_evolution.py   # WATCH selection: hunger, grace, death, drift
+.venv/bin/python experiment_pledge.py # a broken promise becomes a town's wariness, vs null
+python3 -m santana_app.run            # a living, persistent town (Ctrl-C saves)
+```
+Then read `RECIPES.md` (the validated mechanisms + knobs) and the rest of this file.
+
 ## 1. What crosses, and what doesn't
 
 **Crosses:** the substrate — `world/` (tick, hearing, wheel, stakes, lore), `agent/` (26
@@ -95,3 +106,11 @@ keystone gate; needs an engine-native trainable micro-model or defers to the mar
   it — in JS/engine terms that's an event loop + worker; keep the prepare/commit split.
 - TTS (Piper), pygame/tkinter, numpy/torch homegrown voices: engine-native replacements.
 - The Markov voice is pure stdlib and ports anywhere; it is the free tier.
+- **Selection needs GRADED scarcity — measured twice, the hard way** (EVOLUTION.md scale
+  addendum): a *mild* uniform famine selects nobody, because **mutual aid scales** (with
+  enough souls there is always a donor — the compassion/commons machinery is an emergent
+  insurance pool); a *deep* uniform famine selects nobody either, because at met≈0 for all,
+  death is a lottery. The appetite-selection differential lives in the band between — which
+  a uniform world's dials keep missing, and which a **spatial world has natively** (regions,
+  gradients, good valleys and bad ridges). Design your scarcity heterogeneous and the
+  dose-response experiment that stayed "directional" in this flat lab is yours to confirm.
