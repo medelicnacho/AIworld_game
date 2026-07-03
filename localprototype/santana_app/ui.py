@@ -127,11 +127,16 @@ async function poll(){try{
 async function send(){
  const inp=document.getElementById('say');const t=inp.value.trim();if(!t)return;
  const target=document.getElementById('who_sel').value;
+ const who=target==='her'?'SANTĀNA':document.getElementById('who_sel')
+  .selectedOptions[0].textContent;
  inp.value='';const log=document.getElementById('log');
- log.innerHTML+=`<div class=you>you: ${t}</div>`;log.scrollTop=1e9;
+ log.innerHTML+=`<div class=you>you: ${t}</div>`;
+ const p=document.createElement('div');p.className='her';
+ p.style.opacity='0.45';p.textContent=who+' is thinking…';
+ log.appendChild(p);log.scrollTop=1e9;
  const r=await (await fetch('/say',{method:'POST',
   body:JSON.stringify({text:t,target})})).json();
- log.innerHTML+=`<div class=her>${r.name||''}: ${r.reply||'...'}</div>`;log.scrollTop=1e9;}
+ p.style.opacity='1';p.textContent=`${r.name||''}: ${r.reply||'...'}`;log.scrollTop=1e9;}
 document.getElementById('say').addEventListener('keydown',e=>{if(e.key==='Enter')send()});
 setInterval(poll,2000);poll();
 </script>"""
@@ -305,8 +310,9 @@ class _Handler(BaseHTTPRequestHandler):
                       + f'\nThe visitor says to you: "{text}"\n\nAnswer the visitor.')
             raw = ""
             try:
-                raw = chat_voice.generate(prompt, system=system, num_predict=160,
-                                          temperature=0.7)
+                raw = chat_voice.generate(prompt, system=system, num_predict=90,
+                                          temperature=0.7)   # 1-3 sentences: fewer
+                                                             # tokens = faster replies
             except Exception:   # noqa: BLE001 -- a slow voice is a shrug, not a crash
                 pass
         reply = _clean(raw) or "..."
