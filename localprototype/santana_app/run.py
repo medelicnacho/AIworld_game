@@ -117,7 +117,9 @@ def main() -> None:
     p.add_argument("--autosave", type=int, default=5, help="save every N readings")
     p.add_argument("--snapshot", default=DEFAULT_SNAPSHOT, help="where HER self is saved/resumed (json)")
     p.add_argument("--world-snapshot", dest="world_snapshot", default=DEFAULT_WORLD,
-                   help="where the TOWN is saved/resumed (pickle) -- so the wheel survives restarts")
+                   help="where the TOWN is saved/resumed -- so the wheel survives restarts. "
+                        "Stored as portable JSON (world/serialize.py); a legacy .pkl at this "
+                        "path wakes once and migrates on the next save")
     p.add_argument("--fresh", action="store_true", help="ignore any saved life/town and start new")
     p.add_argument("--tts", action="store_true", help="speak her aloud (Piper) as well as printing")
     p.add_argument("--offer", action="store_true",

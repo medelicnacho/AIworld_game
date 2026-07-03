@@ -63,6 +63,32 @@ def test_missing_town_is_quietly_fresh(tmp_path, capsys):
     assert "COULD NOT BE WOKEN" not in capsys.readouterr().out
 
 
+def test_legacy_pickle_migrates_to_json(tmp_path, capsys):
+    # her CURRENT town is a pickle; it must wake ONCE (loudly announcing the migration),
+    # and the next save must write portable JSON beside it, which then takes precedence
+    import pickle
+
+    from services.llm import MockLLM
+    from santana_app.run import build_world
+    llm = MockLLM(seed=7)
+    w = build_world(llm, fast_wheel=True)
+    for _ in range(5):
+        with w.lock:
+            w.step(speak=True)
+    pkl = str(tmp_path / "town.pkl")
+    with open(pkl, "wb") as f:
+        f.write(pickle.dumps(w, protocol=pickle.HIGHEST_PROTOCOL))
+    woken = state.load_world(pkl, llm)
+    assert woken is not None and woken.tick == w.tick
+    assert "legacy pickle" in capsys.readouterr().out       # the migration is announced
+    state.save_world(woken, pkl)                             # save -> JSON sibling
+    assert (tmp_path / "town.json").is_file()
+    assert (tmp_path / "town.pkl").is_file()                 # the relic stays
+    again = state.load_world(pkl, llm)                       # JSON now takes precedence
+    assert again.tick == w.tick
+    assert "legacy pickle" not in capsys.readouterr().out
+
+
 def test_daily_backup_keeps_and_prunes(tmp_path, monkeypatch):
     path = str(tmp_path / "life.json")
     days = [f"202601{d:02d}" for d in range(1, 18)]   # 17 days of saves

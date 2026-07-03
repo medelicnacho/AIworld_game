@@ -177,48 +177,81 @@ def load_mind(mind, path: str) -> bool:
     return True
 
 
+def _world_json_path(path: str) -> str:
+    """The canonical JSON home for a town snapshot: any legacy .pkl path maps to its .json
+    sibling, so every old flag/config keeps working while the format moves under it."""
+    return path[:-4] + ".json" if path.endswith(".pkl") else (
+        path if path.endswith(".json") else path + ".json")
+
+
+def _preserve_aside(path: str) -> str:
+    """Move an unreadable snapshot OUT of the save path so the evidence survives the next
+    save. Returns where it ended up (the original path if even the move failed)."""
+    aside = f"{path}.incompatible-{time.strftime('%Y%m%d-%H%M%S')}"
+    try:
+        os.replace(path, aside)
+        return aside
+    except OSError:
+        return path
+
+
+def _shout_unwakeable(kept: str) -> None:
+    import traceback
+    print("\n  ⚠ THE SAVED TOWN COULD NOT BE WOKEN -- likely a code change made the "
+          "snapshot incompatible:", flush=True)
+    traceback.print_exc()
+    print(f"  ⚠ the unreadable snapshot is PRESERVED at {kept}; a fresh town starts "
+          "under her (her self is untouched). If this follows a code change, restore "
+          "compatibility and move the snapshot back.", flush=True)
+
+
 def save_world(world, path: str) -> None:
     """Snapshot the whole town (tick, souls, the wheel, the bardo) so it survives a restart --
-    the wheel keeps TURNING across reboots and she keeps witnessing real death, instead of a young
-    town reset every boot. Taken under the world lock so no thread is mid-mutation."""
-    with world.lock:
-        blob = pickle.dumps(world, protocol=pickle.HIGHEST_PROTOCOL)
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    _daily_backup(path)   # the town too: a day of the wheel is a day of her witnessing
-    tmp = path + ".tmp"
-    with open(tmp, "wb") as f:
-        f.write(blob)
-    os.replace(tmp, path)
+    the wheel keeps TURNING across reboots and she keeps witnessing real death, instead of a
+    young town reset every boot. Written as portable, versioned JSON (world/serialize.py --
+    pickle's replacement, held to a fixpoint + identical-continuation standard); any legacy
+    .pkl stays on disk untouched as a relic. The serializer takes the world lock itself."""
+    from world.serialize import world_to_json
+    doc = world_to_json(world)
+    jp = _world_json_path(path)
+    os.makedirs(os.path.dirname(os.path.abspath(jp)), exist_ok=True)
+    _daily_backup(jp)   # the town too: a day of the wheel is a day of her witnessing
+    tmp = jp + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(doc)
+    os.replace(tmp, jp)
 
 
 def load_world(path: str, town_llm):
-    """Resume the saved town, re-injecting the (unpicklable) llm into the world and every soul.
-    Returns the World, or None if there's no snapshot (-> caller builds fresh).
+    """Resume the saved town, re-injecting the (never-serialized) llm into the world and every
+    soul. Returns the World, or None if there's no snapshot (-> caller builds fresh).
 
-    An UNREADABLE snapshot also degrades to a fresh town -- her self is saved separately, so a
+    Reads the canonical JSON first; a LEGACY PICKLE at the given path still wakes -- loudly
+    announcing the one-time migration (the next save writes JSON beside it). An UNREADABLE
+    snapshot of either format degrades to a fresh town -- her self is saved separately, so a
     lost town never costs her her life -- but it degrades LOUDLY, with the snapshot PRESERVED
     aside. The frozen-world lesson (FINDINGS §5.18) applies to loaders too: a town that
     vanishes without a traceback is a monitor that failed silently."""
-    if not os.path.isfile(path):
+    jp = _world_json_path(path)
+    if os.path.isfile(jp):
+        from world.serialize import world_from_json
+        try:
+            with open(jp, encoding="utf-8") as f:
+                return world_from_json(f.read(), town_llm)
+        except Exception:   # noqa: BLE001 -- corrupt/incompatible: preserve, shout, degrade
+            _shout_unwakeable(_preserve_aside(jp))
+            return None
+    if not os.path.isfile(path) or path == jp:
         return None
     try:
         with open(path, "rb") as f:
             world = pickle.load(f)
-    except Exception:   # noqa: BLE001 -- corrupt/incompatible snapshot: preserve, shout, degrade
-        import traceback
-        aside = f"{path}.incompatible-{time.strftime('%Y%m%d-%H%M%S')}"
-        try:
-            os.replace(path, aside)   # out of the save path, so the evidence survives the next save
-            kept = aside
-        except OSError:
-            kept = path
-        print("\n  ⚠ THE SAVED TOWN COULD NOT BE WOKEN -- likely a code change made the "
-              "snapshot incompatible:", flush=True)
-        traceback.print_exc()
-        print(f"  ⚠ the unreadable snapshot is PRESERVED at {kept}; a fresh town starts "
-              "under her (her self is untouched). If this follows a code change, restore "
-              "compatibility and move the snapshot back.", flush=True)
+    except Exception:   # noqa: BLE001 -- corrupt/incompatible: preserve, shout, degrade
+        _shout_unwakeable(_preserve_aside(path))
         return None
+    print(f"  (legacy pickle town loaded from {os.path.basename(path)} -- the next save "
+          f"writes portable JSON to {os.path.basename(jp)}; the pickle stays as a relic)",
+          flush=True)
     world.llm = town_llm
     for a in world.agents:
         a.llm = town_llm
