@@ -1120,6 +1120,29 @@ is now a live-town observable rather than a promise: the cockpit's speech bubble
 over week, are the measurement in progress. The pooled "town tongue" (one shared brain,
 per-soul flavour) is the registered escalation if the private-minds climb stalls.
 
+### 5.23 The muster — armies assemble from earned history, and loyalty has a measured price
+
+Phase B's join/refuse/oppose (agent/allegiance.py) is DERIVED, never scored: a soul reads
+its bond (trust, history, wounds), the town's expectation of you (all three karma roads),
+its conscience (a warm heart lends no hand to a dark name), its body (the somatic floor
+extends to war), and its germ-line boldness — and answers with a speakable reason. The
+claims took two rounds, and the pair of rounds is the finding:
+
+- **v1 (400-tick seasons, 161–165):** A3 THE INNOCENT **5/5** — one planted lie turned
+  ~8 souls against a stranger who never acted, the no-plant twin stayed clean (emergent
+  injustice, traceable to the lie). A4 THE WORN STAY OUT **5/5** — famine-collapsed souls
+  refuse the war regardless of love. But A1/A2 landed 3/5: one season of kept words
+  builds ~0.1 trust, right at the join threshold — *a season makes a town stop
+  distrusting you; an army takes longer than a season.*
+- **v2 (900-tick courtship, virgin 171–175):** A1 THE WARM NAME MUSTERS **5/5** (warm
+  recruited 1–6 souls every seed; dark recruited **zero** everywhere) and A2 KARMA IS
+  LOAD-BEARING **5/5** (silence the reputation channel and the whole gap collapses to
+  zero in all ten arms — the difference *is* the earned history, nothing else).
+
+**All four claims stand, and loyalty has a measured price in time and kept words.** For
+the game: the recruitment screen is a *history*, not a stat — and the v1 "failure" ships
+as the progression curve.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

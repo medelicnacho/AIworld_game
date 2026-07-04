@@ -48,6 +48,15 @@ V2, THE LONG COURTSHIP (--long): that retry -- 900-tick seasons (2.25x the kept 
 per soul), A1/A2 ONLY (A3/A4 stand at 5/5 and are not re-run), same bars, VERDICT from
 virgin seeds 171-175. If it passes, the army story completes: armies assemble from
 EARNED history, measured. If it fails, v1's finding deepens on the record.
+
+V2 OUTCOME (2026-07-03, seeds 171-175 consumed): **A1 5/5, A2 5/5 -- the army story
+completes.** Warm long-courtship mustered 1-6 souls in EVERY held-out seed; the dark
+season recruited ZERO everywhere; silencing the karma channel collapsed the gap to
+zero in all ten arms (the difference IS the earned reputation, nothing else). Read
+with v1: both results were true -- one season of kept words makes a town stop
+distrusting you (v1's honest FAIL), two-and-a-quarter make some of it stand beside
+you in danger (v2's PASS). Loyalty has a measured price in time and kept words.
+All four allegiance claims now stand: A1/A2 (v2) + A3 the innocent / A4 the worn (v1).
 """
 from __future__ import annotations
 
