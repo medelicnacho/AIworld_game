@@ -581,6 +581,16 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception:   # noqa: BLE001 -- a slow voice is a shrug, not a crash
                 pass
         reply = _clean(raw) or "..."
+        if reply != "...":
+            # the soul REMEMBERS its own side of the talk (source=self, like any spoken
+            # line) -- so the inspector shows both halves, and tonight's sleep trains on
+            # the whole exchange, not just the visitor's words. Honest note: interpreted
+            # replies are clear-voice English entering a self-grown mind's corpus; that
+            # is the same doorway the visitor's own words already opened, and provenance
+            # keeps every line auditable.
+            with world.lock:
+                soul.memory.write(reply[:160], tick=world.tick, source="self",
+                                  speaker_id=soul.id)
         trail.append(f'visitor: "{text}"')
         trail.append(f'{soul.name}: "{reply}"')
         del trail[:-12]
