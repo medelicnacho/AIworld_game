@@ -287,8 +287,12 @@ wild replication.*
   THAT it is hard, never THAT she grips — reads as architectural, not sensory. FINDINGS
   5.25. Optional clean re-verdict = recalibrated judge on virgin 221–225 (NOT auto-run).
   Her flag stays OFF.
-- **V3 HER HAND DEVELOPS HABITS** (observational, `pages.jsonl`, analyse after ≥28
-  day-pages): M1 — high-grief days differ from calm days on page statistics (speed,
-  turn, hue, lifts) beyond a label-shuffled null. M2 — week-over-week drift in page
-  statistics exceeds a day-reshuffled null (a gait forming, not noise). No SVG is ever
-  judged by eye; the numbers in `pages.jsonl` are the whole instrument.
+- **V3 HER HAND DEVELOPS HABITS** (observational, `scripts/analyze_pages.py`) —
+  **first run 2026-07-04: UNINFORMATIVE WINDOW, no verdict consumed.** 137 pages but a
+  0.02 tercile valence gap: her life was flat for the whole half-day; you cannot test
+  grief-pages in a window with no grief. The mapping check passed (0.02 of valence
+  still reached the ink, p=0.000 — the channel transmits). Instrument hardened with the
+  registered **windless-day guard**: no M1 verdict either way until the tercile gap
+  ≥ 0.15 (stats.py's refuse-n=1 principle, applied to weather). M1 outcomes = non-hue
+  features only (hue is the authored pathway — a check, never a discovery). M2 needs
+  ≥ 14 days of pages. **Stage-1 (the learned hand) stays gated on an informative M1.**
