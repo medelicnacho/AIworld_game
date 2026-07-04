@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-UI_VERSION = 7   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 8   # bump on any dashboard change: live pages reload themselves to match
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -98,7 +98,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v7</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v8</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -191,9 +191,9 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
-const MY_VERSION=7;
+const MY_VERSION=8;
 async function poll(){try{
- const s=await(await fetch('/state')).json();
+ const s=await(await fetch('/state2')).json();
  // a page older than the server RELOADS ITSELF -- stale tabs were the source of a
  // whole evening of unreproducible "it goes dark" reports; never again
  if(s.ui_version&&s.ui_version>MY_VERSION){location.reload();return;}
@@ -473,11 +473,28 @@ class _Handler(BaseHTTPRequestHandler):
         u = self.ui
         if self.path in ("/", "/index.html"):
             self._send(DASH.encode(), "text/html; charset=utf-8")
-        elif self.path.startswith("/state"):
+        elif self.path.startswith("/state2"):
             with u["ev_lock"]:
                 events = list(u["events"])
             snap = snapshot(u["mind"], u["world"], u["readings"], u["drift"], events)
             self._send(json.dumps(snap).encode(), "application/json")
+        elif self.path.startswith("/state"):
+            # THE GHOST-TAB DISABLER. Every dashboard before v8 polls THIS route and
+            # renders whatever it gets with that morning's code -- including the
+            # original pitch-black night that haunted an entire evening as an
+            # unreproducible bug. Old tabs now receive an empty, bright, clearly
+            # labelled world: no souls to hide, no night to darken, and a message
+            # in their own stream panel telling the viewer to close them.
+            stale = {"identity": "(this tab is OUTDATED -- close it and reopen the page)",
+                     "age": "", "deaths": 0, "memories": 0,
+                     "time_clause": "stale tab -- close me", "night": False,
+                     "hour": 0.4, "season": "spring", "souls": [],
+                     "readings": [{"text": "⚠ this tab is running an old cockpit page. "
+                                           "Close this tab and open the address again "
+                                           "-- the live town is waiting there.",
+                                   "meta": "stale tab"}],
+                     "drift": ["stale tab"], "events": [], "ui_version": UI_VERSION}
+            self._send(json.dumps(stale).encode(), "application/json")
         elif self.path.startswith("/soul"):
             from urllib.parse import parse_qs, urlparse
             sid = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
