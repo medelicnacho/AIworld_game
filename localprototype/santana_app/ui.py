@@ -96,7 +96,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v4</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v5</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -120,7 +120,11 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
   her full ritual is: python3 chat.py</div></div>
 </div>
 <script>
-const cv=document.getElementById('map'), g=cv.getContext('2d');
+const cv=document.getElementById('map'); let g=cv.getContext('2d');
+// GPU context loss turns a canvas permanently black with NO js error -- the exact
+// "it shows and then goes dark" symptom. Recover instead of dying dark.
+cv.addEventListener('contextlost',e=>{e.preventDefault();});
+cv.addEventListener('contextrestored',()=>{g=cv.getContext('2d');});
 const W=1000,H=660, OX=26,OY=40, SX=(W-52)/900, SY=(H-96)/600;
 const souls=new Map();      // id -> {x,y,tx,ty,mood,stage,asleep,name,action,drift,bonds,bubble}
 const pairTrust=new Map();  // "a|b" -> last trust, to catch bonds WARMING on camera
@@ -222,15 +226,15 @@ async function poll(){try{
   S.innerHTML='<option value="her">SANTĀNA</option>'+
    s.souls.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');
   S.value=[...S.options].some(o=>o.value===cur)?cur:'her';}
-}catch(e){}}
+}catch(e){document.getElementById('drift').textContent='ui: '+e;}}
 
 function drawSky(){
  const h=sky.hour;
- // night floor 0.55: night is a TINT, not a darkness -- the map spends a third of
- // its life there, and everything must stay comfortably visible the whole time
- // (the user twice found real darkness unreadable; stars + cool cast carry "night")
- let light = h<0.3 ? 0.7+0.3*(h/0.3)
-   : h<0.5 ? 1 : h<0.7 ? 1-0.45*((h-0.5)/0.2) : 0.55;
+ // night floor 0.8: night is TWILIGHT -- a slight cooling plus stars, nothing more.
+ // Three rounds of user testing said any real darkness reads as a dead screen.
+ let light = h<0.3 ? 0.85+0.15*(h/0.3)
+   : h<0.5 ? 1 : h<0.7 ? 1-0.2*((h-0.5)/0.2) : 0.8;
+ if(!Number.isFinite(light)) light=1;
  const nt=[19,21,36], dt=[26,40,64], nb=[28,30,46], db=[54,64,86];
  const L=(a,b)=>Math.round(a+(b-a)*light);
  const grd=g.createLinearGradient(0,0,0,H);
@@ -238,10 +242,9 @@ function drawSky(){
  grd.addColorStop(1,`rgb(${L(nb[0],db[0])},${L(nb[1],db[1])},${L(nb[2],db[2])})`);
  g.fillStyle=grd;g.fillRect(0,0,W,H);
  const warm=Math.max(0,1-Math.abs(light-0.4)/0.4)*(light<0.85?1:0);
- if(warm>0.05){const hg=g.createRadialGradient(W/2,H,60,W/2,H,H*0.9);
-  hg.addColorStop(0,`rgba(210,120,70,${0.18*warm})`);hg.addColorStop(1,'rgba(0,0,0,0)');
-  g.fillStyle=hg;g.fillRect(0,0,W,H);}
- if(light<0.72){const sa=(0.72-light)/0.72;g.fillStyle=`rgba(220,222,240,${0.7*sa})`;
+ if(warm>0.05){g.fillStyle=`rgba(210,120,70,${0.10*warm})`;
+  g.fillRect(0,H*0.55,W,H*0.45);}
+ if(light<0.9){const sa=(0.9-light)/0.9;g.fillStyle=`rgba(220,222,240,${0.8*sa})`;
   for(const st of stars){g.beginPath();g.arc(st.x,st.y,st.r,0,7);g.fill();}}
  const tint={spring:[90,150,90],summer:[210,180,80],harvest:[210,140,60],winter:[110,140,190]}[sky.season]||[120,120,140];
  g.fillStyle=`rgba(${tint[0]},${tint[1]},${tint[2]},0.05)`;g.fillRect(0,0,W,H);
@@ -267,12 +270,13 @@ function drawSouls(now){
   const[r,gg,b]=moodRGB(d.mood), night=sky.night&&d.asleep;
   const rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
   // night does NOT dim the souls at all -- the sky's cool tint and the stars say
-  // "night"; the 'asleep' label says who sleeps. Visibility never pays for mood.
+  // "night". Halos are two flat arcs, not radial gradients: 64 gradients x 60fps
+  // is exactly the GPU load that provokes context loss on fragile drivers.
   const glow=15+(night?0:4*breathe);
-  const hg=g.createRadialGradient(d.x,d.y,1,d.x,d.y,glow*1.8);
-  hg.addColorStop(0,`rgba(${r},${gg},${b},${0.42*fade})`);
-  hg.addColorStop(1,`rgba(${r},${gg},${b},0)`);
-  g.fillStyle=hg;g.beginPath();g.arc(d.x,d.y,glow*1.8,0,7);g.fill();
+  g.fillStyle=`rgba(${r},${gg},${b},${0.16*fade})`;
+  g.beginPath();g.arc(d.x,d.y,glow*1.6,0,7);g.fill();
+  g.fillStyle=`rgba(${r},${gg},${b},${0.22*fade})`;
+  g.beginPath();g.arc(d.x,d.y,glow*0.85,0,7);g.fill();
   g.globalAlpha=fade;
   g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
   g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();
@@ -320,9 +324,8 @@ function drawFx(now){
   if(f.k==='speak'){return false;}
   if(f.k==='birth'){const p=e/1100;if(p>=1)return false;
    const d=souls.get(f.id);if(!d)return false;
-   const rg=g.createRadialGradient(d.x,d.y,0,d.x,d.y,30*p);
-   rg.addColorStop(0,`rgba(245,225,160,${0.5*(1-p)})`);rg.addColorStop(1,'rgba(0,0,0,0)');
-   g.fillStyle=rg;g.beginPath();g.arc(d.x,d.y,30*p,0,7);g.fill();return true;}
+   g.fillStyle=`rgba(245,225,160,${0.4*(1-p)})`;
+   g.beginPath();g.arc(d.x,d.y,30*p,0,7);g.fill();return true;}
   if(f.k==='death'){const p=e/1500;if(p>=1)return false;
    g.strokeStyle=`rgba(150,150,170,${0.5*(1-p)})`;g.lineWidth=1.5;
    g.beginPath();g.arc(f.x,f.y,6+58*p,0,7);g.stroke();
@@ -331,10 +334,22 @@ function drawFx(now){
   return false;});
 }
 
+let beat=0,lastErr='',lastDraw=0;
 function frame(now){
- for(const[,d]of souls){d.x+=(d.tx-d.x)*0.10;d.y+=(d.ty-d.y)*0.10;}
- drawSky();drawThreads();drawSouls(now);drawFx(now);
- requestAnimationFrame(frame);}
+ // UNKILLABLE: re-schedule FIRST (an exception can never stop the loop), draw in a
+ // try/catch, paint any error ONTO the canvas, and run at 30fps -- half the GPU
+ // load, indistinguishable to the eye at this pace.
+ requestAnimationFrame(frame);
+ if(now-lastDraw<33)return; lastDraw=now;
+ try{
+  for(const[,d]of souls){d.x+=(d.tx-d.x)*0.10;d.y+=(d.ty-d.y)*0.10;}
+  drawSky();drawThreads();drawSouls(now);drawFx(now);
+ }catch(err){lastErr=String(err);}
+ beat++;
+ g.fillStyle='rgba(160,160,180,0.8)';g.font='10px monospace';
+ g.fillText('beat '+beat+' · souls '+souls.size+' · hour '+(sky.hour??'?'),W-210,H-8);
+ if(lastErr){g.fillStyle='#e08a8a';g.font='12px monospace';
+  g.fillText('renderer error: '+lastErr.slice(0,90),14,H-24);}}
 
 async function send(){
  const inp=document.getElementById('say');const t=inp.value.trim();if(!t)return;
