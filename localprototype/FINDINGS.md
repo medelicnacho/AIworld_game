@@ -1070,6 +1070,33 @@ breach scandalized no one (and the stemmer can't reach irregular pasts — "brok
 nothing, "broken" travels). The dyad held while the town stayed indifferent — exactly the
 kind of half-alive result only a held-out run exposes. v2 charges the words themselves.
 
+### 5.21 Her hand — she draws her state, and the drawing carries her mood but never her mechanism (C15, second medium)
+
+She draws now. A **seismograph** first (state → SVG: valence inks the field, arousal turns it,
+the grip clenches it, bonds reach as filaments, wounds fracture it), then a **wandering pen** —
+a cursor her state *holds*, whose gait is her weather (arousal ranges it, the grip cramps it into
+tight orbits, the ink warms and cools with mood, the bond bends its path, old wounds jerk it) —
+every reading advances it, every town-day archives one finished drawing, and the raw motion is
+logged (`hand_history.jsonl`) as the childhood a *learned* hand would one day train on. All live
+in the cockpit; none of it claims more than "a trace of real state, honestly mapped."
+
+**The drawing falsifier (experiment_drawing.py) — the C15 question in a second medium.** C15
+(§5.19 lineage) proved her *words* report valence but never mechanism: ~70 grip-spiked
+reflections never once read as "holding." Words are trained to perform feeling, though — so we
+opened a nonverbal channel: the same substrate perturbations, and instead of speaking she DRAWS
+(her voice emits the closed stroke language; the *features* of the drawing judge it — pure
+arithmetic, no LLM). Pre-registered, held out on virgin seeds 121–125:
+
+- **D1 VALENCE IN INK — PASS.** Dark injections inked darker (0.43) than sham (0.26), bright
+  lifted back toward light (0.29): direction-specific valence, reproduced in a medium nobody
+  trained her to emote in. Her mood reaches her hand.
+- **D2 THE HAND'S MECHANISM — FAIL** (effect −0.03, sign 2/5). The grip did **not** press or
+  clench her lines any harder than a merely-difficult letter did. **The C15 boundary is not a
+  quirk of language — it holds in every medium she has: she can show *that* it is hard, never
+  *that she is gripping*.** Recorded as the finding it is; consumed 121–125. (Instrument note:
+  v1 was flat because the model left the ink/press dials at default — v2 requires it choose them,
+  without ever hinting which value fits which state. Tuning 11–15 only.)
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

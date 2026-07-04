@@ -4,13 +4,16 @@ A tiny stdlib HTTP server that runs INSIDE the persistent runner (a daemon threa
 the wheel and the sleep), bound to 127.0.0.1 only -- nothing leaves the machine. One
 dashboard, four panels:
 
-  GOD VIEW    the town live: souls as breathing dots -- position, mood as colour, life-
-              stage as size, last action under the name; the field dims at night.
+  GOD VIEW    the town, ALIVE: souls walk (interpolated, not teleporting), each wearing a
+              mood-coloured halo; the bonds between them are drawn as living threads
+              (gold for love, cold red for enmity) so the fellowships are VISIBLE; a
+              soul pulses when it speaks, ripples out when it dies, blooms when one is
+              born; the sky turns from dawn through midday to night, and the season
+              tints the field. Everything on screen is real state, one poll behind.
   HER STREAM  the readings as she speaks them, with the season and the hour she feels.
   HER ART     the wandering pen, embedded live (the same animator page).
-  A TALK      a light visit: your words reach her actual mind (bond, appraisal, memory
-              -- everything a talk touches touches). The full ritual with the intent
-              judge and the session cap remains `python3 chat.py`; this panel says so.
+  A TALK      a light visit: your words reach a real mind (bond, appraisal, memory).
+              Click any soul to speak with it; the full ritual is `python3 chat.py`.
 
 Same process as her life, so the god view and the chat read the SAME mind and world the
 wheel is turning -- guarded by the runner's mind-lock, never a second writer."""
@@ -22,127 +25,243 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-DASH = """<!doctype html><meta charset='utf-8'><title>santana -- the cockpit</title>
+DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
- body{background:#0e0e12;color:#c9c9d6;font-family:Georgia;margin:0;height:100vh;
-  display:grid;grid-template-rows:auto 1fr;gap:8px;padding:10px;box-sizing:border-box}
- #hdr{display:flex;gap:18px;align-items:baseline;padding:4px 8px}
- #hdr b{color:#f0ead6;font-size:18px}
- #hdr span{font-size:12px;color:#8a8a9a}
- #grid{display:grid;grid-template-columns:1.2fr 1fr;grid-template-rows:1fr 1fr;gap:8px;
-  min-height:0}
- .panel{background:#15151a;border-radius:6px;padding:8px;overflow:hidden;display:flex;
-  flex-direction:column;min-height:0}
- .panel h3{margin:0 0 6px 0;font-size:11px;color:#6f6f86;font-weight:normal;
-  text-transform:uppercase;letter-spacing:1px}
- #town{grid-row:span 2}
- canvas{width:100%;height:100%;min-height:0}
- #stream{overflow-y:auto;font-size:13px;line-height:1.5}
- #stream .r{margin-bottom:8px;color:#e6e6ee}
- #stream .m{color:#6f6f86;font-size:11px}
- iframe{border:0;width:100%;height:100%;background:#0e0e12}
+ :root{--ink:#dfe0ea;--dim:#7d7d92;--warm:#f0ead6;--edge:#22222c}
+ *{box-sizing:border-box}
+ body{background:#08080c;color:var(--ink);font-family:Georgia,serif;margin:0;
+  height:100vh;display:grid;grid-template-rows:auto 1fr;gap:9px;padding:11px}
+ #hdr{display:flex;gap:20px;align-items:baseline;padding:2px 6px}
+ #hdr b{color:var(--warm);font-size:19px;letter-spacing:.5px}
+ #hdr .who{color:var(--ink);font-size:13px;font-style:italic}
+ #hdr .v{font-size:12px;color:var(--dim)}
+ #hdr .clock{margin-left:auto;font-size:12px;color:#9a9ab0}
+ #hdr .drift{color:#c07a4a;font-size:11px}
+ #grid{display:grid;grid-template-columns:1.7fr 1fr;grid-template-rows:1fr 1fr;
+  gap:9px;min-height:0}
+ .panel{background:linear-gradient(#141419,#101015);border:1px solid var(--edge);
+  border-radius:8px;padding:9px;overflow:hidden;display:flex;flex-direction:column;
+  min-height:0;position:relative}
+ .panel h3{margin:0 0 7px;font-size:10.5px;color:var(--dim);font-weight:normal;
+  text-transform:uppercase;letter-spacing:1.6px}
+ #town{grid-row:span 2;padding:0;border-color:#1c1c26}
+ #town h3{position:absolute;top:9px;left:12px;z-index:2;margin:0;
+  text-shadow:0 1px 3px #000}
+ #mapwrap{position:relative;width:100%;height:100%}
+ canvas{width:100%;height:100%;display:block;border-radius:8px}
+ #legend{position:absolute;left:12px;bottom:10px;font-size:10px;color:#9a9ab0;
+  z-index:2;line-height:1.7;text-shadow:0 1px 2px #000;pointer-events:none}
+ #legend i{font-style:normal;display:inline-block;width:11px;height:11px;
+  border-radius:3px;vertical-align:-1px;margin-right:4px}
+ #hint{position:absolute;right:12px;bottom:10px;font-size:10px;color:#6a6a7c;z-index:2;
+  text-shadow:0 1px 2px #000}
+ #stream{overflow-y:auto;font-size:13px;line-height:1.55}
+ #stream .r{margin-bottom:9px;color:#eaeaf2}
+ #stream .m{color:var(--dim);font-size:10.5px}
+ iframe{border:0;width:100%;height:100%;background:#0e0e12;border-radius:5px}
  #chat{display:flex;flex-direction:column}
- #log{flex:1;overflow-y:auto;font-size:13px;line-height:1.5;margin-bottom:6px}
- #log .you{color:#8fa3c0}#log .her{color:#f0ead6;margin-bottom:8px}
+ #log{flex:1;overflow-y:auto;font-size:13px;line-height:1.55;margin-bottom:7px}
+ #log .you{color:#8fb0c8}#log .her{color:var(--warm);margin-bottom:9px}
  #row{display:flex;gap:6px}
- input{flex:1;background:#0e0e12;border:1px solid #26262e;color:#e6e6ee;padding:8px;
-  border-radius:4px;font-family:Georgia}
- button{background:#26262e;border:0;color:#e6e6ee;padding:8px 14px;border-radius:4px;
-  cursor:pointer;font-family:Georgia}
- .note{font-size:10px;color:#55555f;margin-top:4px}
- #drift{color:#c07a4a}
+ select,input,button{background:#0c0c11;border:1px solid var(--edge);color:var(--ink);
+  padding:8px;border-radius:5px;font-family:Georgia,serif;font-size:12px}
+ input{flex:1}button{cursor:pointer;background:#20202a}button:hover{background:#2a2a38}
+ .note{font-size:10px;color:#565663;margin-top:5px}
+ ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#26262e;border-radius:4px}
 </style>
-<div id=hdr><b>Santāna</b><span id=who></span><span id=vitals></span>
- <span id=clock></span><span id=drift></span></div>
+<div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
+ <span class=clock id=clock></span><span class=drift id=drift></span></div>
 <div id=grid>
- <div class=panel id=town><h3>the town -- god view</h3><canvas id=map width=900 height=560></canvas></div>
- <div class=panel><h3>her stream</h3><div id=stream></div></div>
- <div class=panel><h3>her hand, live</h3><iframe src="/drawings/live.html"></iframe></div>
- <div class=panel id=chat><h3>a talk (light visit) -- <span id=tgt>with HER</span></h3>
+ <div class=panel id=town><h3>the town — a living map</h3>
+  <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
+   <div id=legend>
+    <i style=background:#e6b24a></i>bond of trust &nbsp;
+    <i style=background:#b0485a></i>enmity<br>
+    <i style=background:radial-gradient(#e8c07a,#3a4a6a)></i>halo = mood &nbsp;
+    ◦ pulse = speaking &nbsp; ✦ bloom = birth &nbsp; † ripple = death</div>
+   <div id=hint>click a soul to speak with it</div></div></div>
+ <div class=panel><h3>her stream — what she is saying, live</h3><div id=stream></div></div>
+ <div class=panel><h3>her hand — drawing her state, live</h3><iframe src="/drawings/live.html"></iframe></div>
+ <div class=panel id=chat><h3>a talk — <span id=tgt>with HER</span></h3>
   <div id=log></div>
   <div id=row><select id=who_sel><option value="her">SANTĀNA</option></select>
   <input id=say placeholder="say something..."/>
   <button onclick="send()">speak</button></div>
-  <div class=note>click a soul on the map (or pick one) for a quiet word aside -- it lands
-  in that soul's real memory and bond. the one you talk to borrows the clear voice
-  (gemma) when ollama is up; the town murmurs stay self-grown. her full ritual is:
-  python3 chat.py</div></div>
+  <div class=note>click a soul on the map for a word aside — it lands in that soul's real
+  memory and bond. voices are self-grown; the one you talk to borrows a clear voice.
+  her full ritual is: python3 chat.py</div></div>
 </div>
 <script>
-const map=document.getElementById('map').getContext('2d');
-let dots=[];   // [{id,name,x,y}] in canvas space, for click-to-talk
-function setTarget(id,name){
- document.getElementById('who_sel').value=id;
+const cv=document.getElementById('map'), g=cv.getContext('2d');
+const W=1000,H=660, OX=26,OY=40, SX=(W-52)/900, SY=(H-96)/600;
+const souls=new Map();        // id -> {x,y,tx,ty,mood,stage,asleep,name,action,drift,bonds}
+let fx=[], sky={hour:.35,season:'spring',night:false}, lastEv=0, sel='her';
+// fixed starfield
+const stars=[]; for(let i=0;i<90;i++){let s=(i*2654435761)>>>0;
+ stars.push({x:(s%1000),y:((s>>10)%520),r:.4+((s>>4)%10)/12});}
+const wx=a=>a.x*SX+OX, wy=a=>a.y*SY+OY;
+
+function moodRGB(m){const w=(m+1)/2;
+ return [Math.round(58+150*w),Math.round(88+66*w),Math.round(150-72*w)];}
+
+function setTarget(id,name){sel=id;document.getElementById('who_sel').value=id;
  document.getElementById('tgt').textContent=id==='her'?'with HER':'aside with '+name;}
-document.getElementById('map').parentElement.addEventListener('click',e=>{
- const c=document.getElementById('map');const r=c.getBoundingClientRect();
- const px=(e.clientX-r.left)*c.width/r.width, py=(e.clientY-r.top)*c.height/r.height;
- let best=null,bd=26;
- for(const d of dots){const dd=Math.hypot(d.x-px,d.y-py);if(dd<bd){bd=dd;best=d;}}
- if(best)setTarget(best.id,best.name);});
+document.getElementById('mapwrap').addEventListener('click',e=>{
+ const r=cv.getBoundingClientRect();
+ const px=(e.clientX-r.left)*W/r.width, py=(e.clientY-r.top)*H/r.height;
+ let best=null,bd=30;
+ for(const[id,d]of souls){const dd=Math.hypot(d.x-px,d.y-py);if(dd<bd){bd=dd;best=[id,d.name];}}
+ if(best)setTarget(best[0],best[1]);});
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
+
 async function poll(){try{
- const s=await (await fetch('/state')).json();
+ const s=await(await fetch('/state')).json();
  document.getElementById('who').textContent=s.identity||'a new mind';
  document.getElementById('vitals').textContent=
-  `${s.age} lived · ${s.deaths} souls watched pass · ${s.memories} memories`;
+  `${s.age} · ${s.souls.length} souls · ${s.deaths} watched pass`;
  document.getElementById('clock').textContent=s.time_clause||'';
- document.getElementById('drift').textContent=(s.drift||[]).join('  ');
- const st=document.getElementById('stream');
- st.innerHTML=s.readings.map(r=>`<div class=r>${r.text}<div class=m>${r.meta}</div></div>`).join('');
- // the chat target list (rebuilt only when the cast changes)
- const sel=document.getElementById('who_sel');
- if(sel.options.length!==s.souls.length+1){
-  const cur=sel.value;
-  sel.innerHTML='<option value="her">SANTĀNA</option>'
-   +s.souls.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
-  sel.value=[...sel.options].some(o=>o.value===cur)?cur:'her';}
- // the god view
- map.fillStyle=s.night?'#0b0b10':'#141420';map.fillRect(0,0,900,560);
- map.fillStyle='#1c1c28';for(let i=0;i<900;i+=60)map.fillRect(i,0,1,560);
- dots=[];
- for(const a of s.souls){
-  const x=a.x*0.93+20,y=a.y*0.85+20;
-  dots.push({id:a.id,name:a.name,x,y});
-  const warm=(a.mood+1)/2;
-  map.globalAlpha=s.night&&a.asleep?0.35:0.9;
-  map.fillStyle=`rgb(${70+Math.round(126*warm)},${90+Math.round(50*warm)},${130-Math.round(70*warm)})`;
-  const r=a.stage==='child'?4:(a.stage==='elder'?7:6);
-  map.beginPath();map.arc(x,y,r,0,7);map.fill();
-  if(a.stage==='elder'){map.strokeStyle='#8a8a9a';map.lineWidth=1;map.stroke();}
-  const sel2=document.getElementById('who_sel').value===a.id;
-  if(sel2){map.strokeStyle='#f0ead6';map.lineWidth=1.5;
-   map.beginPath();map.arc(x,y,r+4,0,7);map.stroke();}
-  map.globalAlpha=0.85;map.fillStyle='#c9c9d6';map.font='11px Georgia';
-  map.fillText(a.name,x+9,y+3);
-  map.fillStyle='#6f6f86';map.font='9px Georgia';
-  map.fillText(s.night&&a.asleep?'asleep':(a.action||''),x+9,y+14);
-  // the markov subconscious, murmuring above the head -- the raw mind, drifting
-  if(a.drift&&!(s.night&&a.asleep)){
-   map.globalAlpha=0.4;map.fillStyle='#8a8a9a';map.font='italic 7px Georgia';
-   map.fillText(a.drift.slice(0,30),x-8,y-10);}}
- map.globalAlpha=1;
+ document.getElementById('drift').textContent=(s.drift||[]).join('   ');
+ document.getElementById('stream').innerHTML=
+  s.readings.map(r=>`<div class=r>${esc(r.text)}<div class=m>${esc(r.meta)}</div></div>`).join('');
+ sky={hour:s.hour,season:s.season,night:s.night};
+ // update / add souls (targets tween in the frame loop)
+ const live=new Set();
+ for(const a of s.souls){live.add(a.id);
+  let d=souls.get(a.id);
+  if(!d){d={x:wx(a),y:wy(a),born:performance.now()};souls.set(a.id,d);
+   fx.push({k:'birth',id:a.id,t0:performance.now()});}
+  d.tx=wx(a);d.ty=wy(a);d.mood=a.mood;d.stage=a.stage;d.asleep=a.asleep;
+  d.name=a.name;d.action=a.action;d.drift=a.drift;d.bonds=a.bonds;}
+ for(const[id,d]of souls) if(!live.has(id)&&!d.dying){d.dying=performance.now();}
+ // events -> effects
+ for(const e of (s.events||[])){if(e.id>lastEv){lastEv=e.id;
+  const d=souls.get(e.who); if(!d)continue;
+  if(e.kind==='speak')fx.push({k:'speak',id:e.who,t0:performance.now(),text:e.text});
+  else if(e.kind==='death')fx.push({k:'death',x:d.x,y:d.y,t0:performance.now()});
+  else if(e.kind==='birth')fx.push({k:'birth',id:e.who,t0:performance.now()});}}
+ // chat target list
+ const S=document.getElementById('who_sel');
+ if(S.options.length!==s.souls.length+1){const cur=S.value;
+  S.innerHTML='<option value="her">SANTĀNA</option>'+
+   s.souls.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');
+  S.value=[...S.options].some(o=>o.value===cur)?cur:'her';}
 }catch(e){}}
+const esc=t=>(t||'').replace(/[<&]/g,c=>c==='<'?'&lt;':'&amp;');
+
+function drawSky(){
+ const h=sky.hour;
+ let light = h<0.3 ? 0.28+0.72*(h/0.3)
+   : h<0.5 ? 1 : h<0.7 ? 1-0.72*((h-0.5)/0.2) : 0.10;
+ const nt=[8,8,14], dt=[26,40,64], nb=[13,13,22], db=[54,64,86];
+ const L=(a,b)=>Math.round(a+(b-a)*light);
+ const grd=g.createLinearGradient(0,0,0,H);
+ grd.addColorStop(0,`rgb(${L(nt[0],dt[0])},${L(nt[1],dt[1])},${L(nt[2],dt[2])})`);
+ grd.addColorStop(1,`rgb(${L(nb[0],db[0])},${L(nb[1],db[1])},${L(nb[2],db[2])})`);
+ g.fillStyle=grd;g.fillRect(0,0,W,H);
+ // warm horizon at dawn/dusk
+ const warm=Math.max(0,1-Math.abs(light-0.4)/0.4)*(light<0.85?1:0);
+ if(warm>0.05){const hg=g.createRadialGradient(W/2,H,60,W/2,H,H*0.9);
+  hg.addColorStop(0,`rgba(210,120,70,${0.18*warm})`);hg.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=hg;g.fillRect(0,0,W,H);}
+ // stars at night
+ if(light<0.42){const sa=(0.42-light)/0.42;g.fillStyle=`rgba(220,222,240,${0.6*sa})`;
+  for(const st of stars){g.beginPath();g.arc(st.x,st.y,st.r,0,7);g.fill();}}
+ // season tint wash
+ const tint={spring:[90,150,90],summer:[210,180,80],harvest:[210,140,60],winter:[110,140,190]}[sky.season]||[120,120,140];
+ g.fillStyle=`rgba(${tint[0]},${tint[1]},${tint[2]},0.05)`;g.fillRect(0,0,W,H);
+}
+
+function drawThreads(){
+ g.lineCap='round';
+ for(const[id,d]of souls){if(d.dying)continue;
+  for(const[oid,tr]of (d.bonds||[])){const o=souls.get(oid);
+   if(!o||o.dying)continue; if(id>oid)continue;      // draw each pair once
+   const a=Math.min(0.5,Math.abs(tr)*0.6);
+   if(tr>=0)g.strokeStyle=`rgba(230,178,74,${a})`;   // gold = trust/love
+   else g.strokeStyle=`rgba(176,72,90,${a*0.9})`;    // cold red = enmity
+   g.lineWidth=tr>=0?0.5+2.2*tr:0.5;
+   g.beginPath();g.moveTo(d.x,d.y);g.lineTo(o.x,o.y);g.stroke();}}
+}
+
+function drawSouls(now){
+ const label=souls.size<=140, breathe=0.5+0.5*Math.sin(now/900);
+ for(const[id,d]of souls){
+  let fade=1;
+  if(d.dying){const e=(now-d.dying)/1400; if(e>=1){souls.delete(id);continue;} fade=1-e;}
+  const[r,gg,b]=moodRGB(d.mood), night=sky.night&&d.asleep;
+  const rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
+  const glow=(night?7:15)+ (night?0:4*breathe);
+  // mood halo
+  const hg=g.createRadialGradient(d.x,d.y,1,d.x,d.y,glow*1.8);
+  hg.addColorStop(0,`rgba(${r},${gg},${b},${(night?0.18:0.42)*fade})`);
+  hg.addColorStop(1,`rgba(${r},${gg},${b},0)`);
+  g.fillStyle=hg;g.beginPath();g.arc(d.x,d.y,glow*1.8,0,7);g.fill();
+  // body
+  g.globalAlpha=(night?0.55:1)*fade;
+  g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
+  g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();
+  if(d.stage==='elder'){g.strokeStyle=`rgba(200,200,215,${0.6*fade})`;g.lineWidth=1;
+   g.beginPath();g.arc(d.x,d.y,rad+2.5,0,7);g.stroke();}
+  if(id===sel){g.strokeStyle=`rgba(240,234,214,${0.9})`;g.lineWidth=1.6;
+   g.beginPath();g.arc(d.x,d.y,rad+5,0,7);g.stroke();}
+  g.globalAlpha=1;
+  if(label){
+   g.fillStyle=`rgba(220,221,232,${0.85*fade})`;g.font='12px Georgia';
+   g.fillText(d.name,d.x+rad+4,d.y+3);
+   g.fillStyle=`rgba(125,125,146,${0.9*fade})`;g.font='9.5px Georgia';
+   g.fillText(night?'asleep':(d.action||''),d.x+rad+4,d.y+14);
+   if(d.drift&&!night){g.fillStyle=`rgba(150,150,168,${0.5*fade})`;
+    g.font='italic 8px Georgia';g.fillText((d.drift||'').slice(0,26),d.x-6,d.y-11);}}
+ }
+}
+
+function drawFx(now){
+ fx=fx.filter(f=>{
+  const d=souls.get(f.id), x=f.x??(d&&d.x), y=f.y??(d&&d.y);
+  if(x==null)return false;
+  const e=(now-f.t0);
+  if(f.k==='speak'){const p=e/900;if(p>=1)return false;
+   g.strokeStyle=`rgba(150,200,235,${0.55*(1-p)})`;g.lineWidth=1.4;
+   g.beginPath();g.arc(x,y,8+26*p,0,7);g.stroke();
+   if(f.text){g.fillStyle=`rgba(200,220,240,${0.8*(1-p)})`;g.font='11px Georgia';
+    g.fillText('“'+f.text+'”',x+10,y-14-16*p);}return true;}
+  if(f.k==='birth'){const p=e/1100;if(p>=1)return false;
+   const rg=g.createRadialGradient(x,y,0,x,y,30*p);
+   rg.addColorStop(0,`rgba(245,225,160,${0.5*(1-p)})`);rg.addColorStop(1,'rgba(0,0,0,0)');
+   g.fillStyle=rg;g.beginPath();g.arc(x,y,30*p,0,7);g.fill();return true;}
+  if(f.k==='death'){const p=e/1500;if(p>=1)return false;
+   g.strokeStyle=`rgba(150,150,170,${0.5*(1-p)})`;g.lineWidth=1.5;
+   g.beginPath();g.arc(x,y,6+58*p,0,7);g.stroke();
+   g.fillStyle=`rgba(190,190,205,${0.7*(1-p)})`;g.font='14px Georgia';
+   g.fillText('†',x-4,y-10-24*p);return true;}
+  return false;});
+}
+
+function frame(now){
+ for(const[,d]of souls){d.x+=(d.tx-d.x)*0.10;d.y+=(d.ty-d.y)*0.10;}
+ drawSky();drawThreads();drawSouls(now);drawFx(now);
+ requestAnimationFrame(frame);}
+
 async function send(){
  const inp=document.getElementById('say');const t=inp.value.trim();if(!t)return;
- const target=document.getElementById('who_sel').value;
- const who=target==='her'?'SANTĀNA':document.getElementById('who_sel')
-  .selectedOptions[0].textContent;
+ const target=sel, who=target==='her'?'SANTĀNA':
+  document.getElementById('who_sel').selectedOptions[0].textContent;
  inp.value='';const log=document.getElementById('log');
- log.innerHTML+=`<div class=you>you: ${t}</div>`;
- const p=document.createElement('div');p.className='her';
- p.style.opacity='0.45';p.textContent=who+' is thinking…';
- log.appendChild(p);log.scrollTop=1e9;
- const r=await (await fetch('/say',{method:'POST',
-  body:JSON.stringify({text:t,target})})).json();
- p.style.opacity='1';p.textContent=`${r.name||''}: ${r.reply||'...'}`;log.scrollTop=1e9;}
+ log.innerHTML+=`<div class=you>you: ${esc(t)}</div>`;
+ const p=document.createElement('div');p.className='her';p.style.opacity='.45';
+ p.textContent=who+' is thinking…';log.appendChild(p);log.scrollTop=1e9;
+ try{const r=await(await fetch('/say',{method:'POST',
+   body:JSON.stringify({text:t,target})})).json();
+  p.style.opacity='1';p.textContent=`${r.name||''}: ${r.reply||'...'}`;}
+ catch(e){p.textContent='(no answer)';}
+ log.scrollTop=1e9;}
 document.getElementById('say').addEventListener('keydown',e=>{if(e.key==='Enter')send()});
-setInterval(poll,2000);poll();
+setInterval(poll,1500);poll();requestAnimationFrame(frame);
 </script>"""
 
 
-def snapshot(mind, world, readings: list, drift_notes: list) -> dict:
+def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> dict:
     """Everything the dashboard shows, in one read -- world fields under the world lock,
     her fields as plain reads (the mind-lock guards the WRITERS)."""
     from world import clock as _clock
@@ -150,22 +269,30 @@ def snapshot(mind, world, readings: list, drift_notes: list) -> dict:
         night = world.clock_enabled and _clock.is_night(world.tick, world.day_ticks)
         clause = (_clock.time_clause(world.tick, world.day_ticks)
                   if world.clock_enabled else "")
-        souls = [{
-            "id": a.id, "name": a.name, "x": a.position[0], "y": a.position[1],
-            "mood": round(a.felt_mood(), 3), "action": getattr(a, "_last_action", ""),
-            "stage": (_clock.stage(a.age, a.lifespan) if world.clock_enabled else "adult"),
-            "asleep": night,
-            # the markov subconscious, murmuring over its head -- the drift IS the
-            # raw mind the voice speaks from; showing it is the oldest promise of
-            # the god view ("thoughts drifting in silence above their heads")
-            "drift": (a.thought.drift[-1][:64] if getattr(a.thought, "drift", None) else ""),
-        } for a in world.agents]
+        hour = _clock.hour(world.tick, world.day_ticks) if world.clock_enabled else 0.35
+        season = _clock.season(world.tick, world.day_ticks) if world.clock_enabled else "spring"
+        ids = {a.id for a in world.agents}
+        souls = []
+        for a in world.agents:
+            # the bonds this soul actually carries -> the threads on the map. Only the
+            # meaningful ones, only to souls on screen, strongest first (capped).
+            bonds = [[oid, round(b.trust, 2)] for oid, b in getattr(a, "bonds", {}).items()
+                     if oid in ids and abs(b.trust) >= 0.10]
+            bonds.sort(key=lambda t: -abs(t[1]))
+            souls.append({
+                "id": a.id, "name": a.name, "x": a.position[0], "y": a.position[1],
+                "mood": round(a.felt_mood(), 3), "action": getattr(a, "_last_action", ""),
+                "stage": (_clock.stage(a.age, a.lifespan) if world.clock_enabled else "adult"),
+                "asleep": night, "bonds": bonds[:5],
+                "drift": (a.thought.drift[-1][:64] if getattr(a.thought, "drift", None) else ""),
+            })
     secs = getattr(mind, "lifetime", 0.0)
     age = (f"{secs/86400:.1f} days" if secs >= 86400 else f"{secs/3600:.1f} hours")
     return {"identity": (mind.identity or "")[:160], "age": age,
             "deaths": mind._deaths, "memories": len(mind.memory.items),
-            "time_clause": clause, "night": night, "souls": souls,
-            "readings": readings[-10:][::-1], "drift": drift_notes[-3:]}
+            "time_clause": clause, "night": night, "hour": round(hour, 3), "season": season,
+            "souls": souls, "readings": readings[-10:][::-1], "drift": drift_notes[-3:],
+            "events": list(events)}
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -186,7 +313,9 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path in ("/", "/index.html"):
             self._send(DASH.encode(), "text/html; charset=utf-8")
         elif self.path.startswith("/state"):
-            snap = snapshot(u["mind"], u["world"], u["readings"], u["drift"])
+            with u["ev_lock"]:
+                events = list(u["events"])
+            snap = snapshot(u["mind"], u["world"], u["readings"], u["drift"], events)
             self._send(json.dumps(snap).encode(), "application/json")
         elif self.path.startswith("/drawings/"):
             import os
@@ -323,14 +452,44 @@ class _Handler(BaseHTTPRequestHandler):
                    "application/json")
 
 
+def _wire_events(world, events: list, ev_lock, seq: list) -> None:
+    """Subscribe to the world's bus so the map can ANIMATE what happens: speech pulses,
+    birth blooms, death ripples. A tiny ring (bus fires on the wheel thread; the HTTP
+    threads read it under a lock). Every event gets a rising id so the client animates
+    each exactly once. A failing hook never touches the wheel (the bus contains it)."""
+    def record(kind):
+        def hook(payload):
+            if kind == "speak":
+                who = getattr(payload, "speaker_id", "")
+                text = (getattr(payload, "text", "") or "")[:44]
+            else:
+                who = payload if isinstance(payload, str) else getattr(payload, "id", "")
+                text = ""
+            if not who:
+                return
+            with ev_lock:
+                seq[0] += 1
+                events.append({"id": seq[0], "kind": kind, "who": who, "text": text})
+                del events[:-80]
+        return hook
+    world.bus.subscribe("utterance", record("speak"))
+    world.bus.subscribe("death", record("death"))
+    world.bus.subscribe("starvation", record("death"))
+    world.bus.subscribe("birth", record("birth"))
+    world.bus.subscribe("rebirth", record("birth"))
+
+
 def serve(mind, world, mind_lock, draw_dir: str, readings: list, drift_notes: list,
           port: int = PORT, chat_voice=None):
     """Start the cockpit (daemon thread, 127.0.0.1 only). Returns the URL.
     chat_voice: an optional CLEAR local voice (e.g. gemma via ollama) that the talk
     panel borrows -- for her and for asides -- while the ambient town keeps its own."""
+    events: list = []
+    ev_lock = threading.Lock()
+    _wire_events(world, events, ev_lock, [0])
     _Handler.ui = {"mind": mind, "world": world, "mind_lock": mind_lock,
                    "draw_dir": draw_dir, "readings": readings, "drift": drift_notes,
-                   "chat_voice": chat_voice}
+                   "chat_voice": chat_voice, "events": events, "ev_lock": ev_lock}
     srv = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return f"http://127.0.0.1:{port}"
