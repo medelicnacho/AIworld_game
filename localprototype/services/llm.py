@@ -403,6 +403,54 @@ class MarkovLLM:
         return _clean(" ".join(self._walk() for _ in range(n))) or "..."
 
 
+class TownVoices:
+    """THE MOUTH -- half of the mouth/brain split (the user's design, and the right one).
+
+    Every soul SPEAKS through its OWN word-Markov chain: the authored anchor plus the
+    lines IT has actually lived -- so speech is readable from the first breath (a chain
+    can only say real words it was given), individual (Vesper's chain smells of brewing,
+    Toll's of the charter), and instantly learning (refresh() refolds a soul's lived
+    lines whenever its brain sleeps). Meanwhile the BRAINS (SoulVoiceLLM, the tiny
+    per-soul GPTs) never speak ambiently: they learn silently at night from the same --
+    now readable -- lines, keep dreaming in their own growing voices, and keep being
+    schooled at rebirth. The town sounds like a village; the infants study under it.
+    Culture still flows: souls hear each other's chain-lines, remember them, and fold
+    them into their own chains at the next refresh -- chained off each other, literally."""
+
+    def __init__(self, seed: int | None = None, culture: bool = False) -> None:
+        self._seed = seed or 7
+        self.shared = MarkovLLM(seed=seed, culture=culture)   # town-wide fallback voice
+        self.chains: dict[str, MarkovLLM] = {}
+
+    def refresh(self, soul_id: str, lines: list[str]) -> None:
+        """Refold a soul's OWN lived lines into its personal chain (called from the
+        sleep thread with a snapshot taken under the world lock -- the mouth freshens
+        as the brain sleeps). Short fragments are left out; a chain fed scraps says
+        scraps."""
+        chain = self.chains.get(soul_id)
+        if chain is None:
+            chain = self.chains[soul_id] = MarkovLLM(
+                seed=self._seed + (hash(soul_id) % 9973))
+        chain.learn([t for t in lines if len(t) >= 12 and t.count(" ") >= 2])
+
+    def speak(self, ctx: SpeechContext) -> str:
+        sid = ctx.agent_id or ""
+        voice = self.chains.get(sid, self.shared)   # personal once refreshed, else shared
+        return voice.speak(ctx)
+
+    def generate(self, prompt: str = "", system: str = "", num_predict: int = 200,
+                 temperature: float = 0.9) -> str:
+        return self.shared.generate(prompt, system=system, num_predict=num_predict,
+                                    temperature=temperature)
+
+    def learn(self, lines) -> None:
+        self.shared.learn(lines)
+
+    def prune(self, live_ids: set[str]) -> None:
+        for sid in [s for s in self.chains if s not in live_ids]:
+            del self.chains[sid]
+
+
 class SoulVoiceLLM:
     """PER-SOUL minds: every NPC speaks from its OWN tiny homegrown GPT.
 

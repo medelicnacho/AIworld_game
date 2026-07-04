@@ -241,6 +241,19 @@ def main() -> None:
     santana_llm = _make_voice(args.llm, args.model, culture=args.culture)
     town_llm, args.town_model = town_voice(args.town_model, args.world_snapshot,
                                            culture=args.culture)
+    # THE MOUTH/BRAIN SPLIT (the user's design): in a soul town, the tiny per-soul
+    # GPTs become the silent BRAINS (they sleep, school, dream -- never speak
+    # ambiently), and every soul SPEAKS through its own readable markov chain
+    # (TownVoices), refreshed from its lived lines each time its brain sleeps.
+    # Speech is readable from the first breath; the infants study underneath it --
+    # on clean sentences now, not on each other's noise.
+    mind_bank = None
+    if isinstance(town_llm, SoulVoiceLLM):
+        from services.llm import TownVoices
+        mind_bank = town_llm
+        town_llm = TownVoices(seed=7, culture=args.culture)
+        print("  (mouth/brain split: souls speak their own markov chains; "
+              "their minds learn silently underneath)", flush=True)
     real_town = args.town_model not in (None, "mock")
 
     # resume the WHOLE town if we can (so the wheel keeps turning across restarts), else build fresh
@@ -373,30 +386,33 @@ def main() -> None:
                 # own spoken lines -- born babbling, raised by the village -- so language
                 # can accumulate ACROSS rebirths instead of resetting with each one.
                 # (Schooling jumps the round-robin: the young learn out of turn.)
-                newborn = next((s for s in souls if town_llm.needs_school(s)), None)
+                newborn = next((s for s in souls if mind_bank.needs_school(s)), None)
                 if newborn is not None:
                     with w.lock:
-                        school = town_llm.school_corpus(w.agents)
-                    if town_llm.school(newborn, school) is not None:   # no lock held
+                        school = mind_bank.school_corpus(w.agents)
+                    if mind_bank.school(newborn, school) is not None:   # no lock held
                         print(f"  (school: {newborn.name} learns the elders' tongue -- "
                               f"{school.count(chr(10)) + 1} lines)", flush=True)
                     continue
                 with w.lock:
-                    corpus = town_llm.weighted_corpus(soul)   # trusted voices weigh more
+                    corpus = mind_bank.weighted_corpus(soul)  # trusted voices weigh more
                     n_mem = len(soul.memory.items)
+                    lived = [m.text for m in soul.memory.items]
                     residue = (max(soul.memory.items, key=lambda m: m.salience).text
                                if soul.memory.items else soul.persona)   # the day's residue
-                out = town_llm.sleep_text(soul.id, corpus)   # the slow burst, no lock held
+                if hasattr(town_llm, "refresh"):
+                    town_llm.refresh(soul.id, lived)   # the mouth freshens as the brain sleeps
+                out = mind_bank.sleep_text(soul.id, corpus)   # the slow burst, no lock held
                 if out is not None:
                     first, last = out
-                    mind = town_llm.mind_for(soul.id)
+                    mind = mind_bank.mind_for(soul.id)
                     print(f"  (sleep: {soul.name} absorbs {n_mem} memories -- "
                           f"loss {first:.2f}→{last:.2f}, sleep #{mind.sleeps})", flush=True)
                     # every third sleep the soul DREAMS, in its own grown voice: generated
                     # with no lock held, written back under it, tagged source='dream' --
                     # so it says 'I dreamt it, I think' at recall (§5.19), and a worn dream
                     # can leak into believed memory by the measured pathway
-                    dream = town_llm.dream_line(soul.id, residue)
+                    dream = mind_bank.dream_line(soul.id, residue)
                     if dream:
                         with w.lock:
                             soul.memory.write(dream, tick=w.tick, source="dream",
@@ -404,7 +420,9 @@ def main() -> None:
                         print(f"  (dream: {soul.name} dreams -- \"{dream[:90]}\")", flush=True)
                 with w.lock:
                     live = {a.id for a in w.agents}
-                town_llm.prune(live)   # a departed soul's mind leaves RAM; the file remains
+                mind_bank.prune(live)  # a departed soul's mind leaves RAM; the file remains
+                if hasattr(town_llm, "prune"):
+                    town_llm.prune(live)
             except Exception:   # noqa: BLE001 -- a failed dream must never kill the life
                 report()
 
@@ -443,7 +461,7 @@ def main() -> None:
     threads = [threading.Thread(target=run_wheel, daemon=True)]
     if real_town:
         threads.append(threading.Thread(target=run_speech, daemon=True))
-    if isinstance(town_llm, SoulVoiceLLM):
+    if mind_bank is not None:
         threads.append(threading.Thread(target=run_sleep, daemon=True))
     if args.psyche:
         threads.append(threading.Thread(target=run_reflect, daemon=True))
@@ -510,7 +528,8 @@ def main() -> None:
                 except Exception:   # noqa: BLE001 -- no local model is a mode, not an error
                     pass
             url = _ui.serve(mind, w, mind_lock, _draw_dir, ui_readings, ui_drift,
-                            port=args.ui_port, chat_voice=chat_voice)
+                            port=args.ui_port, chat_voice=chat_voice,
+                            mind_bank=mind_bank)
             print(f"  ✦ the cockpit is open: {url}  (god view + stream + art + talk"
                   + ("; clear talk voice on" if chat_voice else "; self-grown talk voice")
                   + ")")
@@ -713,9 +732,9 @@ def main() -> None:
         stop.set()
         time.sleep(0.3)   # let the wheel/speech threads release the lock before the final snapshot
         save_both()
-        if isinstance(town_llm, SoulVoiceLLM):
+        if mind_bank is not None:
             try:
-                town_llm.save_all()   # every soul's brain rests where its next waking finds it
+                mind_bank.save_all()  # every soul's brain rests where its next waking finds it
             except Exception:   # noqa: BLE001 -- a failed brain-save must not block her save
                 import traceback
                 traceback.print_exc()

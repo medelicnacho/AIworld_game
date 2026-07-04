@@ -69,3 +69,27 @@ def test_a_town_with_no_tongue_lets_the_newborn_found_it(tmp_path):
     babe = _soul("s9", "First", age=1)
     assert v.school(babe, "") is None
     assert not v.needs_school(babe)                    # marked schooled all the same
+
+
+def test_the_mouth_brain_split_speaks_readably_and_individually(tmp_path):
+    """TownVoices: a soul's mouth is its OWN markov chain -- only real words it was
+    given, personalized after refresh, shared-anchor before; prune follows the living."""
+    from services.llm import TownVoices
+    from services.prompts import SpeechContext
+
+    tv = TownVoices(seed=5)
+    ctx = SpeechContext(name="Vesper", persona="You are Vesper.", mood=0.0,
+                        agent_id="s0", drift=["the well keeps us"])
+    before = tv.speak(ctx)                              # shared anchor: still real words
+    assert before and "\x02" not in before
+    tv.refresh("s0", ["the mash tun boiled over again this morning",
+                      "a barrel of dark ale for the festival",
+                      "no", "too short"])               # scraps are left out
+    assert "s0" in tv.chains                            # personalized after refresh
+    # its OWN life shows up in its OWN mouth: across samples, the brewer's chain
+    # speaks brewer words (deterministic under the seeded rng)
+    brewer = {"mash", "tun", "ale", "barrel", "boiled", "festival"}
+    lines = " ".join(tv.speak(ctx) for _ in range(40)).lower()
+    assert any(w in lines for w in brewer)
+    tv.prune({"s1"})
+    assert "s0" not in tv.chains                        # the mouth follows the living

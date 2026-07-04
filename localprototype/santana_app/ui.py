@@ -594,7 +594,11 @@ class _Handler(BaseHTTPRequestHandler):
         own = ""
         if chat_voice is not None:
             try:
-                own = " ".join(str(soul.llm.speak(ctx)).split())[:120]
+                # the stirring comes from the soul's GROWN MIND (the brain bank) when
+                # the mouth/brain split is on -- soul.llm is then the readable mouth,
+                # but the interpreter should hear the real infant underneath
+                _stir_voice = u.get("mind_bank") or soul.llm
+                own = " ".join(str(_stir_voice.speak(ctx)).split())[:120]
                 if own:
                     print(f"  (aside: {soul.name}'s grown mind stirred: {own[:70]!r} "
                           "-- the clear voice interprets it)", flush=True)
@@ -704,7 +708,7 @@ def _wire_events(world, events: list, ev_lock, seq: list) -> None:
 
 
 def serve(mind, world, mind_lock, draw_dir: str, readings: list, drift_notes: list,
-          port: int = PORT, chat_voice=None):
+          port: int = PORT, chat_voice=None, mind_bank=None):
     """Start the cockpit (daemon thread, 127.0.0.1 only). Returns the URL.
     chat_voice: an optional CLEAR local voice (e.g. gemma via ollama) that the talk
     panel borrows -- for her and for asides -- while the ambient town keeps its own."""
@@ -713,7 +717,8 @@ def serve(mind, world, mind_lock, draw_dir: str, readings: list, drift_notes: li
     _wire_events(world, events, ev_lock, [0])
     _Handler.ui = {"mind": mind, "world": world, "mind_lock": mind_lock,
                    "draw_dir": draw_dir, "readings": readings, "drift": drift_notes,
-                   "chat_voice": chat_voice, "events": events, "ev_lock": ev_lock}
+                   "chat_voice": chat_voice, "mind_bank": mind_bank,
+                   "events": events, "ev_lock": ev_lock}
     srv = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return f"http://127.0.0.1:{port}"
