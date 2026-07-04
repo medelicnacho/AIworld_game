@@ -276,10 +276,13 @@ wild replication.*
   (mood anti-tracks wellbeing, −0.34) and the open-channel lesson (v1 harness had
   speech off). FINDINGS §5.24. **Follow-ups registered:** V1b what sets a town's sign;
   V1w the wild replication on `town_history.jsonl` after ≥1 week of samples.
-- **V2 FELLOWSHIPS TAKE TERRITORY** (`experiment_territory.py`, verdict seeds
-  **201–205**): T1 — souls sharing a bond-cluster stand measurably closer than the
-  bond-shuffled null, ≥4/5. T2 — spatial cluster membership persists across windows
-  beating chance (neighbourhoods, not a milling crowd), ≥4/5.
+- **V2 FELLOWSHIPS TAKE TERRITORY** — **VERDICT RECORDED 2026-07-04 (201–205
+  consumed): T1 5/5 + T2 5/5.** Kin cluster at ~26px vs a ~128px affinity-shuffled null
+  (5×); a soul keeps its own neighbourhood (~0.80 Jaccard) vs a random other soul's
+  (~0.12). Tuning caught the honest form: a cooperative town is ONE blob (all-warm, zero
+  enmity) — territory needs emergent out-groups (opinion dynamics), then the social graph
+  becomes geography. FINDINGS §5.26. With V1, the visual-emergence pair is complete. Wild
+  replication registered on town_history.
 - **N-SERIES, THE TRILOGY'S THIRD ACT** — **VERDICT RECORDED 2026-07-04 (211–215
   consumed): the boundary HOLDS.** Body-as-sensation did NOT unlock self-attribution:
   N1 surface-pass but N2 FAIL 0/7 (echo of "tightness", never owned agency) over an

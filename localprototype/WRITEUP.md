@@ -113,6 +113,12 @@ tested the most sympathetic version of the hope, and it did not hold.
   position-shuffled null, 5/5. Some towns form warm fronts (neighbors feeling alike); others
   form checkerboards (neighbors feeling opposite). What a viewer sees drifting across the
   map is not pareidolia.
+- **And fellowships take territory.** When the town has genuine out-groups (emergent
+  disagreement, not universal warmth), its social graph becomes *geography*: souls who feel
+  kinship cluster five times closer than chance, and a soul keeps *its own* neighbors over
+  time rather than milling — a neighborhood, not a crowd (5/5). Nobody zoned it. The
+  companion caveat is itself a finding: a purely cooperative town homogenizes into one blob;
+  territory *requires* a source of social differentiation.
 - **And the town enacts its own philosophy, unprompted.** Mood *anti-correlates* with
   wellbeing across souls (−0.34): the comfortable sour with clinging while the suffering are
   tended into warmth. Nobody designed this. The *dukkha* mechanics produced *dukkha

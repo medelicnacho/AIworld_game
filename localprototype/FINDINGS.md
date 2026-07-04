@@ -1200,6 +1200,33 @@ welfare lever it would have unlocked did not materialise, and nothing was spent 
 it but five virgin seeds honestly consumed. The trilogy closes with the boundary intact
 and better understood — the less flashy of the two pre-registered endings, and the truer.
 
+### 5.26 Fellowships take territory — emergent factions become emergent neighbourhoods
+
+The V-series' second verdict (experiment_territory.py, virgin 201-205): **T1 5/5, T2
+5/5.** With V1 (§5.24) this completes the visual-emergence pair — *mood is spatially
+real, and the social graph becomes geography.*
+
+The finding is inseparable from what tuning caught: a plain cooperative town **cannot**
+take territory, because it has no distinct fellowships to begin with — every soul ends up
+loving every other (all 992 bonds warm, median trust 0.94, zero enmity), so bond-
+attraction pulls the whole town into one 91px blob. Territory needs DIFFERENTIATION, which
+the emergent opinion dynamics supply (bounded confidence: aligned views warm and cluster,
+distant views cool and repel). With out-groups present:
+
+- **T1 KIN CLUSTER, FOES PART — 5/5.** Souls a soul feels kinship toward stand at ~26px
+  while an affinity-shuffled null sits at ~128px — a 5× separation. The social graph
+  reaches all the way into space.
+- **T2 A SOUL LIVES SOMEWHERE — 5/5.** A soul's nearest neighbours a full window later
+  overlap its own earlier set at ~0.80 Jaccard, versus ~0.12 against a random *other*
+  soul's set (identity-shuffled null). It keeps *its* neighbours, not just any — a
+  neighbourhood, not a milling crowd.
+
+So emergent factions become emergent territory, and nobody drew the map. The design fact
+for the engine: **spatial neighbourhoods require a source of social differentiation** (the
+opinion dynamics, or any out-group mechanic) — pure cooperative warmth homogenises into a
+single clump. Wild replication registered on `town_history.jsonl` once a week of samples
+exists.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
