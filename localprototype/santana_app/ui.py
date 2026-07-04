@@ -264,12 +264,13 @@ function drawSouls(now){
   if(d.dying){const e=(now-d.dying)/1400; if(e>=1){souls.delete(id);continue;} fade=1-e;}
   const[r,gg,b]=moodRGB(d.mood), night=sky.night&&d.asleep;
   const rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
-  const glow=(night?10:15)+(night?0:4*breathe);
+  // night dims a soul GENTLY -- always plainly visible, just softened (asleep)
+  const glow=(night?12:15)+(night?0:4*breathe);
   const hg=g.createRadialGradient(d.x,d.y,1,d.x,d.y,glow*1.8);
-  hg.addColorStop(0,`rgba(${r},${gg},${b},${(night?0.28:0.42)*fade})`);
+  hg.addColorStop(0,`rgba(${r},${gg},${b},${(night?0.32:0.42)*fade})`);
   hg.addColorStop(1,`rgba(${r},${gg},${b},0)`);
   g.fillStyle=hg;g.beginPath();g.arc(d.x,d.y,glow*1.8,0,7);g.fill();
-  g.globalAlpha=(night?0.75:1)*fade;
+  g.globalAlpha=(night?0.85:1)*fade;
   g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
   g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();
   if(d.stage==='elder'){g.strokeStyle=`rgba(200,200,215,${0.6*fade})`;g.lineWidth=1;
@@ -435,6 +436,9 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        # no-store: the dashboard evolves fast, and a browser quietly serving last
+        # week's page made "it went dark" bugs unreproducible -- never cache the cockpit
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
