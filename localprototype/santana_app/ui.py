@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-UI_VERSION = 8   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 9   # bump on any dashboard change: live pages reload themselves to match
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -98,7 +98,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v8</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v9</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -191,7 +191,7 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
-const MY_VERSION=8;
+const MY_VERSION=9;
 async function poll(){try{
  const s=await(await fetch('/state2')).json();
  // a page older than the server RELOADS ITSELF -- stale tabs were the source of a
@@ -238,25 +238,20 @@ async function poll(){try{
 }catch(e){document.getElementById('drift').textContent='ui: '+e;}}
 
 function drawSky(){
- const h=sky.hour;
- // night floor 0.8: night is TWILIGHT -- a slight cooling plus stars, nothing more.
- // Three rounds of user testing said any real darkness reads as a dead screen.
- let light = h<0.3 ? 0.85+0.15*(h/0.3)
-   : h<0.5 ? 1 : h<0.7 ? 1-0.2*((h-0.5)/0.2) : 0.8;
- if(!Number.isFinite(light)) light=1;
- const nt=[19,21,36], dt=[26,40,64], nb=[28,30,46], db=[54,64,86];
- const L=(a,b)=>Math.round(a+(b-a)*light);
+ // v9: THERE IS NO VISUAL NIGHT. Four rounds of night-brightening still read as
+ // "it goes dark" on the user's screen -- so the map's brightness is now CONSTANT
+ // by construction, day and night, forever. Night still exists in the world
+ // (souls sleep, labour pauses, minds train); it shows as INFORMATION -- the
+ // header clock, 'asleep' labels, a moon in the corner -- never as darkness.
  const grd=g.createLinearGradient(0,0,0,H);
- grd.addColorStop(0,`rgb(${L(nt[0],dt[0])},${L(nt[1],dt[1])},${L(nt[2],dt[2])})`);
- grd.addColorStop(1,`rgb(${L(nb[0],db[0])},${L(nb[1],db[1])},${L(nb[2],db[2])})`);
+ grd.addColorStop(0,'rgb(26,40,64)');
+ grd.addColorStop(1,'rgb(54,64,86)');
  g.fillStyle=grd;g.fillRect(0,0,W,H);
- const warm=Math.max(0,1-Math.abs(light-0.4)/0.4)*(light<0.85?1:0);
- if(warm>0.05){g.fillStyle=`rgba(210,120,70,${0.10*warm})`;
-  g.fillRect(0,H*0.55,W,H*0.45);}
- if(light<0.9){const sa=(0.9-light)/0.9;g.fillStyle=`rgba(220,222,240,${0.8*sa})`;
-  for(const st of stars){g.beginPath();g.arc(st.x,st.y,st.r,0,7);g.fill();}}
  const tint={spring:[90,150,90],summer:[210,180,80],harvest:[210,140,60],winter:[110,140,190]}[sky.season]||[120,120,140];
  g.fillStyle=`rgba(${tint[0]},${tint[1]},${tint[2]},0.05)`;g.fillRect(0,0,W,H);
+ if(sky.night){g.fillStyle='rgba(220,222,240,0.85)';g.font='16px Georgia';
+  g.fillText('☾',W-30,26);g.font='9.5px Georgia';g.fillStyle='rgba(170,175,200,0.9)';
+  g.fillText('night — the town sleeps',W-150,40);}
 }
 
 function drawThreads(){
