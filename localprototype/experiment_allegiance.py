@@ -43,6 +43,11 @@ OUTCOME (2026-07-03, seeds 161-165 consumed -- never a verdict again):
                     A SEASON -- which may be the correct psychology, and is recorded as
                     the finding. A longer-courtship re-verdict (700+ ticks, deeper
                     pledge history) may run on virgin 171-175 if the claim is retried.
+
+V2, THE LONG COURTSHIP (--long): that retry -- 900-tick seasons (2.25x the kept words
+per soul), A1/A2 ONLY (A3/A4 stand at 5/5 and are not re-run), same bars, VERDICT from
+virgin seeds 171-175. If it passes, the army story completes: armies assemble from
+EARNED history, measured. If it fails, v1's finding deepens on the record.
 """
 from __future__ import annotations
 
@@ -58,8 +63,10 @@ from services.llm import MockLLM
 from world.sim import World
 
 TUNING_SEEDS = (11, 12, 13, 14, 15)
-HELDOUT_SEEDS = (161, 162, 163, 164, 165)
+HELDOUT_SEEDS = (161, 162, 163, 164, 165)   # CONSUMED by v1 (see docstring)
+HELDOUT_V2 = (171, 172, 173, 174, 175)      # virgin, for --long
 TICKS = 400
+TICKS_V2 = 900
 CYCLE = 30
 N = 8
 
@@ -81,12 +88,12 @@ def build(seed: int, lore_on: bool = True) -> World:
     return w
 
 
-def season(seed: int, kind: str) -> World:
+def season(seed: int, kind: str, ticks: int = TICKS) -> World:
     """A season of the player among the town: warm (kept words, seen kindness) or dark
     (broken words, seen meanness). Reputation forms ONLY through the validated roads."""
     w = build(seed)
     rng = random.Random(seed)
-    for t in range(1, TICKS + 1):
+    for t in range(1, ticks + 1):
         if t % CYCLE == 1:
             soul = rng.choice(w.agents)
             if kind == "warm":
@@ -102,11 +109,11 @@ def season(seed: int, kind: str) -> World:
     return w
 
 
-def report(seeds, label: str):
+def report(seeds, label: str, ticks: int = TICKS, courtship_only: bool = False):
     print(f"\n--- {label} ---")
     rows = []
     for seed in seeds:
-        warm_w, dark_w = season(seed, "warm"), season(seed, "dark")
+        warm_w, dark_w = season(seed, "warm", ticks), season(seed, "dark", ticks)
         warm = allegiance.muster(warm_w, "player", danger=0.2)
         dark = allegiance.muster(dark_w, "player", danger=0.2)
         a1 = len(warm["join"]) > len(dark["join"]) and len(dark["join"]) == 0
@@ -119,6 +126,12 @@ def report(seeds, label: str):
         gap, gap0 = (len(warm["join"]) - len(dark["join"]),
                      len(warm0["join"]) - len(dark0["join"]))
         a2 = gap > gap0
+        if courtship_only:      # --long re-verdicts ONLY the courtship claims
+            rows.append({"a1": a1, "a2": a2})
+            print(f"seed {seed}: warm joins {len(warm['join'])} vs dark "
+                  f"{len(dark['join'])} (silenced gap {gap0}) | "
+                  f"A1 {'PASS' if a1 else 'FAIL'}  A2 {'PASS' if a2 else 'FAIL'}")
+            continue
         # A3: the innocent -- one planted lie in a fresh town, vs a no-plant twin
         w3 = build(seed)
         for a in w3.agents[:2]:
@@ -157,7 +170,26 @@ def report(seeds, label: str):
 
 
 def main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--long", action="store_true",
+                    help="v2: 900-tick courtship, A1/A2 only, virgin seeds 171-175")
+    args = ap.parse_args()
     print(__doc__)
+    if args.long:
+        report(TUNING_SEEDS, "V2 TUNING seeds 11-15 (900 ticks; never a verdict)",
+               ticks=TICKS_V2, courtship_only=True)
+        held = report(HELDOUT_V2, "V2 HELD-OUT virgin seeds 171-175 (the verdict)",
+                      ticks=TICKS_V2, courtship_only=True)
+        print("\n=== V2 VERDICT (held-out; pre-registered: each claim >= 4/5) ===")
+        ok = True
+        for k, lab in (("a1", "A1 THE WARM NAME MUSTERS"),
+                       ("a2", "A2 KARMA IS LOAD-BEARING")):
+            cnt = sum(1 for r in held if r[k])
+            ok &= cnt >= 4
+            print(f"  {lab:25s}: {cnt}/{len(held)} -> {'PASS' if cnt >= 4 else 'FAIL'}")
+        print("\n(A3/A4 stand at 5/5 from v1 and were not re-run.)")
+        sys.exit(0 if ok else 1)
     report(TUNING_SEEDS, "TUNING seeds 11-15 (knobs may be tuned here; not the verdict)")
     held = report(HELDOUT_SEEDS, "HELD-OUT virgin seeds 161-165 (the verdict)")
     print("\n=== VERDICT (held-out; pre-registered: each claim >= 4/5) ===")
