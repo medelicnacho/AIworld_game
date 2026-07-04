@@ -32,6 +32,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
+UI_VERSION = 7   # bump on any dashboard change: live pages reload themselves to match
+
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
  :root{--ink:#dfe0ea;--dim:#7d7d92;--warm:#f0ead6;--edge:#22222c}
@@ -96,7 +98,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v6</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v7</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -189,8 +191,12 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
+const MY_VERSION=7;
 async function poll(){try{
  const s=await(await fetch('/state')).json();
+ // a page older than the server RELOADS ITSELF -- stale tabs were the source of a
+ // whole evening of unreproducible "it goes dark" reports; never again
+ if(s.ui_version&&s.ui_version>MY_VERSION){location.reload();return;}
  document.getElementById('who').textContent=s.identity||'a new mind';
  document.getElementById('vitals').textContent=
   `${s.age} · ${s.souls.length} souls · ${s.deaths} watched pass`;
@@ -403,7 +409,7 @@ def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> di
             "deaths": mind._deaths, "memories": len(mind.memory.items),
             "time_clause": clause, "night": night, "hour": round(hour, 3), "season": season,
             "souls": souls, "readings": readings[-10:][::-1], "drift": drift_notes[-3:],
-            "events": list(events)}
+            "events": list(events), "ui_version": UI_VERSION}
 
 
 def soul_detail(world, sid: str) -> dict | None:
