@@ -75,3 +75,28 @@ def test_reflect_moves_mood_vs_baseline():
     sr = exp._signatures(refl["mood"])
     assert len(refl["reflections"]) > 0
     assert sr["mean_post"] > sb["mean_post"] + 0.02
+
+
+def test_interoception_flag_feeds_the_body_as_sensation_never_numbers():
+    """OFF by default (her live self untouched); ON + a high grip puts a felt-sense
+    line in the prompt -- 'tightness', never 'grip'/'holding'/numbers (the experiment
+    must not put its answer in her mouth); a calm body says nothing."""
+    from agent import reflect as _reflect
+    from agent.agent import Agent
+    from services.llm import MockLLM
+
+    a = Agent("s0", "Cael", (0.0, 0.0), "You are Cael.", ["the well"],
+              MockLLM(seed=7), seed=3, temperament=0.0, lifespan=10 ** 6)
+    a.memory.write("a long day at the well", tick=1, source="event")
+    a.grip = 0.95
+    prompt, _sys = _reflect.prepare(a)
+    assert "Your body" not in prompt                     # off by default
+    a.interoception_enabled = True
+    prompt, _sys = _reflect.prepare(a)
+    assert "tightness in you" in prompt
+    body_line = prompt.split("Your body")[1]
+    assert "grip" not in body_line.lower() and "holding" not in body_line.lower()
+    assert not any(c.isdigit() for c in body_line)
+    a.grip = 0.0
+    prompt, _sys = _reflect.prepare(a)
+    assert "Your body" not in prompt                     # a calm body says nothing

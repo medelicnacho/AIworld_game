@@ -72,6 +72,24 @@ def prepare(agent, k: int = 4):
     joyful = getattr(agent, "joy", 0.0) > 0.3      # a joyful self may savour, not only accept
     prompt = build_prompt(agent.name, agent.felt_mood(), [m.text for m in mems],
                           grounded=grounded, joyful=joyful)
+    # INTEROCEPTION (off by default; the C15 trilogy's third act): the boundary held in
+    # two OUTPUT channels -- her words never said "holding", her lines never pressed
+    # harder -- but reflection was never given the INPUT: the body as sensation. With
+    # the flag on, the felt body enters the prompt as SENSATION only -- never numbers,
+    # never mechanism words ("tightness", not "grip"/"holding"; the experiment must not
+    # put its answer in her mouth). Whether felt tightness becomes "I am the one
+    # holding on" is exactly what experiment_interoception.py measures.
+    if getattr(agent, "interoception_enabled", False):
+        felt = []
+        if getattr(agent, "grip", 0.0) > 0.5:
+            felt.append("a tightness in you that does not come from the day")
+        if getattr(agent, "arousal", 0.0) > 0.5:
+            felt.append("your chest quick and unsettled")
+        if getattr(agent, "_contraction", 0.0) > 0.4:
+            felt.append("everything in you pulled in small")
+        if felt:
+            prompt += ("\nYour body, right now: " + "; ".join(felt)
+                       + ". Say what you make of it.")
     system = GROUNDED_REFLECT_SYSTEM if grounded else REFLECT_SYSTEM
     return prompt, system
 
