@@ -225,11 +225,12 @@ async function poll(){try{
 
 function drawSky(){
  const h=sky.hour;
- // night floor 0.34: a town-day is ~15s of wall time, so the map spends a third of
- // its life at night -- night must read as MOONLIGHT, never as a dead screen
- let light = h<0.3 ? 0.5+0.5*(h/0.3)
-   : h<0.5 ? 1 : h<0.7 ? 1-0.66*((h-0.5)/0.2) : 0.34;
- const nt=[14,15,26], dt=[26,40,64], nb=[20,21,34], db=[54,64,86];
+ // night floor 0.55: night is a TINT, not a darkness -- the map spends a third of
+ // its life there, and everything must stay comfortably visible the whole time
+ // (the user twice found real darkness unreadable; stars + cool cast carry "night")
+ let light = h<0.3 ? 0.7+0.3*(h/0.3)
+   : h<0.5 ? 1 : h<0.7 ? 1-0.45*((h-0.5)/0.2) : 0.55;
+ const nt=[19,21,36], dt=[26,40,64], nb=[28,30,46], db=[54,64,86];
  const L=(a,b)=>Math.round(a+(b-a)*light);
  const grd=g.createLinearGradient(0,0,0,H);
  grd.addColorStop(0,`rgb(${L(nt[0],dt[0])},${L(nt[1],dt[1])},${L(nt[2],dt[2])})`);
@@ -239,7 +240,7 @@ function drawSky(){
  if(warm>0.05){const hg=g.createRadialGradient(W/2,H,60,W/2,H,H*0.9);
   hg.addColorStop(0,`rgba(210,120,70,${0.18*warm})`);hg.addColorStop(1,'rgba(0,0,0,0)');
   g.fillStyle=hg;g.fillRect(0,0,W,H);}
- if(light<0.42){const sa=(0.42-light)/0.42;g.fillStyle=`rgba(220,222,240,${0.6*sa})`;
+ if(light<0.72){const sa=(0.72-light)/0.72;g.fillStyle=`rgba(220,222,240,${0.7*sa})`;
   for(const st of stars){g.beginPath();g.arc(st.x,st.y,st.r,0,7);g.fill();}}
  const tint={spring:[90,150,90],summer:[210,180,80],harvest:[210,140,60],winter:[110,140,190]}[sky.season]||[120,120,140];
  g.fillStyle=`rgba(${tint[0]},${tint[1]},${tint[2]},0.05)`;g.fillRect(0,0,W,H);
@@ -264,13 +265,14 @@ function drawSouls(now){
   if(d.dying){const e=(now-d.dying)/1400; if(e>=1){souls.delete(id);continue;} fade=1-e;}
   const[r,gg,b]=moodRGB(d.mood), night=sky.night&&d.asleep;
   const rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
-  // night dims a soul GENTLY -- always plainly visible, just softened (asleep)
-  const glow=(night?12:15)+(night?0:4*breathe);
+  // night barely dims a soul -- the sky's cool tint and the stars say "night";
+  // the town itself stays fully readable at all hours
+  const glow=(night?13:15)+(night?0:4*breathe);
   const hg=g.createRadialGradient(d.x,d.y,1,d.x,d.y,glow*1.8);
-  hg.addColorStop(0,`rgba(${r},${gg},${b},${(night?0.32:0.42)*fade})`);
+  hg.addColorStop(0,`rgba(${r},${gg},${b},${(night?0.36:0.42)*fade})`);
   hg.addColorStop(1,`rgba(${r},${gg},${b},0)`);
   g.fillStyle=hg;g.beginPath();g.arc(d.x,d.y,glow*1.8,0,7);g.fill();
-  g.globalAlpha=(night?0.85:1)*fade;
+  g.globalAlpha=(night?0.92:1)*fade;
   g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
   g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();
   if(d.stage==='elder'){g.strokeStyle=`rgba(200,200,215,${0.6*fade})`;g.lineWidth=1;
