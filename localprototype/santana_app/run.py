@@ -251,7 +251,10 @@ def main() -> None:
     if isinstance(town_llm, SoulVoiceLLM):
         from services.llm import TownVoices
         mind_bank = town_llm
-        town_llm = TownVoices(seed=7, culture=args.culture)
+        # seed the mouth from THIS town's snapshot path -- two towns booted the same
+        # second must not speak as twins
+        town_llm = TownVoices(seed=sum(ord(c) for c in args.world_snapshot) % 9973,
+                              culture=args.culture)
         print("  (mouth/brain split: souls speak their own markov chains; "
               "their minds learn silently underneath)", flush=True)
     real_town = args.town_model not in (None, "mock")
