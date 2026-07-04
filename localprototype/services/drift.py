@@ -114,7 +114,13 @@ class DriftMonitor:
             base = ch["baseline"]
             if len(base) < self.baseline_n or len(ch["recent"]) < self.recent_n:
                 continue
-            mu, sd = statistics.fmean(base), (statistics.stdev(base) or 1e-9)
+            mu = statistics.fmean(base)
+            # sd FLOOR: a constant baseline (e.g. a souls-count that never moved during
+            # calibration) has sd ~ 0, and dividing by it turns a 1% wobble into
+            # z = -223606797 -- numerically true, humanly absurd. The floor says: a
+            # channel may never be more certain than 2% of its own level (or 0.05
+            # absolute), so a warning's z stays a number a person can read.
+            sd = max(statistics.stdev(base), 0.02 * abs(mu), 0.05)
             z = (statistics.fmean(ch["recent"]) - mu) / (sd / (self.recent_n ** 0.5))
             if abs(z) >= self.z_bar:
                 ch["streak"] += 1
