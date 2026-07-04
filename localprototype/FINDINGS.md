@@ -1143,6 +1143,28 @@ claims took two rounds, and the pair of rounds is the finding:
 the game: the recruitment screen is a *history*, not a stat — and the v1 "failure" ships
 as the progression curve.
 
+### 5.24 Emotional weather — the town's mood is spatially real, and towns have signs
+
+The first V-series verdict (visual emergence; pre-registered in RESEARCH.md, run on
+virgin 191–195): **W1, WEATHER IS REAL — 5/5.** In every held-out roaming town, souls'
+moods carried genuine spatial structure far beyond a position-shuffled null: four towns
+grew **warm fronts** (neighbours feeling alike, to +0.27), one a strong **checkerboard**
+(−0.46 — neighbours feeling *opposite*). What a viewer sees condensing among the halos
+on the cockpit map is measured, not pareidolia; the weather overlay is earned. W2
+(structure keeps growing) failed honestly at 3/5 — weather **forms fast and persists**
+rather than slowly condensing.
+
+Recorded en route, openly: the claim was revised during tuning (the original assumed
+positive contagion; tuning found strong *two-signed* structure — the sign is data, and
+what sets a town's sign is the registered follow-up), and two instrument facts surfaced:
+the v1 harness had the speech channel off (no contagion could exist — a channel is not a
+mechanism until it is actually open), and **mood anti-tracks wellbeing across souls
+(−0.34): the comfortable sour with clinging while the suffering are tended into warmth.**
+Nobody designed that correlation; the dukkha mechanics produced dukkha *sociology* on
+their own — the project's premises showing up in its data unprompted. Follow-ups
+registered: the sign-determinant question, and the wild replication on the live towns'
+`town_history.jsonl` once a week of samples exists.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

@@ -269,15 +269,22 @@ seeds 11–15, verdicts on the virgin ranges named. Lab first, then confirmatory
 re-analysis on the live towns' recorded history — the strongest form: lab result plus
 wild replication.*
 
-- **V1 EMOTIONAL WEATHER** (`experiment_weather.py`, verdict seeds **191–195**):
-  W1 — a soul's mood correlates with its 5 nearest neighbours' mean mood, beating the
-  position-shuffled null, ≥4/5. W2 — the effect GROWS from the early to the late window
-  (bonds amplify contagion), sign ≥4/5. Pass ⇒ the map genuinely has weather; fail ⇒
-  contagion is social-only, not spatial — either way a design fact for the engine.
+- **V1 EMOTIONAL WEATHER** — **VERDICT RECORDED 2026-07-04 (191–195 consumed): W1
+  PASS 5/5** (structure real; four warm-front towns, one −0.46 checkerboard), W2 FAIL
+  3/5 (forms fast, persists; does not keep condensing). Claim was revised in tuning,
+  openly (structure-not-sign; the sign is data). Bonus findings: the dukkha economy
+  (mood anti-tracks wellbeing, −0.34) and the open-channel lesson (v1 harness had
+  speech off). FINDINGS §5.24. **Follow-ups registered:** V1b what sets a town's sign;
+  V1w the wild replication on `town_history.jsonl` after ≥1 week of samples.
 - **V2 FELLOWSHIPS TAKE TERRITORY** (`experiment_territory.py`, verdict seeds
   **201–205**): T1 — souls sharing a bond-cluster stand measurably closer than the
   bond-shuffled null, ≥4/5. T2 — spatial cluster membership persists across windows
   beating chance (neighbourhoods, not a milling crowd), ≥4/5.
+- **N-SERIES, THE TRILOGY'S THIRD ACT** (`experiment_interoception.py`, verdict seeds
+  **211–215**, running): reflect() given the body as SENSATION ("tightness", never
+  "grip"/numbers — echo-safe). N1 the input was the wall; N2 not an echo; N3 the old
+  null replicates. Judge v2 after tuning caught v1 reading practice-language as
+  diagnosis (run killed before any virgin seed; 211–215 still virgin at relaunch).
 - **V3 HER HAND DEVELOPS HABITS** (observational, `pages.jsonl`, analyse after ≥28
   day-pages): M1 — high-grief days differ from calm days on page statistics (speed,
   turn, hue, lifts) beyond a label-shuffled null. M2 — week-over-week drift in page

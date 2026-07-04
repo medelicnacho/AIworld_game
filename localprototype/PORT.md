@@ -109,7 +109,10 @@ keystone gate; needs an engine-native trainable micro-model or defers to the mar
 - Threading: this repo runs daemon threads under one world lock with the model call outside
   it — in JS/engine terms that's an event loop + worker; keep the prepare/commit split.
 - TTS (Piper), pygame/tkinter, numpy/torch homegrown voices: engine-native replacements.
-- The Markov voice is pure stdlib and ports anywhere; it is the free tier.
+- The Markov voice is pure stdlib and ports anywhere; it is the free tier. Production
+  voice architecture = the **mouth/brain split** (RECIPES C4): per-soul markov mouths
+  speaking, per-soul GPT brains learning silently underneath — never let infant models
+  be a town's face.
 - **Selection needs GRADED scarcity — measured twice, the hard way** (EVOLUTION.md scale
   addendum): a *mild* uniform famine selects nobody, because **mutual aid scales** (with
   enough souls there is always a donor — the compassion/commons machinery is an emergent

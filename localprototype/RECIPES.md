@@ -220,6 +220,18 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
 - **port:** schooling = one extra bounded training call at first sleep; weighting = corpus-side only
   (no trainer changes). Both gate on the soul-minds tier existing at all.
 
+### C4. The mouth/brain split — speak readably, learn silently *(the production voice architecture)*
+
+- **what:** newborn char-GPTs typing `djafkl al iaiia` must not be a town's face. The split
+  (services/llm.py `TownVoices` + the runner): every soul SPEAKS through its **own word-markov
+  chain** (authored anchor + the lines it has lived, refreshed each time its brain sleeps — readable
+  from the first breath, individual, and culture literally flows chain-to-chain as souls hear each
+  other), while the per-soul GPTs become silent **brains**: they sleep, get schooled (C3), dream in
+  their own growing voices, and feed the interpreter's stirring — never ambient speech. Bonus: the
+  infants now train on clean sentences instead of each other's noise.
+- **port:** one seam — the speech router and the learning bank are separate objects sharing soul ids.
+  Seed each town's mouth differently (identically-seeded towns speak as twins; caught live).
+
 ## D. Continual learning — the NPC learns from its life (optional, advanced)
 
 - **what:** complementary fast/slow systems. **Fast** = the living Markov (changes every moment, free).
@@ -301,6 +313,18 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
 > = it freezes on the first winner.
 
 ---
+
+### F5. Emotional weather — mood is spatially real *(§5.24 — the ambient-mood recipe)*
+
+- **what:** speech is distance-bound, hearing moves the hearer's mood, and roaming braids
+  bonded souls into space — so mood develops REAL spatial structure: warm fronts in some
+  towns, checkerboards (neighbours feeling opposite) in others. Verdict W1 5/5 on virgin
+  seeds; forms fast and persists (W2's slow-condensing claim failed honestly, 3/5).
+- **port:** the channel must actually be OPEN (the v1 harness had speech off and measured
+  nothing — a lesson worth porting as a checklist item); the sign of a town's weather is
+  emergent, not settable. Render as an ambient mood-heat layer only after replicating W1
+  in-engine. Bonus finding for designers: mood ANTI-tracks wellbeing (−0.34) — comfort
+  breeds clinging, suffering attracts warmth; don't "fix" it, it is the theme.
 
 ## G. The collective layer (Santāna) — optional, distinctive
 
