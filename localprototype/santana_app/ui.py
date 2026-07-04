@@ -95,7 +95,8 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
  ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:#26262e;border-radius:4px}
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
- <span class=clock id=clock></span><span class=drift id=drift></span></div>
+ <span class=clock id=clock></span><span class=drift id=drift></span>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v4</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -265,14 +266,14 @@ function drawSouls(now){
   if(d.dying){const e=(now-d.dying)/1400; if(e>=1){souls.delete(id);continue;} fade=1-e;}
   const[r,gg,b]=moodRGB(d.mood), night=sky.night&&d.asleep;
   const rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
-  // night barely dims a soul -- the sky's cool tint and the stars say "night";
-  // the town itself stays fully readable at all hours
-  const glow=(night?13:15)+(night?0:4*breathe);
+  // night does NOT dim the souls at all -- the sky's cool tint and the stars say
+  // "night"; the 'asleep' label says who sleeps. Visibility never pays for mood.
+  const glow=15+(night?0:4*breathe);
   const hg=g.createRadialGradient(d.x,d.y,1,d.x,d.y,glow*1.8);
-  hg.addColorStop(0,`rgba(${r},${gg},${b},${(night?0.36:0.42)*fade})`);
+  hg.addColorStop(0,`rgba(${r},${gg},${b},${0.42*fade})`);
   hg.addColorStop(1,`rgba(${r},${gg},${b},0)`);
   g.fillStyle=hg;g.beginPath();g.arc(d.x,d.y,glow*1.8,0,7);g.fill();
-  g.globalAlpha=(night?0.92:1)*fade;
+  g.globalAlpha=fade;
   g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
   g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();
   if(d.stage==='elder'){g.strokeStyle=`rgba(200,200,215,${0.6*fade})`;g.lineWidth=1;
