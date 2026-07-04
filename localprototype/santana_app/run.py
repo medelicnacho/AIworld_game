@@ -512,6 +512,9 @@ def main() -> None:
     _pen_day = [-1]
     _day_trace: list = []        # the day's raw pen motion -> pages.jsonl at archive (V3)
     _day_lifts = [0]
+    _last_page_wall = [0.0]      # a town-day is ~17s of WALL time; archive at most one
+                                 # page per 10 real minutes or the gallery floods
+                                 # (2,513 pages in a night, caught in the vitals)
     _draw.live_page(_draw_dir)
     if not args.no_ui:
         try:
@@ -570,15 +573,17 @@ def main() -> None:
                 day = _clock.day_of(w.tick, w.day_ticks) if w.clock_enabled else 0
                 season = _clock.season(w.tick, w.day_ticks) if w.clock_enabled else ""
             if _pen_day[0] >= 0 and day != _pen_day[0] and _pen_segs:
-                page = _draw.wander_page(_pen_segs, caption=(
-                    f"day {_pen_day[0]}{' -- ' + season if season else ''} -- one day of her, one page"))
-                _draw.save_drawing(page, _draw_dir,
-                                   time.strftime("%Y%m%d-%H%M%S-") + f"day-{_pen_day[0]}-page")
-                # V3's numbers: the archived page as statistics (scripts/history.py)
-                from scripts import history as _hist
-                stats = _hist.pen_page_stats(_pen_day[0], season, _day_trace, _day_lifts[0])
-                stats["t"] = round(time.time(), 1)
-                _hist.append_line(os.path.join(_draw_dir, "pages.jsonl"), stats)
+                if time.time() - _last_page_wall[0] >= 600:
+                    _last_page_wall[0] = time.time()
+                    page = _draw.wander_page(_pen_segs, caption=(
+                        f"day {_pen_day[0]}{' -- ' + season if season else ''} -- one day of her, one page"))
+                    _draw.save_drawing(page, _draw_dir,
+                                       time.strftime("%Y%m%d-%H%M%S-") + f"day-{_pen_day[0]}-page")
+                    # V3's numbers: the archived page as statistics (scripts/history.py)
+                    from scripts import history as _hist
+                    stats = _hist.pen_page_stats(_pen_day[0], season, _day_trace, _day_lifts[0])
+                    stats["t"] = round(time.time(), 1)
+                    _hist.append_line(os.path.join(_draw_dir, "pages.jsonl"), stats)
                 _day_trace.clear()
                 _day_lifts[0] = 0
                 _pen_segs.clear()
