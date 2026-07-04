@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-UI_VERSION = 10   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 11   # bump on any dashboard change: live pages reload themselves to match
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -98,7 +98,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v10</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v11</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -191,7 +191,7 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
-const MY_VERSION=10;
+const MY_VERSION=11;
 async function poll(){try{
  const s=await(await fetch('/state2')).json();
  // a page older than the server RELOADS ITSELF -- stale tabs were the source of a
@@ -407,8 +407,11 @@ def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> di
                 "mood": round(a.felt_mood(), 3), "action": getattr(a, "_last_action", ""),
                 "stage": (_clock.stage(a.age, a.lifespan) if world.clock_enabled else "adult"),
                 "asleep": night, "bonds": bonds[:5],
-                "drift": (_clip(a.thought.drift[-1], 38)
-                          if getattr(a.thought, "drift", None) else ""),
+                # over the head: the soul's last SPOKEN line -- a real sentence.
+                # (Raw subconscious drift is incoherent by nature; it lives in the
+                # inspector as 'its tiny grown mind, right now', not on the map.)
+                "drift": next((_clip(m.text, 38) for m in reversed(a.memory.items)
+                               if m.source == "self"), ""),
             })
     secs = getattr(mind, "lifetime", 0.0)
     age = (f"{secs/86400:.1f} days" if secs >= 86400 else f"{secs/3600:.1f} hours")
