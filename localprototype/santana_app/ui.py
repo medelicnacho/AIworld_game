@@ -225,9 +225,11 @@ async function poll(){try{
 
 function drawSky(){
  const h=sky.hour;
- let light = h<0.3 ? 0.28+0.72*(h/0.3)
-   : h<0.5 ? 1 : h<0.7 ? 1-0.72*((h-0.5)/0.2) : 0.10;
- const nt=[8,8,14], dt=[26,40,64], nb=[13,13,22], db=[54,64,86];
+ // night floor 0.34: a town-day is ~15s of wall time, so the map spends a third of
+ // its life at night -- night must read as MOONLIGHT, never as a dead screen
+ let light = h<0.3 ? 0.5+0.5*(h/0.3)
+   : h<0.5 ? 1 : h<0.7 ? 1-0.66*((h-0.5)/0.2) : 0.34;
+ const nt=[14,15,26], dt=[26,40,64], nb=[20,21,34], db=[54,64,86];
  const L=(a,b)=>Math.round(a+(b-a)*light);
  const grd=g.createLinearGradient(0,0,0,H);
  grd.addColorStop(0,`rgb(${L(nt[0],dt[0])},${L(nt[1],dt[1])},${L(nt[2],dt[2])})`);
@@ -262,12 +264,12 @@ function drawSouls(now){
   if(d.dying){const e=(now-d.dying)/1400; if(e>=1){souls.delete(id);continue;} fade=1-e;}
   const[r,gg,b]=moodRGB(d.mood), night=sky.night&&d.asleep;
   const rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
-  const glow=(night?7:15)+(night?0:4*breathe);
+  const glow=(night?10:15)+(night?0:4*breathe);
   const hg=g.createRadialGradient(d.x,d.y,1,d.x,d.y,glow*1.8);
-  hg.addColorStop(0,`rgba(${r},${gg},${b},${(night?0.18:0.42)*fade})`);
+  hg.addColorStop(0,`rgba(${r},${gg},${b},${(night?0.28:0.42)*fade})`);
   hg.addColorStop(1,`rgba(${r},${gg},${b},0)`);
   g.fillStyle=hg;g.beginPath();g.arc(d.x,d.y,glow*1.8,0,7);g.fill();
-  g.globalAlpha=(night?0.55:1)*fade;
+  g.globalAlpha=(night?0.75:1)*fade;
   g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
   g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();
   if(d.stage==='elder'){g.strokeStyle=`rgba(200,200,215,${0.6*fade})`;g.lineWidth=1;
