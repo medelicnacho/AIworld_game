@@ -217,8 +217,15 @@ def main() -> None:
     if args.demo:
         # one command, the whole aquarium. Its OWN snapshot dir: the demo can never
         # clobber a real life (the life-lock would refuse anyway; this avoids the try).
+        # The demo's ambient voice is MARKOV -- readable folk-lines from day one (it
+        # recombines whole real sentences), so the bubbles read as a town, not a
+        # nursery. The soul-mind tier (per-NPC GPTs that LEARN, babbling while young)
+        # is the research organ: it runs in the persistent towns where the long game
+        # -- the language ratchet's generational climb -- is actually being measured;
+        # ask for it here with an explicit --town-model soul.
         args.founders = args.founders or 64
-        args.town_model = "soul"
+        if args.town_model == "soul" and "--town-model" not in sys.argv:
+            args.town_model = "markov"
         args.snapshot = "data/demo/santana_state.json"
         args.world_snapshot = "data/demo/town.pkl"
 
@@ -517,9 +524,12 @@ def main() -> None:
                       "\n       line its own tiny grown mind is murmuring"
                       "\n    4. talk to it (the panel, bottom right) -- your words land in its"
                       "\n       real memory; ask it later what you said"
-                      "\n    5. wait for dusk -- the sky darkens, the town sleeps, minds train"
-                      "\n  (soul voices are grown from NOTHING and babble while young; with"
-                      "\n   ollama + gemma3:4b installed, the one you TALK to speaks clearly)\n",
+                      "\n    5. wait for dusk -- the sky darkens and the town sleeps"
+                      "\n  (ambient voices are SELF-GROWN -- the town's own words recombined,"
+                      "\n   nothing trained or borrowed; with ollama + gemma3:4b the one you"
+                      "\n   TALK to speaks clearly. The per-NPC GPTs that LEARN -- babbling"
+                      "\n   at birth, schooled by the elders -- run in the persistent towns:"
+                      "\n   --town-model soul)\n",
                       flush=True)
                 try:
                     import webbrowser

@@ -92,15 +92,19 @@ cockpit — a living map where every pixel is a read of real state:
 5. **Wait for dusk** — the sky darkens, the town sleeps where it stands, and the
    soul-minds train on the day.
 
-Notes for the skeptical engineer this is aimed at: the ambient voices are tiny
-per-soul GPTs **grown from nothing** on their own lives (they babble while young —
-that's the point; watch the babble pick up real words as they sleep); with
+Notes for the skeptical engineer this is aimed at: the demo's ambient voices are
+**self-grown** — the town's own authored words recombined, nothing trained or
+borrowed — so the bubbles read as folk-lines from minute one. The deeper tier
+(`--town-model soul`) gives every NPC its **own tiny from-scratch GPT**: born
+babbling, schooled on the elders' tongue at rebirth (the language ratchet, verdicts
+in FINDINGS §5.22), learning nightly from its own life — that tier runs in the
+persistent towns where its weeks-long climb is being measured. With
 `ollama pull gemma3:4b` the one soul you *talk to* borrows a clear local voice,
 speaking from its own real context. No network is required for any of it; a hosted
 chat voice (DeepSeek) exists opt-in by name only. Run `--demo` twice and the same
-town **resumes** — it's a life, not a screensaver. Aside replies land in
-`journalctl`-style runner logs with the soul's raw grown-mind stirring, so you can
-verify the small mind is in the loop of every conversation.
+town **resumes** — it's a life, not a screensaver. Aside replies land in the runner
+log with the soul's raw grown-mind stirring, so you can verify the small mind is in
+the loop of every conversation.
 
 ---
 
