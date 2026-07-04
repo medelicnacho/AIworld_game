@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-UI_VERSION = 13   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 14   # bump on any dashboard change: live pages reload themselves to match
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -99,7 +99,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v13</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v14</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -124,6 +124,12 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </div>
 <script>
 const cv=document.getElementById('map');
+// A renderer must never crash on geometry: clamp every arc radius to >= 0 globally.
+// A negative radius (a transient in some effect's fade math) threw IndexSizeError and
+// the diagnostic surfaced it -- this makes it structurally impossible, everywhere.
+const _oarc=CanvasRenderingContext2D.prototype.arc;
+CanvasRenderingContext2D.prototype.arc=function(x,y,r,a,b,c){
+ return _oarc.call(this,x,y,(r>0&&isFinite(r))?r:0.001,a,b,c);};
 // willReadFrequently forces SOFTWARE rasterisation: the user's GPU driver was
 // dropping the canvas context (brief blackouts, recovering since v5) -- a CPU-drawn
 // canvas takes the driver out of the picture entirely. Flat shapes at 30fps cost
@@ -192,7 +198,7 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
-const MY_VERSION=13;
+const MY_VERSION=14;
 async function poll(){try{
  const s=await(await fetch('/state2')).json();
  // a page older than the server RELOADS ITSELF -- stale tabs were the source of a
