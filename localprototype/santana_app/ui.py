@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-UI_VERSION = 9   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 10   # bump on any dashboard change: live pages reload themselves to match
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -98,7 +98,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v9</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v10</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -191,7 +191,7 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
-const MY_VERSION=9;
+const MY_VERSION=10;
 async function poll(){try{
  const s=await(await fetch('/state2')).json();
  // a page older than the server RELOADS ITSELF -- stale tabs were the source of a
@@ -296,7 +296,7 @@ function drawSouls(now){
    const act=night?'asleep':((ACT[d.action]||'')+(d.action||''));
    g.fillText(act,d.x+rad+4,d.y+14);
    if(d.drift&&!night){g.fillStyle=`rgba(150,150,168,${0.5*fade})`;
-    g.font='italic 8px Georgia';g.fillText((d.drift||'').slice(0,26),d.x-6,d.y-11);}
+    g.font='italic 8px Georgia';g.fillText(d.drift,d.x-6,d.y-11);}
    // the spoken line hangs as a bubble while it is fresh
    if(d.bubble){const bp=(now-d.bubble.t0)/2600;
     if(bp>=1)d.bubble=null;
@@ -373,6 +373,17 @@ setInterval(poll,1500);poll();requestAnimationFrame(frame);
 </script>"""
 
 
+def _clip(text: str, n: int) -> str:
+    """Cut on a WORD boundary with a real ellipsis -- a mid-word chop turns even a
+    good line into apparent gibberish ('can't fa'), and the bubbles/murmurs were
+    full of exactly that."""
+    text = (text or "").strip()
+    if len(text) <= n:
+        return text
+    cut = text[:n].rsplit(" ", 1)[0].rstrip(",;:-")
+    return (cut if cut else text[:n]) + "…"
+
+
 def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> dict:
     """Everything the dashboard shows, in one read -- world fields under the world lock,
     her fields as plain reads (the mind-lock guards the WRITERS)."""
@@ -396,7 +407,8 @@ def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> di
                 "mood": round(a.felt_mood(), 3), "action": getattr(a, "_last_action", ""),
                 "stage": (_clock.stage(a.age, a.lifespan) if world.clock_enabled else "adult"),
                 "asleep": night, "bonds": bonds[:5],
-                "drift": (a.thought.drift[-1][:64] if getattr(a.thought, "drift", None) else ""),
+                "drift": (_clip(a.thought.drift[-1], 38)
+                          if getattr(a.thought, "drift", None) else ""),
             })
     secs = getattr(mind, "lifetime", 0.0)
     age = (f"{secs/86400:.1f} days" if secs >= 86400 else f"{secs/3600:.1f} hours")
@@ -653,7 +665,7 @@ def _wire_events(world, events: list, ev_lock, seq: list) -> None:
         who = getattr(u, "speaker_id", "")
         if not who or who.startswith("mind:") or who == "user":
             return
-        text = (getattr(u, "text", "") or "")[:44]
+        text = _clip(getattr(u, "text", "") or "", 96)
         hearers = []
         try:
             spk = next((a for a in world.agents if a.id == who), None)
