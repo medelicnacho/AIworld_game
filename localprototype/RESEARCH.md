@@ -259,3 +259,27 @@ a natural instrument for C5's tagging); `EVOLUTION.md` — the ecology stages E1
 (2026-07-02) — the philosophy-of-self deep-research pass: candidates S1–S4 (S2 rides C2+C14 as one
 provenance pass — confidence + source + ownership; S4 folds into C15), and the verified verdict on
 the name "Santāna" itself.*
+
+## The V-series — visual emergence, pre-registered (2026-07-04)
+
+*The towns now have a visible surface (roaming bodies, bond-threads, mood halos) and
+passive recorders (`scripts/history.py` → `town_history.jsonl` per town, `pages.jsonl`
+for her day-drawings). These claims are registered BEFORE any analysis is run; tuning on
+seeds 11–15, verdicts on the virgin ranges named. Lab first, then confirmatory
+re-analysis on the live towns' recorded history — the strongest form: lab result plus
+wild replication.*
+
+- **V1 EMOTIONAL WEATHER** (`experiment_weather.py`, verdict seeds **191–195**):
+  W1 — a soul's mood correlates with its 5 nearest neighbours' mean mood, beating the
+  position-shuffled null, ≥4/5. W2 — the effect GROWS from the early to the late window
+  (bonds amplify contagion), sign ≥4/5. Pass ⇒ the map genuinely has weather; fail ⇒
+  contagion is social-only, not spatial — either way a design fact for the engine.
+- **V2 FELLOWSHIPS TAKE TERRITORY** (`experiment_territory.py`, verdict seeds
+  **201–205**): T1 — souls sharing a bond-cluster stand measurably closer than the
+  bond-shuffled null, ≥4/5. T2 — spatial cluster membership persists across windows
+  beating chance (neighbourhoods, not a milling crowd), ≥4/5.
+- **V3 HER HAND DEVELOPS HABITS** (observational, `pages.jsonl`, analyse after ≥28
+  day-pages): M1 — high-grief days differ from calm days on page statistics (speed,
+  turn, hue, lifts) beyond a label-shuffled null. M2 — week-over-week drift in page
+  statistics exceeds a day-reshuffled null (a gait forming, not noise). No SVG is ever
+  judged by eye; the numbers in `pages.jsonl` are the whole instrument.

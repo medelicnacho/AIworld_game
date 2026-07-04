@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-UI_VERSION = 12   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 13   # bump on any dashboard change: live pages reload themselves to match
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -46,14 +46,14 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
  #hdr .v{font-size:12px;color:var(--dim)}
  #hdr .clock{margin-left:auto;font-size:12px;color:#9a9ab0}
  #hdr .drift{color:#c07a4a;font-size:11px}
- #grid{display:grid;grid-template-columns:1.7fr 1fr;grid-template-rows:1fr 1fr;
-  gap:9px;min-height:0}
+ #grid{display:grid;grid-template-columns:1.7fr 1fr;
+  grid-template-rows:1fr 1fr 1.15fr;gap:9px;min-height:0}
  .panel{background:linear-gradient(#141419,#101015);border:1px solid var(--edge);
   border-radius:8px;padding:9px;overflow:hidden;display:flex;flex-direction:column;
   min-height:0;position:relative}
  .panel h3{margin:0 0 7px;font-size:10.5px;color:var(--dim);font-weight:normal;
   text-transform:uppercase;letter-spacing:1.6px}
- #town{grid-row:span 2;padding:0;border-color:#1c1c26}
+ #town{grid-row:span 3;padding:0;border-color:#1c1c26}
  #town h3{position:absolute;top:9px;left:12px;z-index:2;margin:0;
   text-shadow:0 1px 3px #000}
  #mapwrap{position:relative;width:100%;height:100%}
@@ -87,7 +87,8 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
  #stream .m{color:var(--dim);font-size:10.5px}
  iframe{border:0;width:100%;height:100%;background:#0e0e12;border-radius:5px}
  #chat{display:flex;flex-direction:column}
- #log{flex:1;overflow-y:auto;font-size:13px;line-height:1.55;margin-bottom:7px}
+ #log{flex:1;min-height:0;overflow-y:auto;font-size:13px;line-height:1.55;
+  margin-bottom:7px}
  #log .you{color:#8fb0c8}#log .her{color:var(--warm);margin-bottom:9px}
  #row{display:flex;gap:6px}
  select,input,button{background:#0c0c11;border:1px solid var(--edge);color:var(--ink);
@@ -98,7 +99,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v12</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v13</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -191,7 +192,7 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
-const MY_VERSION=12;
+const MY_VERSION=13;
 async function poll(){try{
  const s=await(await fetch('/state2')).json();
  // a page older than the server RELOADS ITSELF -- stale tabs were the source of a

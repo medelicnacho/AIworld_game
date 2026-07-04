@@ -510,6 +510,8 @@ def main() -> None:
     _pen_raw: list = []          # the same strokes as draw-ops, for the live animator
     _pen_total = [0]             # strokes drawn this day (the page uses it to sync)
     _pen_day = [-1]
+    _day_trace: list = []        # the day's raw pen motion -> pages.jsonl at archive (V3)
+    _day_lifts = [0]
     _draw.live_page(_draw_dir)
     if not args.no_ui:
         try:
@@ -572,6 +574,13 @@ def main() -> None:
                     f"day {_pen_day[0]}{' -- ' + season if season else ''} -- one day of her, one page"))
                 _draw.save_drawing(page, _draw_dir,
                                    time.strftime("%Y%m%d-%H%M%S-") + f"day-{_pen_day[0]}-page")
+                # V3's numbers: the archived page as statistics (scripts/history.py)
+                from scripts import history as _hist
+                stats = _hist.pen_page_stats(_pen_day[0], season, _day_trace, _day_lifts[0])
+                stats["t"] = round(time.time(), 1)
+                _hist.append_line(os.path.join(_draw_dir, "pages.jsonl"), stats)
+                _day_trace.clear()
+                _day_lifts[0] = 0
                 _pen_segs.clear()
                 _pen_raw.clear()
                 _pen_total[0] = 0
@@ -579,6 +588,8 @@ def main() -> None:
             _pen_segs.extend(_pen.wander(st))
             _pen_raw.extend(_pen.last_segments)
             _pen_total[0] += len(_pen.last_segments)
+            _day_trace.extend(_pen.last_trace)
+            _day_lifts[0] += max(0, len(_pen.last_trace) - len(_pen.last_segments))
             del _pen_raw[:-600]                          # the animator only needs the tail
             # her hand's childhood: log (state -> motion) so a future LEARNED hand has a
             # history to train on -- the drawing-GPT rung needs this data to ever exist.
@@ -694,6 +705,18 @@ def main() -> None:
                                     "meta": f"reading {i} · tick {tick} · "
                                             f"{mind._deaths} watched pass"})
                 del ui_readings[:-30]
+            # THE TOWN RECORDER (Phase 0 of the V-series, RESEARCH.md): every ~20
+            # readings, one compact line -- who stood where, feeling what, bonded to
+            # whom -- so visual emergence (weather/territory) can be tested on the
+            # town's REAL life later. Passive; a lost sample never hurts the wheel.
+            if i % 20 == 0:
+                from scripts import history as _hist
+                with w.lock:
+                    _tline = _hist.town_line(w)
+                _tline["t"] = round(time.time(), 1)
+                _hist.append_line(os.path.join(
+                    os.path.dirname(os.path.abspath(args.snapshot)),
+                    "town_history.jsonl"), _tline)
             # feed the drift monitor: her voice, the town's last line, and the vitals
             if clear:
                 drift_mon.observe_text("her", clear)
