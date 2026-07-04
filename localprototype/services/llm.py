@@ -426,6 +426,7 @@ class SoulVoiceLLM:
         self.dir = minds_dir or str(root / "data" / "npc_minds")
         self.minds: dict[str, object] = {}
         self._seed = seed
+        self._schooled: set[str] = set()   # souls whose newborn mind got its schooling
 
     def _path(self, soul_id: str) -> str:
         safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in soul_id)
@@ -473,11 +474,63 @@ class SoulVoiceLLM:
             mind.save(self._path(soul_id))
         return report
 
+    def weighted_corpus(self, agent) -> str:
+        """The soul's sleep corpus with BIASED TRANSMISSION (the ratchet's first half):
+        a heard line from a soul you TRUST is repeated in the corpus -- you learn hardest
+        from those you love -- while everything else appears once, exactly as lived.
+        The prestige signal is the town's own (bond trust), never an outside yardstick:
+        the culture stays fully self-grown. Take it under the world lock."""
+        lines = [agent.persona]
+        bonds = getattr(agent, "bonds", {})
+        for m in agent.memory.items:
+            lines.append(m.text)
+            spk = getattr(m, "speaker_id", "")
+            if getattr(m, "source", "") in ("ai", "heard") and spk:
+                b = bonds.get(spk)
+                if b is not None and b.trust > 0.3:
+                    lines.append(m.text)               # the loved are heard twice
+                    if b.trust > 0.6:
+                        lines.append(m.text)           # the deeply trusted, thrice
+        return "\n".join(lines)
+
     def sleep_one(self, agent) -> tuple[float, float] | None:
         """Convenience (single-threaded callers/tests): snapshot + sleep in one call.
         The corpus is the soul's persona + the memories it still holds -- decayed,
-        mutated, exactly as lived. Nothing else; a soul dreams only its own life."""
-        corpus = "\n".join([agent.persona] + [m.text for m in agent.memory.items])
+        mutated, exactly as lived -- with trusted voices weighted (weighted_corpus)."""
+        return self.sleep_text(agent.id, self.weighted_corpus(agent))
+
+    # --- the ratchet's second half: SCHOOLING (cross-generational transmission) -----------
+    # Without this, every rebirth resets a mind to zero and culture can never accumulate
+    # in weights: the wheel hands on karma, never language. Schooling is the smallest
+    # honest ratchet: a newborn mind's FIRST training is on the elders' own spoken lines
+    # -- born babbling, raised by the village -- so each generation starts where the last
+    # one ended. The school corpus is town-grown text only; nothing human enters here.
+    # (Iterated-learning literature -- Kirby -- predicts structure should RISE through
+    # this bottleneck across generations; experiment_ratchet.py holds the claims.)
+
+    def needs_school(self, agent) -> bool:
+        """A soul needs schooling exactly once: while its mind has never slept."""
+        if agent.id in self._schooled:
+            return False
+        mind = self.minds.get(agent.id)
+        if mind is None and os.path.isfile(self._path(agent.id)):
+            return False                       # a saved mind has lived; not a newborn
+        return mind is None or getattr(mind, "sleeps", 0) == 0
+
+    def school_corpus(self, agents, cap: int = 400) -> str:
+        """What the village teaches: the SPOKEN lines (source='self') of the oldest
+        third of living souls -- the elders' tongue, exactly as they said it."""
+        elders = sorted(agents, key=lambda a: a.age / max(1, a.lifespan))[-max(1, len(agents) // 3):]
+        lines = [m.text for a in elders for m in a.memory.items if m.source == "self"]
+        return "\n".join(lines[-cap:])
+
+    def school(self, agent, corpus: str) -> tuple[float, float] | None:
+        """One schooling burst on a PRE-SNAPSHOTTED elders' corpus (same threading
+        contract as sleep_text). Marks the soul schooled either way -- a town too young
+        to have a tongue simply lets this newborn found it."""
+        self._schooled.add(agent.id)
+        if not corpus.strip():
+            return None
         return self.sleep_text(agent.id, corpus)
 
     # --- dreams (NPC dreams ride the sleep cycle, like hers ride her absences) ------------
@@ -514,6 +567,7 @@ class SoulVoiceLLM:
         relics until their name is reborn... which, with fresh-coined names, it isn't)."""
         for sid in [s for s in self.minds if s not in live_ids and s != "town"]:
             del self.minds[sid]
+        self._schooled &= live_ids             # the ledger follows the living
 
     def save_all(self) -> None:
         for sid, mind in self.minds.items():

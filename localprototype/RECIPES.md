@@ -202,6 +202,24 @@ Each of these is a small amount of per-NPC state + an update rule. Together they
   minds persist PER-LIFE beside the world snapshot (a scratch town must never leak brains into the real
   one — caught in smoke); politeness-cap training threads. Engine version rides AFTER the keystone gate.
 
+### C3. The language ratchet — schooling + biased transmission *(cross-generational culture in weights)*
+
+- **what:** two teeth that let a town's tongue ACCUMULATE instead of resetting with every rebirth:
+  **(1) schooling** — a newborn mind's *first* training is the elders' own spoken lines (source=`self`,
+  oldest third of the town), harvested under the lock, trained outside it, once per life; **(2) biased
+  transmission** — the sleep corpus repeats heard lines by BOND TRUST toward the speaker (trust > 0.3
+  twice, > 0.6 thrice). The prestige signal is the town's own; no outside yardstick ever enters, so the
+  culture stays fully self-grown.
+- **validated (experiment_ratchet.py, virgin 181–185, 5/5 + 5/5):** a schooled newborn's samples carry
+  5–15% real tongue-words vs **0%** for its unschooled twin; a marker word from a deeply trusted friend
+  is sampled 3–15× while the equally-heard stranger's marker appears **zero times in all ten runs**.
+- **the open climb:** these are the ratchet's TEETH. Whether structure *rises* across many generations
+  (the Kirby iterated-learning prediction — the bottleneck should make the tongue more learnable each
+  pass) is now a live-town observable: watch the speech bubbles week over week. The pooled "town tongue"
+  model (one shared brain, per-soul flavour) is the escalation if the private-minds climb stalls.
+- **port:** schooling = one extra bounded training call at first sleep; weighting = corpus-side only
+  (no trainer changes). Both gate on the soul-minds tier existing at all.
+
 ## D. Continual learning — the NPC learns from its life (optional, advanced)
 
 - **what:** complementary fast/slow systems. **Fast** = the living Markov (changes every moment, free).

@@ -1097,6 +1097,29 @@ arithmetic, no LLM). Pre-registered, held out on virgin seeds 121–125:
   v1 was flat because the model left the ink/press dials at default — v2 requires it choose them,
   without ever hinting which value fits which state. Tuning 11–15 only.)
 
+### 5.22 The language ratchet — the village raises its newborns, and the loved are learned hardest
+
+Until today the wheel handed on karma but never words: every rebirth reset a soul-mind to
+zero, so the town's tongue could not accumulate — cumulative language is a *cross-
+generational* achievement, and the generations weren't connected. Two teeth now connect
+them (services/llm.py): **schooling** (a newborn mind's first training is the elders' own
+spoken lines — born babbling, raised by the village) and **biased transmission** (sleep
+corpora repeat heard lines by bond trust toward the speaker — the town's own prestige
+signal, never an outside yardstick, so the culture stays fully self-grown).
+
+**Verdict (experiment_ratchet.py, virgin seeds 181–185): both claims 5/5.** A schooled
+newborn's samples carried 5–15% real tongue-words against **0%** for its identical
+unschooled twin (R1 — schooling transmits). A marker word heard equally often from a
+deeply trusted friend and from a stranger was sampled 3–15× vs **zero in all ten runs**
+(R2 — trust decides what enters the weights; strictly-more in 5/5).
+
+**Honest scope:** this validates the ratchet's *teeth*, not the climb. The exciting
+prediction is Kirby's iterated-learning result — a tongue passed through capacity-limited
+learners across generational bottlenecks should become *more structured* each pass. That
+is now a live-town observable rather than a promise: the cockpit's speech bubbles, week
+over week, are the measurement in progress. The pooled "town tongue" (one shared brain,
+per-soul flavour) is the registered escalation if the private-minds climb stalls.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
