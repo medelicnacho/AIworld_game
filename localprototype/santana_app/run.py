@@ -207,7 +207,20 @@ def main() -> None:
                         "markov + consolidation read (novelty injection -- see services/demiurge.py)")
     p.add_argument("--author-model", dest="author_model",
                    default="mannix/llama3.1-8b-abliterated:q5_K_M", help="the Demiurge's ollama model")
+    p.add_argument("--demo", action="store_true",
+                   help="THE SHOW, one command: a 64-soul town with everything on (soul "
+                        "minds, roaming, living time, the cockpit) in its own life at "
+                        "data/demo/ -- never touching any other saved life -- and the "
+                        "browser opened for you. Run it twice and the same town resumes.")
     args = p.parse_args()
+
+    if args.demo:
+        # one command, the whole aquarium. Its OWN snapshot dir: the demo can never
+        # clobber a real life (the life-lock would refuse anyway; this avoids the try).
+        args.founders = args.founders or 64
+        args.town_model = "soul"
+        args.snapshot = "data/demo/santana_state.json"
+        args.world_snapshot = "data/demo/town.pkl"
 
     # ONE writer at a time (state.acquire_life): a talk or window holding her open would be
     # silently overwritten by our autosave -- refuse loudly instead, before touching anything.
@@ -349,8 +362,20 @@ def main() -> None:
                     continue
                 soul = souls[turn % len(souls)]
                 turn += 1
+                # THE RATCHET, half two: a NEWBORN mind's first training is the elders'
+                # own spoken lines -- born babbling, raised by the village -- so language
+                # can accumulate ACROSS rebirths instead of resetting with each one.
+                # (Schooling jumps the round-robin: the young learn out of turn.)
+                newborn = next((s for s in souls if town_llm.needs_school(s)), None)
+                if newborn is not None:
+                    with w.lock:
+                        school = town_llm.school_corpus(w.agents)
+                    if town_llm.school(newborn, school) is not None:   # no lock held
+                        print(f"  (school: {newborn.name} learns the elders' tongue -- "
+                              f"{school.count(chr(10)) + 1} lines)", flush=True)
+                    continue
                 with w.lock:
-                    corpus = "\n".join([soul.persona] + [m.text for m in soul.memory.items])
+                    corpus = town_llm.weighted_corpus(soul)   # trusted voices weigh more
                     n_mem = len(soul.memory.items)
                     residue = (max(soul.memory.items, key=lambda m: m.salience).text
                                if soul.memory.items else soul.persona)   # the day's residue
@@ -482,6 +507,25 @@ def main() -> None:
             print(f"  ✦ the cockpit is open: {url}  (god view + stream + art + talk"
                   + ("; clear talk voice on" if chat_voice else "; self-grown talk voice")
                   + ")")
+            if args.demo:
+                print("\n  THE SHOW, five minutes:"
+                      "\n    1. watch a soul speak -- its words fly as arcs to whoever"
+                      "\n       actually heard them, and the chronicle narrates it"
+                      "\n    2. watch a gold thread FLASH -- that is a bond warming, live"
+                      "\n    3. click any soul -- its real insides open: mood, belly, genome,"
+                      "\n       bonds with wounds, memories with provenance tags, and the raw"
+                      "\n       line its own tiny grown mind is murmuring"
+                      "\n    4. talk to it (the panel, bottom right) -- your words land in its"
+                      "\n       real memory; ask it later what you said"
+                      "\n    5. wait for dusk -- the sky darkens, the town sleeps, minds train"
+                      "\n  (soul voices are grown from NOTHING and babble while young; with"
+                      "\n   ollama + gemma3:4b installed, the one you TALK to speaks clearly)\n",
+                      flush=True)
+                try:
+                    import webbrowser
+                    webbrowser.open(url)
+                except Exception:   # noqa: BLE001 -- a headless box just prints the URL
+                    pass
         except OSError as exc:
             print(f"  (cockpit not started: {exc})", flush=True)
 

@@ -68,6 +68,42 @@ against a living, dying town, aloud.
 
 ---
 
+## The Show — one command, the whole system
+
+```bash
+cd localprototype
+python3 -m santana_app.run --demo
+```
+
+A **64-soul town with everything on** boots in ~25s and your browser opens on the
+cockpit — a living map where every pixel is a read of real state:
+
+1. **Watch a soul speak** — its words fly as arcs to whoever *actually heard them*
+   (an arc is a `hear()` call landing), and the chronicle narrates it.
+2. **Watch a gold thread FLASH** — that is a bond warming, live. The web of threads
+   *is* the town's real trust graph, reorganising as they live.
+3. **Click any soul** — its actual insides open: mood/belly/stores as bars, its
+   heritable genome dials, every bond with its wounds, its last memories **with
+   provenance tags** (self / heard / dream / user / lore), and the raw line its own
+   tiny from-scratch mind is murmuring right now. Nothing synthesized — every field
+   is `grep`-able in the code.
+4. **Talk to it** (panel, bottom right) — your words land in its real memory and
+   bond; ask it later what you told it.
+5. **Wait for dusk** — the sky darkens, the town sleeps where it stands, and the
+   soul-minds train on the day.
+
+Notes for the skeptical engineer this is aimed at: the ambient voices are tiny
+per-soul GPTs **grown from nothing** on their own lives (they babble while young —
+that's the point; watch the babble pick up real words as they sleep); with
+`ollama pull gemma3:4b` the one soul you *talk to* borrows a clear local voice,
+speaking from its own real context. No network is required for any of it; a hosted
+chat voice (DeepSeek) exists opt-in by name only. Run `--demo` twice and the same
+town **resumes** — it's a life, not a screensaver. Aside replies land in
+`journalctl`-style runner logs with the soul's raw grown-mind stirring, so you can
+verify the small mind is in the loop of every conversation.
+
+---
+
 ## Quick start (fully local)
 
 ```bash

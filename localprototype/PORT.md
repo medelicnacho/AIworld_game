@@ -9,12 +9,16 @@ NPC system, in any engine.)*
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install pytest
-.venv/bin/python -m pytest            # 440 pass on a bare venv (torch tests skip)
+.venv/bin/python -m pytest            # green on a bare venv (torch tests skip)
+.venv/bin/python -m santana_app.run --demo   # THE SHOW: 64 souls, living map, browser opens
 .venv/bin/python watch_evolution.py   # WATCH selection: hunger, grace, death, drift
 .venv/bin/python experiment_pledge.py # a broken promise becomes a town's wariness, vs null
-python3 -m santana_app.run            # a living, persistent town (Ctrl-C saves)
 ```
-Then read `RECIPES.md` (the validated mechanisms + knobs) and the rest of this file.
+`--demo` is the whole system in one command: speech flying as arcs to the souls that
+actually heard it, bonds flashing gold as they warm, an inspector opening any soul's
+true insides (memories with provenance tags, genome dials, wounds), day and night, and
+a talk panel wired to real minds. Then read `RECIPES.md` (the validated mechanisms +
+knobs) and the rest of this file.
 
 ## 1. What crosses, and what doesn't
 
