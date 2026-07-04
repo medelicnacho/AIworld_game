@@ -280,11 +280,13 @@ wild replication.*
   **201–205**): T1 — souls sharing a bond-cluster stand measurably closer than the
   bond-shuffled null, ≥4/5. T2 — spatial cluster membership persists across windows
   beating chance (neighbourhoods, not a milling crowd), ≥4/5.
-- **N-SERIES, THE TRILOGY'S THIRD ACT** (`experiment_interoception.py`, verdict seeds
-  **211–215**, running): reflect() given the body as SENSATION ("tightness", never
-  "grip"/numbers — echo-safe). N1 the input was the wall; N2 not an echo; N3 the old
-  null replicates. Judge v2 after tuning caught v1 reading practice-language as
-  diagnosis (run killed before any virgin seed; 211–215 still virgin at relaunch).
+- **N-SERIES, THE TRILOGY'S THIRD ACT** — **VERDICT RECORDED 2026-07-04 (211–215
+  consumed): the boundary HOLDS.** Body-as-sensation did NOT unlock self-attribution:
+  N1 surface-pass but N2 FAIL 0/7 (echo of "tightness", never owned agency) over an
+  N3 FAIL null (judge v2 still permissive, 0.40). Across words/lines/felt-body she shows
+  THAT it is hard, never THAT she grips — reads as architectural, not sensory. FINDINGS
+  5.25. Optional clean re-verdict = recalibrated judge on virgin 221–225 (NOT auto-run).
+  Her flag stays OFF.
 - **V3 HER HAND DEVELOPS HABITS** (observational, `pages.jsonl`, analyse after ≥28
   day-pages): M1 — high-grief days differ from calm days on page statistics (speed,
   turn, hue, lifts) beyond a label-shuffled null. M2 — week-over-week drift in page

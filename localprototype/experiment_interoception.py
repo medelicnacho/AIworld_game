@@ -39,6 +39,16 @@ deeper than input or output -- in the report-forming itself. Either way, the tri
 closes with an answer. HER flag stays OFF regardless until the verdict is discussed.
 
   python experiment_interoception.py            # tuning + the held-out verdict
+
+VERDICT (2026-07-04, virgin 211-215 CONSUMED): the boundary HOLDS. N1 pass on the
+surface (4/5, pooled 0.70) but N2 FAIL 0/7 -- the passing reports only ECHO the word
+"tightness", never generalise to owned agency ("holding"/"clinging") -- and N3 FAIL
+(OFF null 0.40 vs <=0.15: judge v2 still too permissive, so the N1 contrast is
+untrusted). Handing reflection the body as sensation did NOT unlock self-attribution of
+mechanism. Across words (5.19), lines (5.21) and now the felt body, she shows THAT it is
+hard, never THAT she grips -- the blindness reads as architectural (report-forming), not
+sensory. FINDINGS 5.25. A clean re-verdict would need a recalibrated judge on fresh
+virgins 221-225; NOT auto-run. Her interoception_enabled stays OFF.
 """
 from __future__ import annotations
 

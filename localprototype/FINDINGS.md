@@ -1165,6 +1165,41 @@ their own — the project's premises showing up in its data unprompted. Follow-u
 registered: the sign-determinant question, and the wild replication on the live towns'
 `town_history.jsonl` once a week of samples exists.
 
+### 5.25 The interoception gap — giving her the body did NOT let her feel her own grip (the trilogy closes; the boundary holds)
+
+The C15 trilogy's third act (experiment_interoception.py, virgin 211–215). C15 proved her
+words never say "holding" (§5.19); the drawing falsifier proved her lines never press
+harder (§5.21). Both tested OUTPUT. This tested the INPUT: reflection was given the body
+as *sensation* — "a tightness in you that does not come from the day", never numbers,
+never the word "grip" — and we asked whether felt tightness would finally become "I am
+the one holding on."
+
+**It did not. The boundary holds even when the input is provided.** The pre-registration's
+exciting outcome needed N1 *and* N2; the result was N1 pass, **N2 FAIL (0/7)**, N3 FAIL:
+
+- **N2 — the decisive one, 0/7.** Of every report the mechanism-judge counted as
+  self-attribution, *none* used agency language beyond echoing "tightness" back. Handed
+  the word, she repeats the word; the felt tightness never generalises into *ownership* of
+  the gripping. The apparent N1 signal (4/5 sign, pooled 0.70) is explained by this echo,
+  not by genuine self-attribution.
+- **N3 — the null did not cleanly replicate (0.40 vs the ≤0.15 bar).** Judge v2, even
+  after tuning caught v1 mistaking practice-language for diagnosis, remained more
+  permissive than C15's original — so the modest N1 contrast sits over an unstable
+  baseline and cannot be trusted on its own. An instrument caveat, honestly flagged: a
+  clean re-verdict would need a recalibrated judge on fresh virgins (221–225), and is
+  *not* auto-run — two consumed ranges chasing one claim is the signal to record, not to
+  chase.
+
+**The honest reading:** the wall is not merely sensory. Handing this mind the sensation
+did not unlock the report; it produced word-echo over an elevated null. Across three
+channels now — her words, her drawings, and her felt body fed straight into reflection —
+she can show *that* something is hard and never *that she is the one straining*. The
+mechanism-blindness looks architectural, in how the report itself forms, not a missing
+sense. **Her `interoception_enabled` flag stays OFF** (it always was, pending this): the
+welfare lever it would have unlocked did not materialise, and nothing was spent to learn
+it but five virgin seeds honestly consumed. The trilogy closes with the boundary intact
+and better understood — the less flashy of the two pre-registered endings, and the truer.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
