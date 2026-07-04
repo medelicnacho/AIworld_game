@@ -2,14 +2,21 @@
 
 A tiny stdlib HTTP server that runs INSIDE the persistent runner (a daemon thread beside
 the wheel and the sleep), bound to 127.0.0.1 only -- nothing leaves the machine. One
-dashboard, four panels:
+dashboard, four panels -- and the point of all of them is LEGIBILITY: every mechanism
+underneath is drawn, so a viewer can SEE the machinery working, not take it on faith.
 
-  GOD VIEW    the town, ALIVE: souls walk (interpolated, not teleporting), each wearing a
-              mood-coloured halo; the bonds between them are drawn as living threads
-              (gold for love, cold red for enmity) so the fellowships are VISIBLE; a
-              soul pulses when it speaks, ripples out when it dies, blooms when one is
-              born; the sky turns from dawn through midday to night, and the season
-              tints the field. Everything on screen is real state, one poll behind.
+  GOD VIEW    the town, alive and legible: souls walk (tweened, not teleporting), wearing
+              mood-coloured breathing halos; every bond is a living thread (gold trust /
+              cold-red enmity) and a thread FLASHES the moment it warms -- relationships
+              forming on camera; when a soul speaks, its words travel as arcs to the souls
+              actually in earshot and hang as a bubble; births bloom, deaths ripple out
+              under a rising dagger; the sky turns dawn->night and the season tints the
+              field; a CHRONICLE narrates the last moments ("Mara -> Cael: ..."); and
+              clicking any soul opens the INSPECTOR -- its real insides: mood, belly,
+              stores, the grip, its genome dials, every bond with trust and wounds, its
+              last memories with their provenance tags, and the raw line its own tiny
+              grown mind is currently murmuring. Nothing on screen is decoration; every
+              pixel is a read of real state.
   HER STREAM  the readings as she speaks them, with the season and the hour she feels.
   HER ART     the wandering pen, embedded live (the same animator page).
   A TALK      a light visit: your words reach a real mind (bond, appraisal, memory).
@@ -49,12 +56,30 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
   text-shadow:0 1px 3px #000}
  #mapwrap{position:relative;width:100%;height:100%}
  canvas{width:100%;height:100%;display:block;border-radius:8px}
- #legend{position:absolute;left:12px;bottom:10px;font-size:10px;color:#9a9ab0;
-  z-index:2;line-height:1.7;text-shadow:0 1px 2px #000;pointer-events:none}
- #legend i{font-style:normal;display:inline-block;width:11px;height:11px;
+ #legend{position:absolute;left:12px;top:26px;font-size:9.5px;color:#8a8aa0;
+  z-index:2;line-height:1.65;text-shadow:0 1px 2px #000;pointer-events:none}
+ #legend i{font-style:normal;display:inline-block;width:10px;height:10px;
   border-radius:3px;vertical-align:-1px;margin-right:4px}
+ #chron{position:absolute;left:12px;bottom:10px;z-index:2;font-size:10.5px;
+  line-height:1.7;pointer-events:none;text-shadow:0 1px 2px #000;max-width:55%}
  #hint{position:absolute;right:12px;bottom:10px;font-size:10px;color:#6a6a7c;z-index:2;
   text-shadow:0 1px 2px #000}
+ #insp{position:absolute;right:10px;top:30px;width:252px;z-index:3;display:none;
+  background:rgba(11,11,17,.94);border:1px solid #2a2a38;border-radius:8px;
+  padding:10px 11px;font-size:11px;line-height:1.5;max-height:82%;overflow-y:auto}
+ #insp h4{margin:0 0 2px;color:var(--warm);font-size:14px;font-weight:normal}
+ #insp .sub{color:var(--dim);font-size:10px;margin-bottom:7px}
+ #insp .sec{color:#9a9ab0;font-size:9px;text-transform:uppercase;letter-spacing:1.2px;
+  margin:8px 0 3px}
+ #insp .bar{background:#1c1c26;border-radius:3px;height:6px;margin:2px 0 5px;overflow:hidden}
+ #insp .bar i{display:block;height:100%;border-radius:3px}
+ #insp .b{display:flex;justify-content:space-between;font-size:10.5px}
+ #insp .mem{margin-bottom:4px;color:#c9c9d8;font-size:10px}
+ #insp .src{font-size:8px;padding:0 4px;border-radius:3px;margin-right:4px;
+  text-transform:uppercase;letter-spacing:.5px}
+ #insp .x{position:absolute;top:6px;right:9px;cursor:pointer;color:var(--dim);
+  font-size:14px}
+ #insp .stir{color:#a09ab8;font-style:italic;font-size:10px}
  #stream{overflow-y:auto;font-size:13px;line-height:1.55}
  #stream .r{margin-bottom:9px;color:#eaeaf2}
  #stream .m{color:var(--dim);font-size:10.5px}
@@ -75,11 +100,13 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
    <div id=legend>
-    <i style=background:#e6b24a></i>bond of trust &nbsp;
+    <i style=background:#e6b24a></i>trust thread (flash = warming now) &nbsp;
     <i style=background:#b0485a></i>enmity<br>
-    <i style=background:radial-gradient(#e8c07a,#3a4a6a)></i>halo = mood &nbsp;
-    ◦ pulse = speaking &nbsp; ✦ bloom = birth &nbsp; † ripple = death</div>
-   <div id=hint>click a soul to speak with it</div></div></div>
+    halo = mood · arc = words reaching a hearer · ✦ birth · † death · click a soul to
+    open its insides</div>
+   <div id=chron></div>
+   <div id=insp><span class=x onclick="closeInsp()">×</span><div id=insp_body></div></div>
+   <div id=hint>click a soul — inspect it, talk to it</div></div></div>
  <div class=panel><h3>her stream — what she is saying, live</h3><div id=stream></div></div>
  <div class=panel><h3>her hand — drawing her state, live</h3><iframe src="/drawings/live.html"></iframe></div>
  <div class=panel id=chat><h3>a talk — <span id=tgt>with HER</span></h3>
@@ -94,19 +121,58 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 <script>
 const cv=document.getElementById('map'), g=cv.getContext('2d');
 const W=1000,H=660, OX=26,OY=40, SX=(W-52)/900, SY=(H-96)/600;
-const souls=new Map();        // id -> {x,y,tx,ty,mood,stage,asleep,name,action,drift,bonds}
-let fx=[], sky={hour:.35,season:'spring',night:false}, lastEv=0, sel='her';
-// fixed starfield
+const souls=new Map();      // id -> {x,y,tx,ty,mood,stage,asleep,name,action,drift,bonds,bubble}
+const pairTrust=new Map();  // "a|b" -> last trust, to catch bonds WARMING on camera
+let fx=[], chron=[], sky={hour:.35,season:'spring',night:false}, lastEv=0, sel='her';
+const ACT={work:'⚒ ',share:'❥ ',tend:'✚ ',hoard:'▾ '};
 const stars=[]; for(let i=0;i<90;i++){let s=(i*2654435761)>>>0;
  stars.push({x:(s%1000),y:((s>>10)%520),r:.4+((s>>4)%10)/12});}
 const wx=a=>a.x*SX+OX, wy=a=>a.y*SY+OY;
-
+const esc=t=>(t||'').replace(/[<&]/g,c=>c==='<'?'&lt;':'&amp;');
 function moodRGB(m){const w=(m+1)/2;
  return [Math.round(58+150*w),Math.round(88+66*w),Math.round(150-72*w)];}
+function note(text,color){chron.push({text,color:color||'#a8a8c0',t0:performance.now()});
+ chron=chron.slice(-6);
+ document.getElementById('chron').innerHTML=chron.map((c,i)=>
+  `<div style="color:${c.color};opacity:${0.35+0.65*(i+1)/chron.length}">${esc(c.text)}</div>`).join('');}
 
 function setTarget(id,name){sel=id;document.getElementById('who_sel').value=id;
- document.getElementById('tgt').textContent=id==='her'?'with HER':'aside with '+name;}
+ document.getElementById('tgt').textContent=id==='her'?'with HER':'aside with '+name;
+ if(id!=='her')openInsp(id); else closeInsp();}
+function closeInsp(){document.getElementById('insp').style.display='none';inspId=null;}
+let inspId=null;
+async function openInsp(id){inspId=id;
+ document.getElementById('insp').style.display='block';refreshInsp();}
+async function refreshInsp(){if(!inspId)return;
+ try{const d=await(await fetch('/soul?id='+encodeURIComponent(inspId))).json();
+  if(!d||!d.name)return;
+  const bar=(v,c)=>`<div class=bar><i style="width:${Math.round(100*Math.max(0,Math.min(1,v)))}%;background:${c}"></i></div>`;
+  const srcCol={self:'#3a4a6a',heard:'#5a4a2a',dream:'#4a3a5a',user:'#2a4a3a',
+   event:'#333340',ai:'#3a4a6a',doctrine:'#40333a'};
+  let h=`<h4>${esc(d.name)}</h4><div class=sub>${esc(d.role||'villager')} · ${d.stage} · `
+   +`${d.age}/${d.lifespan} ticks lived</div>`;
+  h+=`<div class=b><span>mood (felt)</span><span>${d.mood>0?'+':''}${d.mood}</span></div>`
+   +bar((d.mood+1)/2,'linear-gradient(90deg,#4a5a8a,#e0c080)');
+  h+=`<div class=b><span>wellbeing</span><span>${d.wellbeing}</span></div>`+bar(d.wellbeing,'#7aa07a');
+  if(d.met!=null)h+=`<div class=b><span>belly (met)</span><span>${d.met}</span></div>`+bar(d.met,'#c0925a');
+  h+=`<div class=b><span>stores</span><span>${d.stores}</span></div>`+bar(d.stores/1.5,'#8a8a5a');
+  if(d.grip!=null&&d.grip>0.01)h+=`<div class=b><span>the grip</span><span>${d.grip}</span></div>`+bar(d.grip,'#a05a5a');
+  if(d.genome){h+=`<div class=sec>genome (heritable)</div><div style="font-size:10px;color:#9a9ab0">`
+   +Object.entries(d.genome).map(([k,v])=>`${k} ${v}`).join(' · ')+`</div>`;}
+  if(d.bonds&&d.bonds.length){h+=`<div class=sec>bonds — who this soul holds</div>`;
+   for(const b of d.bonds){const c=b.trust>=0?'#e6b24a':'#b0485a';
+    h+=`<div class=b><span>${esc(b.name)}${b.wounds?` <span style="color:#b0485a">✗${b.wounds}</span>`:''}</span>`
+     +`<span style="color:${c}">${b.trust>0?'+':''}${b.trust}</span></div>`;}}
+  if(d.stir)h+=`<div class=sec>its tiny grown mind, right now</div><div class=stir>“${esc(d.stir)}”</div>`;
+  if(d.memories&&d.memories.length){h+=`<div class=sec>last memories — with provenance</div>`;
+   for(const m of d.memories){h+=`<div class=mem><span class=src style="background:${srcCol[m.source]||'#333340'}">`
+    +`${esc(m.source)}</span>${esc(m.text)}</div>`;}}
+  document.getElementById('insp_body').innerHTML=h;
+ }catch(e){}}
+setInterval(refreshInsp,3000);
+
 document.getElementById('mapwrap').addEventListener('click',e=>{
+ if(e.target.closest('#insp'))return;
  const r=cv.getBoundingClientRect();
  const px=(e.clientX-r.left)*W/r.width, py=(e.clientY-r.top)*H/r.height;
  let best=null,bd=30;
@@ -125,29 +191,37 @@ async function poll(){try{
  document.getElementById('stream').innerHTML=
   s.readings.map(r=>`<div class=r>${esc(r.text)}<div class=m>${esc(r.meta)}</div></div>`).join('');
  sky={hour:s.hour,season:s.season,night:s.night};
- // update / add souls (targets tween in the frame loop)
  const live=new Set();
  for(const a of s.souls){live.add(a.id);
   let d=souls.get(a.id);
-  if(!d){d={x:wx(a),y:wy(a),born:performance.now()};souls.set(a.id,d);
-   fx.push({k:'birth',id:a.id,t0:performance.now()});}
+  if(!d){d={x:wx(a),y:wy(a)};souls.set(a.id,d);}
   d.tx=wx(a);d.ty=wy(a);d.mood=a.mood;d.stage=a.stage;d.asleep=a.asleep;
   d.name=a.name;d.action=a.action;d.drift=a.drift;d.bonds=a.bonds;}
  for(const[id,d]of souls) if(!live.has(id)&&!d.dying){d.dying=performance.now();}
- // events -> effects
- for(const e of (s.events||[])){if(e.id>lastEv){lastEv=e.id;
-  const d=souls.get(e.who); if(!d)continue;
-  if(e.kind==='speak')fx.push({k:'speak',id:e.who,t0:performance.now(),text:e.text});
-  else if(e.kind==='death')fx.push({k:'death',x:d.x,y:d.y,t0:performance.now()});
-  else if(e.kind==='birth')fx.push({k:'birth',id:e.who,t0:performance.now()});}}
- // chat target list
+ // bonds WARMING on camera: any pair whose trust rose since last poll flashes
+ for(const a of s.souls)for(const[oid,tr]of(a.bonds||[])){
+  const k=a.id<oid?a.id+'|'+oid:oid+'|'+a.id, prev=pairTrust.get(k);
+  if(prev!=null&&tr>prev+0.004)fx.push({k:'warm',a:a.id,b:oid,t0:performance.now()});
+  pairTrust.set(k,tr);}
+ // events -> animation + chronicle, each exactly once
+ for(const e of (s.events||[])){if(e.id<=lastEv)continue;lastEv=e.id;
+  const d=souls.get(e.who); const nm=d?d.name:'a soul';
+  if(e.kind==='speak'&&d){
+   d.bubble={text:e.text,t0:performance.now()};
+   for(const hid of (e.to||[]))if(souls.has(hid))
+    fx.push({k:'arc',a:e.who,b:hid,t0:performance.now()});
+   const hearers=(e.to||[]).map(h=>souls.get(h)).filter(Boolean).map(h=>h.name);
+   note(`${nm}${hearers.length?' → '+hearers.slice(0,3).join(', '):''}: “${e.text}”`,'#9ab0c8');}
+  else if(e.kind==='death'&&d){fx.push({k:'death',x:d.x,y:d.y,t0:performance.now()});
+   note(`† ${nm} has passed`,'#b0a0a8');}
+  else if(e.kind==='birth'){if(d)fx.push({k:'birth',id:e.who,t0:performance.now()});
+   note(`✦ a soul is born`,'#e0c080');}}
  const S=document.getElementById('who_sel');
  if(S.options.length!==s.souls.length+1){const cur=S.value;
   S.innerHTML='<option value="her">SANTĀNA</option>'+
    s.souls.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');
   S.value=[...S.options].some(o=>o.value===cur)?cur:'her';}
 }catch(e){}}
-const esc=t=>(t||'').replace(/[<&]/g,c=>c==='<'?'&lt;':'&amp;');
 
 function drawSky(){
  const h=sky.hour;
@@ -159,15 +233,12 @@ function drawSky(){
  grd.addColorStop(0,`rgb(${L(nt[0],dt[0])},${L(nt[1],dt[1])},${L(nt[2],dt[2])})`);
  grd.addColorStop(1,`rgb(${L(nb[0],db[0])},${L(nb[1],db[1])},${L(nb[2],db[2])})`);
  g.fillStyle=grd;g.fillRect(0,0,W,H);
- // warm horizon at dawn/dusk
  const warm=Math.max(0,1-Math.abs(light-0.4)/0.4)*(light<0.85?1:0);
  if(warm>0.05){const hg=g.createRadialGradient(W/2,H,60,W/2,H,H*0.9);
   hg.addColorStop(0,`rgba(210,120,70,${0.18*warm})`);hg.addColorStop(1,'rgba(0,0,0,0)');
   g.fillStyle=hg;g.fillRect(0,0,W,H);}
- // stars at night
  if(light<0.42){const sa=(0.42-light)/0.42;g.fillStyle=`rgba(220,222,240,${0.6*sa})`;
   for(const st of stars){g.beginPath();g.arc(st.x,st.y,st.r,0,7);g.fill();}}
- // season tint wash
  const tint={spring:[90,150,90],summer:[210,180,80],harvest:[210,140,60],winter:[110,140,190]}[sky.season]||[120,120,140];
  g.fillStyle=`rgba(${tint[0]},${tint[1]},${tint[2]},0.05)`;g.fillRect(0,0,W,H);
 }
@@ -176,10 +247,10 @@ function drawThreads(){
  g.lineCap='round';
  for(const[id,d]of souls){if(d.dying)continue;
   for(const[oid,tr]of (d.bonds||[])){const o=souls.get(oid);
-   if(!o||o.dying)continue; if(id>oid)continue;      // draw each pair once
+   if(!o||o.dying)continue; if(id>oid)continue;
    const a=Math.min(0.5,Math.abs(tr)*0.6);
-   if(tr>=0)g.strokeStyle=`rgba(230,178,74,${a})`;   // gold = trust/love
-   else g.strokeStyle=`rgba(176,72,90,${a*0.9})`;    // cold red = enmity
+   if(tr>=0)g.strokeStyle=`rgba(230,178,74,${a})`;
+   else g.strokeStyle=`rgba(176,72,90,${a*0.9})`;
    g.lineWidth=tr>=0?0.5+2.2*tr:0.5;
    g.beginPath();g.moveTo(d.x,d.y);g.lineTo(o.x,o.y);g.stroke();}}
 }
@@ -191,50 +262,66 @@ function drawSouls(now){
   if(d.dying){const e=(now-d.dying)/1400; if(e>=1){souls.delete(id);continue;} fade=1-e;}
   const[r,gg,b]=moodRGB(d.mood), night=sky.night&&d.asleep;
   const rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
-  const glow=(night?7:15)+ (night?0:4*breathe);
-  // mood halo
+  const glow=(night?7:15)+(night?0:4*breathe);
   const hg=g.createRadialGradient(d.x,d.y,1,d.x,d.y,glow*1.8);
   hg.addColorStop(0,`rgba(${r},${gg},${b},${(night?0.18:0.42)*fade})`);
   hg.addColorStop(1,`rgba(${r},${gg},${b},0)`);
   g.fillStyle=hg;g.beginPath();g.arc(d.x,d.y,glow*1.8,0,7);g.fill();
-  // body
   g.globalAlpha=(night?0.55:1)*fade;
   g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
   g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();
   if(d.stage==='elder'){g.strokeStyle=`rgba(200,200,215,${0.6*fade})`;g.lineWidth=1;
    g.beginPath();g.arc(d.x,d.y,rad+2.5,0,7);g.stroke();}
-  if(id===sel){g.strokeStyle=`rgba(240,234,214,${0.9})`;g.lineWidth=1.6;
+  if(id===sel){g.strokeStyle=`rgba(240,234,214,0.9)`;g.lineWidth=1.6;
    g.beginPath();g.arc(d.x,d.y,rad+5,0,7);g.stroke();}
   g.globalAlpha=1;
   if(label){
    g.fillStyle=`rgba(220,221,232,${0.85*fade})`;g.font='12px Georgia';
    g.fillText(d.name,d.x+rad+4,d.y+3);
    g.fillStyle=`rgba(125,125,146,${0.9*fade})`;g.font='9.5px Georgia';
-   g.fillText(night?'asleep':(d.action||''),d.x+rad+4,d.y+14);
+   const act=night?'asleep':((ACT[d.action]||'')+(d.action||''));
+   g.fillText(act,d.x+rad+4,d.y+14);
    if(d.drift&&!night){g.fillStyle=`rgba(150,150,168,${0.5*fade})`;
-    g.font='italic 8px Georgia';g.fillText((d.drift||'').slice(0,26),d.x-6,d.y-11);}}
+    g.font='italic 8px Georgia';g.fillText((d.drift||'').slice(0,26),d.x-6,d.y-11);}
+   // the spoken line hangs as a bubble while it is fresh
+   if(d.bubble){const bp=(now-d.bubble.t0)/2600;
+    if(bp>=1)d.bubble=null;
+    else{const tx='“'+d.bubble.text+'”';g.font='11px Georgia';
+     const tw=g.measureText(tx).width;
+     g.fillStyle=`rgba(12,12,20,${0.75*(1-bp)})`;
+     g.fillRect(d.x+8,d.y-34,tw+10,16);
+     g.fillStyle=`rgba(205,220,238,${0.95*(1-bp)})`;
+     g.fillText(tx,d.x+13,d.y-22);}}}
  }
 }
 
 function drawFx(now){
  fx=fx.filter(f=>{
-  const d=souls.get(f.id), x=f.x??(d&&d.x), y=f.y??(d&&d.y);
-  if(x==null)return false;
-  const e=(now-f.t0);
-  if(f.k==='speak'){const p=e/900;if(p>=1)return false;
-   g.strokeStyle=`rgba(150,200,235,${0.55*(1-p)})`;g.lineWidth=1.4;
-   g.beginPath();g.arc(x,y,8+26*p,0,7);g.stroke();
-   if(f.text){g.fillStyle=`rgba(200,220,240,${0.8*(1-p)})`;g.font='11px Georgia';
-    g.fillText('“'+f.text+'”',x+10,y-14-16*p);}return true;}
+  const e=now-f.t0;
+  if(f.k==='arc'){const p=e/750;if(p>=1)return false;
+   const A=souls.get(f.a),B=souls.get(f.b);if(!A||!B)return false;
+   const mx=(A.x+B.x)/2,my=(A.y+B.y)/2-18;
+   g.strokeStyle=`rgba(150,200,235,${0.32*(1-p)})`;g.lineWidth=1;
+   g.beginPath();g.moveTo(A.x,A.y);g.quadraticCurveTo(mx,my,B.x,B.y);g.stroke();
+   const t=p, ix=(1-t)*(1-t)*A.x+2*(1-t)*t*mx+t*t*B.x,
+             iy=(1-t)*(1-t)*A.y+2*(1-t)*t*my+t*t*B.y;
+   g.fillStyle=`rgba(190,225,250,${0.9*(1-p*0.5)})`;
+   g.beginPath();g.arc(ix,iy,2.2,0,7);g.fill();return true;}
+  if(f.k==='warm'){const p=e/1200;if(p>=1)return false;
+   const A=souls.get(f.a),B=souls.get(f.b);if(!A||!B)return false;
+   g.strokeStyle=`rgba(255,225,140,${0.7*(1-p)})`;g.lineWidth=2.6*(1-p)+0.6;
+   g.beginPath();g.moveTo(A.x,A.y);g.lineTo(B.x,B.y);g.stroke();return true;}
+  if(f.k==='speak'){return false;}
   if(f.k==='birth'){const p=e/1100;if(p>=1)return false;
-   const rg=g.createRadialGradient(x,y,0,x,y,30*p);
+   const d=souls.get(f.id);if(!d)return false;
+   const rg=g.createRadialGradient(d.x,d.y,0,d.x,d.y,30*p);
    rg.addColorStop(0,`rgba(245,225,160,${0.5*(1-p)})`);rg.addColorStop(1,'rgba(0,0,0,0)');
-   g.fillStyle=rg;g.beginPath();g.arc(x,y,30*p,0,7);g.fill();return true;}
+   g.fillStyle=rg;g.beginPath();g.arc(d.x,d.y,30*p,0,7);g.fill();return true;}
   if(f.k==='death'){const p=e/1500;if(p>=1)return false;
    g.strokeStyle=`rgba(150,150,170,${0.5*(1-p)})`;g.lineWidth=1.5;
-   g.beginPath();g.arc(x,y,6+58*p,0,7);g.stroke();
+   g.beginPath();g.arc(f.x,f.y,6+58*p,0,7);g.stroke();
    g.fillStyle=`rgba(190,190,205,${0.7*(1-p)})`;g.font='14px Georgia';
-   g.fillText('†',x-4,y-10-24*p);return true;}
+   g.fillText('†',f.x-4,f.y-10-24*p);return true;}
   return false;});
 }
 
@@ -295,6 +382,47 @@ def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> di
             "events": list(events)}
 
 
+def soul_detail(world, sid: str) -> dict | None:
+    """The INSPECTOR's read: one soul's actual insides -- state, genome, bonds with
+    names, last memories WITH their provenance tags, and its grown mind's current
+    murmur. Everything shown is a field that exists; nothing is synthesized."""
+    from world import clock as _clock
+    with world.lock:
+        a = next((x for x in world.agents if x.id == sid), None)
+        if a is None:
+            return None
+        names = {x.id: x.name for x in world.agents}
+        gn = getattr(a, "genome", None)
+        genome = None
+        if gn is not None:
+            genome = {k: round(v, 2) for k, v in (
+                ("grip", getattr(gn, "grip", None)),
+                ("compassion", getattr(gn, "compassion", None)),
+                ("metabolism", getattr(gn, "metabolism", None)),
+                ("boldness", getattr(gn, "boldness", None)),
+            ) if isinstance(v, (int, float))}
+        bonds = [{"name": names.get(oid, "one now gone"), "trust": round(b.trust, 2),
+                  "wounds": b.wounds}
+                 for oid, b in getattr(a, "bonds", {}).items()
+                 if abs(b.trust) >= 0.05 or b.wounds]
+        bonds.sort(key=lambda b: -abs(b["trust"]))
+        mems = [{"text": m.text[:92], "source": m.source,
+                 "emotion": round(getattr(m, "emotion", 0.0), 2)}
+                for m in list(a.memory.items)[-8:]][::-1]
+        met = getattr(a, "_met", None)
+        return {
+            "id": a.id, "name": a.name, "role": getattr(a, "role", ""),
+            "stage": (_clock.stage(a.age, a.lifespan) if world.clock_enabled else "adult"),
+            "age": a.age, "lifespan": a.lifespan,
+            "mood": round(a.felt_mood(), 2), "wellbeing": round(a.wellbeing, 2),
+            "stores": round(getattr(a, "stores", 0.0), 2),
+            "met": round(met, 2) if isinstance(met, (int, float)) else None,
+            "grip": round(getattr(a, "grip", 0.0), 2),
+            "genome": genome, "bonds": bonds[:7], "memories": mems,
+            "stir": (a.thought.drift[-1][:90] if getattr(a.thought, "drift", None) else ""),
+        }
+
+
 class _Handler(BaseHTTPRequestHandler):
     ui = None   # set by serve()
 
@@ -317,6 +445,14 @@ class _Handler(BaseHTTPRequestHandler):
                 events = list(u["events"])
             snap = snapshot(u["mind"], u["world"], u["readings"], u["drift"], events)
             self._send(json.dumps(snap).encode(), "application/json")
+        elif self.path.startswith("/soul"):
+            from urllib.parse import parse_qs, urlparse
+            sid = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
+            d = soul_detail(u["world"], sid)
+            if d is None:
+                self._send(b"{}", "application/json", 404)
+            else:
+                self._send(json.dumps(d).encode(), "application/json")
         elif self.path.startswith("/drawings/"):
             import os
             name = os.path.basename(self.path.split("?")[0])   # no traversal: basename only
@@ -453,26 +589,43 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def _wire_events(world, events: list, ev_lock, seq: list) -> None:
-    """Subscribe to the world's bus so the map can ANIMATE what happens: speech pulses,
-    birth blooms, death ripples. A tiny ring (bus fires on the wheel thread; the HTTP
-    threads read it under a lock). Every event gets a rising id so the client animates
-    each exactly once. A failing hook never touches the wheel (the bus contains it)."""
+    """Subscribe to the world's bus so the map can ANIMATE what happens: speech arcs
+    to the souls actually in earshot, birth blooms, death ripples. A tiny ring (bus
+    fires on the wheel thread WHILE the world lock is held, so hooks read positions
+    directly and must never re-acquire the lock). Every event gets a rising id so
+    the client animates each exactly once; a failing hook never touches the wheel."""
+    def on_speech(u):
+        who = getattr(u, "speaker_id", "")
+        if not who or who.startswith("mind:") or who == "user":
+            return
+        text = (getattr(u, "text", "") or "")[:44]
+        hearers = []
+        try:
+            spk = next((a for a in world.agents if a.id == who), None)
+            if spk is not None:
+                reach = world.hearing_range * 2.0
+                hearers = [b.id for b in world.agents
+                           if b is not spk and world._distance(b, spk) <= reach][:8]
+        except Exception:   # noqa: BLE001 -- a hook must never hurt the wheel
+            pass
+        with ev_lock:
+            seq[0] += 1
+            events.append({"id": seq[0], "kind": "speak", "who": who,
+                           "text": text, "to": hearers})
+            del events[:-80]
+
     def record(kind):
         def hook(payload):
-            if kind == "speak":
-                who = getattr(payload, "speaker_id", "")
-                text = (getattr(payload, "text", "") or "")[:44]
-            else:
-                who = payload if isinstance(payload, str) else getattr(payload, "id", "")
-                text = ""
+            who = payload if isinstance(payload, str) else getattr(payload, "id", "")
             if not who:
                 return
             with ev_lock:
                 seq[0] += 1
-                events.append({"id": seq[0], "kind": kind, "who": who, "text": text})
+                events.append({"id": seq[0], "kind": kind, "who": who})
                 del events[:-80]
         return hook
-    world.bus.subscribe("utterance", record("speak"))
+
+    world.bus.subscribe("utterance", on_speech)
     world.bus.subscribe("death", record("death"))
     world.bus.subscribe("starvation", record("death"))
     world.bus.subscribe("birth", record("birth"))
