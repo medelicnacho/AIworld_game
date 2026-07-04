@@ -96,7 +96,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v5</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v6</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -120,11 +120,14 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
   her full ritual is: python3 chat.py</div></div>
 </div>
 <script>
-const cv=document.getElementById('map'); let g=cv.getContext('2d');
-// GPU context loss turns a canvas permanently black with NO js error -- the exact
-// "it shows and then goes dark" symptom. Recover instead of dying dark.
+const cv=document.getElementById('map');
+// willReadFrequently forces SOFTWARE rasterisation: the user's GPU driver was
+// dropping the canvas context (brief blackouts, recovering since v5) -- a CPU-drawn
+// canvas takes the driver out of the picture entirely. Flat shapes at 30fps cost
+// the CPU almost nothing.
+let g=cv.getContext('2d',{willReadFrequently:true});
 cv.addEventListener('contextlost',e=>{e.preventDefault();});
-cv.addEventListener('contextrestored',()=>{g=cv.getContext('2d');});
+cv.addEventListener('contextrestored',()=>{g=cv.getContext('2d',{willReadFrequently:true});});
 const W=1000,H=660, OX=26,OY=40, SX=(W-52)/900, SY=(H-96)/600;
 const souls=new Map();      // id -> {x,y,tx,ty,mood,stage,asleep,name,action,drift,bonds,bubble}
 const pairTrust=new Map();  // "a|b" -> last trust, to catch bonds WARMING on camera
