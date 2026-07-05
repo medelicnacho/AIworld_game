@@ -34,7 +34,7 @@ from agent.agent import WAR_THRESHOLD as _WAR_AT
 
 PORT = 8765
 
-UI_VERSION = 19   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 20   # bump on any dashboard change: live pages reload themselves to match
                   # (the page's MY_VERSION substitutes from THIS constant at serve time)
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
@@ -112,10 +112,12 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
     <i style="background:linear-gradient(90deg,#46578a,#c48c3c)"></i>mood-wash =
     the measured weather (V1, 5/5)<br>
     halo = mood · arc = words reaching a hearer · ✦ birth · † death · click a soul to
-    open its insides</div>
+    open its insides<br>
+    □ breeder (docile, keeps the hearth) · ○ warrior · red body = at war ·
+    inner glow = brooding</div>
    <div id=chron></div>
    <div id=insp><span class=x onclick="closeInsp()">×</span><div id=insp_body></div></div>
-   <div id=hint>click a soul — inspect it, talk to it</div></div></div>
+   <div id=hint>WASD moves the camera · wheel zooms · click a soul — inspect it, talk to it</div></div></div>
  <div class=panel><h3>her stream — what she is saying, live</h3><div id=stream></div></div>
  <div class=panel><h3>her hand — drawing her state, live</h3><iframe src="/drawings/live.html"></iframe></div>
  <div class=panel id=chat><h3>a talk — <span id=tgt>with HER</span></h3>
@@ -142,22 +144,55 @@ CanvasRenderingContext2D.prototype.arc=function(x,y,r,a,b,c){
 let g=cv.getContext('2d',{willReadFrequently:true});
 cv.addEventListener('contextlost',e=>{e.preventDefault();});
 cv.addEventListener('contextrestored',()=>{g=cv.getContext('2d',{willReadFrequently:true});});
-const W=1000,H=660, OX=26,OY=40, SX=(W-52)/900, SY=(H-96)/600;
-const souls=new Map();      // id -> {x,y,tx,ty,mood,stage,asleep,name,action,drift,bonds,bubble}
+const W=1000,H=660;
+// THE CAMERA (v20): souls live in WORLD coordinates and are transformed ONCE, at
+// draw time, through cam -- the screen-coords-baked-at-poll era is over (it made
+// panning impossible). S() is the one transform; the click hit-test inverts it.
+const cam={x:0,y:0,scale:1};
+let bounds=[900,600], camFit=false;
+const VIEW_UNITS=1400;      // MOBA zoom: about this many world-units across the canvas
+const PAN_PX=13;            // camera speed, screen px per frame
+const S=(x,y)=>[(x-cam.x)*cam.scale,(y-cam.y)*cam.scale];
+function clampCam(){
+ const vw=W/cam.scale, vh=H/cam.scale;
+ cam.x=bounds[0]>=vw?Math.min(Math.max(cam.x,0),bounds[0]-vw):(bounds[0]-vw)/2;
+ cam.y=bounds[1]>=vh?Math.min(Math.max(cam.y,0),bounds[1]-vh):(bounds[1]-vh)/2;}
+function fitScale(){return Math.min((W-52)/bounds[0],(H-96)/bounds[1]);}
+function fitCam(){
+ // small classic worlds fit whole (the pre-camera view); big arenas open zoomed
+ // in at the world's heart and WASD pans from there
+ cam.scale=Math.max(fitScale(),W/VIEW_UNITS);
+ cam.x=bounds[0]/2-W/cam.scale/2; cam.y=bounds[1]/2-H/cam.scale/2; clampCam();}
+const keys={};              // WASD state; ignored while typing in an input
+addEventListener('keydown',e=>{
+ const t=(document.activeElement||{}).tagName;
+ if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA')return;
+ const k=e.key.toLowerCase(); if('wasd'.includes(k)){keys[k]=1;e.preventDefault();}});
+addEventListener('keyup',e=>{delete keys[e.key.toLowerCase()];});
+cv.addEventListener('wheel',e=>{e.preventDefault();
+ const r=cv.getBoundingClientRect();
+ const px=(e.clientX-r.left)*W/r.width, py=(e.clientY-r.top)*H/r.height;
+ const wxp=px/cam.scale+cam.x, wyp=py/cam.scale+cam.y;
+ cam.scale=Math.min(2.5,Math.max(Math.min(fitScale(),W/VIEW_UNITS),
+  cam.scale*(e.deltaY<0?1.12:0.89)));
+ cam.x=wxp-px/cam.scale; cam.y=wyp-py/cam.scale; clampCam();},{passive:false});
+const souls=new Map();      // id -> {x,y,tx,ty (WORLD), sx,sy (screen, per frame), ...}
 // THE MOOD-WASH: an offscreen canvas that never fully clears -- each poll every soul
 // deposits a faint flat patch of its mood-colour at its position, and the whole layer
 // slowly fades. Drifting fronts of warmth and cold = V1's MEASURED weather (5/5),
-// rendered. Flat shapes only (no gradients -- the GPU saga's rule).
-const washCv=document.createElement('canvas');washCv.width=W;washCv.height=H;
-const wash=washCv.getContext('2d',{willReadFrequently:true});
+// rendered. Flat shapes only (no gradients -- the GPU saga's rule). v20: the wash is
+// WORLD-space now (at 1/WSC resolution) so it pans with the land under the camera.
+const WSC=4;
+const washCv=document.createElement('canvas');washCv.width=225;washCv.height=150;
+let wash=washCv.getContext('2d',{willReadFrequently:true});
+function sizeWash(){washCv.width=Math.ceil(bounds[0]/WSC);
+ washCv.height=Math.ceil(bounds[1]/WSC);
+ wash=washCv.getContext('2d',{willReadFrequently:true});}
 const pairTrust=new Map();  // "a|b" -> last trust, to catch bonds WARMING on camera
 let fx=[], chron=[], sky={hour:.35,season:'spring',night:false}, lastEv=0, sel='her';
 let land=null;
 const FAC_TINT=['#e6b24a','#5ac8c8','#b48ae6','#e68aa0','#9ade6b','#7a9ae6'];
 const ACT={work:'⚒ ',share:'❥ ',tend:'✚ ',hoard:'▾ '};
-const stars=[]; for(let i=0;i<90;i++){let s=(i*2654435761)>>>0;
- stars.push({x:(s%1000),y:((s>>10)%520),r:.4+((s>>4)%10)/12});}
-const wx=a=>a.x*SX+OX, wy=a=>a.y*SY+OY;
 const esc=t=>(t||'').replace(/[<&]/g,c=>c==='<'?'&lt;':'&amp;');
 function moodRGB(m){const w=(m+1)/2;
  return [Math.round(58+150*w),Math.round(88+66*w),Math.round(150-72*w)];}
@@ -179,7 +214,8 @@ async function refreshInsp(){if(!inspId)return;
   const bar=(v,c)=>`<div class=bar><i style="width:${Math.round(100*Math.max(0,Math.min(1,v)))}%;background:${c}"></i></div>`;
   const srcCol={self:'#3a4a6a',heard:'#5a4a2a',dream:'#4a3a5a',user:'#2a4a3a',
    event:'#333340',ai:'#3a4a6a',doctrine:'#40333a'};
-  let h=`<h4>${esc(d.name)}</h4><div class=sub>${esc(d.role||'villager')} · ${d.stage} · `
+  let h=`<h4>${esc(d.name)}</h4><div class=sub>${esc(d.role||'villager')}`
+   +`${d.caste==='breeder'?' · keeps the hearth':''} · ${d.stage} · `
    +`${d.age}/${d.lifespan} ticks lived</div>`;
   h+=`<div class=b><span>mood (felt)</span><span>${d.mood>0?'+':''}${d.mood}</span></div>`
    +bar((d.mood+1)/2,'linear-gradient(90deg,#4a5a8a,#e0c080)');
@@ -205,8 +241,10 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
  if(e.target.closest('#insp'))return;
  const r=cv.getBoundingClientRect();
  const px=(e.clientX-r.left)*W/r.width, py=(e.clientY-r.top)*H/r.height;
- let best=null,bd=30;
- for(const[id,d]of souls){const dd=Math.hypot(d.x-px,d.y-py);if(dd<bd){bd=dd;best=[id,d.name];}}
+ // invert the camera: canvas -> world, then nearest soul in world space
+ const wxp=px/cam.scale+cam.x, wyp=py/cam.scale+cam.y;
+ let best=null,bd=30/cam.scale;
+ for(const[id,d]of souls){const dd=Math.hypot(d.x-wxp,d.y-wyp);if(dd<bd){bd=dd;best=[id,d.name];}}
  if(best)setTarget(best[0],best[1]);});
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
@@ -226,20 +264,25 @@ async function poll(){try{
   s.readings.map(r=>`<div class=r>${esc(r.text)}<div class=m>${esc(r.meta)}</div></div>`).join('');
  sky={hour:s.hour,season:s.season,night:s.night};
  land=s.land||null;
+ if(s.bounds&&(s.bounds[0]!==bounds[0]||s.bounds[1]!==bounds[1])){
+  bounds=s.bounds;sizeWash();camFit=false;}
+ if(!camFit){fitCam();camFit=true;}
  // deposit this poll's mood onto the wash, then erode it slightly (a memory of
- // where feeling has lived, always fading)
+ // where feeling has lived, always fading) -- world-space, 1/WSC resolution
  wash.globalCompositeOperation='destination-out';
- wash.fillStyle='rgba(0,0,0,0.045)';wash.fillRect(0,0,W,H);
+ wash.fillStyle='rgba(0,0,0,0.045)';wash.fillRect(0,0,washCv.width,washCv.height);
  wash.globalCompositeOperation='source-over';
  for(const a of s.souls){const[r2,g2,b2]=moodRGB(a.mood);
   wash.fillStyle=`rgba(${r2},${g2},${b2},0.05)`;
-  wash.beginPath();wash.arc(wx(a),wy(a),58,0,7);wash.fill();}
+  wash.beginPath();wash.arc(a.x/WSC,a.y/WSC,58/WSC,0,7);wash.fill();}
  const live=new Set();
  for(const a of s.souls){live.add(a.id);
   let d=souls.get(a.id);
-  if(!d){d={x:wx(a),y:wy(a)};souls.set(a.id,d);}
-  d.tx=wx(a);d.ty=wy(a);d.mood=a.mood;d.stage=a.stage;d.asleep=a.asleep;
-  d.name=a.name;d.action=a.action;d.drift=a.drift;d.bonds=a.bonds;}
+  if(!d){d={x:a.x,y:a.y};souls.set(a.id,d);}
+  d.tx=a.x;d.ty=a.y;d.mood=a.mood;d.stage=a.stage;d.asleep=a.asleep;
+  d.name=a.name;d.action=a.action;d.drift=a.drift;d.bonds=a.bonds;
+  d.caste=a.caste;d.preg=a.preg;
+  d.bold=a.bold;d.metab=a.metab;d.temp=a.temp;d.wrath=a.wrath;d.fac=a.fac;d.war=a.war;}
  for(const[id,d]of souls) if(!live.has(id)&&!d.dying){d.dying=performance.now();}
  // bonds WARMING on camera: any pair whose trust rose since last poll flashes
  for(const a of s.souls)for(const[oid,tr]of(a.bonds||[])){
@@ -256,6 +299,7 @@ async function poll(){try{
    const hearers=(e.to||[]).map(h=>souls.get(h)).filter(Boolean).map(h=>h.name);
    note(`${nm}${hearers.length?' → '+hearers.slice(0,3).join(', '):''}: “${e.text}”`,'#9ab0c8');}
   else if(e.kind==='raid'){note(`⚔ ${e.text}`,'#c07a4a');}
+  else if(e.kind==='pair'){note(`❀ ${e.text}`,'#c8a8d0');}
   else if(e.kind==='death'&&d){fx.push({k:'death',x:d.x,y:d.y,t0:performance.now()});
    note(`† ${nm} has passed`,'#b0a0a8');}
   else if(e.kind==='birth'){if(d)fx.push({k:'birth',id:e.who,t0:performance.now()});
@@ -289,7 +333,8 @@ function drawLand(){
  // ground) and lit by its POOL (a starving granary goes ashen); name + stores shown.
  if(!land)return;
  for(const r of land){
-  const x=r.x*SX+OX,y=r.y*SY+OY,w=r.w*SX,h=r.h*SY;
+  const[x,y]=S(r.x,r.y), w=r.w*cam.scale, h=r.h*cam.scale;
+  if(x+w<0||x>W||y+h<0||y>H)continue;              // off-camera ground
   const soil=(r.soil-0.5)/0.8, full=Math.min(1,r.pool/6);
   g.fillStyle=`rgba(${90-30*soil},${95+40*soil},70,${0.05+0.10*full})`;
   g.fillRect(x,y,w,h);
@@ -307,67 +352,78 @@ function drawThreads(){
    if(tr>=0)g.strokeStyle=`rgba(230,178,74,${a})`;
    else g.strokeStyle=`rgba(176,72,90,${a*0.9})`;
    g.lineWidth=tr>=0?0.5+2.2*tr:0.5;
-   g.beginPath();g.moveTo(d.x,d.y);g.lineTo(o.x,o.y);g.stroke();}}
+   g.beginPath();g.moveTo(d.sx,d.sy);g.lineTo(o.sx,o.sy);g.stroke();}}
 }
 
 function drawSouls(now){
  const label=souls.size<=140, breathe=0.5+0.5*Math.sin(now/900);
+ const zs=Math.min(1.6,Math.max(0.6,cam.scale));  // body zoom: world-true, gently clamped
  for(const[id,d]of souls){
   let fade=1;
   if(d.dying){const e=(now-d.dying)/1400; if(e>=1){souls.delete(id);continue;} fade=1-e;}
+  const x=d.sx,y=d.sy;
+  if(x<-60||x>W+60||y<-60||y>H+60)continue;        // off-camera souls cost nothing
   let[r,gg,b]=moodRGB(d.mood); const night=sky.night&&d.asleep;
   if(d.war){r=224;gg=58;b=48;}                     // AT WAR: the body burns red
   let rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
-  rad*=(0.8+0.5*(d.metab??0.5));                   // the body: metabolism is SIZE
+  rad*=(0.8+0.5*(d.metab??0.5))*zs;                // the body: metabolism is SIZE
   // night does NOT dim the souls at all -- the sky's cool tint and the stars say
   // "night". Halos are two flat arcs, not radial gradients: 64 gradients x 60fps
   // is exactly the GPU load that provokes context loss on fragile drivers.
-  const glow=15+(night?0:4*breathe);
+  const glow=(15+(night?0:4*breathe))*zs;
   // the AURA is CHARACTER (heritable temperament: cold steel-blue .. warm amber);
   // the flesh below stays MOOD (fast) -- and burns red at war
   const tw=((d.temp??0)+1)/2;
   const ar=Math.round(90+150*tw),ag=Math.round(110+60*tw),ab=Math.round(230-140*tw);
   g.fillStyle=`rgba(${ar},${ag},${ab},${0.16*fade})`;
-  g.beginPath();g.arc(d.x,d.y,glow*1.6,0,7);g.fill();
+  g.beginPath();g.arc(x,y,glow*1.6,0,7);g.fill();
   g.fillStyle=`rgba(${ar},${ag},${ab},${0.22*fade})`;
-  g.beginPath();g.arc(d.x,d.y,glow*0.85,0,7);g.fill();
+  g.beginPath();g.arc(x,y,glow*0.85,0,7);g.fill();
   g.globalAlpha=fade;
   g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
-  if((d.bold??0.5)>0.55){                          // the body: boldness is SPIKES
+  if(d.caste==='breeder'){                         // BREEDER: a rounded square, docile
+   const s=rad*1.7, rr=Math.max(1.5,rad*0.45);
+   g.beginPath();
+   if(g.roundRect)g.roundRect(x-s/2,y-s/2,s,s,rr); else g.rect(x-s/2,y-s/2,s,s);
+   g.fill();
+   if(d.preg){                                     // brooding: a soft inner glow
+    g.fillStyle=`rgba(245,225,160,${(0.5+0.3*breathe)*fade})`;
+    g.beginPath();g.arc(x,y,rad*0.55,0,7);g.fill();}
+  }else if((d.bold??0.5)>0.55){                    // the body: boldness is SPIKES
    const n=5+Math.round(3*d.bold);g.beginPath();
    for(let k=0;k<n*2;k++){const rr=k%2?rad*0.55:rad*1.35;const th=Math.PI*k/n;
-    k?g.lineTo(d.x+rr*Math.cos(th),d.y+rr*Math.sin(th))
-     :g.moveTo(d.x+rr*Math.cos(th),d.y+rr*Math.sin(th));}
+    k?g.lineTo(x+rr*Math.cos(th),y+rr*Math.sin(th))
+     :g.moveTo(x+rr*Math.cos(th),y+rr*Math.sin(th));}
    g.closePath();g.fill();
-  }else{g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();}
-  if((d.wrath??0.5)>0.6){                          // wrath: a thorn-red edge, heritable
+  }else{g.beginPath();g.arc(x,y,rad,0,7);g.fill();}
+  if(d.caste!=='breeder'&&(d.wrath??0.5)>0.6){     // wrath: a thorn-red edge, heritable
    g.strokeStyle=`rgba(235,80,40,${(0.25+0.6*(d.wrath-0.6)/0.4)*fade})`;
    g.lineWidth=1.2;g.stroke();}
   if((d.fac??-1)>=0){                              // the bloc: a tinted ring
    g.strokeStyle=FAC_TINT[d.fac%FAC_TINT.length];g.lineWidth=1.4;
-   g.beginPath();g.arc(d.x,d.y,rad+3,0,7);g.stroke();}
+   g.beginPath();g.arc(x,y,rad+3,0,7);g.stroke();}
   if(d.stage==='elder'){g.strokeStyle=`rgba(200,200,215,${0.6*fade})`;g.lineWidth=1;
-   g.beginPath();g.arc(d.x,d.y,rad+2.5,0,7);g.stroke();}
+   g.beginPath();g.arc(x,y,rad+2.5,0,7);g.stroke();}
   if(id===sel){g.strokeStyle=`rgba(240,234,214,0.9)`;g.lineWidth=1.6;
-   g.beginPath();g.arc(d.x,d.y,rad+5,0,7);g.stroke();}
+   g.beginPath();g.arc(x,y,rad+5,0,7);g.stroke();}
   g.globalAlpha=1;
   if(label){
    g.fillStyle=`rgba(220,221,232,${0.85*fade})`;g.font='12px Georgia';
-   g.fillText(d.name,d.x+rad+4,d.y+3);
+   g.fillText(d.name,x+rad+4,y+3);
    g.fillStyle=`rgba(125,125,146,${0.9*fade})`;g.font='9.5px Georgia';
    const act=night?'asleep':((ACT[d.action]||'')+(d.action||''));
-   g.fillText(act,d.x+rad+4,d.y+14);
+   g.fillText(act,x+rad+4,y+14);
    if(d.drift&&!night){g.fillStyle=`rgba(150,150,168,${0.5*fade})`;
-    g.font='italic 8px Georgia';g.fillText(d.drift,d.x-6,d.y-11);}
+    g.font='italic 8px Georgia';g.fillText(d.drift,x-6,y-11);}
    // the spoken line hangs as a bubble while it is fresh
    if(d.bubble){const bp=(now-d.bubble.t0)/2600;
     if(bp>=1)d.bubble=null;
     else{const tx='“'+d.bubble.text+'”';g.font='11px Georgia';
      const tw=g.measureText(tx).width;
      g.fillStyle=`rgba(12,12,20,${0.75*(1-bp)})`;
-     g.fillRect(d.x+8,d.y-34,tw+10,16);
+     g.fillRect(x+8,y-34,tw+10,16);
      g.fillStyle=`rgba(205,220,238,${0.95*(1-bp)})`;
-     g.fillText(tx,d.x+13,d.y-22);}}}
+     g.fillText(tx,x+13,y-22);}}}
  }
 }
 
@@ -376,28 +432,44 @@ function drawFx(now){
   const e=now-f.t0;
   if(f.k==='arc'){const p=e/750;if(p>=1)return false;
    const A=souls.get(f.a),B=souls.get(f.b);if(!A||!B)return false;
-   const mx=(A.x+B.x)/2,my=(A.y+B.y)/2-18;
+   const mx=(A.sx+B.sx)/2,my=(A.sy+B.sy)/2-18;
    g.strokeStyle=`rgba(150,200,235,${0.32*(1-p)})`;g.lineWidth=1;
-   g.beginPath();g.moveTo(A.x,A.y);g.quadraticCurveTo(mx,my,B.x,B.y);g.stroke();
-   const t=p, ix=(1-t)*(1-t)*A.x+2*(1-t)*t*mx+t*t*B.x,
-             iy=(1-t)*(1-t)*A.y+2*(1-t)*t*my+t*t*B.y;
+   g.beginPath();g.moveTo(A.sx,A.sy);g.quadraticCurveTo(mx,my,B.sx,B.sy);g.stroke();
+   const t=p, ix=(1-t)*(1-t)*A.sx+2*(1-t)*t*mx+t*t*B.sx,
+             iy=(1-t)*(1-t)*A.sy+2*(1-t)*t*my+t*t*B.sy;
    g.fillStyle=`rgba(190,225,250,${0.9*(1-p*0.5)})`;
    g.beginPath();g.arc(ix,iy,2.2,0,7);g.fill();return true;}
   if(f.k==='warm'){const p=e/1200;if(p>=1)return false;
    const A=souls.get(f.a),B=souls.get(f.b);if(!A||!B)return false;
    g.strokeStyle=`rgba(255,225,140,${0.7*(1-p)})`;g.lineWidth=2.6*(1-p)+0.6;
-   g.beginPath();g.moveTo(A.x,A.y);g.lineTo(B.x,B.y);g.stroke();return true;}
+   g.beginPath();g.moveTo(A.sx,A.sy);g.lineTo(B.sx,B.sy);g.stroke();return true;}
   if(f.k==='speak'){return false;}
   if(f.k==='birth'){const p=e/1100;if(p>=1)return false;
    const d=souls.get(f.id);if(!d)return false;
    g.fillStyle=`rgba(245,225,160,${0.4*(1-p)})`;
-   g.beginPath();g.arc(d.x,d.y,30*p,0,7);g.fill();return true;}
+   g.beginPath();g.arc(d.sx,d.sy,30*p,0,7);g.fill();return true;}
   if(f.k==='death'){const p=e/1500;if(p>=1)return false;
+   const[dx,dy]=S(f.x,f.y);                        // remembered in world coords
    g.strokeStyle=`rgba(150,150,170,${0.5*(1-p)})`;g.lineWidth=1.5;
-   g.beginPath();g.arc(f.x,f.y,6+58*p,0,7);g.stroke();
+   g.beginPath();g.arc(dx,dy,6+58*p,0,7);g.stroke();
    g.fillStyle=`rgba(190,190,205,${0.7*(1-p)})`;g.font='14px Georgia';
-   g.fillText('†',f.x-4,f.y-10-24*p);return true;}
+   g.fillText('†',dx-4,dy-10-24*p);return true;}
   return false;});
+}
+
+function drawMinimap(){
+ // the corner minimap: whole map + the viewport rectangle. Only when the camera
+ // actually crops the world (her classic towns fit whole and need no map of the map).
+ if(bounds[0]*cam.scale<=W+1&&bounds[1]*cam.scale<=H+1)return;
+ const mw=150, mh=Math.round(mw*bounds[1]/bounds[0]), mx=W-mw-12, my=H-mh-26;
+ g.fillStyle='rgba(8,8,14,0.55)';g.fillRect(mx,my,mw,mh);
+ g.strokeStyle='rgba(140,140,160,0.5)';g.lineWidth=1;g.strokeRect(mx,my,mw,mh);
+ const k=mw/bounds[0];
+ for(const[,d]of souls){if(d.dying)continue;
+  g.fillStyle=d.war?'#e03a30':(d.caste==='breeder'?'#d8c8a0':'#9ab0c8');
+  g.fillRect(mx+d.x*k-1,my+d.y*k-1,2,2);}
+ g.strokeStyle='rgba(240,234,214,0.85)';
+ g.strokeRect(mx+cam.x*k,my+cam.y*k,W/cam.scale*k,H/cam.scale*k);
 }
 
 let beat=0,lastErr='',lastDraw=0;
@@ -408,10 +480,19 @@ function frame(now){
  requestAnimationFrame(frame);
  if(now-lastDraw<33)return; lastDraw=now;
  try{
-  for(const[,d]of souls){d.x+=(d.tx-d.x)*0.10;d.y+=(d.ty-d.y)*0.10;}
+  // WASD pans the camera -- speed in screen px/frame so it feels constant at any zoom
+  const pdx=(keys.d?1:0)-(keys.a?1:0), pdy=(keys.s?1:0)-(keys.w?1:0);
+  if(pdx||pdy){cam.x+=pdx*PAN_PX/cam.scale;cam.y+=pdy*PAN_PX/cam.scale;clampCam();}
+  // tween in WORLD space, then bake this frame's screen coords once per soul
+  for(const[,d]of souls){d.x+=(d.tx-d.x)*0.10;d.y+=(d.ty-d.y)*0.10;
+   const p=S(d.x,d.y);d.sx=p[0];d.sy=p[1];}
   drawSky();drawLand();
-  g.globalAlpha=0.85;g.drawImage(washCv,0,0);g.globalAlpha=1;   // the measured weather
-  drawThreads();drawSouls(now);drawFx(now);
+  // the measured weather, panned with the land: the wash maps onto the world rect
+  const wp=S(0,0);
+  g.globalAlpha=0.85;
+  g.drawImage(washCv,wp[0],wp[1],bounds[0]*cam.scale,bounds[1]*cam.scale);
+  g.globalAlpha=1;
+  drawThreads();drawSouls(now);drawFx(now);drawMinimap();
  }catch(err){lastErr=String(err);}
  beat++;
  g.fillStyle='rgba(160,160,180,0.8)';g.font='10px monospace';
@@ -593,22 +674,34 @@ def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> di
                 # the map shows it (the body burns red) so a schism is watchable
                 "war": any(h >= _WAR_AT and t in ids
                            for t, h in getattr(a, "hostility", {}).items()),
+                # THE CASTE (civ arena): squares are breeders, circles warriors;
+                # a brooding breeder wears the soft inner glow
+                "caste": getattr(a, "caste", "warrior"),
+                "preg": getattr(a, "_gestation", 0) > 0,
             })
         land = None
         if getattr(world, "regions_enabled", False) and world.regions is not None:
-            from world.regions import COLS, ROWS
             R = world.regions
-            rw, rh = R.bounds[0] / COLS, R.bounds[1] / ROWS
-            land = [{"x": (i % COLS) * rw, "y": (i // COLS) * rh, "w": rw, "h": rh,
+            # per-INSTANCE grid (the civ arena runs 6x4); getattr for lands pickled
+            # before the grid was an instance field
+            cols, rows = getattr(R, "cols", 3), getattr(R, "rows", 2)
+            rw, rh = R.bounds[0] / cols, R.bounds[1] / rows
+            land = [{"x": (i % cols) * rw, "y": (i // cols) * rh, "w": rw, "h": rh,
                      "name": R.names[i], "pool": round(R.pools[i], 1),
-                     "soil": R.yields[i]} for i in range(COLS * ROWS)]
+                     "soil": R.yields[i]} for i in range(cols * rows)]
+        # the map's true size, for the camera: the world's bounds, else the land's,
+        # else the classic 900x600 canvas-world
+        wb = getattr(world, "bounds", None) \
+            or (world.regions.bounds if getattr(world, "regions", None) is not None
+                else None) or (900.0, 600.0)
     secs = getattr(mind, "lifetime", 0.0)
     age = (f"{secs/86400:.1f} days" if secs >= 86400 else f"{secs/3600:.1f} hours")
     return {"identity": (mind.identity or "")[:160], "age": age,
             "deaths": mind._deaths, "memories": len(mind.memory.items),
             "time_clause": clause, "night": night, "hour": round(hour, 3), "season": season,
             "souls": souls, "readings": readings[-10:][::-1], "drift": drift_notes[-3:],
-            "events": list(events), "land": land, "ui_version": UI_VERSION}
+            "events": list(events), "land": land, "bounds": [wb[0], wb[1]],
+            "ui_version": UI_VERSION}
 
 
 def soul_detail(world, sid: str) -> dict | None:
@@ -641,6 +734,7 @@ def soul_detail(world, sid: str) -> dict | None:
         met = getattr(a, "_met", None)
         return {
             "id": a.id, "name": a.name, "role": getattr(a, "role", ""),
+            "caste": getattr(a, "caste", "warrior"),
             "stage": (_clock.stage(a.age, a.lifespan) if world.clock_enabled else "adult"),
             "age": a.age, "lifespan": a.lifespan,
             "mood": round(a.felt_mood(), 2), "wellbeing": round(a.wellbeing, 2),
@@ -1067,6 +1161,16 @@ def _wire_events(world, events: list, ev_lock, seq: list) -> None:
                                    f"({payload.get('n', '?')} settlers)"})
             del events[:-80]
 
+    def on_pair(payload):
+        with ev_lock:
+            seq[0] += 1
+            events.append({"id": seq[0], "kind": "pair", "who": payload.get("w", ""),
+                           "text": f"{payload.get('wn', '?')} and "
+                                   f"{payload.get('bn', '?')} have paired -- "
+                                   f"a child is coming to their hearth"})
+            del events[:-80]
+
+    world.bus.subscribe("pair", on_pair)
     world.bus.subscribe("skirmish", on_skirmish)
     world.bus.subscribe("settlers", on_settlers)
     world.bus.subscribe("raid", on_raid)

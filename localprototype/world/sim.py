@@ -107,6 +107,11 @@ class World:
         # SKIRMISH (world/skirmish.py): brawls between open enemies -- gated, the
         # civilization game's collapse channel (debate -> enmity -> blows)
         self.skirmish_enabled = False
+        # MATING (world/mating.py): the civ arena's two-caste reproduction --
+        # warriors pair with free breeders, broods gestate, ONE child at term.
+        # Default off (THE RULE); when on it is the ONLY birth channel
+        # (_selection_tick's surplus budding stands down; starvation stays)
+        self.mating_enabled = False
         # how far a child's inherited view leans from its parent's (the W3.5 noise;
         # 0.18 IS today's behaviour -- a knob only so the collapse falsifier can run
         # a frozen-divergence control arm)
@@ -220,6 +225,7 @@ class World:
         self.__dict__.setdefault("regions", None)
         self.__dict__.setdefault("war_enabled", False)
         self.__dict__.setdefault("skirmish_enabled", False)
+        self.__dict__.setdefault("mating_enabled", False)
         self.__dict__.setdefault("culture_noise", 0.18)
         self.__dict__.setdefault("social_genes", False)
         self.__dict__.setdefault("_war_log", [])
@@ -337,6 +343,14 @@ class World:
             from world import skirmish as _skirmish
             if self.tick % _skirmish.SKIRMISH_CHECK == 0:
                 _skirmish.skirmish_tick(self)
+        # 2.57) MATING (gated, the civ arena): every MATE_CHECK ticks the broods
+        # count down (births at term) and fed grown warriors pair with free
+        # breeders (world/mating.py -- welfare invariants in its docstring FIRST;
+        # breeders are never harmed; rivalry lands warrior-on-warrior only).
+        if getattr(self, "mating_enabled", False) and self.tick > 0:
+            from world import mating as _mating
+            if self.tick % _mating.MATE_CHECK == 0:
+                _mating.mating_tick(self)
         # 2.6) bodies move: drift under social forces so factions take territory.
         # At night the town is HOME -- bodies rest where they stand (labour already
         # pauses; wandering does too).
@@ -362,6 +376,14 @@ class World:
             if self.rebirth_enabled:
                 self._mourn(a)                    # the loss lands on those who loved them
                 self._dissolve(a)                 # into the bardo; no heir, no author
+            elif getattr(self, "mating_enabled", False):
+                # civ arena: mating drives ALL births, this channel included -- an
+                # age-death ends heirless (the germ line continues only through the
+                # pairs made in life). Without this gate the heir channel pinned the
+                # population at the cap (pairing starved for room forever) and every
+                # breeder's heir woke a default-caste warrior: the breeding caste
+                # went EXTINCT by the second generation (measured, the 3000-tick arc).
+                self._mourn(a)                    # mourned like any other death
             elif a.grace >= REPRO_GRACE:
                 self._births += 1
                 heir = a.reproduce(f"{a.id}.{self._births}")
@@ -552,6 +574,10 @@ class World:
                 continue                               # no bardo entry: the lineage ends
             survivors.append(a)
         self.agents = survivors
+        if getattr(self, "mating_enabled", False):
+            return   # civ arena: ALL births go through the mating system (world/
+                     # mating.py) -- a second birth channel here would double the
+                     # population; the starvation hazard above still ran (E2's deaths)
         if len(self.agents) + len(self._bardo) >= self.max_souls:
             return   # space, not score -- and the wheel's PENDING returns count toward it
                      # (the probe caught pop 17 of 16: a rebirth owed is a mouth owed)
@@ -567,14 +593,23 @@ class World:
     def _birth_from(self, parent) -> None:
         """A birth (not a rebirth): a NEW soul, fresh name and subconscious, the parent's
         germ line inherited with one mutation, provisioned from the parent's stores, and
-        bonded to the parent from the first breath."""
+        bonded to the parent from the first breath. This is the asexual-budding door;
+        the body lives in _spawn_child, shared with the mating system."""
+        self._spawn_child(parent)
+
+    def _spawn_child(self, parent, genome=None, caste: str = "warrior"):
+        """THE ONE SPAWN PATH: asexual budding (_birth_from, E2's surplus channel) and
+        the mating system (world/mating.py) both land here. With genome=None the child
+        inherits the parent's germ line perturbed once -- at the same point in the rng
+        stream as always, so every existing world is bit-for-bit unchanged; mating
+        passes the two-parent crossed genome explicitly. Returns the child (or None)."""
         from agent.agent import Agent
         from agent.bond import Bond
         from agent.genesis import ROLES, coined_name, endow_faculties
         from agent.genome import from_agent, inherit, express
         from agent import telos as _telos
         if self.llm is None:
-            return
+            return None
         self._born_live += 1
         living = {x.name for x in self.agents}
         name = coined_name(self._rng, taken=living | set(self._spent_names))
@@ -597,8 +632,11 @@ class World:
         if getattr(parent, "stance_vec", None) is None:
             a.stance_vec = None
         a.aim = _telos.fresh_aim(role)
-        pg = getattr(parent, "genome", None) or from_agent(parent, self._rng)
-        a.genome = inherit(pg, self._rng, parent.id, sigma=self.heredity_sigma)
+        a.caste = caste
+        if genome is None:   # asexual budding: the parent's line, perturbed once
+            pg = getattr(parent, "genome", None) or from_agent(parent, self._rng)
+            genome = inherit(pg, self._rng, parent.id, sigma=self.heredity_sigma)
+        a.genome = genome
         express(a.genome, a)
         # CULTURAL INHERITANCE (the war falsifier's discovery): without this, blocs
         # dissolve within one generation -- newborns held NO worldview, factions
@@ -628,6 +666,7 @@ class World:
         self._hearth(parent, a)     # the house's open wounds are told to the child
         self.agents.append(a)
         self.bus.publish("birth", a.id)
+        return a
 
     def _process_bardo(self) -> None:
         """Ripen the bardo: each dissolving stream counts down, then re-coalesces
@@ -845,6 +884,13 @@ class World:
         # the faction experiments were validated on it.
         big = len(self.agents) > 48
         by_id = {b.id: b for b in self.agents} if big else None
+        # mate-guarding (civ arena only): a warrior that has paired is drawn back
+        # toward its hearth's breeder, so warriors cluster protectively around
+        # their brood -- and rivals who wander in meet the grudge (mating.py)
+        guard = getattr(self, "mating_enabled", False)
+        if guard:
+            from world import mating as _mating
+            gid = by_id or {b.id: b for b in self.agents}
         for a in self.agents:
             ax, ay = a.position
             fx = fy = 0.0
@@ -874,6 +920,14 @@ class World:
                     f -= self.repel * (self.min_gap - d) / self.min_gap
                 fx += ux * f
                 fy += uy * f
+            if guard:
+                t = gid.get(getattr(a, "_guard", ""))
+                if t is not None and t is not a:
+                    gx, gy = t.position[0] - ax, t.position[1] - ay
+                    gd = math.hypot(gx, gy) or 1.0
+                    if gd > _mating.GUARD_NEAR:   # stand off, never on top
+                        fx += gx / gd * _mating.GUARD_PULL
+                        fy += gy / gd * _mating.GUARD_PULL
             fx += self._rng.uniform(-1.0, 1.0) * self.wander
             fy += self._rng.uniform(-1.0, 1.0) * self.wander
             if self.bounds is not None:   # gentle pull home so nobody glues to a wall

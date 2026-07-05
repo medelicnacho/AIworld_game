@@ -83,6 +83,17 @@ def from_agent(agent, rng) -> Genome:
     )
 
 
+def blend(a: Genome, b: Genome, rng) -> Genome:
+    """Two-parent crossing (the mating system, world/mating.py): each dial is drawn
+    whole from one parent or the other -- uniform crossover, which KEEPS the standing
+    variation selection needs (averaging would melt the population to its own mean in
+    a few generations). Mutation stays inherit()'s job: pass this through inherit()
+    so every birth still perturbs once and records its lineage."""
+    vals = {d: float(getattr(a if rng.random() < 0.5 else b, d, DEFAULTS.get(d, 0.5)))
+            for d in DIALS}
+    return Genome(lineage="", **vals)
+
+
 def inherit(parent: Genome, rng, parent_id: str, sigma: float = SIGMA) -> Genome:
     """The crossing: the child's germ line is the parent's, perturbed once (Gaussian,
     reflected at the bounds), with the lineage tag recording whose it was."""

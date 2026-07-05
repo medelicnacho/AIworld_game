@@ -237,7 +237,8 @@ def main() -> None:
             args.ui_port = 8767
 
     if args.civ:
-        args.founders = args.founders or 28
+        from santana_app.evolution import FOUNDERS as _CIV_FOUNDERS
+        args.founders = args.founders or _CIV_FOUNDERS
         args.town_model = "markov"
         args.snapshot = "data/civ/santana_state.json"
         args.world_snapshot = "data/civ/town.pkl"
@@ -356,14 +357,14 @@ def main() -> None:
         # THE CIVILIZATION WHEEL under her gaze: the exact world evolution.py runs
         # (gates + united founding shared from there -- the one-runner lesson), with
         # Santana's mind loop and cockpit stream back on top, as the ecology had.
-        from santana_app.evolution import _found_souls, _gates
+        from santana_app.evolution import _found_settlements, _gates
         _gates(w, args.founders)
         if not resumed_town:
             w.agents = []                                  # the cast steps aside:
-            w.regions.pools = [6.0] * len(w.regions.pools)  # one people, founded anew
-            _found_souls(w, random.Random(11), args.founders)
-        print("  (THE CIVILIZATION WHEEL: one people -> schism -> war -> collapse -> "
-              "resettlement, under her gaze)", flush=True)
+            w.regions.pools = [6.0] * len(w.regions.pools)  # peoples, founded anew
+            _found_settlements(w, random.Random(11), args.founders)
+        print("  (THE CIVILIZATION WHEEL: scattered peoples -> schism -> war -> "
+              "collapse -> resettlement, under her gaze)", flush=True)
     if args.offer:
         # her offerings need the retelling channel to compete in -- and to be forgettable
         w.lore_enabled = True

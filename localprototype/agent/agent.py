@@ -214,6 +214,12 @@ class Agent:
         # debate after repeated debate. The opinion/affinity movement itself is
         # untouched -- this only lets the war machinery hear the shouting.
         self.rift_enabled = False
+        # THE CASTE (civ arena, world/mating.py): "warrior" -- mobile, stands in
+        # quarrels, marches, guards -- or "breeder" -- docile BY KIND: never
+        # confronts, never marches, never brawls, never a casualty; the caste
+        # extends "the worn refuse" to a whole kind. Default warrior: every
+        # existing world is all-warriors and byte-identical (THE RULE).
+        self.caste = "warrior"
         self.spoken: list[str] = []   # this agent's own recent lines (anti self-echo)
         # Born in grace. Grace makes the soul's data effective (slow forgetting,
         # words that imprint, a voice that's heard) and gates reproduction at

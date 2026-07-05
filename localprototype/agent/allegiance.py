@@ -40,6 +40,11 @@ def decide(agent, leader_id: str, danger: float = 0.0) -> tuple[str, str]:
     compassion = getattr(agent, "compassion", 0.0)
     boldness = getattr(agent, "boldness", 0.5)
 
+    # the caste decides before anything: a breeder does not stand in danger, ever --
+    # docile by kind, not by wear (the caste floor, beside the somatic floor below)
+    if danger > 0.0 and getattr(agent, "caste", "warrior") == "breeder":
+        return "refuse", f"{agent.name} keeps the hearth -- quarrels are not their part"
+
     # the body decides first: a collapsed or contracted soul stays out of danger --
     # not disloyal, WORN. (The somatic floor's spirit extended to war.)
     if danger > 0.2 and (agent.wellbeing < COLLAPSED_WELL

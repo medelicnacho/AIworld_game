@@ -109,11 +109,15 @@ def war_tick(world) -> None:
         from world import clock as _clock
         grown = lambda a: (not getattr(world, "clock_enabled", False)
                            or _clock.stage(a.age, a.lifespan) != "child")
-        party = [a for a in crew if grown(a) and (a is atk_lead
+        # marches() is the muster's door: children never march (the standing rule)
+        # and neither does the breeder caste (civ arena) -- breeders keep the
+        # hearth, are never mustered on either side, and so can never fall here
+        marches = lambda a: grown(a) and getattr(a, "caste", "warrior") == "warrior"
+        party = [a for a in crew if marches(a) and (a is atk_lead
                  or allegiance.decide(a, atk_lead.id, danger=DANGER)[0] == "join")]
         if len(party) < MIN_PARTY:
             continue
-        defenders = [a for a in F.members(world, dfd, mapping) if grown(a) and
+        defenders = [a for a in F.members(world, dfd, mapping) if marches(a) and
                      (a is dfd_lead
                       or allegiance.decide(a, dfd_lead.id, danger=DANGER)[0] == "join")]
         # ALLIES: a third bloc whose view stands with the defenders and against the
@@ -128,10 +132,11 @@ def war_tick(world) -> None:
             if (_cosine(al.belief_vec, dfd_lead.belief_vec) >= ALLY_AT
                     and atk_lead.belief_vec is not None
                     and _cosine(al.belief_vec, atk_lead.belief_vec) < 0.0):
-                # grown() here too: allied CHILDREN never march either (the welfare
-                # rule -- this filter was missing and an ally's child could fall)
+                # marches() here too: allied CHILDREN never march either (the welfare
+                # rule -- this filter was missing and an ally's child could fall),
+                # and allied breeders keep their hearths like everyone else's
                 defenders += [a for a in F.members(world, ally, mapping)
-                              if grown(a)
+                              if marches(a)
                               and allegiance.decide(a, al.id, danger=DANGER)[0] == "join"]
         won = _power(party, rng) > _power(defenders, rng) if defenders else True
         losers = defenders if won else party

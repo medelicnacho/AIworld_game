@@ -49,6 +49,14 @@ def _worn(a) -> bool:
             or getattr(a, "_contraction", 0.0) > CONTRACTED)
 
 
+def _fights(world, a) -> bool:
+    """Only warriors stand in quarrels: the breeder caste (civ arena) is docile BY
+    KIND -- a breeder never confronts, is never a valid target for one, and so can
+    never be a casualty here. The caste guard sits beside _worn/_grown: one door,
+    three reasons a soul is unreachable by violence."""
+    return getattr(a, "caste", "warrior") == "warrior"
+
+
 def _grown(world, a) -> bool:
     from world import clock as _clock
     return (not getattr(world, "clock_enabled", False)
@@ -78,11 +86,12 @@ def skirmish_tick(world) -> None:
     fallen: list = []
     clashed: set = set()
     for a in souls:
-        if a not in world.agents or a.id in clashed or not _grown(world, a):
+        if (a not in world.agents or a.id in clashed or not _grown(world, a)
+                or not _fights(world, a)):
             continue
         foes = [by_id[t] for t, h in a.hostility.items()
                 if h >= WAR_THRESHOLD and t in by_id
-                and _grown(world, by_id[t])]
+                and _grown(world, by_id[t]) and _fights(world, by_id[t])]
         if not foes:
             continue
         foe = min(foes, key=lambda b: world._distance(a, b))

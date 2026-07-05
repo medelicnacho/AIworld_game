@@ -21,30 +21,59 @@ COLS, ROWS = 3, 2
 SOILS = (1.3, 1.15, 1.0, 0.85, 0.7, 0.5)
 START_POOL = 2.0
 
-_NAMES = ("vale", "meadow", "heath", "moor", "ridge", "crag")
+_NAMES = ("vale", "meadow", "heath", "moor", "ridge", "crag",
+          # the larger pool, for the big civ grids -- still ranked kind to cruel
+          "dale", "lea", "combe", "glen", "holt", "shaw",
+          "down", "wold", "fen", "marsh", "hollow", "carse",
+          "brae", "scarp", "tor", "fell", "barrens", "waste")
 
 
 class Regions:
-    """The land: per-region commons pools and yields. Pure data + geometry."""
+    """The land: per-region commons pools and yields. Pure data + geometry.
 
-    def __init__(self, bounds=(900.0, 600.0), seed: int = 0):
+    The grid is per-instance now (the civ arena wants 6x4 on a 3600x2400 map), but
+    the default 3x2 world is byte-identical to what every validated snapshot holds:
+    the exact six SOILS, the exact six names, the same shuffle off the same seed."""
+
+    def __init__(self, bounds=(900.0, 600.0), seed: int = 0,
+                 cols: int = COLS, rows: int = ROWS):
         rng = random.Random(seed)
         self.bounds = bounds
-        soils = list(SOILS)
+        self.cols, self.rows = cols, rows
+        n = cols * rows
+        if n == len(SOILS):
+            soils = list(SOILS)                      # the canonical six, untouched
+        elif n == 1:
+            soils = [1.0]
+        else:
+            lo, hi = min(SOILS), max(SOILS)
+            soils = [hi - (hi - lo) * i / (n - 1) for i in range(n)]
         rng.shuffle(soils)
         self.yields = soils                          # index -> soil multiplier
-        self.pools = [START_POOL] * (COLS * ROWS)    # index -> that region's commons
+        self.pools = [START_POOL] * n                # index -> that region's commons
         # names ordered by kindness of soil, so "the vale" is always the fattest land
         order = sorted(range(len(soils)), key=lambda i: -soils[i])
         self.names = [""] * len(soils)
         for rank, idx in enumerate(order):
-            self.names[idx] = f"the {_NAMES[rank]}"
+            self.names[idx] = (f"the {_NAMES[rank]}" if rank < len(_NAMES)
+                               else f"field {rank + 1}")
+
+    def __setstate__(self, state):
+        # a land pickled before the grid was per-instance wakes as the 3x2 it was
+        self.__dict__.update(state)
+        self.__dict__.setdefault("cols", COLS)
+        self.__dict__.setdefault("rows", ROWS)
 
     def index(self, pos) -> int:
         w, h = self.bounds
-        c = min(COLS - 1, max(0, int(pos[0] / (w / COLS))))
-        r = min(ROWS - 1, max(0, int(pos[1] / (h / ROWS))))
-        return r * COLS + c
+        c = min(self.cols - 1, max(0, int(pos[0] / (w / self.cols))))
+        r = min(self.rows - 1, max(0, int(pos[1] / (h / self.rows))))
+        return r * self.cols + c
+
+    def centre(self, i) -> tuple:
+        """World-coord centre of region i (the resettlement + guard geometry)."""
+        rw, rh = self.bounds[0] / self.cols, self.bounds[1] / self.rows
+        return ((i % self.cols) + 0.5) * rw, ((i // self.cols) + 0.5) * rh
 
     def name_of(self, pos) -> str:
         return self.names[self.index(pos)]
