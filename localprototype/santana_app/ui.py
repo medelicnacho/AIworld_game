@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-UI_VERSION = 15   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 16   # bump on any dashboard change: live pages reload themselves to match
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -99,7 +99,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v15</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v16</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -149,6 +149,8 @@ const washCv=document.createElement('canvas');washCv.width=W;washCv.height=H;
 const wash=washCv.getContext('2d',{willReadFrequently:true});
 const pairTrust=new Map();  // "a|b" -> last trust, to catch bonds WARMING on camera
 let fx=[], chron=[], sky={hour:.35,season:'spring',night:false}, lastEv=0, sel='her';
+let land=null;
+const FAC_TINT=['#e6b24a','#5ac8c8','#b48ae6','#e68aa0','#9ade6b','#7a9ae6'];
 const ACT={work:'⚒ ',share:'❥ ',tend:'✚ ',hoard:'▾ '};
 const stars=[]; for(let i=0;i<90;i++){let s=(i*2654435761)>>>0;
  stars.push({x:(s%1000),y:((s>>10)%520),r:.4+((s>>4)%10)/12});}
@@ -206,7 +208,7 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
-const MY_VERSION=15;
+const MY_VERSION=16;
 async function poll(){try{
  const s=await(await fetch('/state2')).json();
  // a page older than the server RELOADS ITSELF -- stale tabs were the source of a
@@ -220,6 +222,7 @@ async function poll(){try{
  document.getElementById('stream').innerHTML=
   s.readings.map(r=>`<div class=r>${esc(r.text)}<div class=m>${esc(r.meta)}</div></div>`).join('');
  sky={hour:s.hour,season:s.season,night:s.night};
+ land=s.land||null;
  // deposit this poll's mood onto the wash, then erode it slightly (a memory of
  // where feeling has lived, always fading)
  wash.globalCompositeOperation='destination-out';
@@ -249,6 +252,7 @@ async function poll(){try{
     fx.push({k:'arc',a:e.who,b:hid,t0:performance.now()});
    const hearers=(e.to||[]).map(h=>souls.get(h)).filter(Boolean).map(h=>h.name);
    note(`${nm}${hearers.length?' → '+hearers.slice(0,3).join(', '):''}: “${e.text}”`,'#9ab0c8');}
+  else if(e.kind==='raid'){note(`⚔ ${e.text}`,'#c07a4a');}
   else if(e.kind==='death'&&d){fx.push({k:'death',x:d.x,y:d.y,t0:performance.now()});
    note(`† ${nm} has passed`,'#b0a0a8');}
   else if(e.kind==='birth'){if(d)fx.push({k:'birth',id:e.who,t0:performance.now()});
@@ -277,6 +281,20 @@ function drawSky(){
   g.fillText('night — the town sleeps',W-150,40);}
 }
 
+function drawLand(){
+ // THE LAND (ecology worlds): each region tinted by its SOIL (greener = kinder
+ // ground) and lit by its POOL (a starving granary goes ashen); name + stores shown.
+ if(!land)return;
+ for(const r of land){
+  const x=r.x*SX+OX,y=r.y*SY+OY,w=r.w*SX,h=r.h*SY;
+  const soil=(r.soil-0.5)/0.8, full=Math.min(1,r.pool/6);
+  g.fillStyle=`rgba(${90-30*soil},${95+40*soil},70,${0.05+0.10*full})`;
+  g.fillRect(x,y,w,h);
+  g.strokeStyle='rgba(140,140,160,0.18)';g.lineWidth=1;g.strokeRect(x,y,w,h);
+  g.fillStyle='rgba(170,175,195,0.7)';g.font='11px Georgia';
+  g.fillText(`${r.name} · ${r.pool}`,x+8,y+16);}
+}
+
 function drawThreads(){
  g.lineCap='round';
  for(const[id,d]of souls){if(d.dying)continue;
@@ -295,7 +313,8 @@ function drawSouls(now){
   let fade=1;
   if(d.dying){const e=(now-d.dying)/1400; if(e>=1){souls.delete(id);continue;} fade=1-e;}
   const[r,gg,b]=moodRGB(d.mood), night=sky.night&&d.asleep;
-  const rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
+  let rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
+  rad*=(0.8+0.5*(d.metab??0.5));                   // the body: metabolism is SIZE
   // night does NOT dim the souls at all -- the sky's cool tint and the stars say
   // "night". Halos are two flat arcs, not radial gradients: 64 gradients x 60fps
   // is exactly the GPU load that provokes context loss on fragile drivers.
@@ -306,7 +325,16 @@ function drawSouls(now){
   g.beginPath();g.arc(d.x,d.y,glow*0.85,0,7);g.fill();
   g.globalAlpha=fade;
   g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
-  g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();
+  if((d.bold??0.5)>0.55){                          // the body: boldness is SPIKES
+   const n=5+Math.round(3*d.bold);g.beginPath();
+   for(let k=0;k<n*2;k++){const rr=k%2?rad*0.55:rad*1.35;const th=Math.PI*k/n;
+    k?g.lineTo(d.x+rr*Math.cos(th),d.y+rr*Math.sin(th))
+     :g.moveTo(d.x+rr*Math.cos(th),d.y+rr*Math.sin(th));}
+   g.closePath();g.fill();
+  }else{g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();}
+  if((d.fac??-1)>=0){                              // the bloc: a tinted ring
+   g.strokeStyle=FAC_TINT[d.fac%FAC_TINT.length];g.lineWidth=1.4;
+   g.beginPath();g.arc(d.x,d.y,rad+3,0,7);g.stroke();}
   if(d.stage==='elder'){g.strokeStyle=`rgba(200,200,215,${0.6*fade})`;g.lineWidth=1;
    g.beginPath();g.arc(d.x,d.y,rad+2.5,0,7);g.stroke();}
   if(id===sel){g.strokeStyle=`rgba(240,234,214,0.9)`;g.lineWidth=1.6;
@@ -370,7 +398,7 @@ function frame(now){
  if(now-lastDraw<33)return; lastDraw=now;
  try{
   for(const[,d]of souls){d.x+=(d.tx-d.x)*0.10;d.y+=(d.ty-d.y)*0.10;}
-  drawSky();
+  drawSky();drawLand();
   g.globalAlpha=0.85;g.drawImage(washCv,0,0);g.globalAlpha=1;   // the measured weather
   drawThreads();drawSouls(now);drawFx(now);
  }catch(err){lastErr=String(err);}
@@ -515,6 +543,13 @@ def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> di
         hour = _clock.hour(world.tick, world.day_ticks) if world.clock_enabled else 0.35
         season = _clock.season(world.tick, world.day_ticks) if world.clock_enabled else "spring"
         ids = {a.id for a in world.agents}
+        fmap = {}
+        if getattr(world, "war_enabled", False):
+            from world import factions as _F
+            try:
+                fmap = _F.factions_of(world)
+            except Exception:   # noqa: BLE001 -- a read must never hurt the snapshot
+                fmap = {}
         souls = []
         for a in world.agents:
             # the bonds this soul actually carries -> the threads on the map. Only the
@@ -533,14 +568,28 @@ def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> di
                 "drift": next((_clip(m.text, 38) for m in reversed(a.memory.items)
                                if m.source == "self" and len(m.text) >= 12
                                and m.text.count(" ") >= 2), ""),
+                # THE VISIBLE BODY (ecology): stats worn on the skin -- spikes are
+                # boldness, size is metabolism, the ring tint is the bloc
+                "bold": round(getattr(getattr(a, "genome", None), "boldness",
+                                      getattr(a, "boldness", 0.5)), 2),
+                "metab": round(getattr(getattr(a, "genome", None), "metabolism", 0.5), 2),
+                "fac": fmap.get(a.id, -1),
             })
+        land = None
+        if getattr(world, "regions_enabled", False) and world.regions is not None:
+            from world.regions import COLS, ROWS
+            R = world.regions
+            rw, rh = R.bounds[0] / COLS, R.bounds[1] / ROWS
+            land = [{"x": (i % COLS) * rw, "y": (i // COLS) * rh, "w": rw, "h": rh,
+                     "name": R.names[i], "pool": round(R.pools[i], 1),
+                     "soil": R.yields[i]} for i in range(COLS * ROWS)]
     secs = getattr(mind, "lifetime", 0.0)
     age = (f"{secs/86400:.1f} days" if secs >= 86400 else f"{secs/3600:.1f} hours")
     return {"identity": (mind.identity or "")[:160], "age": age,
             "deaths": mind._deaths, "memories": len(mind.memory.items),
             "time_clause": clause, "night": night, "hour": round(hour, 3), "season": season,
             "souls": souls, "readings": readings[-10:][::-1], "drift": drift_notes[-3:],
-            "events": list(events), "ui_version": UI_VERSION}
+            "events": list(events), "land": land, "ui_version": UI_VERSION}
 
 
 def soul_detail(world, sid: str) -> dict | None:
@@ -966,6 +1015,18 @@ def _wire_events(world, events: list, ev_lock, seq: list) -> None:
                 del events[:-80]
         return hook
 
+    def on_raid(payload):
+        with ev_lock:
+            seq[0] += 1
+            events.append({"id": seq[0], "kind": "raid",
+                           "who": "", "text": f"{payload.get('atk','?')} raided "
+                           f"{payload.get('dfd','?')} -- "
+                           f"{'took the granary' if payload.get('won') else 'were driven off'}"
+                           + (f"; fallen: {', '.join(payload['fallen'])}"
+                              if payload.get("fallen") else "")})
+            del events[:-80]
+
+    world.bus.subscribe("raid", on_raid)
     world.bus.subscribe("utterance", on_speech)
     world.bus.subscribe("death", record("death"))
     world.bus.subscribe("starvation", record("death"))

@@ -207,12 +207,26 @@ def main() -> None:
                         "markov + consolidation read (novelty injection -- see services/demiurge.py)")
     p.add_argument("--author-model", dest="author_model",
                    default="mannix/llama3.1-8b-abliterated:q5_K_M", help="the Demiurge's ollama model")
+    p.add_argument("--ecology", action="store_true",
+                   help="THE ECOLOGY: a world with LAND (regions: rich vales, harsh "
+                        "crags), emergent factions, WAR over lean granaries, real "
+                        "death (lineages end), heredity and selection -- the evolution "
+                        "game substrate, in its own life at data/ecology/, cockpit on "
+                        ":8767. Watch bloodlines diverge.")
     p.add_argument("--demo", action="store_true",
                    help="THE SHOW, one command: a 64-soul town with everything on (soul "
                         "minds, roaming, living time, the cockpit) in its own life at "
                         "data/demo/ -- never touching any other saved life -- and the "
                         "browser opened for you. Run it twice and the same town resumes.")
     args = p.parse_args()
+
+    if args.ecology:
+        args.founders = args.founders or 36
+        args.town_model = "markov"
+        args.snapshot = "data/ecology/santana_state.json"
+        args.world_snapshot = "data/ecology/town.pkl"
+        if args.ui_port == 8765:
+            args.ui_port = 8767
 
     if args.demo:
         # one command, the whole aquarium. Its OWN snapshot dir: the demo can never
@@ -279,6 +293,22 @@ def main() -> None:
                                 # snapshot carries its old False -- the runtime gates are
                                 # re-asserted here after load, all of them, THE RULE)
     w.bounds = (900, 600)
+    if args.ecology:
+        from world.regions import Regions
+        w.regions_enabled = True
+        if w.regions is None:
+            w.regions = Regions(bounds=(900.0, 600.0), seed=11)
+        w.war_enabled = True
+        w.heredity_enabled = True
+        w.selection_enabled = True      # real death, real birth: the E2 cosmology --
+        w.rebirth_enabled = False       # an ecology's lineages END; no bardo
+        w.max_souls = (args.founders or 36) + 24
+        w.commons_first = True          # granary cosmology: the pot where you stand
+        for _a in w.agents:
+            if getattr(_a, "belief_vec", None) is None:
+                _a.seed_opinion(random.Random(7000 + sum(ord(c) for c in _a.id)))
+        print("  (THE ECOLOGY: land + factions + war + heredity + selection -- "
+              "lineages end, bloodlines diverge)", flush=True)
     if args.offer:
         # her offerings need the retelling channel to compete in -- and to be forgettable
         w.lore_enabled = True
