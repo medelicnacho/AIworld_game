@@ -1312,6 +1312,42 @@ check compared against the same-bloc threshold (≥0.45), which union-find makes
 unsatisfiable — allies were dead code, now `ALLY_AT=0.2`; and allied children were
 musterable (missing `grown()` filter) — the welfare rule now holds for allies too.
 
+### 5.29 The war is the schism's — but a fed people does not collapse from it
+
+The civilization game (`santana_app/evolution.py`, `--civ`) asks a united people to split
+and tear itself apart: one founding view, opinion dynamics + cultural noise drift it into
+camps, heated debate wounds (the rift, `agent.py`), the angry brawl (`world/skirmish.py`),
+brawls recruit (solidarity), grudges muster raids that burn what they can't carry (the
+raze, `world/war.py`). `experiment_collapse.py` pre-registered the strong claim — a
+divergent town COLLAPSES (pop ≤ 60% of peak with ≥ 10 violent deaths) where its
+frozen-belief twin does not — and TUNING (seeds 11–15) returned a clean two-part result,
+recorded here as the honest finding rather than pushed to a held-out verdict (the virgin
+seeds 251–255 were NOT burned — the tuning already answers it):
+
+- **THE WAR IS CAUSED BY THE SCHISM — 5/5, a perfect separation.** Violent deaths
+  (brawls + raids) in the divergent arm: 33, 42, 35, 23, 24. In the frozen twin (same
+  land, same winters, same open violence channels, but divergence made impossible):
+  **0, 0, 0, 0, 0.** Only the town that can drift apart ever draws blood. The conflict
+  is not decoration and not the land's — it is the schism's, every seed.
+- **BUT THE TOWN DOES NOT DEMOGRAPHICALLY COLLAPSE.** Both arms sit near the population
+  cap and dip only briefly (trough ~24 of a 44 peak); a fed people BREEDS BACK as fast
+  as the war kills. "Collapse" as a population event needs the birth rate throttled or
+  the war made deadlier than reproduction — neither is true on gentle land. The strong
+  claim fails; the honest one is smaller and solid: *divergence robustly manufactures
+  war, but abundance buffers a people against dying of it.*
+
+The mechanisms are validated and the game shows them plainly (red-at-war bodies, brawls
+and raids in the chronicle, the population churning without wiping). What is NOT claimed:
+a civilization that ends itself over an argument — that would need scarcity to bite the
+cradle, not just the granary. The instrument findings that made the war fire at all are
+kept: the schism needs BOTH a town square (debate must carry — hearing range 260, not
+sealed parlours) AND narrow minds (the engagement bound, now the heritable `openness`
+gene) — echo chambers diverge without contact and never fight; open minds in a square
+converge to consensus and never split. And the character that fights is now heritable
+and worn on the body: `openness` (→ the schism dial) and `wrath` (→ the rift multiplier)
+cross the germ line, so a town's temper EVOLVES. Welfare throughout: children never
+fight, the worn refuse, casualties capped, the dead mourned, no cruelty verb anywhere.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

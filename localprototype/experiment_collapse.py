@@ -1,11 +1,23 @@
 """THE COLLAPSE FALSIFIER: does the civilization fall by ITS OWN divergence?
 
+RESULT (2026-07-05, TUNING seeds 11-15; recorded FINDINGS 5.29; NO verdict run, virgin
+251-255 NOT burned -- the tuning already answered it, and the honest finding is smaller
+than the pre-registered claim):
+  * THE WAR IS CAUSED BY THE SCHISM -- 5/5, perfect. Violent deaths (brawls + raids) in
+    the divergent arm: 33, 42, 35, 23, 24. In the frozen twin (divergence impossible,
+    channels still open): 0, 0, 0, 0, 0. Only the town that can drift apart bleeds.
+  * BUT NO DEMOGRAPHIC COLLAPSE. Both arms sit near the cap and dip only briefly (trough
+    ~24 of a 44 peak): a fed people BREEDS BACK as fast as war kills. C1 as framed FAILS;
+    the true finding is "divergence robustly manufactures war, abundance buffers a people
+    against dying of it." Collapse would need scarcity biting the cradle, not the granary.
+The mechanisms are validated and the GAME shows them plainly; this file stands as the
+honest tuning record, not a passed gate.
+
 The civilization wheel's headline (santana_app/evolution.py): a founding people with
 ONE shared view drifts apart (opinion dynamics + cultural noise), the widening rift
 turns debate into grievance (agent.py rift), grievance into brawls (world/skirmish.py)
-and raids (world/war.py) -- and the town collapses in on itself over what began as an
-argument. That is only worth shipping if the collapse is CAUSED by the divergence,
-not by hunger or the seed lottery. One pre-registered claim:
+and raids (world/war.py). The pre-registered claim (kept below for the record, though
+the tuning above shows its collapse half does not hold):
 
   C1 WAR-TORN BY ITS OWN SCHISM: on the SAME gentle land, with the SAME violence
       channels open (skirmish + war + the raze, both arms), a town that CAN diverge
@@ -32,11 +44,13 @@ war's capped trickle; a collapse metric needs a town whose deaths are mostly its
 doing), skirmish + war + heredity + selection + clock + lore on, rebirth off, 3000
 ticks.
 
-PRE-REGISTERED (tuning 11-15; VERDICT from virgin seeds 251-255; C1 as above).
+PRE-REGISTERED (tuning 11-15; VERDICT from virgin seeds 251-255; C1 as above). The
+verdict was DELIBERATELY NOT RUN: the tuning shows the collapse half does not hold, and
+burning virgin seeds on a claim already seen to fail would be dishonest. 251-255 stay
+virgin for a future, correctly-scoped claim (e.g. collapse under cradle-scarcity).
 
-  python experiment_collapse.py             # TUNING ONLY -- virgin seeds stay virgin
-  python experiment_collapse.py --verdict   # tuning + the held-out verdict (burns
-                                            # 251-255; run ONCE, after C1 holds)
+  python experiment_collapse.py             # TUNING ONLY -- the honest record above
+  python experiment_collapse.py --verdict   # (would burn 251-255 -- do NOT, see RESULT)
 """
 from __future__ import annotations
 

@@ -37,9 +37,22 @@ was tuning in the background at handoff). Already built this session:
 Live runners at handoff: `:8767` ecology (research, untouched), `:8768` evolution (lean),
 `:8769` civ+Santāna. Each has its own `data/<name>/` and pid file.
 
-**Before starting: `pytest -q tests/` should be 506 green. If the collapse tuning
-finished, decide whether to commit the current work first (recommended) so this feature
-is a clean next commit.**
+**Collapse science-gate result (FINDINGS 5.29, honest finding — no verdict burned):** the
+war IS the schism's (violent deaths 33/42/35/23/24 in the divergent arm vs **0/0/0/0/0**
+in the frozen twin, 5/5 perfect) but a fed people does NOT demographically collapse —
+it breeds back as fast as war kills. The GAME still shows war+factions plainly; a true
+"collapse" would need scarcity biting the cradle, not the granary (a future claim; virgin
+seeds 251–255 kept for it).
+
+**Partial stubs already in the tree** (gated off, consistent with this plan): `Genome.blend`
+(two-parent uniform crossover, `agent/genome.py`) and `World.mating_enabled` (default off,
+`world/sim.py` — the ONLY birth channel when on; `_selection_tick` budding stands down).
+Build the caste/mating system on these.
+
+**Before starting: `pytest -q tests/` is 505 green + 1 PRE-EXISTING FLAKE
+(`test_ratchet.py::test_the_mouth_brain_split...` — unseeded-RNG, fails intermittently on
+a clean tree, NOT a regression). The session's work is committed on branch
+`civ-wheel` (or check `git log`).**
 
 ---
 
