@@ -22,7 +22,9 @@ mate-guarding, the eusocial/territorial biology -- never victims:
 The mechanic: every MATE_CHECK ticks, each fed grown warrior seeks the nearest free
 breeder within MATE_RANGE; if they meet, the pair forms -- the breeder broods a
 genome crossed from BOTH parents (genome.blend -> inherit: uniform crossover, one
-mutation), gestates, and at term bears ONE child by the hearth, caste ~50/50.
+mutation), gestates, and at term bears a LITTER (2-4) by the hearth -- each pup its
+own caste roll (~50/50) and its own crossing of the pair, so they are siblings, not
+clones. max_souls still caps the town, so a litter fills the cradle but never overruns.
 Because free breeders are the scarce prize, warriors range for them, grudge the
 rival who paired at a hearth first (MATE_GRUDGE -> the rift's own machinery), and
 guard the breeders of their own hearth (the _guard pull world/sim.py reads). That
@@ -38,6 +40,10 @@ MATE_CHECK = 8        # cadence of the pass (ticks)
 MATE_RANGE = 70.0     # close enough to pair
 MATE_WELL = 0.55      # a warrior must be faring at least this well to court
 GESTATION = 90        # ticks of brooding before the birth
+LITTER_MIN, LITTER_MAX = 2, 4   # a breeder bears a LITTER at term (2-4), each pup
+                      # independently caste-rolled and re-crossed from the same pair
+                      # -- real siblings, not clones. max_souls still caps the town, so
+                      # a litter fills the cradle fast but never overruns it.
 RECOVER = 120         # ticks a breeder rests after a birth before pairing again
 MATE_GRUDGE = 0.5     # grievance a warrior accretes toward the RIVAL who paired first
 GRIEVANCE_BAR = 1.0   # a breeder does not pair with a warrior it holds this against
@@ -79,7 +85,8 @@ def mating_tick(world) -> None:
     if not breeders:
         return
 
-    # 1) the broods: gestation counts down; at term, ONE child is born by the hearth
+    # 1) the broods: gestation counts down; at term, a LITTER (2-4) is born by the
+    #    hearth -- each pup its own caste roll and its own crossing of the same pair
     for b in breeders:
         if getattr(b, "_recover", 0) > 0:
             b._recover = max(0, b._recover - MATE_CHECK)
@@ -91,19 +98,36 @@ def mating_tick(world) -> None:
                 if len(world.agents) + len(world._bardo) >= world.max_souls:
                     b._gestation = MATE_CHECK   # the town is full: the birth waits
                     continue
-                caste = "breeder" if rng.random() < 0.5 else "warrior"
-                child = world._spawn_child(b, genome=getattr(b, "_brood_genome", None),
-                                           caste=caste)
-                if child is None:               # no way to bear (a voiceless world):
-                    b._gestation = MATE_CHECK   # the brood waits; nothing is lost
-                    continue
+                pair = getattr(b, "_brood_pair", None)   # the two germ lines of the pair
+                # a brood conceived before litters existed carries one pre-crossed
+                # genome (_brood_genome) instead of the pair -- honour it rather
+                # than dropping the sire's line from the transition litter
+                legacy = getattr(b, "_brood_genome", None)
                 sire = next((w for w in world.agents
                              if w.id == getattr(b, "_sire", "")), None)
-                if sire is not None:
-                    # the child knows both its hearth and its sire from the first breath
-                    child.bonds.setdefault(sire.id, Bond()).warm(0.6)
-                    sire.bonds.setdefault(child.id, Bond()).warm(0.6)
-                b._brood_genome = None
+                born = 0
+                for _ in range(rng.randint(LITTER_MIN, LITTER_MAX)):
+                    if len(world.agents) + len(world._bardo) >= world.max_souls:
+                        break                   # the cradle is full: the rest of the
+                                                # litter is not born (space, not fate)
+                    genome = (inherit(blend(pair[0], pair[1], rng), rng,
+                                      getattr(b, "_sire", ""),
+                                      sigma=getattr(world, "heredity_sigma", 0.03))
+                              if pair else legacy)
+                    caste = "breeder" if rng.random() < 0.5 else "warrior"
+                    child = world._spawn_child(b, genome=genome, caste=caste)
+                    if child is None:           # no way to bear (a voiceless world):
+                        break
+                    born += 1
+                    if sire is not None:
+                        # the pup knows both its hearth and its sire from the first breath
+                        child.bonds.setdefault(sire.id, Bond()).warm(0.6)
+                        sire.bonds.setdefault(child.id, Bond()).warm(0.6)
+                if born == 0:                   # nothing could be born yet: wait
+                    b._gestation = MATE_CHECK
+                    continue
+                b._brood_pair = None
+                b._brood_genome = None          # the legacy field, spent either way
                 b._recover = RECOVER            # rest before pairing again
 
     # 2) the courting: each fed grown warrior seeks the nearest free breeder
@@ -136,14 +160,16 @@ def mating_tick(world) -> None:
             continue
         if near.hostility.get(w.id, 0.0) >= GRIEVANCE_BAR:
             continue                     # no pairing across a grievance the breeder holds
-        # THE PAIR: the breeder broods a genome crossed from BOTH parents
+        # THE PAIR: the breeder broods the pair's two germ lines -- kept whole, so
+        # each pup of the litter is crossed and mutated independently at term (real
+        # siblings). Captured now so the litter still descends from BOTH even if the
+        # sire falls before term.
         taken.add(near.id)
         near._sire = w.id
         near._gestation = GESTATION
         pg_w = getattr(w, "genome", None) or from_agent(w, rng)
         pg_b = getattr(near, "genome", None) or from_agent(near, rng)
-        near._brood_genome = inherit(blend(pg_w, pg_b, rng), rng, w.id,
-                                     sigma=getattr(world, "heredity_sigma", 0.03))
+        near._brood_pair = (pg_w, pg_b)
         near.bonds.setdefault(w.id, Bond()).warm(BOND_WARM)
         w.bonds.setdefault(near.id, Bond()).warm(BOND_WARM)
         for o in warriors:               # one guard per hearth: an old sire whose

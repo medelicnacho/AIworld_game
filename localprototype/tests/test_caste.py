@@ -132,46 +132,53 @@ def _mating_world(seed=11):
 
 def test_mating_pairs_gestates_and_births_a_blend():
     """A fed grown warrior beside a free breeder pairs; the breeder broods; at term
-    ONE child is born whose every dial came from one parent or the other (uniform
-    crossover, one mutation) and whose caste is one of the two."""
+    a LITTER (2-4) is born, each pup's every dial from one parent or the other
+    (uniform crossover, one mutation) and each caste one of the two."""
     w, wrr, brd = _mating_world()
+    w.max_souls = 99                                 # room for the whole litter
     mating.mating_tick(w)
     assert brd._sire == wrr.id and brd._gestation == mating.GESTATION
-    assert brd._brood_genome is not None
+    assert brd._brood_pair is not None
     assert brd.wellbeing == 1.0, "pairing never costs the breeder anything"
     assert brd.bonds[wrr.id].trust > 0 and wrr.bonds[brd.id].trust > 0
     assert wrr._guard == brd.id                     # the warrior guards its hearth
     for _ in range(mating.GESTATION // mating.MATE_CHECK + 2):
         mating.mating_tick(w)
     born = [a for a in w.agents if a.id.startswith("born:")]
-    assert len(born) == 1, "ONE child at term"
-    child = born[0]
-    assert child.caste in ("warrior", "breeder")
-    assert child.genome.lineage == wrr.id
+    assert mating.LITTER_MIN <= len(born) <= mating.LITTER_MAX, "a litter at term"
     from agent.genome import DIALS
-    for dial in DIALS:
-        v = getattr(child.genome, dial)
-        assert (abs(v - 0.1) < 0.2) or (abs(v - 0.9) < 0.2), \
-            f"{dial}={v} came from neither parent"
-    assert child.bonds.get(brd.id) is not None      # knows its hearth
-    assert child.bonds.get(wrr.id) is not None      # and its sire
+    for child in born:
+        assert child.caste in ("warrior", "breeder")
+        assert child.genome.lineage == wrr.id
+        for dial in DIALS:
+            v = getattr(child.genome, dial)
+            assert (abs(v - 0.1) < 0.2) or (abs(v - 0.9) < 0.2), \
+                f"{dial}={v} came from neither parent"
+        assert child.bonds.get(brd.id) is not None  # each pup knows its hearth
+        assert child.bonds.get(wrr.id) is not None  # and its sire
+    # siblings are not clones: at least two pups differ on some dial (independent
+    # crossover + mutation per pup). (With one pup this is vacuously skipped.)
+    if len(born) >= 2:
+        sigs = {tuple(round(getattr(c.genome, d), 4) for d in DIALS) for c in born}
+        assert len(sigs) >= 2, "the litter is clones, not siblings"
     assert brd._recover > 0                         # the breeder rests; the hearth closed
 
 
 def test_caste_is_roughly_even_over_many_births():
     w, wrr, brd = _mating_world(seed=23)
+    w.max_souls = 99                                 # room for a whole litter each time
     castes = []
-    for _ in range(60):
+    for _ in range(30):
         brd._recover, brd._sire = 0, ""
         mating.mating_tick(w)                       # pair
         for _ in range(mating.GESTATION // mating.MATE_CHECK + 2):
-            mating.mating_tick(w)                   # brood -> birth
+            mating.mating_tick(w)                   # brood -> litter
         born = [a for a in w.agents if a.id.startswith("born:")]
-        assert len(born) == 1
-        castes.append(born[0].caste)
+        assert mating.LITTER_MIN <= len(born) <= mating.LITTER_MAX
+        castes += [c.caste for c in born]           # every pup's caste is its own roll
         w.agents = [a for a in w.agents if not a.id.startswith("born:")]
     share = castes.count("breeder") / len(castes)
-    assert 0.25 < share < 0.75, f"caste split drifted to {share:.2f}"
+    assert 0.35 < share < 0.65, f"caste split drifted to {share:.2f} over {len(castes)} pups"
 
 
 def test_reaching_a_rivals_hearth_grudges_the_rival_never_the_breeder():
