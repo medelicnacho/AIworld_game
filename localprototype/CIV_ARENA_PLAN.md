@@ -1,5 +1,18 @@
 # CIV_ARENA_PLAN.md — the big pannable map + the two-caste world
 
+> **STATUS: BUILT (2026-07-05, commits `20d3ef3`..`f156fb6` on `main`).** All six parts
+> shipped + four fixes the plan could not know: (1) with mating on, the `_reap` heir
+> channel AND `_selection_tick` budding both stand down — unmated, heirs erased the
+> breeder caste by generation two; (2) the mating gate is re-asserted AFTER founding
+> (`evolution._mating_gate`) — run.py --civ gated on its cleared placeholder cast;
+> (3) `center_pull = 0` on the arena — the linear centre nudge herded all settlements
+> into one blob at 3600×2400; (4) breeders get the somatic floor in `grown_free`.
+> Also beyond-plan: founding = 72 souls in ~6 settlements at farthest-first region
+> centres, and a breeder bears a LITTER (2–4 siblings, independently crossed).
+> Tests: `tests/test_caste.py` (11 pins); suite 517 green (+1 pre-existing ratchet
+> flake, passes on rerun). The sections below are the original plan, kept as the
+> design record — DO NOT rebuild from them.
+
 *Handoff doc, 2026-07-05. A plan a COLD new chat can execute. Read this + `ECOLOGY_PLAN.md`
 (the war/faction substrate) + the "WHERE WE ARE" section below. The goal: turn the
 civilization wheel into a big League-of-Legends-style map you pan with WASD, where a

@@ -35,6 +35,11 @@ DIALS = tuple(BOUNDS)
 # a germ line saved BEFORE a dial existed wakes with the population-centre value --
 # old snapshots must keep crossing without a crash (THE RULE's spirit, for heredity)
 DEFAULTS = {"openness": 0.38, "wrath": 0.5}
+# NOTE (determinism across code versions): every dial added here widens inherit()'s
+# and from_agent()'s draw count on the shared world rng -- old snapshots WAKE
+# identical (state is untouched), but a continued run's stream diverges from what
+# the same seed produced before the dial existed. Accepted and recorded when
+# openness/wrath landed; any future dial pays the same cost knowingly.
 
 
 @dataclass

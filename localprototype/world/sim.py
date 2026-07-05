@@ -600,9 +600,13 @@ class World:
     def _spawn_child(self, parent, genome=None, caste: str = "warrior"):
         """THE ONE SPAWN PATH: asexual budding (_birth_from, E2's surplus channel) and
         the mating system (world/mating.py) both land here. With genome=None the child
-        inherits the parent's germ line perturbed once -- at the same point in the rng
-        stream as always, so every existing world is bit-for-bit unchanged; mating
-        passes the two-parent crossed genome explicitly. Returns the child (or None)."""
+        inherits the parent's germ line perturbed once -- at the same point in the
+        CALL order as the pre-refactor code, so waking state and call sequence are
+        unchanged for old worlds (honest caveat: genome.DIALS gained two dials, so
+        inherit()'s per-call draw COUNT differs across code versions -- an old
+        snapshot wakes identical but its exact continuation stream diverges; see the
+        genome.py note). Mating passes the two-parent crossed genome explicitly.
+        Returns the child (or None if the world has no voice to give it)."""
         from agent.agent import Agent
         from agent.bond import Bond
         from agent.genesis import ROLES, coined_name, endow_faculties
