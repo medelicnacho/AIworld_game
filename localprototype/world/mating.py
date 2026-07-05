@@ -95,9 +95,6 @@ def mating_tick(world) -> None:
         if getattr(b, "_gestation", 0) > 0:
             b._gestation = max(0, b._gestation - MATE_CHECK)
             if b._gestation == 0:
-                if len(world.agents) + len(world._bardo) >= world.max_souls:
-                    b._gestation = MATE_CHECK   # the town is full: the birth waits
-                    continue
                 pair = getattr(b, "_brood_pair", None)   # the two germ lines of the pair
                 # a brood conceived before litters existed carries one pre-crossed
                 # genome (_brood_genome) instead of the pair -- honour it rather
@@ -105,11 +102,15 @@ def mating_tick(world) -> None:
                 legacy = getattr(b, "_brood_genome", None)
                 sire = next((w for w in world.agents
                              if w.id == getattr(b, "_sire", "")), None)
+                # the whole litter is born HERE, in full -- its slots were reserved
+                # at conception (step 2 counts every pregnancy as LITTER_MAX mouths),
+                # so a breeder always bears her 2-4; the hard cap lives on CONCEPTION.
+                # The len-check remains only as a defensive net (a resume that lowered
+                # max_souls under a running pregnancy), never the common path.
                 born = 0
                 for _ in range(rng.randint(LITTER_MIN, LITTER_MAX)):
-                    if len(world.agents) + len(world._bardo) >= world.max_souls:
-                        break                   # the cradle is full: the rest of the
-                                                # litter is not born (space, not fate)
+                    if len(world.agents) + len(world._bardo) >= world.max_souls + LITTER_MAX:
+                        break                   # defensive only: never hit in normal play
                     genome = (inherit(blend(pair[0], pair[1], rng), rng,
                                       getattr(b, "_sire", ""),
                                       sigma=getattr(world, "heredity_sigma", 0.03))
@@ -130,9 +131,16 @@ def mating_tick(world) -> None:
                 b._brood_genome = None          # the legacy field, spent either way
                 b._recover = RECOVER            # rest before pairing again
 
-    # 2) the courting: each fed grown warrior seeks the nearest free breeder
-    room = len(world.agents) + len(world._bardo) < world.max_souls
-    free = [b for b in breeders if grown_free(world, b)] if room else []
+    # 2) the courting: each fed grown warrior seeks the nearest free breeder.
+    #    THE HARD CAP LIVES HERE, on conception: every pregnancy already in progress
+    #    reserves LITTER_MAX mouths, and a new pairing may form only if a WHOLE litter
+    #    still fits under max_souls. That is what lets a breeder bear her full 2-4 at
+    #    term without the town ever overrunning the cap (the pinned-at-cap truncation
+    #    to single births is gone -- births come in real litters, the pop breathes
+    #    below the ceiling).
+    gestating = sum(1 for b in breeders if getattr(b, "_gestation", 0) > 0)
+    slots = world.max_souls - len(world.agents) - len(world._bardo) - LITTER_MAX * gestating
+    free = [b for b in breeders if grown_free(world, b)]
     taken: set = set()
     for w in warriors:
         if (not _grown(world, w) or w.wellbeing < MATE_WELL
@@ -149,6 +157,8 @@ def mating_tick(world) -> None:
                          or getattr(b, "_recover", 0) > 0)
                     and world._distance(w, b) <= MATE_RANGE):
                 w.hostility[sire] = w.hostility.get(sire, 0.0) + MATE_GRUDGE
+        if slots < LITTER_MAX:           # no room to promise a whole litter -- warriors
+            continue                     # still court and quarrel, but none conceive
         near, nd = None, MATE_RANGE
         for b in free:
             if b.id in taken:
@@ -165,6 +175,7 @@ def mating_tick(world) -> None:
         # siblings). Captured now so the litter still descends from BOTH even if the
         # sire falls before term.
         taken.add(near.id)
+        slots -= LITTER_MAX              # this pregnancy reserves a whole litter's room
         near._sire = w.id
         near._gestation = GESTATION
         pg_w = getattr(w, "genome", None) or from_agent(w, rng)

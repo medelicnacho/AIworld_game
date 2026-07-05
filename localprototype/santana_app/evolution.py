@@ -163,7 +163,8 @@ def _gates(w: World, founders: int) -> None:
     w.mourning_enabled = True
     w.lore_enabled = True              # grievances must be tellable, or feuds die mute
     w.commons_first = True
-    w.max_souls = founders + 48
+    w.max_souls = founders + 96   # real headroom above the founding so litters land
+                                  # in full and the population breathes below the cap
     w.yield_scale = GENTLE_YIELD
     w.hardship_interval = HARDSHIP_EVERY
     w.hearing_range = 260.0    # the town square: debate carries across knots, or the
