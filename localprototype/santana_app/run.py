@@ -304,9 +304,24 @@ def main() -> None:
         w.rebirth_enabled = False       # an ecology's lineages END; no bardo
         w.max_souls = (args.founders or 36) + 24
         w.commons_first = True          # granary cosmology: the pot where you stand
+        w.regions.pools = [6.0] * len(w.regions.pools)   # a gentle dawn: full granaries
+        w.clock_enabled = True      # seasons: harvest fattens the vale, winter starves
+                                    # the crag -- INEQUALITY is what makes wars possible
+                                    # (uniform poverty raids nothing; the granary gap
+                                    # is the whole casus belli)
+        w.mourning_enabled = True   # war dead land on the bonded, as all dead do
+        from agent.genome import express, from_agent
         for _a in w.agents:
             if getattr(_a, "belief_vec", None) is None:
                 _a.seed_opinion(random.Random(7000 + sum(ord(c) for c in _a.id)))
+            if getattr(_a, "genome", None) is None:
+                # founders carry varied germ lines too -- the visible bodies (spikes,
+                # sizes) and the selection differential both need standing variation
+                _rng2 = random.Random(9000 + sum(ord(c) for c in _a.id))
+                _a.boldness = _rng2.uniform(0.1, 0.9)
+                _a.metabolism = _rng2.uniform(0.2, 0.8)
+                _a.genome = from_agent(_a, _rng2)
+                express(_a.genome, _a)
         print("  (THE ECOLOGY: land + factions + war + heredity + selection -- "
               "lineages end, bloodlines diverge)", flush=True)
     if args.offer:

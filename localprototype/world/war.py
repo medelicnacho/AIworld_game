@@ -65,26 +65,41 @@ def war_tick(world) -> None:
         if home is None or len(crew) < 3:
             continue
         hunger = world.regions.pools[home] / max(1, len(crew))
-        if hunger >= HUNGER_LINE:
-            continue                                   # fed folk don't march
-        targets = [f for f in blocs
-                   if f != atk and homes[f] is not None and homes[f] != home
-                   and world.regions.pools[homes[f]] >= FAT_LINE]
-        if not targets:
+        # grievance lowers the threshold: a bloc that HATES a neighbour will march on a
+        # fuller belly than mere hunger would move it. Feuds feed the next war -- so a
+        # war of desperation, once fought, can become a war of grudge that outlives it.
+        def grudge_against(other_ids):
+            return sum(a.hostility.get(o, 0.0) for a in crew for o in other_ids) \
+                / max(1, len(crew))
+        cand = [f for f in blocs
+                if f != atk and homes[f] is not None and homes[f] != home
+                and world.regions.pools[homes[f]] >= FAT_LINE]
+        if not cand:
             continue
-        dfd = max(targets, key=lambda f: world.regions.pools[homes[f]])
+        fmembers = {f: {b.id for b in F.members(world, f, mapping)} for f in cand}
+        grudge = {f: grudge_against(fmembers[f]) for f in cand}
+        threshold = HUNGER_LINE + max(grudge.values()) * 0.5   # hate raises the line hunger must clear
+        if hunger >= threshold:
+            continue
+        # target the fattest granary, but a real grudge overrides mere fatness
+        dfd = max(cand, key=lambda f: (grudge[f] * 3.0
+                                       + world.regions.pools[homes[f]] / 6.0))
         atk_lead = F.leader_of(world, atk, mapping)
         dfd_lead = F.leader_of(world, dfd, mapping)
         if atk_lead is None or dfd_lead is None:
             continue
         # THE MUSTER DECIDES -- individually, for both sides (the measured organ:
         # boldness, trust, conscience; the worn refuse regardless of loyalty)
-        party = [a for a in crew if a is atk_lead
-                 or allegiance.decide(a, atk_lead.id, danger=DANGER)[0] == "join"]
+        from world import clock as _clock
+        grown = lambda a: (not getattr(world, "clock_enabled", False)
+                           or _clock.stage(a.age, a.lifespan) != "child")
+        party = [a for a in crew if grown(a) and (a is atk_lead
+                 or allegiance.decide(a, atk_lead.id, danger=DANGER)[0] == "join")]
         if len(party) < MIN_PARTY:
             continue
-        defenders = [a for a in F.members(world, dfd, mapping) if a is dfd_lead
-                     or allegiance.decide(a, dfd_lead.id, danger=DANGER)[0] == "join"]
+        defenders = [a for a in F.members(world, dfd, mapping) if grown(a) and
+                     (a is dfd_lead
+                      or allegiance.decide(a, dfd_lead.id, danger=DANGER)[0] == "join")]
         # ALLIES: a third bloc whose view stands with the defenders and against the
         # attackers sends ITS willing too -- join forces, emergently
         from agent.agent import _cosine
@@ -120,6 +135,9 @@ def war_tick(world) -> None:
                 f"bread of {dfd_banner.split('of ')[-1]} was carried off; a bitter, "
                 f"broken day", tick=world.tick, source="event",
                 emotion=GRIEF_EMO, weight=GRIEF_W, lore_id=feud)
+            # NOTE (handoff): grievances still DECAY -- memory.py has no salience_floor
+            # field, so a feud fades unless retold. Making feuds persist to a late tick
+            # is the OPEN G2 problem (see ECOLOGY_PLAN.md).
             for m in party:
                 a.hostility[m.id] = a.hostility.get(m.id, 0.0) + 1.0
         for a in party:

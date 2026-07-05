@@ -517,6 +517,15 @@ class World:
         pg = getattr(parent, "genome", None) or from_agent(parent, self._rng)
         a.genome = inherit(pg, self._rng, parent.id, sigma=self.heredity_sigma)
         express(a.genome, a)
+        # CULTURAL INHERITANCE (the war falsifier's discovery): without this, blocs
+        # dissolve within one generation -- newborns held NO worldview, factions
+        # starved to loners, and wars stopped for amnesia, not peace. A child absorbs
+        # its parent's view WITH NOISE (the vasana spirit: a lean, never a copy);
+        # worlds without opinion dynamics are untouched (parent has no vector).
+        if getattr(parent, "belief_vec", None) is not None:
+            noisy = [v + self._rng.gauss(0.0, 0.18) for v in parent.belief_vec]
+            norm = sum(v * v for v in noisy) ** 0.5 or 1.0
+            a.belief_vec = tuple(v / norm for v in noisy)
         a.bond_enabled = True
         a.self_model_enabled = True
         # the parent provisions the child -- birth costs the parent something real
