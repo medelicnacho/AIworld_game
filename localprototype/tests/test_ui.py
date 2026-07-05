@@ -69,3 +69,30 @@ def test_only_spoken_words_reach_the_screen():
         "The harvest was thin."
     assert ui.spoken_only("I said (truly) nothing cruel.") == "I said nothing cruel."
     assert ui.spoken_only("*bows* *waves*") == "..."     # nothing spoken at all
+
+
+def test_the_bridge_acts_land_on_validated_organs_only():
+    """apply_act routes deeds to witness, promises to pledge, and refuses anything
+    else -- a game can only touch the town through the measured karma roads."""
+    w = _town()
+    out = ui.apply_act(w, {"kind": "deed", "act": "kindness"})
+    assert out["ok"] and out["witnessed_by"] == 3          # placeless: seen by all
+    assert all(a._conduct_expect.get("player", 0) > 0 for a in w.agents)
+    out = ui.apply_act(w, {"kind": "pledge", "to": "s1",
+                           "text": "I will bring what you need", "due_ticks": 50})
+    assert out["ok"] and w.agents[1].promises_held
+    out = ui.apply_act(w, {"kind": "fulfill", "to": "s1"})
+    assert out["ok"] and out["kept"]
+    assert not ui.apply_act(w, {"kind": "smite", "to": "s1"})["ok"]     # no such road
+    assert not ui.apply_act(w, {"kind": "deed", "act": "arson"})["ok"]  # no such deed
+
+
+def test_the_muster_payload_carries_names_and_reasons():
+    from agent.bond import Bond
+    w = _town()
+    w.agents[0].bonds["player"] = Bond(trust=0.8, history=2.5)
+    w.agents[1]._conduct_expect["player"] = -0.6
+    m = ui.muster_payload(w, "player", 0.2)
+    assert {a["name"] for a in m["join"]} == {"Vesper"}
+    assert {a["name"] for a in m["oppose"]} == {"Mara"}
+    assert len(m["reasons"]) == 3 and all(isinstance(r, str) for r in m["reasons"].values())

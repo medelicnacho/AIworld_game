@@ -423,6 +423,87 @@ def spoken_only(text: str) -> str:
     return " ".join(out.split()).strip() or "..."
 
 
+BRIDGE_JS = r"""// bridge.js -- a living town in your game, ~40 lines.
+// const town = new TownBridge("http://127.0.0.1:8766");
+// town.onEvent(e => ...); await town.deed("kindness"); await town.muster();
+class TownBridge {
+  constructor(base) { this.base = base.replace(/\/$/, ""); }
+  onEvent(fn) {
+    this.es = new EventSource(this.base + "/bridge/events");
+    this.es.onmessage = e => fn(JSON.parse(e.data));
+    return this;
+  }
+  close() { if (this.es) this.es.close(); }
+  async state()      { return (await fetch(this.base + "/bridge/state")).json(); }
+  async soul(id)     { return (await fetch(this.base + "/bridge/soul?id=" +
+                               encodeURIComponent(id))).json(); }
+  async muster(leader = "player", danger = 0.2) {
+    return (await fetch(`${this.base}/bridge/muster?leader=${encodeURIComponent(leader)}` +
+                        `&danger=${danger}`)).json(); }
+  async act(body)    { return (await fetch(this.base + "/bridge/act", {method: "POST",
+                               body: JSON.stringify(body)})).json(); }
+  deed(act, near)    { return this.act({kind: "deed", act, near}); }
+  pledge(to, text, dueTicks = 200) {
+    return this.act({kind: "pledge", to, text, due_ticks: dueTicks}); }
+  fulfill(to)        { return this.act({kind: "fulfill", to}); }
+  async say(to, text) {  // clear-voiced chat with one soul (the aside machinery)
+    return (await fetch(this.base + "/say", {method: "POST",
+            body: JSON.stringify({text, target: to})})).json(); }
+}
+"""
+
+BRIDGE_DEMO = r"""<!doctype html><meta charset='utf-8'><title>the bridge — demo</title>
+<style>body{background:#0e0e12;color:#dfe0ea;font-family:Georgia;max-width:860px;
+margin:24px auto;padding:0 12px}h2{color:#f0ead6;font-weight:normal}
+button{background:#20202a;border:1px solid #2a2a38;color:#dfe0ea;padding:8px 14px;
+border-radius:5px;cursor:pointer;font-family:Georgia;margin:2px}
+#log{background:#15151a;border-radius:6px;padding:10px;height:200px;overflow-y:auto;
+font-size:12px;line-height:1.6}#muster{font-size:13px;line-height:1.7}
+.j{color:#8fc08f}.o{color:#c07a7a}.r{color:#8a8a9a}select{background:#0c0c11;
+color:#dfe0ea;border:1px solid #2a2a38;padding:6px;font-family:Georgia}</style>
+<h2>the bridge — a living town, ten lines of JS</h2>
+<p>This page is the whole integration pattern: listen to the town, act in it,
+ask who stands with you. Everything below lands on validated mechanisms.</p>
+<div id=log></div>
+<p>
+ <select id=soul></select>
+ <button onclick="B.deed('kindness',sel()).then(r=>note('kindness seen by '+r.witnessed_by))">
+  do a kindness nearby</button>
+ <button onclick="B.pledge(sel(),'I will bring what you need',300).then(()=>note('promised'))">
+  make a promise</button>
+ <button onclick="B.fulfill(sel()).then(r=>note(r.kept?'promise KEPT':'nothing to keep'))">
+  keep it</button>
+ <button onclick="doMuster()">who stands with me?</button>
+</p>
+<div id=muster></div>
+<script src="/bridge.js"></script>
+<script>
+const B = new TownBridge(location.origin);
+const log = document.getElementById('log');
+const note = t => { log.innerHTML += `<div>— ${t}</div>`; log.scrollTop = 1e9; };
+const sel = () => document.getElementById('soul').value;
+B.onEvent(e => {
+  if (e.kind === 'speak') note(`<b>${e.who}</b>: “${e.text}”`);
+  else if (e.kind === 'death') note(`† ${e.who} has passed`);
+  else if (e.kind === 'birth') note(`✦ a soul is born`);
+});
+B.state().then(s => {
+  document.getElementById('soul').innerHTML =
+    s.souls.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  note(`connected: ${s.souls.length} souls, ${s.time_clause}`);
+});
+async function doMuster() {
+  const m = await B.muster('player', 0.2);
+  document.getElementById('muster').innerHTML =
+    `<span class=j>join ${m.join.length}</span> · ` +
+    `<span class=r>refuse ${m.refuse.length}</span> · ` +
+    `<span class=o>oppose ${m.oppose.length}</span><br>` +
+    Object.entries(m.reasons).slice(0, 8).map(([id, r]) => `· ${r}`).join('<br>');
+}
+</script>
+"""
+
+
 def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> dict:
     """Everything the dashboard shows, in one read -- world fields under the world lock,
     her fields as plain reads (the mind-lock guards the WRITERS)."""
@@ -503,6 +584,62 @@ def soul_detail(world, sid: str) -> dict | None:
         }
 
 
+def muster_payload(world, leader: str, danger: float) -> dict:
+    """The armies screen, serialized: every soul's join/refuse/oppose with its
+    speakable reason (agent/allegiance.py -- all four claims verdict-passed)."""
+    from agent import allegiance
+    with world.lock:
+        m = allegiance.muster(world, leader, danger=danger)
+        return {"join": [{"id": a.id, "name": a.name} for a in m["join"]],
+                "refuse": [{"id": a.id, "name": a.name} for a in m["refuse"]],
+                "oppose": [{"id": a.id, "name": a.name} for a in m["oppose"]],
+                "reasons": m["reasons"]}
+
+
+def apply_act(world, body: dict) -> dict:
+    """THE BRIDGE'S ACTION CHANNEL: a game's deeds land on the VALIDATED karma roads
+    and nowhere else. kinds:
+      deed    {act: kindness|meanness, near?: soul_id}  -> witness.witnessed (5.20/§w)
+              'near' limits witnesses to earshot of that soul; placeless = seen by all
+      pledge  {to: soul_id, text, due_ticks}            -> pledge.make
+      fulfill {to: soul_id}                             -> pledge.fulfill
+    Speech goes through POST /say (the existing aside machinery). Anything else: error."""
+    from agent import pledge as _pledge
+    from agent import witness as _witness
+    kind = body.get("kind")
+    actor = str(body.get("actor", "player"))[:40]
+    actor_name = str(body.get("actor_name", "the player"))[:60]
+    with world.lock:
+        now = world.tick
+        if kind == "deed":
+            act = body.get("act")
+            if act not in ("kindness", "meanness"):
+                return {"ok": False, "error": "act must be kindness|meanness"}
+            exclude = ()
+            near = body.get("near")
+            if near:
+                anchor = next((a for a in world.agents if a.id == near), None)
+                if anchor is None:
+                    return {"ok": False, "error": f"no soul {near}"}
+                exclude = tuple(b for b in world.agents
+                                if world._distance(b, anchor) > _witness.WITNESS_RADIUS)
+            seen = _witness.witnessed(world, actor, actor_name, act, now,
+                                      exclude=exclude)
+            return {"ok": True, "witnessed_by": seen, "tick": now}
+        soul = next((a for a in world.agents if a.id == body.get("to")), None)
+        if soul is None:
+            return {"ok": False, "error": f"no soul {body.get('to')}"}
+        if kind == "pledge":
+            text = str(body.get("text", ""))[:200]
+            due = now + max(1, int(body.get("due_ticks", 200)))
+            _pledge.make(soul, actor, actor_name, text, due_tick=due, now=now)
+            return {"ok": True, "due_tick": due, "tick": now}
+        if kind == "fulfill":
+            kept = _pledge.fulfill(soul, actor, now=now)
+            return {"ok": True, "kept": bool(kept), "tick": now}
+    return {"ok": False, "error": f"unknown kind {kind!r}"}
+
+
 class _Handler(BaseHTTPRequestHandler):
     ui = None   # set by serve()
 
@@ -516,13 +653,90 @@ class _Handler(BaseHTTPRequestHandler):
         # no-store: the dashboard evolves fast, and a browser quietly serving last
         # week's page made "it went dark" bugs unreproducible -- never cache the cockpit
         self.send_header("Cache-Control", "no-store")
+        # CORS: THE BRIDGE -- a browser game on any origin may read the town and act
+        # in it (the server still binds 127.0.0.1; exposure is a hosting decision)
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):   # the browser's CORS preflight for POSTs
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def _sse_events(self):
+        """THE BRIDGE'S EAR: stream the world's events as Server-Sent Events. One
+        browser line -- new EventSource('/bridge/events') -- and a game hears every
+        speech (with its real hearers), birth, death and rebirth as it happens, plus
+        a heartbeat with the clock. Each SSE connection holds one server thread;
+        fine for a local/LAN game. Client disconnect just ends the thread."""
+        import time as _t
+        u = self.ui
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        last_id = 0
+        last_beat = 0.0
+        try:
+            self.wfile.write(b"retry: 3000\n\n")
+            while True:
+                with u["ev_lock"]:
+                    fresh = [e for e in u["events"] if e["id"] > last_id]
+                for e in fresh:
+                    last_id = e["id"]
+                    self.wfile.write(f"data: {json.dumps(e)}\n\n".encode())
+                if _t.time() - last_beat > 2.0:
+                    last_beat = _t.time()
+                    world = u["world"]
+                    from world import clock as _clock
+                    with world.lock:
+                        beat = {"kind": "heartbeat", "tick": world.tick,
+                                "souls": len(world.agents),
+                                "season": (_clock.season(world.tick, world.day_ticks)
+                                           if world.clock_enabled else ""),
+                                "night": (world.clock_enabled and _clock.is_night(
+                                    world.tick, world.day_ticks))}
+                    self.wfile.write(f"data: {json.dumps(beat)}\n\n".encode())
+                self.wfile.flush()
+                _t.sleep(0.4)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
 
     def do_GET(self):
         u = self.ui
         if self.path in ("/", "/index.html"):
             self._send(DASH.encode(), "text/html; charset=utf-8")
+        elif self.path.startswith("/bridge/events"):
+            self._sse_events()
+        elif self.path.startswith("/bridge/state"):
+            with u["ev_lock"]:
+                events = list(u["events"])
+            snap = snapshot(u["mind"], u["world"], u["readings"], u["drift"], events)
+            self._send(json.dumps(snap).encode(), "application/json")
+        elif self.path.startswith("/bridge/soul"):
+            from urllib.parse import parse_qs, urlparse
+            sid = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
+            d = soul_detail(u["world"], sid)
+            self._send(json.dumps(d).encode() if d else b"{}", "application/json",
+                       200 if d else 404)
+        elif self.path.startswith("/bridge/muster"):
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            leader = (q.get("leader") or ["player"])[0]
+            try:
+                danger = max(0.0, min(1.0, float((q.get("danger") or ["0.2"])[0])))
+            except ValueError:
+                danger = 0.2
+            self._send(json.dumps(muster_payload(u["world"], leader, danger)).encode(),
+                       "application/json")
+        elif self.path == "/bridge.js":
+            self._send(BRIDGE_JS.encode(), "application/javascript")
+        elif self.path.startswith("/bridge/demo"):
+            self._send(BRIDGE_DEMO.encode(), "text/html; charset=utf-8")
         elif self.path.startswith("/state2"):
             with u["ev_lock"]:
                 events = list(u["events"])
@@ -570,6 +784,17 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         u = self.ui
+        if self.path.startswith("/bridge/act"):
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            try:
+                body = json.loads(self.rfile.read(n).decode())
+            except Exception:   # noqa: BLE001
+                self._send(b'{"ok": false, "error": "bad json"}', "application/json", 400)
+                return
+            out = apply_act(u["world"], body)
+            self._send(json.dumps(out).encode(), "application/json",
+                       200 if out.get("ok") else 400)
+            return
         if self.path != "/say":
             self._send(b"?", "text/plain", 404)
             return
