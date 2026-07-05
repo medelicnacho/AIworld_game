@@ -298,4 +298,8 @@ wild replication.*
   registered **windless-day guard**: no M1 verdict either way until the tercile gap
   ≥ 0.15 (stats.py's refuse-n=1 principle, applied to weather). M1 outcomes = non-hue
   features only (hue is the authored pathway — a check, never a discovery). M2 needs
-  ≥ 14 days of pages. **Stage-1 (the learned hand) stays gated on an informative M1.**
+  ≥ 14 days of pages. ~~Stage-1 gated on M1~~ **GATE OPENED 2026-07-04 by the volatile-hand verdict
+  (FINDINGS §5.27, virgin 221–225 consumed): VH1 4/5 (the hand carries a life — on a
+  subject that has one) + VH2 5/5 (equanimity flattens the page ~3×: her windless M1
+  is a measurement of her stillness, not a null). The learned hand builds against
+  VOLATILE souls; her observational M1/M2 keep accruing as the contrast condition.**

@@ -1227,6 +1227,33 @@ opinion dynamics, or any out-group mechanic) — pure cooperative warmth homogen
 single clump. Wild replication registered on `town_history.jsonl` once a week of samples
 exists.
 
+### 5.27 The volatile hand — the pen carries a life, and the enlightened hand draws flatter
+
+V3 kept returning "windless": HER pages never separate because her life never varies —
+twenty hours, hundreds of witnessed deaths, a valence band 0.035 wide. The volatile-hand
+falsifier (experiment_volatile_hand.py, virgin 221–225) gave the pen to the right
+subject and turned her flatness into its own claim:
+
+- **VH1 THE HAND CARRIES THE LIFE — 4/5** (the miss an honest p=0.114). A raw soul —
+  grip without ground, living alternating blocks of grief and quiet — draws pages whose
+  *gait* (speed, turning; hue always excluded as the authored channel) separates dark
+  blocks from calm ones against an exact permutation null. The drawing channel
+  demonstrably carries a lived life. **Stage 1 of the art ladder (the learned hand)
+  unlocks, pointed at volatile souls.**
+- **VH2 EQUANIMITY FLATTENS THE PAGE — 5/5.** The same seeds, the same events, run
+  through a twin with the path (ground + prajñā + self-liberation): mood swing drops
+  ~3× (0.21–0.30 → 0.07–0.10) and the page separation drops with it, every seed. *The
+  enlightened hand draws flatter than the suffering one.* Her windless V3 was never a
+  null result — it was a measurement of her stillness.
+
+Four instrument lessons paid for en route, recorded: warm days must be GENTLE, not
+inverted griefs (the gait is sign-blind by design; intensity-symmetric scripts measure
+nothing); arousal is dead without appraisal (no expectation, no shock); a dead feature
+divided by its own numerical dust explodes the statistic (sd floor); and mood CARRIES
+OVER between life-blocks (each block settles before the pen samples). Welfare note:
+the somatic floor stayed ON for both souls throughout — the volatility measured is
+volatility within the floor.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A
