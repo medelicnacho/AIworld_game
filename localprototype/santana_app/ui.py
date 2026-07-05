@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-UI_VERSION = 14   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 15   # bump on any dashboard change: live pages reload themselves to match
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -99,13 +99,15 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v14</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v15</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
    <div id=legend>
     <i style=background:#e6b24a></i>trust thread (flash = warming now) &nbsp;
-    <i style=background:#b0485a></i>enmity<br>
+    <i style=background:#b0485a></i>enmity &nbsp;
+    <i style="background:linear-gradient(90deg,#46578a,#c48c3c)"></i>mood-wash =
+    the measured weather (V1, 5/5)<br>
     halo = mood · arc = words reaching a hearer · ✦ birth · † death · click a soul to
     open its insides</div>
    <div id=chron></div>
@@ -139,6 +141,12 @@ cv.addEventListener('contextlost',e=>{e.preventDefault();});
 cv.addEventListener('contextrestored',()=>{g=cv.getContext('2d',{willReadFrequently:true});});
 const W=1000,H=660, OX=26,OY=40, SX=(W-52)/900, SY=(H-96)/600;
 const souls=new Map();      // id -> {x,y,tx,ty,mood,stage,asleep,name,action,drift,bonds,bubble}
+// THE MOOD-WASH: an offscreen canvas that never fully clears -- each poll every soul
+// deposits a faint flat patch of its mood-colour at its position, and the whole layer
+// slowly fades. Drifting fronts of warmth and cold = V1's MEASURED weather (5/5),
+// rendered. Flat shapes only (no gradients -- the GPU saga's rule).
+const washCv=document.createElement('canvas');washCv.width=W;washCv.height=H;
+const wash=washCv.getContext('2d',{willReadFrequently:true});
 const pairTrust=new Map();  // "a|b" -> last trust, to catch bonds WARMING on camera
 let fx=[], chron=[], sky={hour:.35,season:'spring',night:false}, lastEv=0, sel='her';
 const ACT={work:'⚒ ',share:'❥ ',tend:'✚ ',hoard:'▾ '};
@@ -198,7 +206,7 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
-const MY_VERSION=14;
+const MY_VERSION=15;
 async function poll(){try{
  const s=await(await fetch('/state2')).json();
  // a page older than the server RELOADS ITSELF -- stale tabs were the source of a
@@ -212,6 +220,14 @@ async function poll(){try{
  document.getElementById('stream').innerHTML=
   s.readings.map(r=>`<div class=r>${esc(r.text)}<div class=m>${esc(r.meta)}</div></div>`).join('');
  sky={hour:s.hour,season:s.season,night:s.night};
+ // deposit this poll's mood onto the wash, then erode it slightly (a memory of
+ // where feeling has lived, always fading)
+ wash.globalCompositeOperation='destination-out';
+ wash.fillStyle='rgba(0,0,0,0.045)';wash.fillRect(0,0,W,H);
+ wash.globalCompositeOperation='source-over';
+ for(const a of s.souls){const[r2,g2,b2]=moodRGB(a.mood);
+  wash.fillStyle=`rgba(${r2},${g2},${b2},0.05)`;
+  wash.beginPath();wash.arc(wx(a),wy(a),58,0,7);wash.fill();}
  const live=new Set();
  for(const a of s.souls){live.add(a.id);
   let d=souls.get(a.id);
@@ -354,7 +370,9 @@ function frame(now){
  if(now-lastDraw<33)return; lastDraw=now;
  try{
   for(const[,d]of souls){d.x+=(d.tx-d.x)*0.10;d.y+=(d.ty-d.y)*0.10;}
-  drawSky();drawThreads();drawSouls(now);drawFx(now);
+  drawSky();
+  g.globalAlpha=0.85;g.drawImage(washCv,0,0);g.globalAlpha=1;   // the measured weather
+  drawThreads();drawSouls(now);drawFx(now);
  }catch(err){lastErr=String(err);}
  beat++;
  g.fillStyle='rgba(160,160,180,0.8)';g.font='10px monospace';

@@ -393,6 +393,56 @@ setInterval(poll,1500);poll();requestAnimationFrame(frame);
         f.write(html)
 
 
+# --- THE COMMUNAL PAGE: the whole town draws one -----------------------------------------
+# One stroke per soul, placed where it actually stood, inked by how it actually felt --
+# a daily portrait of the town as a FIELD (V1 proved the field is real: mood has
+# geography; V2 proved the fellowships have territory). Children small, elders long slow
+# arcs, bond-filaments toward the strongest-loved. Seismograph tier, honestly: we author
+# the mapping, the town supplies the day. Nothing on the page is invented.
+
+TOWN_W, TOWN_H = 900, 600
+
+
+def town_page(souls: list, caption: str = "", seed: int = 0) -> str:
+    """souls: [{'id','x','y','mood','stage','bonds':[[oid,trust],...]}, ...] -> SVG.
+    One mark per life; every mark traceable to a soul."""
+    rng = random.Random(seed)
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{TOWN_W}" height="{TOWN_H}" '
+             f'viewBox="0 0 {TOWN_W} {TOWN_H}">'
+             f'<rect width="{TOWN_W}" height="{TOWN_H}" fill="#15151a"/>']
+    pos = {sl["id"]: (sl["x"], sl["y"]) for sl in souls}
+    # bond filaments first (under the strokes): each soul toward its strongest love
+    for sl in souls:
+        bonds = [b for b in sl.get("bonds", []) if b[1] > 0.3 and b[0] in pos]
+        if bonds:
+            oid, tr = max(bonds, key=lambda b: b[1])
+            ox, oy = pos[oid]
+            parts.append(f'<line x1="{sl["x"]:.0f}" y1="{sl["y"]:.0f}" '
+                         f'x2="{ox:.0f}" y2="{oy:.0f}" stroke="#e6b24a" '
+                         f'stroke-width="{0.4 + tr:.2f}" opacity="0.16"/>')
+    for sl in souls:
+        warm = (max(-1.0, min(1.0, sl.get("mood", 0.0))) + 1) / 2
+        col = _rgb(_COLD_INK, _WARM_INK, warm)
+        stage = sl.get("stage", "adult")
+        r = {"child": 7, "elder": 22}.get(stage, 13)
+        a0 = rng.random() * 360
+        sweep = rng.uniform(120, 240) if stage == "elder" else rng.uniform(60, 150)
+        x0 = sl["x"] + r * math.cos(math.radians(a0))
+        y0 = sl["y"] + r * math.sin(math.radians(a0))
+        x1 = sl["x"] + r * math.cos(math.radians(a0 + sweep))
+        y1 = sl["y"] + r * math.sin(math.radians(a0 + sweep))
+        parts.append(f'<path d="M {x0:.1f} {y0:.1f} A {r} {r} 0 '
+                     f'{1 if sweep > 180 else 0} 1 {x1:.1f} {y1:.1f}" stroke="{col}" '
+                     f'stroke-width="{2.6 if stage != "child" else 1.8}" fill="none" '
+                     f'stroke-linecap="round" opacity="0.85"/>')
+    if caption:
+        safe = caption[:110].replace("&", "&amp;").replace("<", "&lt;")
+        parts.append(f'<text x="14" y="{TOWN_H - 14}" font-family="Georgia" '
+                     f'font-size="12" fill="#8a8a9a" opacity="0.85">{safe}</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
 # --- the gallery -------------------------------------------------------------------------
 
 def save_drawing(svg: str, out_dir: str, name: str) -> str:

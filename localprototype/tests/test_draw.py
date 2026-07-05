@@ -135,3 +135,24 @@ def test_the_pen_wanders_in_bouts_with_a_lifes_unevenness():
     assert max(lengths) > 3 * min(lengths)        # not a metronome
     # and journeys are longer than the old fixed march of 45
     assert sorted(lengths)[len(lengths) // 2] > 45
+
+
+def test_the_town_draws_one_page_together():
+    """One mark per life: deterministic, mood inks it, children small / elders long,
+    a filament reaches toward the strongest-loved, the caption lands."""
+    souls = [
+        {"id": "a", "x": 100, "y": 100, "mood": 0.9, "stage": "adult",
+         "bonds": [["b", 0.8], ["c", 0.2]]},
+        {"id": "b", "x": 300, "y": 200, "mood": -0.9, "stage": "elder", "bonds": []},
+        {"id": "c", "x": 500, "y": 300, "mood": 0.0, "stage": "child", "bonds": []},
+    ]
+    p1 = draw.town_page(souls, caption="day 9 -- winter", seed=4)
+    p2 = draw.town_page(souls, caption="day 9 -- winter", seed=4)
+    assert p1 == p2                                     # deterministic
+    assert "day 9" in p1
+    assert p1.count("<path") == 3                       # one mark per life
+    warm_col = draw._rgb(draw._COLD_INK, draw._WARM_INK, 0.95)
+    cold_col = draw._rgb(draw._COLD_INK, draw._WARM_INK, 0.05)
+    assert warm_col in p1 and cold_col in p1            # mood inks the marks
+    assert "A 22 22" in p1 and "A 7 7" in p1            # elder long, child small
+    assert p1.count("<line") == 1                       # one filament, toward b

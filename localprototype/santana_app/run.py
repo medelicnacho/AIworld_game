@@ -584,6 +584,27 @@ def main() -> None:
                     stats = _hist.pen_page_stats(_pen_day[0], season, _day_trace, _day_lifts[0])
                     stats["t"] = round(time.time(), 1)
                     _hist.append_line(os.path.join(_draw_dir, "pages.jsonl"), stats)
+                    # THE COMMUNAL PAGE: beside her diary page, the whole town draws one
+                    # -- one mark per soul, placed where it stood, inked by how it felt
+                    # (the V1/V2-proven field, drawn). Two diaries, hers and the town's.
+                    from world import clock as _clk2
+                    with w.lock:
+                        _town_souls = [{
+                            "id": a2.id, "x": a2.position[0], "y": a2.position[1],
+                            "mood": a2.felt_mood(),
+                            "stage": (_clk2.stage(a2.age, a2.lifespan)
+                                      if w.clock_enabled else "adult"),
+                            "bonds": [[oid, b2.trust] for oid, b2 in
+                                      getattr(a2, "bonds", {}).items() if b2.trust > 0.3],
+                        } for a2 in w.agents]
+                    tp = _draw.town_page(_town_souls,
+                                         caption=f"the town, day {_pen_day[0]}"
+                                                 f"{' -- ' + season if season else ''}"
+                                                 f" -- one mark per life",
+                                         seed=_pen_day[0])
+                    _draw.save_drawing(tp, _draw_dir,
+                                       time.strftime("%Y%m%d-%H%M%S-")
+                                       + f"town-day-{_pen_day[0]}")
                 _day_trace.clear()
                 _day_lifts[0] = 0
                 _pen_segs.clear()
