@@ -62,7 +62,8 @@ def choose_action(a, world) -> str:
     works. Deterministic and legible; the LLM never picks the action."""
     others = [x for x in world.agents if x is not a]
     neediest = min(others, key=lambda x: x.wellbeing, default=None)
-    commons_low = world.commons < len(world.agents) * 0.3
+    from world.regions import pool_level
+    commons_low = pool_level(world, a) < len(world.agents) * 0.3
     # E2: BOLDNESS is expressed here -- the germ line's work-lean (0.5 = the old flat
     # baseline; bold souls take the weather, timid ones tend and wait)
     scores = {"work": 0.5 + (0.6 if commons_low else 0.0)
@@ -70,7 +71,7 @@ def choose_action(a, world) -> str:
     # share: driven by compassion, when someone is RELATIVELY worse off than me and I can
     # spare. Relative (not an absolute floor) so the Lover keeps giving rather than depleting
     # past a gate -- the compassion gap is what makes the Lover share far more than a Grasper.
-    if neediest is not None and neediest.wellbeing < a.wellbeing - 0.1 and world.commons > SHARE_AMT:
+    if neediest is not None and neediest.wellbeing < a.wellbeing - 0.1 and pool_level(world, a) > SHARE_AMT:
         scores["share"] = a.compassion + a.bodhicitta
     # hoard / tend: only under one's OWN scarcity -- met by the grip, or met with equanimity
     if a.wellbeing < LOW:
@@ -87,13 +88,16 @@ def apply_action(a, action, world, now) -> None:
         # soil -- the same labour returns less, so want is structural, not a moral flaw.
         # With the clock on, the SEASON multiplies it (harvest plenty, winter want),
         # and an ELDER's labour returns half -- they tire; their wealth is elsewhere.
+        from world.regions import pool_add
         y = WORK_YIELD * getattr(world, "yield_scale", 1.0)
         if getattr(world, "clock_enabled", False):
             from world import clock as _clock
             y *= _clock.SEASON_YIELD[_clock.season(world.tick, world.day_ticks)]
             if _clock.stage(a.age, a.lifespan) == "elder":
                 y *= _clock.ELDER_YIELD
-        world.commons += y * 0.8              # most of the labour goes to the shared net
+        pool_add(world, a, y * 0.8)           # most of the labour goes to the shared net
+                                              # -- landing where the labourer STANDS,
+                                              # scaled by that ground's soil (regions.py)
         a.stores = min(1.5, a.stores + y * 0.2)
         if under_scarcity:
             _wise_seed(a)
@@ -103,8 +107,8 @@ def apply_action(a, action, world, now) -> None:
         # possible, and it's what lets hardship victims recover.
         neediest = min(others, key=lambda x: x.wellbeing, default=None)
         if neediest is not None:
-            give = min(SHARE_AMT, max(0.0, world.commons))
-            world.commons -= give
+            from world.regions import pool_take
+            give = pool_take(world, a, SHARE_AMT)
             neediest.stores += give
             neediest.memory.write(f"{a.name} saw to it I was provided for", now,
                                   source="ai", speaker_id=a.id, emotion=0.6)
@@ -118,8 +122,8 @@ def apply_action(a, action, world, now) -> None:
                                exclude=(neediest,))
         _wise_seed(a)
     elif action == "hoard":
-        take = min(HOARD_AMT, max(0.0, world.commons))
-        world.commons -= take
+        from world.regions import pool_take
+        take = pool_take(world, a, HOARD_AMT)
         a.stores = min(1.5, a.stores + take)
         _clinging_seed(a, others)
         if take > 0 and any(o.wellbeing < LOW for o in others):
@@ -153,7 +157,8 @@ def hardship(world, victims, now, kind="flood") -> None:
                        lore_id=f"{kind}:{now}")
     # hardship_commons_loss (E2 regime dial, default 0.0 = unchanged): a flood that
     # takes houses can take the granary too -- the safety net itself becomes mortal
-    world.commons = max(0.0, world.commons * (1.0 - getattr(world, "hardship_commons_loss", 0.0)))
+    from world.regions import pool_scale_all
+    pool_scale_all(world, 1.0 - getattr(world, "hardship_commons_loss", 0.0))
     for i, v in enumerate(victims):
         for w in victims[i + 1:]:
             amt = COSUFFER_BOND * 0.5 * (v.compassion + w.compassion)
@@ -185,8 +190,8 @@ def step(world) -> None:
             # world selects for nothing, and a drained granary makes the buffer (and the
             # germ line's appetite) decide who weathers it. Default OFF: every validated
             # Stage-A behavior keeps the old stores-first order.
-            take_commons = min(max(0.0, world.commons), need)
-            world.commons -= take_commons
+            from world.regions import pool_take
+            take_commons = pool_take(world, a, need)   # the pot where you STAND
             short = need - take_commons
             take_self = min(a.stores, short)
             a.stores -= take_self
@@ -194,8 +199,8 @@ def step(world) -> None:
             take_self = min(a.stores, need)
             a.stores -= take_self
             short = need - take_self
-            take_commons = min(max(0.0, world.commons), short)
-            world.commons -= take_commons
+            from world.regions import pool_take
+            take_commons = pool_take(world, a, short)
         met = (take_self + take_commons) / need if need else 1.0
         a._met = met      # ground truth of being FED this tick -- E2's survival reads
                           # THIS, not wellbeing: tend can soothe a feeling, not a stomach

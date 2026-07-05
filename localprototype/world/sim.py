@@ -96,6 +96,14 @@ class World:
         # default -- every recorded verdict predates time. The persistent runner turns it
         # on for her town; the season-turn writes a faint ambient memory into every soul.
         self.clock_enabled = False
+        # THE LAND (world/regions.py): rich valleys, harsh ridges, per-region commons --
+        # the measured requirement (graded, heterogeneous scarcity) made geography.
+        # OFF by default: every world that never asks keeps the single commons float.
+        self.regions_enabled = False
+        self.regions = None
+        # WAR (world/war.py): raids over lean granaries -- gated, ecology worlds only
+        self.war_enabled = False
+        self._war_log: list = []
         self.day_ticks = 100
         self._last_season = None
         self.reborn_prebond = 0.0
@@ -197,6 +205,10 @@ class World:
         self.__dict__.setdefault("clock_enabled", False)
         self.__dict__.setdefault("day_ticks", 100)
         self.__dict__.setdefault("_last_season", None)
+        self.__dict__.setdefault("regions_enabled", False)
+        self.__dict__.setdefault("regions", None)
+        self.__dict__.setdefault("war_enabled", False)
+        self.__dict__.setdefault("_war_log", [])
 
     def _remember_said(self, text: str) -> None:
         self.recent.append(text)
