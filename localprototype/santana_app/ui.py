@@ -34,7 +34,7 @@ from agent.agent import WAR_THRESHOLD as _WAR_AT
 
 PORT = 8765
 
-UI_VERSION = 20   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 21   # bump on any dashboard change: live pages reload themselves to match
                   # (the page's MY_VERSION substitutes from THIS constant at serve time)
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
@@ -102,7 +102,7 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v16</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v__UI_VERSION__</span></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -300,6 +300,7 @@ async function poll(){try{
    note(`${nm}${hearers.length?' → '+hearers.slice(0,3).join(', '):''}: “${e.text}”`,'#9ab0c8');}
   else if(e.kind==='raid'){note(`⚔ ${e.text}`,'#c07a4a');}
   else if(e.kind==='pair'){note(`❀ ${e.text}`,'#c8a8d0');}
+  else if(e.kind==='settle'){note(`✦ ${e.text}`,'#e0c080');}
   else if(e.kind==='death'&&d){fx.push({k:'death',x:d.x,y:d.y,t0:performance.now()});
    note(`† ${nm} has passed`,'#b0a0a8');}
   else if(e.kind==='birth'){if(d)fx.push({k:'birth',id:e.who,t0:performance.now()});
@@ -1154,9 +1155,11 @@ def _wire_events(world, events: list, ev_lock, seq: list) -> None:
             del events[:-80]
 
     def on_settlers(payload):
+        # its own kind: as kind "birth" with no soul id, the JS printed an anonymous
+        # "a soul is born" for the feature's signature moment -- the resettlement
         with ev_lock:
             seq[0] += 1
-            events.append({"id": seq[0], "kind": "birth", "who": "",
+            events.append({"id": seq[0], "kind": "settle", "who": "",
                            "text": f"a new people raise their homes in the ruins "
                                    f"({payload.get('n', '?')} settlers)"})
             del events[:-80]

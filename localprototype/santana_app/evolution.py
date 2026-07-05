@@ -141,6 +141,12 @@ def _gates(w: World, founders: int) -> None:
     """Re-assert every runtime gate after any load (THE RULE)."""
     w.stakes_enabled = True
     w.move_enabled = True
+    # the classic gentle centre-pull is poison on the arena: linear in distance,
+    # an outer settlement (~1700 units out) feels ~7 units of force against a
+    # kin-pull of <=0.9 -- every founded people would herd into one central blob
+    # within a few hundred ticks. The arena needs no anti-wall nudge: settlements
+    # sit at region centres, food is underfoot, and the bounds clamp the walls.
+    w.center_pull = 0.0
     w.regions_enabled = True
     if w.regions is None:
         # THE ARENA: a fresh founding gets the big 6x4 grid; a resumed old save

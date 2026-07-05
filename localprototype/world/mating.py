@@ -54,6 +54,18 @@ def _grown(world, a) -> bool:
             or _clock.stage(a.age, a.lifespan) != "child")
 
 
+def grown_free(world, b) -> bool:
+    """A breeder that can pair: grown, faring well enough, not brooding, not
+    resting after a birth. The somatic floor's spirit runs on THIS side too --
+    a worn or contracted breeder is not courted, and a hungry one is not drained
+    further by births (each birth provisions the child from the breeder's stores,
+    so pairing the starving would feed the starvation hazard)."""
+    return (_grown(world, b) and b.wellbeing >= MATE_WELL
+            and getattr(b, "_contraction", 0.0) <= CONTRACTED
+            and getattr(b, "_gestation", 0) <= 0
+            and getattr(b, "_recover", 0) <= 0)
+
+
 def mating_tick(world) -> None:
     """Called by the wheel every MATE_CHECK ticks when mating_enabled. One pass:
     broods count down (births at term), then the free court and the pairs form."""
@@ -82,9 +94,12 @@ def mating_tick(world) -> None:
                 caste = "breeder" if rng.random() < 0.5 else "warrior"
                 child = world._spawn_child(b, genome=getattr(b, "_brood_genome", None),
                                            caste=caste)
+                if child is None:               # no way to bear (a voiceless world):
+                    b._gestation = MATE_CHECK   # the brood waits; nothing is lost
+                    continue
                 sire = next((w for w in world.agents
                              if w.id == getattr(b, "_sire", "")), None)
-                if child is not None and sire is not None:
+                if sire is not None:
                     # the child knows both its hearth and its sire from the first breath
                     child.bonds.setdefault(sire.id, Bond()).warm(0.6)
                     sire.bonds.setdefault(child.id, Bond()).warm(0.6)
@@ -131,6 +146,9 @@ def mating_tick(world) -> None:
                                      sigma=getattr(world, "heredity_sigma", 0.03))
         near.bonds.setdefault(w.id, Bond()).warm(BOND_WARM)
         w.bonds.setdefault(near.id, Bond()).warm(BOND_WARM)
+        for o in warriors:               # one guard per hearth: an old sire whose
+            if o is not w and getattr(o, "_guard", "") == near.id:
+                o._guard = ""            # hearth re-paired stands down (no pull leak)
         w._guard = near.id               # the warrior guards its hearth (sim.py's pull)
         near.memory.write(f"{w.name} and I have paired; a child is coming to our "
                           f"hearth", tick=world.tick, source="event",
@@ -140,9 +158,3 @@ def mating_tick(world) -> None:
                        emotion=0.5, weight=1.0)
         world.bus.publish("pair", {"tick": world.tick, "w": w.id, "b": near.id,
                                    "wn": w.name, "bn": near.name})
-
-
-def grown_free(world, b) -> bool:
-    """A breeder that can pair: grown, not brooding, not in the rest after a birth."""
-    return (_grown(world, b) and getattr(b, "_gestation", 0) <= 0
-            and getattr(b, "_recover", 0) <= 0)
