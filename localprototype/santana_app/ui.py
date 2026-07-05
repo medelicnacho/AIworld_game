@@ -391,6 +391,20 @@ def _clip(text: str, n: int) -> str:
     return (cut if cut else text[:n]) + "…"
 
 
+def spoken_only(text: str) -> str:
+    """Strip roleplay stage-directions from a reply: *smiles softly*, (you nod, a
+    faint smile touching your lips), leading 'You nod.' narration -- the models drift
+    into novelist mode no matter what the prompt says, and narrating the VISITOR'S
+    own actions back at them is the worst of it. Spoken words only reach the screen."""
+    import re
+    out = re.sub(r"\*[^*\n]{1,160}\*", " ", text or "")        # *gestures warmly*
+    out = re.sub(r"\([^)\n]{1,160}\)", " ", out)               # (a faint smile...)
+    # a sentence that narrates the visitor ("You nod and ...") is not speech either
+    out = re.sub(r"(?:^|(?<=[.!?]\s))You (?:nod|smile|pause|glance|look|lean|sit|laugh)"
+                 r"[^.!?]*[.!?]", " ", out)
+    return " ".join(out.split()).strip() or "..."
+
+
 def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> dict:
     """Everything the dashboard shows, in one read -- world fields under the world lock,
     her fields as plain reads (the mind-lock guards the WRITERS)."""
@@ -573,7 +587,7 @@ class _Handler(BaseHTTPRequestHandler):
                         mind.llm = old_llm
                 else:
                     reply = mind.converse(text)
-            self._send(json.dumps({"reply": reply, "name": "SANTĀNA"}).encode(),
+            self._send(json.dumps({"reply": spoken_only(reply), "name": "SANTĀNA"}).encode(),
                        "application/json")
             return
         # a quiet word aside with ONE soul: your words land in its real memory and
@@ -634,7 +648,9 @@ class _Handler(BaseHTTPRequestHandler):
             system = (f"{persona} You are standing in your small town, in a quiet private "
                       "conversation with a visitor who is HERE, before you. Speak directly "
                       "TO THEM -- second person, plain speech, one to three sentences, in "
-                      "character. Never narrate, never address anyone else.")
+                      "character. ONLY the words you say aloud: no stage directions, no "
+                      "*actions*, no (parentheses), and NEVER describe the visitor's own "
+                      "gestures or feelings. Never narrate, never address anyone else.")
             prompt = (f"You feel {mood}.\n"
                       + (f"{rel}\n" if rel else "")
                       + ("They have said to you before: " + "; ".join(of_you) + "\n"
@@ -652,7 +668,7 @@ class _Handler(BaseHTTPRequestHandler):
                                                              # tokens = faster replies
             except Exception:   # noqa: BLE001 -- a slow voice is a shrug, not a crash
                 pass
-        reply = _clean(raw) or "..."
+        reply = spoken_only(_clean(raw) or "...")
         if reply != "...":
             # the soul REMEMBERS its own side of the talk (source=self, like any spoken
             # line) -- so the inspector shows both halves, and tonight's sleep trains on

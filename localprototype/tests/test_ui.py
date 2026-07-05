@@ -56,3 +56,16 @@ def test_speech_arcs_only_reach_souls_in_earshot():
     assert speaks[0]["to"] == ["s1"]                           # only the near soul heard
     assert [e["id"] for e in events] == sorted({e["id"] for e in events})  # rising ids
     assert events[-1]["kind"] == "death"
+
+
+def test_only_spoken_words_reach_the_screen():
+    """Stage directions -- *smiles*, (you nod, a faint smile touching your lips),
+    'You nod and...' narration of the VISITOR -- are stripped; plain speech survives."""
+    assert ui.spoken_only("Well met. *smiles softly* The well holds.") == \
+        "Well met. The well holds."
+    assert ui.spoken_only("(you nod, a faint smile touching your lips) Stay a while.") == \
+        "Stay a while."
+    assert ui.spoken_only("You nod at the fire. The harvest was thin.") == \
+        "The harvest was thin."
+    assert ui.spoken_only("I said (truly) nothing cruel.") == "I said nothing cruel."
+    assert ui.spoken_only("*bows* *waves*") == "..."     # nothing spoken at all
