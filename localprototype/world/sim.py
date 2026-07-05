@@ -306,6 +306,13 @@ class World:
         self._process_bardo()    # streams ripen out of the bardo into new lives
         if self.breed_enabled and not self.rebirth_enabled:   # living reproduction
             self._breed()
+        # 2.55) WAR (gated, ecology worlds): every RAID_CHECK ticks the land asks
+        # whether anyone is hungry enough to march (world/war.py -- raids over lean
+        # granaries; the muster decides who goes; the dead are mourned and END).
+        if self.war_enabled and self.tick > 0:
+            from world import war as _war
+            if self.tick % _war.RAID_CHECK == 0:
+                _war.war_tick(self)
         # 2.6) bodies move: drift under social forces so factions take territory.
         # At night the town is HOME -- bodies rest where they stand (labour already
         # pauses; wandering does too).
