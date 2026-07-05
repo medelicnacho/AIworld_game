@@ -236,6 +236,25 @@ def test_age_deaths_are_heirless_under_mating():
     assert len(w2.agents) == 1 and w2.agents[0].id.startswith("e1.")
 
 
+def test_mating_gate_decides_on_the_founded_castes():
+    """run.py --civ gates BEFORE it clears the placeholder cast and founds the real
+    settlements -- the gate must be re-assertable on what was actually founded
+    (measured: deciding on the casteless pre-civ cast left mating off and the heir
+    channel erased the breeder caste on the live :8769)."""
+    import random
+    from santana_app.evolution import _found_settlements, _gates, _mating_gate
+    w = _world()
+    _soul(w, "old1", (100.0, 100.0))                # the placeholder cast, casteless
+    del w.agents[0].__dict__["caste"]
+    _gates(w, 24)
+    assert w.mating_enabled is False                 # gated early, on the wrong cast
+    w.agents = []
+    _found_settlements(w, random.Random(11), 24)
+    _mating_gate(w)                                  # re-asserted on the real founding
+    assert w.mating_enabled is True
+    assert any(a.caste == "breeder" for a in w.agents)
+
+
 # --- the land and the camera ------------------------------------------------------------
 
 def test_arena_grid_and_the_classic_land_byte_identical():

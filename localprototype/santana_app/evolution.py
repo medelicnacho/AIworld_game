@@ -170,10 +170,17 @@ def _gates(w: World, founders: int) -> None:
     w.BREED_TICKS = 30         # the fed bear children in half the time
     w.BREED_CEIL = 0.7         # and do not need perfect comfort to do it
     w.social_genes = True      # openness/wrath express on newborns: character EVOLVES
-    # MATING drives births wherever a breeding caste exists (world/mating.py --
-    # welfare invariants first). An all-warrior save founded before the castes
-    # keeps its old surplus-budding channel; a fresh or refounded people (castes
-    # ~50/50) breed by pairing only.
+    _mating_gate(w)
+
+
+def _mating_gate(w: World) -> None:
+    """MATING drives births wherever a breeding caste exists (world/mating.py --
+    welfare invariants first). An all-warrior save founded before the castes keeps
+    its old surplus-budding channel; a fresh or refounded people (castes ~50/50)
+    breed by pairing only. RE-ASSERT THIS AFTER ANY FOUNDING: a world that still
+    carries a placeholder cast at gate time must not decide the gate early --
+    measured on :8769, which gated on run.py's pre-civ cast (casteless), left
+    mating off, and let the heir channel erase the breeder caste entirely."""
     w.mating_enabled = (not w.agents
                         or any(getattr(a, "caste", "warrior") == "breeder"
                                for a in w.agents))

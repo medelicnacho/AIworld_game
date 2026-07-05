@@ -357,12 +357,13 @@ def main() -> None:
         # THE CIVILIZATION WHEEL under her gaze: the exact world evolution.py runs
         # (gates + united founding shared from there -- the one-runner lesson), with
         # Santana's mind loop and cockpit stream back on top, as the ecology had.
-        from santana_app.evolution import _found_settlements, _gates
+        from santana_app.evolution import _found_settlements, _gates, _mating_gate
         _gates(w, args.founders)
         if not resumed_town:
             w.agents = []                                  # the cast steps aside:
             w.regions.pools = [6.0] * len(w.regions.pools)  # peoples, founded anew
             _found_settlements(w, random.Random(11), args.founders)
+            _mating_gate(w)   # decide on the FOUNDED castes, not the cleared cast
         print("  (THE CIVILIZATION WHEEL: scattered peoples -> schism -> war -> "
               "collapse -> resettlement, under her gaze)", flush=True)
     if args.offer:
