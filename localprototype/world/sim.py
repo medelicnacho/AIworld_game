@@ -107,6 +107,10 @@ class World:
         # SKIRMISH (world/skirmish.py): brawls between open enemies -- gated, the
         # civilization game's collapse channel (debate -> enmity -> blows)
         self.skirmish_enabled = False
+        # CONTACT WAR (world/skirmish.contact_grudge): rival-people warriors breed
+        # enmity by PROXIMITY, so two groups that meet on the ground fight over it
+        # (warrior-vs-warrior; breeders never take part). Gated, arena only.
+        self.contact_war = False
         # MATING (world/mating.py): the civ arena's two-caste reproduction --
         # warriors pair with free breeders, broods gestate, ONE child at term.
         # Default off (THE RULE); when on it is the ONLY birth channel
@@ -235,6 +239,7 @@ class World:
         self.__dict__.setdefault("regions", None)
         self.__dict__.setdefault("war_enabled", False)
         self.__dict__.setdefault("skirmish_enabled", False)
+        self.__dict__.setdefault("contact_war", False)
         self.__dict__.setdefault("mating_enabled", False)
         self.__dict__.setdefault("herd_enabled", False)
         self.__dict__.setdefault("herd_drive", 0.55)
@@ -356,6 +361,10 @@ class World:
         if self.skirmish_enabled and self.tick > 0:
             from world import skirmish as _skirmish
             if self.tick % _skirmish.SKIRMISH_CHECK == 0:
+                # contact aggression FIRST, so a fresh on-sight grudge can drive this
+                # same tick's confrontation: two peoples that just met come to blows
+                if getattr(self, "contact_war", False):
+                    _skirmish.contact_grudge(self)
                 _skirmish.skirmish_tick(self)
         # 2.57) MATING (gated, the civ arena): every MATE_CHECK ticks the broods
         # count down (births at term) and fed grown warriors pair with free

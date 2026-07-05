@@ -167,6 +167,9 @@ def _gates(w: World, founders: int) -> None:
     w.herd_align = 0.10     # hold the herd together on a shared heading
     w.war_enabled = True
     w.skirmish_enabled = True
+    w.contact_war = True       # rival-people warriors fight on contact -- two herds
+                               # that meet come to blows over the ground (breeders
+                               # never fight and are never harmed: the caste floor)
     w.heredity_enabled = True
     w.selection_enabled = True
     w.rebirth_enabled = False          # lineages END; the only rebirth is the ruins'

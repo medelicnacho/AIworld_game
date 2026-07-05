@@ -116,6 +116,70 @@ def test_allegiance_refuses_danger_for_the_caste():
     assert allegiance.decide(brd, "lead", danger=0.0)[0] == "join"   # peace is theirs too
 
 
+def test_rival_groups_fight_on_contact_breeders_never_harmed():
+    """Two peoples meeting on the ground come to blows -- their WARRIORS accrete
+    enmity by proximity (contact_war) and clash. The breeding caste takes NO part:
+    a breeder never bristles, is never a target, never loses a breath of wellbeing,
+    and never falls. Males meet males; the breeders are only ever guarded."""
+    from world import skirmish
+    w = _world(seed=5)
+    w.skirmish_enabled = True
+    w.contact_war = True
+    # two peoples, opposed belief vectors, each with warriors AND breeders, standing
+    # close enough to be in contact range
+    east = (1.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    west = (-1.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    group = []
+    for i in range(3):
+        a = _soul(w, f"e{i}", (100.0 + i * 8, 100.0),
+                  caste="breeder" if i == 2 else "warrior")
+        a.belief_vec = east
+        group.append(a)
+    for i in range(3):
+        a = _soul(w, f"w{i}", (140.0 + i * 8, 100.0),
+                  caste="breeder" if i == 2 else "warrior")
+        a.belief_vec = west
+        group.append(a)
+    breeders = [a for a in group if a.caste == "breeder"]
+    well0 = {a.id: a.wellbeing for a in breeders}
+    # run the contact + clash passes a while
+    for _ in range(40):
+        skirmish.contact_grudge(w)
+        skirmish.skirmish_tick(w)
+    # the rival WARRIORS built enmity across the line...
+    ew = next(a for a in group if a.id == "e0")
+    ww = next(a for a in group if a.id == "w0")
+    assert ew.hostility.get(ww.id, 0.0) > 0, "rival warriors bristle on contact"
+    # ...and it crossed into open enmity / a clash happened (grudges hardened past
+    # the on-sight seed by the brawl, or a casualty)
+    assert any(a.hostility.get(o.id, 0.0) >= skirmish.GRUDGE_HARDEN
+               for a in group if a.caste == "warrior"
+               for o in group if o.caste == "warrior" and o is not a)
+    # THE INVARIANT: no breeder was ever touched
+    for b in breeders:
+        assert b in w.agents, "a breeder must never fall in a fight"
+        assert b.wellbeing == well0[b.id], "a breeder never loses wellbeing to war"
+        assert not b.hostility, "a breeder never bristles at anyone"
+        assert all(o.hostility.get(b.id, 0.0) == 0.0 for o in group if o is not b), \
+            "no warrior ever bristles at a breeder"
+
+
+def test_same_people_do_not_fight_on_contact():
+    """Contact aggression is belief-keyed: kin standing shoulder to shoulder (one
+    people, one view) never bristle -- only a DIFFERENT people does."""
+    from world import skirmish
+    w = _world()
+    w.contact_war = True
+    kin = []
+    for i in range(4):
+        a = _soul(w, f"k{i}", (100.0 + i * 10, 100.0))
+        a.belief_vec = (1.0, 0.0, 0.0, 0.0, 0.0, 0.0)   # one view
+        kin.append(a)
+    for _ in range(20):
+        skirmish.contact_grudge(w)
+    assert all(not a.hostility for a in kin), "one people does not fight itself on sight"
+
+
 # --- the engine: pairing, brooding, birth ----------------------------------------------
 
 def _mating_world(seed=11):

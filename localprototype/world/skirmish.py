@@ -42,6 +42,20 @@ KNOCKBACK = 18.0         # the brawlers are thrown apart (visible on the map)
 COLLAPSED_WELL = 0.25    # the somatic floor's thresholds, shared with the muster
 CONTRACTED = 0.5         # (agent/allegiance.py) -- one floor, every mechanic
 
+# CONTACT AGGRESSION (world.contact_war, off by default; the civ arena turns it on).
+# The rift makes enemies by ARGUMENT (you must hear an opposed voice); this makes them
+# by CONTACT: when the WARRIORS of two different peoples come near each other, enmity
+# accretes on sight -- so two groups that wander into one another come to blows over the
+# ground, with no debate needed. Belief-keyed: only warriors whose views are far apart
+# (a different people) bristle; kin who stand close feel nothing. Breeders take NO part
+# on EITHER side -- they never bristle and are never bristled at (the caste floor holds:
+# males meet males, the breeding caste is only ever guarded).
+CONTACT_RANGE = 95.0     # how near two rival warriors must come to bristle
+CONTACT_AT = 0.5         # belief cosine below this = a different people (a founded
+                         # settlement's own view sits ~0.85+; another people's ~0.0)
+CONTACT_RATE = 0.9       # grudge per check at point-blank; a few checks of contact
+                         # crosses WAR_THRESHOLD (3.0) and the clash below fires
+
 
 def _worn(a) -> bool:
     """Too worn to stand in a quarrel -- the somatic floor, the muster's numbers."""
@@ -61,6 +75,33 @@ def _grown(world, a) -> bool:
     from world import clock as _clock
     return (not getattr(world, "clock_enabled", False)
             or _clock.stage(a.age, a.lifespan) != "child")
+
+
+def contact_grudge(world) -> None:
+    """Called by the wheel every SKIRMISH_CHECK ticks when contact_war. Two peoples
+    meeting on the ground breed enmity by CONTACT: every pair of grown WARRIORS within
+    CONTACT_RANGE whose beliefs are far apart (a different people) accretes mutual
+    hostility, scaled by how close they stand and by each one's wrath (the heritable
+    dial). This feeds the clash below and the war muster -- so groups that wander into
+    each other fight over the ground. Breeders are excluded on BOTH sides: they never
+    bristle and are never a target, the caste floor unbroken (males meet males)."""
+    from agent.agent import _cosine
+    fighters = [a for a in world.agents
+                if _fights(world, a) and _grown(world, a)
+                and getattr(a, "belief_vec", None) is not None]
+    for i, a in enumerate(fighters):
+        ax, ay = a.position
+        for b in fighters[i + 1:]:
+            bx, by = b.position
+            d = ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
+            if d > CONTACT_RANGE:
+                continue
+            sim = _cosine(a.belief_vec, b.belief_vec)
+            if sim >= CONTACT_AT:
+                continue                       # kin / one people: no quarrel on sight
+            base = CONTACT_RATE * (1.0 - d / CONTACT_RANGE) * (CONTACT_AT - sim)
+            a.hostility[b.id] = a.hostility.get(b.id, 0.0) + base * getattr(a, "rift_scale", 1.0)
+            b.hostility[a.id] = b.hostility.get(a.id, 0.0) + base * getattr(b, "rift_scale", 1.0)
 
 
 def _step_toward(world, a, target, dist: float, step: float) -> None:
