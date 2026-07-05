@@ -961,7 +961,10 @@ class World:
             if herd:
                 # the amble: keep a heading, turn it slowly toward the kin average
                 # (alignment) with a little wander, and drift forward along it -- a
-                # herd roaming the land together instead of jittering in place
+                # herd roaming the land together instead of jittering in place. The
+                # turn is SMALL, so a herd commits to a long straight crossing of the
+                # map rather than meandering in one place; it bounces off the walls
+                # (below), so the whole map gets travelled corner to corner.
                 h = getattr(a, "_heading", None)
                 if h is None:
                     h = self._rng.uniform(0.0, 2.0 * math.pi)
@@ -970,15 +973,6 @@ class World:
                     diff = (target - h + math.pi) % (2.0 * math.pi) - math.pi
                     h += diff * self.herd_align
                 h += self._rng.uniform(-1.0, 1.0) * self.herd_turn
-                if self.bounds is not None:
-                    # turn away from a wall the amble is about to walk into, so a herd
-                    # skirts the edge rather than piling against it
-                    w, hh = self.bounds
-                    margin = 200.0
-                    if ax < margin or ax > w - margin or ay < margin or ay > hh - margin:
-                        inward = math.atan2(hh / 2 - ay, w / 2 - ax)
-                        diff = (inward - h + math.pi) % (2.0 * math.pi) - math.pi
-                        h += diff * 0.15
                 a._heading = h
                 fx += math.cos(h) * self.herd_drive
                 fy += math.sin(h) * self.herd_drive
@@ -998,9 +992,18 @@ class World:
                 spd *= 1.25 if st == "child" else (0.55 if st == "elder" else 1.0)
             nx, ny = ax + fx * self.move_step * spd, ay + fy * self.move_step * spd
             if self.bounds is not None:
-                w, h = self.bounds
-                nx = min(max(nx, 0.0), w)
-                ny = min(max(ny, 0.0), h)
+                bw, bh = self.bounds
+                if herd:
+                    # bounce the heading off a wall it just reached, so the herd turns
+                    # back across the map (full-map roaming) instead of sticking to it
+                    hd = a._heading
+                    if nx < 0.0 or nx > bw:
+                        hd = math.pi - hd
+                    if ny < 0.0 or ny > bh:
+                        hd = -hd
+                    a._heading = hd
+                nx = min(max(nx, 0.0), bw)
+                ny = min(max(ny, 0.0), bh)
             a.position = (nx, ny)
 
     # --- decoupled clocks for a live viewer --------------------------------

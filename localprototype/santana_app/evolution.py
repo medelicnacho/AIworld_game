@@ -155,10 +155,16 @@ def _gates(w: World, founders: int) -> None:
                             cols=ARENA_COLS, rows=ARENA_ROWS)
     w.bounds = w.regions.bounds        # the world walks the land it farms
     # HERD ROAMING: the peoples amble across the land in herds (a shared, slowly
-    # turning heading + kin alignment) rather than jittering in place. Slow: the
-    # move step is gentled so a herd drifts, it does not scurry.
+    # turning heading + kin alignment) rather than jittering in place. Slow but
+    # FAR-RANGING: a small turn keeps a herd on a long straight course, and it
+    # bounces off the walls, so a herd crosses the whole map corner to corner
+    # instead of milling near where it spawned.
     w.herd_enabled = True
     w.move_step = 0.85
+    w.herd_drive = 5.0      # a real forward march: at ~1.6 units/tick a herd crosses
+                            # the map in a couple of watchable minutes (calm, not fast)
+    w.herd_turn = 0.055     # a small wander -> long, committed crossings, not milling
+    w.herd_align = 0.10     # hold the herd together on a shared heading
     w.war_enabled = True
     w.skirmish_enabled = True
     w.heredity_enabled = True
