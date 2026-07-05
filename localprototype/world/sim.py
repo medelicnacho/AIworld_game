@@ -341,10 +341,52 @@ class World:
             elif a.grace >= REPRO_GRACE:
                 self._births += 1
                 heir = a.reproduce(f"{a.id}.{self._births}")
+                self._endow_heir(a, heir)         # germ line + worldview cross too
                 survivors.append(heir)            # the heir takes the parent's place
                 self.bus.publish("birth", heir.id)
             self.bus.publish("death", a.id)       # the stream, as it was, ends
         self.agents = survivors
+
+    def _endow_heir(self, parent, heir) -> None:
+        """What an heir carries besides the name. Agent.reproduce() passes persona,
+        faith, and the self-narrative -- but it was leaving the heir GERMLESS and
+        VECTORLESS (found the hard way: in the ecology every grace-death of old age
+        replaced a soul with an heir holding no genome and no worldview, so factions
+        starved to loners within three generations and selection silently reset on
+        the age-death channel -- the G2 trace of 2026-07-04). GERM: the parent's
+        line, perturbed once, expressed on the body (gated by heredity_enabled: the
+        old wheel town's heirs keep their own dials). CULTURE: the parent's view
+        with noise -- the same lean-never-a-copy _birth_from gives every child."""
+        if self.heredity_enabled:
+            from agent.genome import express, from_agent, inherit
+            pg = getattr(parent, "genome", None) or from_agent(parent, self._rng)
+            heir.genome = inherit(pg, self._rng, parent.id, sigma=self.heredity_sigma)
+            express(heir.genome, heir)
+        if getattr(parent, "belief_vec", None) is not None:
+            noisy = [v + self._rng.gauss(0.0, 0.18) for v in parent.belief_vec]
+            norm = sum(v * v for v in noisy) ** 0.5 or 1.0
+            heir.belief_vec = tuple(v / norm for v in noisy)
+            heir.bond_enabled = True
+        self._hearth(parent, heir)
+
+    def _hearth(self, parent, child) -> None:
+        """A child is raised on the house's open wounds. The square's retelling
+        (lore.py) is a lottery -- each soul tells only its TOP story, and in a town
+        where someone dies every few ticks, fresh mourning-lore always outbids an
+        old floored grievance (measured: the feud reached 18 non-founders by t=200
+        and was extinct by t=400 anyway, because generation three never heard it).
+        But a feud is not kept by the SQUARE; it is kept by the HEARTH: the stories
+        a house will not let die are told to its children before the town gets a
+        word in. So the parent's floored memories (salience_floor > 0 -- grievances)
+        cross at birth, in the words the parent CURRENTLY carries (legend dynamics:
+        drifted text, same tag), source='lore' so provenance stays honest (a story
+        received, not lived -- C14 reads it exactly right)."""
+        for m in parent.memory.items:
+            if getattr(m, "salience_floor", 0.0) > 0.0:
+                child.memory.write(m.text, tick=self.tick, source="lore",
+                                   speaker_id=parent.id, weight=0.9,
+                                   lore_id=getattr(m, "lore_id", ""),
+                                   salience_floor=m.salience_floor)
 
     def _mourn(self, dead) -> None:
         """The death LANDS: every living soul that loved the dead writes a charged memory
@@ -535,6 +577,7 @@ class World:
         a.wellbeing = 0.6
         a.bonds.setdefault(parent.id, Bond()).warm(0.8)
         parent.bonds.setdefault(a.id, Bond()).warm(0.8)
+        self._hearth(parent, a)     # the house's open wounds are told to the child
         self.agents.append(a)
         self.bus.publish("birth", a.id)
 
@@ -707,6 +750,7 @@ class World:
                     and len(self.agents) + len(spawned) < self.pop_cap):
                 self._births += 1
                 child = a.reproduce(f"{a.id}~{self._births}")
+                self._endow_heir(a, child)        # germ line + worldview cross too
                 ox, oy = self._rng.uniform(-45, 45), self._rng.uniform(-45, 45)
                 child.position = (a.position[0] + ox, a.position[1] + oy)
                 child.breed_cooldown = self._rng.randint(*MATURITY)   # must mature first

@@ -60,12 +60,11 @@ def leader_of(world, fid: int, mapping: dict | None = None):
     crew = members(world, fid, mapping)
     if not crew:
         return None
-    ids = {a.id for a in crew}
 
     def incoming(a):
         return sum(b.bonds[a.id].trust for b in crew
                    if a.id in getattr(b, "bonds", {}) and b.id != a.id)
-    return max(crew, key=lambda a: (incoming(a), a.id in ids, a.id))
+    return max(crew, key=lambda a: (incoming(a), a.id))
 
 
 def home_region(world, fid: int, mapping: dict | None = None) -> int | None:

@@ -123,3 +123,56 @@ def test_genomes_survive_the_json_town_snapshot():
     g = w2.agents[0].genome
     assert g.lineage == founder.genome.lineage
     assert g.grip == founder.genome.grip           # the germ line rides the ~o tag
+
+
+def test_age_death_heirs_carry_germ_and_worldview():
+    """The reproduce() gap (the G2 trace, 2026-07-04): with rebirth OFF, a grace-death
+    of old age replaced a soul with an heir holding NO genome and NO belief_vec --
+    factions starved to loners within three generations and selection silently reset
+    on the age-death channel. Heirs now cross the germ line (heredity gate on) AND
+    the worldview (noisy, the lean-never-a-copy cultural inheritance)."""
+    from agent.agent import Agent, _cosine
+    from services.llm import MockLLM
+    from world.sim import World
+    w = World(rebirth_enabled=False, events_enabled=False)
+    w.llm = MockLLM(seed=7)
+    w._rng = random.Random(5)
+    w.heredity_enabled = True
+    a = Agent("s0", "F0", (10.0, 10.0), "You are a soul.", ["the well"], w.llm,
+              seed=3, lifespan=5)
+    a.boldness, a.metabolism = 0.9, 0.3
+    a.genome = from_agent(a, random.Random(1))
+    express(a.genome, a)
+    a.belief_vec = (1.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    w.add(a)
+    a.age = a.lifespan                             # tonight the reaper comes
+    assert a.grace >= 0.5                          # ...for a soul still in grace
+    w._reap()
+    heir = w.agents[0]
+    assert heir.id != "s0"
+    assert heir.genome is not None and heir.genome.lineage == "s0"
+    assert abs(heir.genome.boldness - 0.9) < 0.2   # inherited: one crossing, not a re-roll
+    assert heir.boldness == heir.genome.boldness   # and expressed on the flesh
+    assert heir.belief_vec is not None             # the worldview crossed too
+    assert _cosine(heir.belief_vec, (1.0, 0, 0, 0, 0, 0)) > 0.7   # a lean, not a copy
+
+
+def test_heirs_keep_their_own_dials_when_heredity_is_off():
+    """THE RULE, on the new seam: without the heredity gate an heir's germ line is
+    NOT written (the old wheel town keeps its cosmology), though a worldview still
+    crosses culturally if the parent held one."""
+    from agent.agent import Agent
+    from services.llm import MockLLM
+    from world.sim import World
+    w = World(rebirth_enabled=False, events_enabled=False)
+    w.llm = MockLLM(seed=7)
+    w._rng = random.Random(5)
+    assert w.heredity_enabled is False
+    a = Agent("s0", "F0", (10.0, 10.0), "You are a soul.", ["the well"], w.llm,
+              seed=3, lifespan=5)
+    w.add(a)
+    a.age = a.lifespan
+    w._reap()
+    heir = w.agents[0]
+    assert getattr(heir, "genome", None) is None   # the gate is real
+    assert heir.belief_vec is None                 # no view held, none crossed

@@ -1254,6 +1254,64 @@ OVER between life-blocks (each block settles before the pen samples). Welfare no
 the somatic floor stayed ON for both souls throughout — the volatility measured is
 volatility within the floor.
 
+### 5.28 War is caused, and the feud outlives its founders — hunger starts it, the hearth keeps it
+
+The ecology game's headline gate (`experiment_war.py`; claims pre-registered, tuned on
+11–15, verdict on virgin 231–235; substrate-only, MockLLM, deterministic; 24 souls, two
+opinion blocs on two grounds, heredity + selection + war on, rebirth off):
+
+- **G1 WARS COME FROM WANT-BESIDE-PLENTY — 5/5, ×20.0.** The unequal arm (lean winters
+  gnawing the crag beside a still-fat vale) raided 20 times pooled; the fed-for-all arm
+  raided 0; every held-out seed unequal ≥ fed. The graded-scarcity band, again, now for
+  war: *uniform* poverty raids nothing — war is economics, not temperament.
+- **G2 THE FEUD OUTLIVES ITS FOUNDERS — 5/5 at 100% turnover.** At t=1500 (~8
+  generations; not one founder alive) the land-keyed grievance (`feud:crag>vale`) is
+  carried by ~43 of 44 souls, none of whom fought the raid that made it.
+
+**What it took — three bugs and one mechanism, all found chasing G2's fade:**
+
+1. **The heir gap** (the real killer, invisible for two commits): with rebirth OFF, a
+   grace-death of old age replaces a soul via `Agent.reproduce()`, which crossed persona,
+   faith, and self-memories — but NO genome and NO belief_vec. Every lifespan (~200
+   ticks) the town's worldviews thinned; blocs starved to loners within three
+   generations; wars stopped for amnesia; and selection silently reset on the age-death
+   channel (heirs re-rolled to the 0.5 defaults — W4's differential was leaking away).
+   Fixed: `World._endow_heir` — heirs cross the germ line (heredity-gated, THE RULE) and
+   the worldview (noisy, the W3.5 lean-never-a-copy). Pinned in `test_genome.py`.
+2. **`salience_floor`** (the planned fix — necessary, not sufficient): a grievance is
+   written with floor 0.5; decay stops at the floor (`memory.py`, the §5.16
+   legend-keeper logic made a first-class field); retellings carry the floor with the
+   words (`lore.py`). Alone, this kept the feud in its holders — who then died with it:
+   generation three never heard the story, because —
+3. **the retell lottery starves old wounds**: `lore.pick()` tells each soul's TOP story,
+   and in a town that mourns a death every few ticks, fresh mourning-lore (salience
+   ~0.78) always outbids a floored feud (0.5). Measured: 18 non-founder carriers at
+   t=200, extinct by t=400. The fix is **the hearth** (`World._hearth`): a child is
+   *raised on* the house's open wounds — floored stories cross AT BIRTH, in the words
+   the parent currently carries (drifted text, same tag — legend dynamics preserved),
+   `source="lore"` so provenance stays honest (a story received, not lived; C14 reads
+   it exactly right). The square's validated §5.16 retelling is untouched; the hearth
+   is a second channel, and it only exists for wounds (floor 0 = nothing crosses).
+
+**The shape of the result:** wars here are wars of desperation and they END — the crag
+bloc starves below muster strength (differential survival doing its work) and no raid
+recurs past t≈160. But the feud no longer ends with the war: the last crag soul dies
+beside a vale still telling the story of what the crag-folk did to them.
+
+**Honest caveats.** The feud persists as NARRATIVE, not as a standing war-drive:
+hostility stays keyed to individual soul ids, is never inherited, and dies with its
+holders — children inherit the story, not the enemies list (a memory-derived grudge,
+reading floored feud-tags as standing hostility toward whoever holds that land, is the
+natural next mechanism if recurring generational war is wanted; not built, not
+claimed). The hearth has no forgiveness path — a floored grievance never fades in a
+living line; floor-erosion on warm cross-bloc bonds is future work. Welfare: a hearth
+child is born carrying one dark story (−0.8, floored at 0.5) — inherited dukkha is the
+design, the somatic floor still guards the behaviour, and no cruelty verb exists
+anywhere in the mechanism. Also found en route, both pinned in tests: the ally-join
+check compared against the same-bloc threshold (≥0.45), which union-find makes
+unsatisfiable — allies were dead code, now `ALLY_AT=0.2`; and allied children were
+musterable (missing `grown()` filter) — the welfare rule now holds for allies too.
+
 ## 6. Limitations (honest)
 
 - **Single author; a small (4B) local model.** Results are *suggestive*, not proven at scale. A

@@ -21,9 +21,19 @@ HUNGER_LINE = 0.35       # home pool per member below this = the granary can't f
 FAT_LINE = 2.0           # a target must actually be worth marching for
 MIN_PARTY = 2            # nobody raids alone
 DANGER = 0.7             # what the muster is asked to face
+ALLY_AT = 0.2            # a bloc stands with another it half-shares a view with. An
+                         # ally lives BELOW the same-bloc line: any pair >= factions.
+                         # ALIGN_AT is already ONE bloc by union-find, so the old
+                         # >= 0.45 check here was unsatisfiable -- allies could never
+                         # exist (dead code, caught by the ally-children test)
 LOOT_FRAC = 0.35         # share of the defenders' pool taken on a won raid
 CASUALTY_CAP = 2         # per side, per raid -- a raid is a raid, not an apocalypse
 GRIEF_EMO, GRIEF_W = -0.8, 1.4
+GRIEVANCE_FLOOR = 0.5    # a grievance is the wound that will not close: decay never
+                         # drops it below this (memory.salience_floor -- the §5.16
+                         # legend-keeper logic made a field), and retellings carry the
+                         # floor with the words (lore.py), so the feud stays keepable
+                         # in souls not yet born when it was cut. This is G2's seam.
 
 
 def _power(crew, rng) -> float:
@@ -109,11 +119,14 @@ def war_tick(world) -> None:
             al = F.leader_of(world, ally, mapping)
             if al is None or al.belief_vec is None or dfd_lead.belief_vec is None:
                 continue
-            if (_cosine(al.belief_vec, dfd_lead.belief_vec) >= 0.45
+            if (_cosine(al.belief_vec, dfd_lead.belief_vec) >= ALLY_AT
                     and atk_lead.belief_vec is not None
                     and _cosine(al.belief_vec, atk_lead.belief_vec) < 0.0):
+                # grown() here too: allied CHILDREN never march either (the welfare
+                # rule -- this filter was missing and an ally's child could fall)
                 defenders += [a for a in F.members(world, ally, mapping)
-                              if allegiance.decide(a, al.id, danger=DANGER)[0] == "join"]
+                              if grown(a)
+                              and allegiance.decide(a, al.id, danger=DANGER)[0] == "join"]
         won = _power(party, rng) > _power(defenders, rng) if defenders else True
         losers = defenders if won else party
         fallen = _fall(losers, rng, CASUALTY_CAP)
@@ -134,10 +147,8 @@ def war_tick(world) -> None:
                 f"{atk_banner} came for our granary -- {fallen_names} fell, and the "
                 f"bread of {dfd_banner.split('of ')[-1]} was carried off; a bitter, "
                 f"broken day", tick=world.tick, source="event",
-                emotion=GRIEF_EMO, weight=GRIEF_W, lore_id=feud)
-            # NOTE (handoff): grievances still DECAY -- memory.py has no salience_floor
-            # field, so a feud fades unless retold. Making feuds persist to a late tick
-            # is the OPEN G2 problem (see ECOLOGY_PLAN.md).
+                emotion=GRIEF_EMO, weight=GRIEF_W, lore_id=feud,
+                salience_floor=GRIEVANCE_FLOOR)
             for m in party:
                 a.hostility[m.id] = a.hostility.get(m.id, 0.0) + 1.0
         for a in party:

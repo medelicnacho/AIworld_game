@@ -71,9 +71,14 @@ def retell(world) -> None:
         near = [b for b in world.agents
                 if b is not a and world._distance(a, b) <= RETELL_RANGE]
         for b in world._rng.sample(near, min(RETELL_FANOUT, len(near))):
+            # the salience floor travels WITH the telling (like lore_id): a grievance
+            # retold is a grievance kept -- this is how a feud reaches souls not yet
+            # born when it was cut and does not fade in them (G2). Ordinary stories
+            # carry floor 0 and forget as they always did.
             b.memory.write(story.text, tick=world.tick, source="lore",
                            speaker_id=a.id, weight=RETELL_WEIGHT,
-                           lore_id=story.lore_id)
+                           lore_id=story.lore_id,
+                           salience_floor=getattr(story, "salience_floor", 0.0))
             # REPUTATION (C3): a conduct story moves the hearer's expectation of its SUBJECT --
             # reputation as transmitted expectation, riding the same mutating channel as any
             # legend (so reputations travel, distort, and can be unfair). Third parties only:

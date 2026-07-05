@@ -39,7 +39,7 @@ that already exist (deeds witnessed, pledges, the muster).
 | **W1 LAND** | `world/regions.py` — COLS×ROWS grid, seed-shuffled soils (1.3 vale … 0.5 crag), per-region commons pools; stakes economy routed through the ground underfoot | ✅ committed `d35912c`, 4 tests |
 | **W2 FACTIONS** | `world/factions.py` — pure reads over the opinion dynamics: `factions_of` (union-find on cosine≥0.45), `leader_of` (most trusted by its own), `home_region`, `banner_of` ("the folk of the vale") | ✅ committed `bbe8d09`, 3 tests (`test_faction_groups.py`) |
 | **W3 WAR (mechanic)** | `world/war.py` — raids over lean granaries; the muster decides who marches; allies join; bodies fight; dead mourned + lineages end; land-keyed grievances gossip | ✅ mechanic committed `d8379ca`, 4 tests |
-| **W3.5 checkpoint** | cultural inheritance (children inherit worldview+noise — fixes blocs dissolving in 1 gen); children never march; **hostility-driven raids** (hatred feeds the next war) | ✅ committed `f975802` (substrate); **gate NOT passed** — see OPEN |
+| **W3.5 checkpoint** | cultural inheritance (children inherit worldview+noise — fixes blocs dissolving in 1 gen); children never march; **hostility-driven raids** (hatred feeds the next war) | ✅ committed `f975802`; **GATE PASSED 2026-07-05** — G1 5/5 ×20, G2 5/5 (FINDINGS §5.28); took the heir fix + salience_floor + the hearth (see RESOLVED below) |
 | **W4 EVOLUTION** | heredity + selection on in `--ecology` (rebirth off, lineages end, births carry genomes) | ✅ wired in `--ecology`; **no divergence gate written yet** |
 | **W5 VISIBLE BODY** | cockpit v16 — metabolism=SIZE, boldness>0.55=SPIKES, bloc=tinted ring, the LAND rendered (soil tint + pool brightness + name/stores), raids in the chronicle | ✅ committed `db35452`; **no classifier gate yet** |
 | **W6 PLAYER** | player acts through the bridge (deeds/pledges/muster already exist) | ⬜ not started |
@@ -50,33 +50,32 @@ Run it: `python3 -m santana_app.run --ecology --fresh --llm markov` → cockpit 
 
 ---
 
-## THE OPEN PROBLEM — W3's gate (do this first)
+## RESOLVED — W3's gate (2026-07-05, FINDINGS §5.28)
 
-`experiment_war.py` (tuning only so far; **no virgin seed consumed** — 231–235 untouched):
+**Verdict on virgin 231–235: G1 PASS (20 scarce raids vs 0 abundant pooled, ×20, every
+seed) and G2 PASS 5/5 at 100% turnover** — at t=1500 (~8 generations) ~43/44 souls
+carry the feud, none of whom fought it. What the plan's step-1 trace actually found:
 
-- **G1 WARS COME FROM WANT-BESIDE-PLENTY — passes clean in tuning.** Unequal arm
-  (lean winters gnaw the crag beside a still-fat vale) raids ~3–4×; fed-for-all arm
-  raids 0. The graded-scarcity band, now for war: *uniform* poverty raids nothing (no
-  target worth marching for) — the arms are UNEQUAL vs FED, not scarce vs abundant.
-- **G2 THE FEUD OUTLIVES ITS FOUNDERS — does NOT hold at a late tick.** Diagnosis is
-  clean: the feud **does** cross the generational handoff (traced: t=400, 14 newborns
-  carry it, 0 founders alive) but then **fades**, because (a) wars stop once population
-  recovers to self-sufficiency, so no fresh grievances, and (b) `memory.py` has **no
-  `salience_floor`** field, so a grievance decays unless retold. The W3.5 hostility-
-  feedback (grudge lowers the hunger threshold; targets chosen by grudge×3+fatness) is
-  the attempt to make feuds self-sustaining — **not yet verified in tuning.**
+- **War does NOT recur** — the hostility-feedback cannot outlive the founders because
+  hostility is keyed to soul ids, never decays, and is never inherited: after full
+  turnover the grudge points at the dead. Wars of desperation END here (the crag bloc
+  starves below muster strength — differential survival working). The feud persists
+  anyway; the two claims decoupled cleanly.
+- **The real G2 killer was the heir gap**: with rebirth OFF, `Agent.reproduce()` heirs
+  carried NO genome and NO belief_vec — blocs starved to loners in 3 generations and
+  selection silently reset on the age-death channel (a W4 bug too). Fixed:
+  `World._endow_heir` (germ line heredity-gated + noisy worldview), pinned in tests.
+- **`salience_floor` was necessary but not sufficient**: the floored feud survived in
+  its holders, who died with it — `lore.pick()` tells only each soul's TOP story, and
+  fresh mourning-lore (~0.78) always outbids a floored grievance (0.5), so generation
+  three never heard it. The missing channel is **the hearth** (`World._hearth`): floored
+  stories cross AT BIRTH in the parent's current words (source="lore", provenance
+  honest). The validated §5.16 square-retelling is untouched.
 
-**Next actions on G2, in order:**
-1. Re-run the tuning trace with the hostility-feedback: does war now RECUR (raids keep
-   climbing past t=400 as grudges compound), keeping the feud fresh?
-2. If war recurs but the feud still decays between raids, add a real **`salience_floor`**
-   to `agent/memory.py` (decay never drops a memory below its floor) and give grievances
-   ~0.5 — the §5.16 legend-keeper logic, made a first-class field. Small, principled.
-3. Only when **G2 holds in tuning** (feud carried by non-founders at the FINAL tick,
-   ≥4/5) run the held-out verdict on virgin **231–235** and record in FINDINGS as §5.28.
-   If G2 can't be made to hold, record the honest finding instead: *"wars here are wars
-   of desperation that end when desperation ends; a single raid's grievance crosses one
-   generation but fades with the peace — perpetual feuds need continuous conflict."*
+Left deliberately unbuilt (recorded as caveats in §5.28): a memory-derived grudge
+(floored feud-tags read as standing hostility toward whoever holds that land) if
+recurring generational war is ever wanted; a forgiveness path (floor-erosion on warm
+cross-bloc bonds) — today a grievance never fades in a living line.
 
 ---
 
@@ -114,8 +113,19 @@ Run it: `python3 -m santana_app.run --ecology --fresh --llm markov` → cockpit 
 ## GOTCHAS PAID FOR (don't re-learn)
 
 - Blocs dissolve in one generation without cultural inheritance (fixed in `_birth_from`).
+- **Age-death heirs (`Agent.reproduce`) crossed NO genome and NO worldview** — the
+  invisible channel that undid both W3 and W4 for two commits; `_endow_heir` now closes
+  it (heredity-gated germ line, THE RULE). If a lineage looks "reset", check the heirs.
 - A cooperative town is ONE blob (all-warm, zero enmity) — territory/war need the opinion
   dynamics' out-groups (§5.26). `--ecology` seeds opinions on every founder.
 - War needs INEQUALITY (want beside plenty), not uniform scarcity — the graded-band lesson.
-- `memory.py` has no `salience_floor` yet — grievances decay (the G2 blocker).
+- `salience_floor` keeps a wound in its holder but NOT in the town: the retell lottery
+  (top-1 story) starves old wounds under a steady drumbeat of fresh mourning-lore. Feuds
+  cross generations at the HEARTH (`_hearth`, at birth), not in the square.
+- An "ally" threshold ≥ `factions.ALIGN_AT` is unsatisfiable (union-find has already
+  merged such blocs) — allies live BELOW the same-bloc line (`war.ALLY_AT=0.2`).
+- `run.py --ecology` used to refill all granaries on EVERY restart (now only `--fresh`
+  or tick 0) and never enabled `lore_enabled` (now it does — feuds need the channel).
+- Hostility is id-keyed, never decays, never inherited — it cannot carry a feud across
+  turnover; the feud's carrier is the floored memory, not the hostility dict.
 - `ls tests/` before creating a test file; check the **collected** count, not the pass line.

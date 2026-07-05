@@ -22,7 +22,9 @@ over the tuning/verdict seeds; G2 per seed.
 PRE-REGISTERED (tuning 11-15; VERDICT from virgin seeds 231-235; G1 pooled ratio >= 2x
 and every held-out seed scarce>=abundant; G2 >= 4/5).
 
-  python experiment_war.py
+  python experiment_war.py             # TUNING ONLY -- virgin seeds stay virgin
+  python experiment_war.py --verdict   # tuning + the held-out verdict (burns 231-235;
+                                       # run ONCE, only after G2 holds in tuning)
 """
 from __future__ import annotations
 
@@ -91,8 +93,6 @@ def build(seed: int, scarce: bool) -> World:
 
 def run(seed: int, scarce: bool, ticks: int = 1500) -> dict:
     w = build(seed, scarce)
-    raids = 0
-    w.bus.subscribe("raid", lambda p: None)
     founders = {a.id for a in w.agents}
     for _ in range(ticks):
         with w.lock:
@@ -130,6 +130,13 @@ def report(seeds, label: str):
 def main() -> None:
     print(__doc__)
     report(TUNING_SEEDS, "TUNING seeds 11-15 (knobs may move here; never a verdict)")
+    if "--verdict" not in sys.argv:
+        # the house discipline, enforced where the finger slips: a bare run must
+        # NEVER consume the virgin verdict seeds. Pass --verdict exactly once,
+        # after G2 holds in tuning.
+        print("\n(tuning only -- virgin seeds 231-235 untouched; "
+              "pass --verdict to run the held-out verdict ONCE)")
+        sys.exit(0)
     held = report(HELDOUT_SEEDS, "HELD-OUT virgin seeds 231-235 (the verdict)")
     tot_sc = sum(r["scarce_raids"] for r in held)
     tot_ab = sum(r["abundant_raids"] for r in held)

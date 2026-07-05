@@ -304,12 +304,24 @@ def main() -> None:
         w.rebirth_enabled = False       # an ecology's lineages END; no bardo
         w.max_souls = (args.founders or 36) + 24
         w.commons_first = True          # granary cosmology: the pot where you stand
-        w.regions.pools = [6.0] * len(w.regions.pools)   # a gentle dawn: full granaries
+        w.stakes_enabled = True         # selection reads the stakes' met -- re-asserted
+                                        # like every runtime gate (THE RULE), so a
+                                        # resumed world can never run selection on air
+        if args.fresh or w.tick == 0:
+            # a gentle dawn: full granaries -- but ONLY at a true dawn. A resumed
+            # world keeps the pools the seasons and the raids actually left it
+            # (this line used to run unconditionally and every restart quietly
+            # refilled the land, erasing the inequality that is the casus belli).
+            w.regions.pools = [6.0] * len(w.regions.pools)
         w.clock_enabled = True      # seasons: harvest fattens the vale, winter starves
                                     # the crag -- INEQUALITY is what makes wars possible
                                     # (uniform poverty raids nothing; the granary gap
                                     # is the whole casus belli)
         w.mourning_enabled = True   # war dead land on the bonded, as all dead do
+        w.lore_enabled = True       # feuds are CARRIED as stories (grievances are
+                                    # lore-tagged and floored): without the retelling
+                                    # channel a grievance can never reach the unborn,
+                                    # and G2's whole mechanism is mute in the live game
         from agent.genome import express, from_agent
         for _a in w.agents:
             if getattr(_a, "belief_vec", None) is None:

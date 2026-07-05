@@ -166,6 +166,13 @@ class Memory:
                                  # < 0.5 = known-but-unowned ("this happened -- but not,
                                  # I think, to me"). The wheel's carried residue is exactly
                                  # unowned experience.
+    salience_floor: float = 0.0  # the wound that will not close (G2): decay never drops
+                                 # salience below this, so a floored memory is never
+                                 # forgotten -- only blurred. The §5.16 legend-keeper
+                                 # logic (elders' lore floor), made a first-class field
+                                 # any memory can carry; retellings pass it on (lore.py),
+                                 # so a GRIEVANCE stays keepable in souls not yet born
+                                 # when it was cut. 0 = ordinary memory, forgets as ever.
 
 
 class MemoryStore:
@@ -180,7 +187,7 @@ class MemoryStore:
     # --- writing -----------------------------------------------------------
     def write(self, text: str, tick: int, source: str, speaker_id: str | None = None,
               emotion: float = 0.0, weight: float = 1.0, lore_id: str = "",
-              mineness: float = 1.0) -> Memory:
+              mineness: float = 1.0, salience_floor: float = 0.0) -> Memory:
         """Store a new memory, or reinforce an existing similar one.
 
         `weight` scales how strongly the memory lands: a graced speaker's words
@@ -190,6 +197,8 @@ class MemoryStore:
         a merge inherits it if the resident copy has none.
         `mineness` (S2) marks whether the experience presents as OWNED; carried
         residue from the wheel is written unowned (< 0.5).
+        `salience_floor` marks a memory that must not be forgotten (a grievance,
+        G2): decay stops at the floor. A merge keeps the higher floor.
         """
         # derive emotional charge from the words unless the caller gave one
         emo = emotion if emotion else valence(text)
@@ -204,6 +213,8 @@ class MemoryStore:
                     # the ground truth source-confusion (C14) grows from -- retelling a story
                     # in your own voice is precisely how it becomes yours.
                     m.alien_merges = getattr(m, "alien_merges", 0) + 1
+                if salience_floor > getattr(m, "salience_floor", 0.0):
+                    m.salience_floor = salience_floor
                 if lore_id and not getattr(m, "lore_id", ""):
                     m.lore_id = lore_id
                 elif lore_id and getattr(m, "lore_id", "") == lore_id:
@@ -219,7 +230,7 @@ class MemoryStore:
         mem = Memory(text=text, salience=min(1.0, WRITE_SALIENCE * weight),
                      created_tick=tick, last_touched_tick=tick, source=source,
                      speaker_id=speaker_id, emotion=emo, lore_id=lore_id,
-                     mineness=mineness)
+                     mineness=mineness, salience_floor=salience_floor)
         self.items.append(mem)
         return mem
 
@@ -231,7 +242,8 @@ class MemoryStore:
         # a fallen one (0) at 0.97 -- its memories, even the doctrines, rot away.
         decay = 0.97 + 0.025 * self.effectiveness
         for m in self.items:
-            m.salience *= decay
+            # the floor holds against decay (getattr: memories from old snapshots)
+            m.salience = max(m.salience * decay, getattr(m, "salience_floor", 0.0))
             age = now - m.last_touched_tick
             if age >= MUTATE_MIN_AGE and self._rng.random() < MUTATE_CHANCE:
                 before = m.text
