@@ -169,6 +169,16 @@ class World:
         self.min_gap = 72.0     # closer than this and they push apart
         self.wander = 1.0       # random jitter so nobody freezes
         self.center_pull = 0.004  # gentle drift toward center so nobody sticks to a wall
+        # HERD ROAMING (off by default; the civ arena turns it on). White-noise
+        # wander makes bodies jitter in place; a herd instead carries a shared,
+        # slowly-turning HEADING -- each soul keeps its own heading, nudges it
+        # toward the average heading of nearby kin (boids alignment), and ambles
+        # forward along it. With the existing kin-cohesion + personal-space, that
+        # is a herd that drifts across the land together, slowly.
+        self.herd_enabled = False
+        self.herd_drive = 0.55  # forward amble along the heading (world units, pre-gait)
+        self.herd_turn = 0.10   # radians of slow random wander in the heading per tick
+        self.herd_align = 0.08  # how hard the heading is pulled to the kin average
         # World events are the experiment's perturbations, scheduled by tick.
         # `events_enabled` is the on/off switch: same world, one variable, so a
         # control run (off) and a treatment run (on) differ only by the events.
@@ -226,6 +236,10 @@ class World:
         self.__dict__.setdefault("war_enabled", False)
         self.__dict__.setdefault("skirmish_enabled", False)
         self.__dict__.setdefault("mating_enabled", False)
+        self.__dict__.setdefault("herd_enabled", False)
+        self.__dict__.setdefault("herd_drive", 0.55)
+        self.__dict__.setdefault("herd_turn", 0.10)
+        self.__dict__.setdefault("herd_align", 0.08)
         self.__dict__.setdefault("culture_noise", 0.18)
         self.__dict__.setdefault("social_genes", False)
         self.__dict__.setdefault("_war_log", [])
@@ -895,9 +909,11 @@ class World:
         if guard:
             from world import mating as _mating
             gid = by_id or {b.id: b for b in self.agents}
+        herd = getattr(self, "herd_enabled", False)
         for a in self.agents:
             ax, ay = a.position
             fx = fy = 0.0
+            align_x = align_y = 0.0    # herd: kin heading resultant (boids alignment)
             if big:
                 others = [by_id[i] for i in getattr(a, "bonds", {}) if i in by_id]
                 others += self._rng.sample(self.agents, min(16, len(self.agents)))
@@ -924,6 +940,16 @@ class World:
                     f -= self.repel * (self.min_gap - d) / self.min_gap
                 fx += ux * f
                 fy += uy * f
+                # herd alignment: a nearby soul that is not a foe pulls my heading
+                # toward the group's -- keyed on PROXIMITY (a settlement is a herd
+                # from tick 0), not on affinity, which barely builds early. Foes
+                # (aff < 0) are excluded so two hostile herds don't merge headings.
+                if herd and aff >= 0 and d < self.hearing_range:
+                    bh = getattr(b, "_heading", None)
+                    if bh is not None:
+                        wgt = 1.0 - d / self.hearing_range
+                        align_x += math.cos(bh) * wgt
+                        align_y += math.sin(bh) * wgt
             if guard:
                 t = gid.get(getattr(a, "_guard", ""))
                 if t is not None and t is not a:
@@ -932,11 +958,36 @@ class World:
                     if gd > _mating.GUARD_NEAR:   # stand off, never on top
                         fx += gx / gd * _mating.GUARD_PULL
                         fy += gy / gd * _mating.GUARD_PULL
-            fx += self._rng.uniform(-1.0, 1.0) * self.wander
-            fy += self._rng.uniform(-1.0, 1.0) * self.wander
-            if self.bounds is not None:   # gentle pull home so nobody glues to a wall
-                fx += (self.bounds[0] / 2 - ax) * self.center_pull
-                fy += (self.bounds[1] / 2 - ay) * self.center_pull
+            if herd:
+                # the amble: keep a heading, turn it slowly toward the kin average
+                # (alignment) with a little wander, and drift forward along it -- a
+                # herd roaming the land together instead of jittering in place
+                h = getattr(a, "_heading", None)
+                if h is None:
+                    h = self._rng.uniform(0.0, 2.0 * math.pi)
+                if align_x or align_y:
+                    target = math.atan2(align_y, align_x)
+                    diff = (target - h + math.pi) % (2.0 * math.pi) - math.pi
+                    h += diff * self.herd_align
+                h += self._rng.uniform(-1.0, 1.0) * self.herd_turn
+                if self.bounds is not None:
+                    # turn away from a wall the amble is about to walk into, so a herd
+                    # skirts the edge rather than piling against it
+                    w, hh = self.bounds
+                    margin = 200.0
+                    if ax < margin or ax > w - margin or ay < margin or ay > hh - margin:
+                        inward = math.atan2(hh / 2 - ay, w / 2 - ax)
+                        diff = (inward - h + math.pi) % (2.0 * math.pi) - math.pi
+                        h += diff * 0.15
+                a._heading = h
+                fx += math.cos(h) * self.herd_drive
+                fy += math.sin(h) * self.herd_drive
+            else:
+                fx += self._rng.uniform(-1.0, 1.0) * self.wander
+                fy += self._rng.uniform(-1.0, 1.0) * self.wander
+                if self.bounds is not None:   # gentle pull home so nobody glues to a wall
+                    fx += (self.bounds[0] / 2 - ax) * self.center_pull
+                    fy += (self.bounds[1] / 2 - ay) * self.center_pull
             # the gait is the STATE walking: restless souls range, the weary drag,
             # children skitter, elders amble
             spd = (0.55 + 0.9 * max(0.0, min(1.0, getattr(a, "arousal", 0.0)))) \

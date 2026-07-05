@@ -34,7 +34,7 @@ from agent.agent import WAR_THRESHOLD as _WAR_AT
 
 PORT = 8765
 
-UI_VERSION = 21   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 22   # bump on any dashboard change: live pages reload themselves to match
                   # (the page's MY_VERSION substitutes from THIS constant at serve time)
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
@@ -107,12 +107,11 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
    <div id=legend>
-    <i style=background:#e6b24a></i>trust thread (flash = warming now) &nbsp;
-    <i style=background:#b0485a></i>enmity &nbsp;
     <i style="background:linear-gradient(90deg,#46578a,#c48c3c)"></i>mood-wash =
     the measured weather (V1, 5/5)<br>
-    halo = mood · arc = words reaching a hearer · ✦ birth · † death · click a soul to
-    open its insides<br>
+    halo = mood · arc = words reaching a hearer · ✦ birth · † death · click a soul:
+    its insides + its bonds (<i style=background:#e6b24a></i>trust
+    <i style=background:#b0485a></i>enmity)<br>
     □ breeder (docile, keeps the hearth) · ○ warrior · red body = at war ·
     inner glow = brooding</div>
    <div id=chron></div>
@@ -188,7 +187,6 @@ let wash=washCv.getContext('2d',{willReadFrequently:true});
 function sizeWash(){washCv.width=Math.ceil(bounds[0]/WSC);
  washCv.height=Math.ceil(bounds[1]/WSC);
  wash=washCv.getContext('2d',{willReadFrequently:true});}
-const pairTrust=new Map();  // "a|b" -> last trust, to catch bonds WARMING on camera
 let fx=[], chron=[], sky={hour:.35,season:'spring',night:false}, lastEv=0, sel='her';
 let land=null;
 const FAC_TINT=['#e6b24a','#5ac8c8','#b48ae6','#e68aa0','#9ade6b','#7a9ae6'];
@@ -284,11 +282,8 @@ async function poll(){try{
   d.caste=a.caste;d.preg=a.preg;
   d.bold=a.bold;d.metab=a.metab;d.temp=a.temp;d.wrath=a.wrath;d.fac=a.fac;d.war=a.war;}
  for(const[id,d]of souls) if(!live.has(id)&&!d.dying){d.dying=performance.now();}
- // bonds WARMING on camera: any pair whose trust rose since last poll flashes
- for(const a of s.souls)for(const[oid,tr]of(a.bonds||[])){
-  const k=a.id<oid?a.id+'|'+oid:oid+'|'+a.id, prev=pairTrust.get(k);
-  if(prev!=null&&tr>prev+0.004)fx.push({k:'warm',a:a.id,b:oid,t0:performance.now()});
-  pairTrust.set(k,tr);}
+ // (v22: the bond-warming flash lines are gone -- at arena scale, litters +
+ // solidarity warm bonds constantly and the map strobed with connecting lines)
  // events -> animation + chronicle, each exactly once
  for(const e of (s.events||[])){if(e.id<=lastEv)continue;lastEv=e.id;
   const d=souls.get(e.who); const nm=d?d.name:'a soul';
@@ -345,15 +340,20 @@ function drawLand(){
 }
 
 function drawThreads(){
+ // v22: the ambient all-pairs bond web is GONE. At arena scale (150+ souls,
+ // bonds warming constantly) it was a permanent flickering hairball. A soul's
+ // bonds now draw ONLY while that soul is selected -- click one to see its ties.
+ if(sel==='her')return;
+ const d=souls.get(sel);
+ if(!d||d.dying)return;
  g.lineCap='round';
- for(const[id,d]of souls){if(d.dying)continue;
-  for(const[oid,tr]of (d.bonds||[])){const o=souls.get(oid);
-   if(!o||o.dying)continue; if(id>oid)continue;
-   const a=Math.min(0.5,Math.abs(tr)*0.6);
-   if(tr>=0)g.strokeStyle=`rgba(230,178,74,${a})`;
-   else g.strokeStyle=`rgba(176,72,90,${a*0.9})`;
-   g.lineWidth=tr>=0?0.5+2.2*tr:0.5;
-   g.beginPath();g.moveTo(d.sx,d.sy);g.lineTo(o.sx,o.sy);g.stroke();}}
+ for(const[oid,tr]of (d.bonds||[])){const o=souls.get(oid);
+  if(!o||o.dying)continue;
+  const a=Math.min(0.6,Math.abs(tr)*0.7);
+  if(tr>=0)g.strokeStyle=`rgba(230,178,74,${a})`;
+  else g.strokeStyle=`rgba(176,72,90,${a*0.9})`;
+  g.lineWidth=tr>=0?0.5+2.2*tr:0.5;
+  g.beginPath();g.moveTo(d.sx,d.sy);g.lineTo(o.sx,o.sy);g.stroke();}
 }
 
 function drawSouls(now){
@@ -440,10 +440,6 @@ function drawFx(now){
              iy=(1-t)*(1-t)*A.sy+2*(1-t)*t*my+t*t*B.sy;
    g.fillStyle=`rgba(190,225,250,${0.9*(1-p*0.5)})`;
    g.beginPath();g.arc(ix,iy,2.2,0,7);g.fill();return true;}
-  if(f.k==='warm'){const p=e/1200;if(p>=1)return false;
-   const A=souls.get(f.a),B=souls.get(f.b);if(!A||!B)return false;
-   g.strokeStyle=`rgba(255,225,140,${0.7*(1-p)})`;g.lineWidth=2.6*(1-p)+0.6;
-   g.beginPath();g.moveTo(A.sx,A.sy);g.lineTo(B.sx,B.sy);g.stroke();return true;}
   if(f.k==='speak'){return false;}
   if(f.k==='birth'){const p=e/1100;if(p>=1)return false;
    const d=souls.get(f.id);if(!d)return false;

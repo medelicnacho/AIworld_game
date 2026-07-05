@@ -154,6 +154,11 @@ def _gates(w: World, founders: int) -> None:
         w.regions = Regions(bounds=ARENA_BOUNDS, seed=17,
                             cols=ARENA_COLS, rows=ARENA_ROWS)
     w.bounds = w.regions.bounds        # the world walks the land it farms
+    # HERD ROAMING: the peoples amble across the land in herds (a shared, slowly
+    # turning heading + kin alignment) rather than jittering in place. Slow: the
+    # move step is gentled so a herd drifts, it does not scurry.
+    w.herd_enabled = True
+    w.move_step = 0.85
     w.war_enabled = True
     w.skirmish_enabled = True
     w.heredity_enabled = True
