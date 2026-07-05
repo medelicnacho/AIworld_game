@@ -106,6 +106,28 @@ def test_fed_folk_never_march_and_the_worn_refuse():
     assert w._war_log and "s1" not in w._war_log[-1]["party"]
 
 
+def test_the_raze_is_gated_and_burns_only_at_open_war():
+    """The raze (the civilization game's spiral): a won raid at open-war grudge burns
+    what it cannot carry. GATED off by default -- the §5.28 verdict world is sealed;
+    no old world's raids change by a crumb."""
+    w, rich, poor, souls = _eco()
+    war.war_tick(w)
+    assert w._war_log and w._war_log[-1]["razed"] == 0.0    # default: no raze, ever
+    w2, rich2, poor2, souls2 = _eco()
+    w2.raze_enabled = True
+    for a in souls2[:4]:
+        for b in souls2[4:]:
+            a.hostility[b.id] = war.RAZE_GRUDGE + 1.0       # open war
+    before = w2.regions.pools[rich2]
+    war.war_tick(w2)
+    log = w2._war_log[-1]
+    if log["won"]:
+        assert log["razed"] > 0.0                           # they burned the rest
+        assert w2.regions.pools[rich2] < before * (1 - war.LOOT_FRAC)
+        assert any("they burned" in m.text for a in souls2[4:] if a in w2.agents
+                   for m in a.memory.items)
+
+
 def test_grievance_never_decays_and_the_floor_travels():
     """G2's seam: a grievance is floored (the wound that will not close) so decay
     cannot forget it, and a RETELLING writes the hearer's copy with the same floor

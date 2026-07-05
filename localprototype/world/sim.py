@@ -104,6 +104,17 @@ class World:
         # WAR (world/war.py): raids over lean granaries -- gated, ecology worlds only
         self.war_enabled = False
         self._war_log: list = []
+        # SKIRMISH (world/skirmish.py): brawls between open enemies -- gated, the
+        # civilization game's collapse channel (debate -> enmity -> blows)
+        self.skirmish_enabled = False
+        # how far a child's inherited view leans from its parent's (the W3.5 noise;
+        # 0.18 IS today's behaviour -- a knob only so the collapse falsifier can run
+        # a frozen-divergence control arm)
+        self.culture_noise = 0.18
+        # CIV: express the social genes (openness/wrath -> engagement bound / rift
+        # scale) on newborns. Off everywhere but the civilization game: the genes
+        # ride every genome silently, but only these worlds let them touch the flesh
+        self.social_genes = False
         self.day_ticks = 100
         self._last_season = None
         self.reborn_prebond = 0.0
@@ -208,6 +219,9 @@ class World:
         self.__dict__.setdefault("regions_enabled", False)
         self.__dict__.setdefault("regions", None)
         self.__dict__.setdefault("war_enabled", False)
+        self.__dict__.setdefault("skirmish_enabled", False)
+        self.__dict__.setdefault("culture_noise", 0.18)
+        self.__dict__.setdefault("social_genes", False)
         self.__dict__.setdefault("_war_log", [])
 
     def _remember_said(self, text: str) -> None:
@@ -311,8 +325,18 @@ class World:
         # granaries; the muster decides who goes; the dead are mourned and END).
         if self.war_enabled and self.tick > 0:
             from world import war as _war
-            if self.tick % _war.RAID_CHECK == 0:
+            # raid cadence is per-world (the civilization game runs war hot; every
+            # older world keeps the module default -- THE RULE)
+            if self.tick % getattr(self, "raid_check", _war.RAID_CHECK) == 0:
                 _war.war_tick(self)
+        # 2.56) SKIRMISH (gated, the civilization game): every SKIRMISH_CHECK ticks
+        # the angry close on their enemies and quarrels past words come to blows
+        # (world/skirmish.py -- children never fight; the worn disengage; the rare
+        # dead are mourned and their lineages end).
+        if self.skirmish_enabled and self.tick > 0:
+            from world import skirmish as _skirmish
+            if self.tick % _skirmish.SKIRMISH_CHECK == 0:
+                _skirmish.skirmish_tick(self)
         # 2.6) bodies move: drift under social forces so factions take territory.
         # At night the town is HOME -- bodies rest where they stand (labour already
         # pauses; wandering does too).
@@ -363,10 +387,20 @@ class World:
             heir.genome = inherit(pg, self._rng, parent.id, sigma=self.heredity_sigma)
             express(heir.genome, heir)
         if getattr(parent, "belief_vec", None) is not None:
-            noisy = [v + self._rng.gauss(0.0, 0.18) for v in parent.belief_vec]
+            noisy = [v + self._rng.gauss(0.0, self.culture_noise)
+                     for v in parent.belief_vec]
             norm = sum(v * v for v in noisy) ** 0.5 or 1.0
             heir.belief_vec = tuple(v / norm for v in noisy)
             heir.bond_enabled = True
+        # the rift is cultural too: a child raised where argument wounds learns
+        # that arguments wound (gated by the parent, so old towns stay untouched);
+        # so is how open a mind is (default = the old global, THE RULE)
+        heir.rift_enabled = getattr(parent, "rift_enabled", False)
+        if hasattr(parent, "opinion_confidence"):
+            heir.opinion_confidence = parent.opinion_confidence
+        if self.social_genes and getattr(heir, "genome", None) is not None:
+            from agent.genome import express_social
+            express_social(heir.genome, heir)   # the GENE outranks the parent's phenotype
         self._hearth(parent, heir)
 
     def _hearth(self, parent, child) -> None:
@@ -555,6 +589,13 @@ class World:
         role, tasks = self._rng.choice(ROLES)
         a.role, a.task = role, self._rng.choice(tasks)
         endow_faculties(a, self._rng)
+        # a child bonds in the space its parent bonds in: an opinion-space town
+        # (stanceless souls -- the ecology/civilization worlds) must not have its
+        # children re-seeded with stances, or hear() routes their social learning
+        # into a space no faction read ever sees (caught by the collapse probe:
+        # the rift never fired because the stance path shadowed the opinion path)
+        if getattr(parent, "stance_vec", None) is None:
+            a.stance_vec = None
         a.aim = _telos.fresh_aim(role)
         pg = getattr(parent, "genome", None) or from_agent(parent, self._rng)
         a.genome = inherit(pg, self._rng, parent.id, sigma=self.heredity_sigma)
@@ -565,7 +606,8 @@ class World:
         # its parent's view WITH NOISE (the vasana spirit: a lean, never a copy);
         # worlds without opinion dynamics are untouched (parent has no vector).
         if getattr(parent, "belief_vec", None) is not None:
-            noisy = [v + self._rng.gauss(0.0, 0.18) for v in parent.belief_vec]
+            noisy = [v + self._rng.gauss(0.0, self.culture_noise)
+                     for v in parent.belief_vec]
             norm = sum(v * v for v in noisy) ** 0.5 or 1.0
             a.belief_vec = tuple(v / norm for v in noisy)
         a.bond_enabled = True
@@ -577,6 +619,12 @@ class World:
         a.wellbeing = 0.6
         a.bonds.setdefault(parent.id, Bond()).warm(0.8)
         parent.bonds.setdefault(a.id, Bond()).warm(0.8)
+        a.rift_enabled = getattr(parent, "rift_enabled", False)   # cultural, like the view
+        if hasattr(parent, "opinion_confidence"):                 # and how open a mind is
+            a.opinion_confidence = parent.opinion_confidence
+        if self.social_genes:
+            from agent.genome import express_social
+            express_social(a.genome, a)         # the GENE outranks the parent's phenotype
         self._hearth(parent, a)     # the house's open wounds are told to the child
         self.agents.append(a)
         self.bus.publish("birth", a.id)

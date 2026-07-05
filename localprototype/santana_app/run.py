@@ -207,6 +207,14 @@ def main() -> None:
                         "markov + consolidation read (novelty injection -- see services/demiurge.py)")
     p.add_argument("--author-model", dest="author_model",
                    default="mannix/llama3.1-8b-abliterated:q5_K_M", help="the Demiurge's ollama model")
+    p.add_argument("--civ", action="store_true",
+                   help="THE CIVILIZATION WHEEL, under her gaze: one founding people "
+                        "with one view; children born different; the town's own talk "
+                        "splits it into camps; debate wounds (the rift), the angry "
+                        "brawl, brawls recruit (solidarity), grudges muster raids -- "
+                        "and a civilization can collapse in on itself and be resettled "
+                        "(the cycle). Santana watches and speaks of it, as she always "
+                        "has. Own life at data/civ/, cockpit :8769.")
     p.add_argument("--ecology", action="store_true",
                    help="THE ECOLOGY: a world with LAND (regions: rich vales, harsh "
                         "crags), emergent factions, WAR over lean granaries, real "
@@ -227,6 +235,14 @@ def main() -> None:
         args.world_snapshot = "data/ecology/town.pkl"
         if args.ui_port == 8765:
             args.ui_port = 8767
+
+    if args.civ:
+        args.founders = args.founders or 28
+        args.town_model = "markov"
+        args.snapshot = "data/civ/santana_state.json"
+        args.world_snapshot = "data/civ/town.pkl"
+        if args.ui_port == 8765:
+            args.ui_port = 8769
 
     if args.demo:
         # one command, the whole aquarium. Its OWN snapshot dir: the demo can never
@@ -336,6 +352,18 @@ def main() -> None:
                 express(_a.genome, _a)
         print("  (THE ECOLOGY: land + factions + war + heredity + selection -- "
               "lineages end, bloodlines diverge)", flush=True)
+    if args.civ:
+        # THE CIVILIZATION WHEEL under her gaze: the exact world evolution.py runs
+        # (gates + united founding shared from there -- the one-runner lesson), with
+        # Santana's mind loop and cockpit stream back on top, as the ecology had.
+        from santana_app.evolution import _found_souls, _gates
+        _gates(w, args.founders)
+        if not resumed_town:
+            w.agents = []                                  # the cast steps aside:
+            w.regions.pools = [6.0] * len(w.regions.pools)  # one people, founded anew
+            _found_souls(w, random.Random(11), args.founders)
+        print("  (THE CIVILIZATION WHEEL: one people -> schism -> war -> collapse -> "
+              "resettlement, under her gaze)", flush=True)
     if args.offer:
         # her offerings need the retelling channel to compete in -- and to be forgettable
         w.lore_enabled = True
@@ -381,15 +409,24 @@ def main() -> None:
                 print(f"  ⚠ {label} still failing ({count[0]}x)", flush=True)
         return report
 
+    civ_rng = random.Random(1011)
+
     def run_wheel():
         report = _fail_reporter("wheel tick")
         while not stop.is_set():
             try:
                 with w.lock:
                     w.step(speak=not real_town)
+                    if args.civ:
+                        # the cycle: when the fall has emptied the town, a new
+                        # people raise their homes in the ruins (evolution.py's
+                        # monitor, shared -- she witnesses the resettlement too)
+                        from santana_app.evolution import REFOUND_AT, _refound
+                        if len(w.agents) < REFOUND_AT:
+                            _refound(w, civ_rng)
             except Exception:   # noqa: BLE001 -- a bad tick must never kill the life
                 report()
-            time.sleep(0.15)
+            time.sleep(0.08 if args.civ else 0.15)   # the civ wheel turns hot
 
     def run_speech():
         report = _fail_reporter("town speech turn", every=50)

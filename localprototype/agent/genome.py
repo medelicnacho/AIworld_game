@@ -24,13 +24,17 @@ as inheritance leaking. Reflection keeps the null clean.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 SIGMA = 0.03            # per-crossing mutation (the ecology literature's 3e-2 -- EVOLUTION E1)
 # dial -> (lo, hi). temperament lives on [-1, 1]; everything else on [0, 1].
 BOUNDS = {"grip": (0.0, 1.0), "compassion": (0.0, 1.0), "temperament": (-1.0, 1.0),
-          "metabolism": (0.0, 1.0), "boldness": (0.0, 1.0)}
+          "metabolism": (0.0, 1.0), "boldness": (0.0, 1.0),
+          "openness": (0.0, 1.0), "wrath": (0.0, 1.0)}
 DIALS = tuple(BOUNDS)
+# a germ line saved BEFORE a dial existed wakes with the population-centre value --
+# old snapshots must keep crossing without a crash (THE RULE's spirit, for heredity)
+DEFAULTS = {"openness": 0.38, "wrath": 0.5}
 
 
 @dataclass
@@ -40,6 +44,11 @@ class Genome:
     temperament: float
     metabolism: float = 0.5      # E2: how fast this soul consumes stakes
     boldness: float = 0.5        # E2: the work-vs-hoard-vs-share lean
+    openness: float = 0.38       # CIV: how open a mind is -- expressed (only where
+                                 # World.social_genes is on) as the bounded-confidence
+                                 # engagement bound; narrow minds make schisms
+    wrath: float = 0.5           # CIV: how hard argument wounds -- expressed as the
+                                 # rift multiplier; wrathful bloodlines make feuds
     lineage: str = ""            # parent-of-record's id -- genealogy ground truth,
                                  # never mutated, never expressed (the ledger, not the flesh)
 
@@ -68,6 +77,8 @@ def from_agent(agent, rng) -> Genome:
         temperament=float(getattr(agent, "temperament", 0.0)),
         metabolism=float(getattr(agent, "metabolism", rng.uniform(0.2, 0.8))),
         boldness=float(getattr(agent, "boldness", rng.uniform(0.2, 0.8))),
+        openness=rng.uniform(0.25, 0.55),   # standing variation on the civ dials too:
+        wrath=rng.uniform(0.3, 0.7),        # a monoculture founding leaves selection blind
         lineage="",
     )
 
@@ -75,10 +86,11 @@ def from_agent(agent, rng) -> Genome:
 def inherit(parent: Genome, rng, parent_id: str, sigma: float = SIGMA) -> Genome:
     """The crossing: the child's germ line is the parent's, perturbed once (Gaussian,
     reflected at the bounds), with the lineage tag recording whose it was."""
-    child = replace(parent, lineage=parent_id)
+    vals = {d: float(getattr(parent, d, DEFAULTS.get(d, 0.5))) for d in DIALS}
+    child = Genome(lineage=parent_id, **vals)
     for dial in DIALS:
         lo, hi = BOUNDS[dial]
-        setattr(child, dial, _reflect(getattr(parent, dial) + rng.gauss(0.0, sigma), lo, hi))
+        setattr(child, dial, _reflect(vals[dial] + rng.gauss(0.0, sigma), lo, hi))
     return child
 
 
@@ -91,3 +103,16 @@ def express(genome: Genome, agent) -> None:
     agent.temperament = genome.temperament
     agent.metabolism = genome.metabolism     # dormant until E2 wires stakes consumption
     agent.boldness = genome.boldness         # dormant until E2 wires the action lean
+
+
+def express_social(genome: Genome, agent) -> None:
+    """Write the CIV dials onto the flesh -- called ONLY by worlds that set
+    social_genes (the civilization game); everywhere else these genes ride silent,
+    so no validated world's opinion dynamics change by a hair (THE RULE).
+
+    openness -> the bounded-confidence engagement bound (a narrow mind engages only
+    the close and rejects the rest: openness 0 -> 0.85, openness 1 -> 0.40; the
+    founding roll 0.25-0.55 lands the tuned ~0.68 centre).
+    wrath -> the rift multiplier (how hard a wounding line lands: 0..2x)."""
+    agent.opinion_confidence = 0.85 - 0.45 * float(getattr(genome, "openness", 0.38))
+    agent.rift_scale = 2.0 * float(getattr(genome, "wrath", 0.5))

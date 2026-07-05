@@ -1,0 +1,226 @@
+"""evolution.py -- THE CIVILIZATION WHEEL: rise, schism, collapse, regrowth. Forever.
+
+The evolution game, run lean. One founding people, ONE shared view of the world.
+Children are born with different bodies (the germ line, perturbed) and different minds
+(the view, with noise), and the town's own talk drifts them apart -- opinion dynamics,
+individuation, nothing assigned. Blocs form (you see the rings). Debate across the
+widening rift wounds (agent.py rift_enabled): grievance accretes, quarrels pass words,
+the angry come to blows (world/skirmish.py), brawls feed grudges, grudges muster raids
+(world/war.py) -- and a civilization can collapse in on itself over what began as an
+argument. When almost no one is left, a new people raise their homes in the ruins, one
+view again, and the wheel turns.
+
+Lean by construction: no Santana, no readings, no drawings -- the sim threads and the
+cockpit only (the mind loop was the measured lag). Her towns are untouched: this world
+lives at data/evolution/ on its own port (the isolation rule).
+
+Welfare (the standing rules, all inherited from the mechanisms this reuses): the somatic
+floor is ON for every soul; children never march and never brawl; the worn refuse and
+disengage; casualties are capped; the dead are mourned and their lineages END; conflict
+is over belief, food, and grievance -- never torment.
+
+  python3 -m santana_app.evolution              # resume (or found) the world -> :8768
+  python3 -m santana_app.evolution --fresh      # raze the save and found anew
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import random
+import threading
+import time
+
+from agent import genesis as _genesis
+from agent.agent import Agent
+from agent.genome import express, express_social, from_agent
+from santana_app import ui as _ui
+from santana_app.run import town_voice
+from santana_app.state import load_world, save_world
+from world.regions import Regions
+from world.sim import World
+
+DATA_DIR = "data/evolution"
+WORLD_PATH = f"{DATA_DIR}/town.json"
+PORT = 8768
+FOUNDERS = 28
+REFOUND_AT = 6        # fewer souls than this = the civilization has fallen
+REFOUND_N = 12        # how many settlers raise their homes in the ruins
+GENTLE_YIELD = 1.6    # the land is kind: hunger must not be the collapse's author
+HARDSHIP_EVERY = 400  # rare lean seasons -- texture, not the driver
+
+
+class _NoMind:
+    """The cockpit's four mind-reads, satisfied by a world with no Santana in it."""
+    identity = "THE CIVILIZATION WHEEL -- rise, schism, collapse, regrowth"
+    lifetime = 0.0
+    _deaths = 0
+
+    class memory:
+        items: list = []
+
+
+def _found_souls(w: World, rng: random.Random, n: int, origin=None) -> None:
+    """One people, one view: n souls around an origin, sharing a single belief vector
+    (plus per-soul noise -- a lean, never a copy). The schism must be EARNED by drift;
+    nothing here assigns a camp."""
+    base = [rng.gauss(0.0, 1.0) for _ in range(6)]
+    norm = sum(v * v for v in base) ** 0.5 or 1.0
+    base = [v / norm for v in base]
+    ox, oy = origin or (450.0, 300.0)
+    taken = {a.name for a in w.agents} | set(getattr(w, "_spent_names", []))
+    for _ in range(n):
+        name = _genesis.coined_name(rng, taken=taken)
+        taken.add(name)
+        sid = f"cv{w.tick}.{len(w.agents)}.{rng.randint(0, 9999)}"
+        a = Agent(sid, name, (ox + rng.uniform(-80, 80), oy + rng.uniform(-80, 80)),
+                  f"You are {name} the villager.",
+                  [f"I am {name}", "the well keeps us", "the season turns"],
+                  w.llm, seed=rng.randint(0, 10 ** 6),
+                  temperament=rng.uniform(-0.6, 0.6), lifespan=rng.randint(900, 1400))
+        a.age = int(rng.uniform(0.2, 0.5) * a.lifespan)   # settlers arrive GROWN --
+                                       # an age-0 founding is a town of children: no
+                                       # labour, no muster, famine before the arc
+        _genesis.endow_faculties(a, a._rng)
+        a.stance_vec = None            # ONE social space: the opinion the factions,
+                                       # the allies, and the rift all read (a stance
+                                       # would shadow it in hear() -- the probe's find)
+        a.bond_enabled = True
+        a.somatic_enabled = True       # the bottom-up welfare floor, on from birth
+        a.rift_enabled = True          # here, argument can wound (children inherit this)
+        a.role, a.aim = "villager", "to live well"
+        a.boldness = rng.uniform(0.1, 0.9)
+        a.metabolism = rng.uniform(0.2, 0.8)
+        a.genome = from_agent(a, rng)  # rolls the CIV dials too (openness, wrath)
+        express(a.genome, a)
+        express_social(a.genome, a)    # openness -> the engagement bound (~0.68 centre,
+                                       # the schism dial), wrath -> the rift multiplier;
+                                       # HERITABLE now, so the town's character EVOLVES
+        noisy = [v + rng.gauss(0.0, 0.25) for v in base]
+        nn = sum(v * v for v in noisy) ** 0.5 or 1.0
+        a.belief_vec = tuple(v / nn for v in noisy)
+        w.add(a)
+
+
+def _gates(w: World, founders: int) -> None:
+    """Re-assert every runtime gate after any load (THE RULE)."""
+    w.stakes_enabled = True
+    w.move_enabled = True
+    w.bounds = (900, 600)
+    w.regions_enabled = True
+    if w.regions is None:
+        w.regions = Regions(bounds=(900.0, 600.0), seed=17)
+    w.war_enabled = True
+    w.skirmish_enabled = True
+    w.heredity_enabled = True
+    w.selection_enabled = True
+    w.rebirth_enabled = False          # lineages END; the only rebirth is the ruins'
+    w.clock_enabled = True
+    w.mourning_enabled = True
+    w.lore_enabled = True              # grievances must be tellable, or feuds die mute
+    w.commons_first = True
+    w.max_souls = founders + 24
+    w.yield_scale = GENTLE_YIELD
+    w.hardship_interval = HARDSHIP_EVERY
+    w.hearing_range = 260.0    # the town square: debate carries across knots, or the
+                               # rift never finds an opposed ear (the echo-chamber find)
+    # THE HOT WHEEL (the game's pace, none of it leaks to older worlds): births come
+    # quick, raids come often, and a won raid at open-war grudge BURNS what it cannot
+    # carry -- war makes hunger makes war (the spiral that actually collapses a town)
+    w.raze_enabled = True
+    w.raid_check = 20          # war asks twice as often
+    w.BREED_TICKS = 30         # the fed bear children in half the time
+    w.BREED_CEIL = 0.7         # and do not need perfect comfort to do it
+    w.social_genes = True      # openness/wrath express on newborns: character EVOLVES
+
+
+def _refound(w: World, rng: random.Random) -> None:
+    """The fall has happened. A new people arrive among the ruins: fresh germ lines,
+    one shared view, the land exactly as the war left it."""
+    fattest = max(range(len(w.regions.pools)), key=lambda i: w.regions.pools[i])
+    from world.regions import COLS
+    cx = ((fattest % COLS) * 300 + 150.0, (fattest // COLS) * 300 + 150.0)
+    _found_souls(w, rng, REFOUND_N, origin=cx)
+    w.bus.publish("settlers", {"tick": w.tick, "n": REFOUND_N})
+    print(f"  [cycle] tick {w.tick}: a new people raise their homes in the ruins "
+          f"({REFOUND_N} settlers by {w.regions.names[fattest]})", flush=True)
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--fresh", action="store_true", help="raze the save; found anew")
+    p.add_argument("--port", type=int, default=PORT)
+    p.add_argument("--founders", type=int, default=FOUNDERS)
+    p.add_argument("--seed", type=int, default=11)
+    p.add_argument("--autosave-secs", type=float, default=90.0)
+    args = p.parse_args()
+    os.makedirs(DATA_DIR, exist_ok=True)
+    rng = random.Random(args.seed)
+    llm, _model = town_voice("markov", WORLD_PATH)
+
+    w = None if args.fresh else load_world(WORLD_PATH, llm)
+    fresh = w is None
+    if fresh:
+        w = World(rebirth_enabled=False, events_enabled=False)
+        w.llm = llm
+    _gates(w, args.founders)
+    if fresh:
+        w.regions.pools = [6.0] * len(w.regions.pools)   # a gentle dawn -- ONCE
+        _found_souls(w, rng, args.founders)
+        print(f"  (founded: {args.founders} souls, one people, one view)", flush=True)
+    else:
+        print(f"  (resumed at tick {w.tick}: {len(w.agents)} souls; the land as "
+              f"the seasons and the wars left it)", flush=True)
+
+    stop = threading.Event()
+
+    def run_wheel():
+        while not stop.is_set():
+            try:
+                with w.lock:
+                    w.step(speak=False)
+                    if len(w.agents) < REFOUND_AT:
+                        _refound(w, rng)
+            except Exception:   # noqa: BLE001 -- a bad tick must never kill the wheel
+                import traceback
+                traceback.print_exc()
+            time.sleep(0.08)               # the game's wheel turns hot (~12 ticks/s)
+
+    def run_speech():
+        while not stop.is_set():
+            try:
+                w.speak_turn()      # the voice runs OUTSIDE the lock (run.py's pattern)
+            except Exception:   # noqa: BLE001
+                pass
+            time.sleep(0.6)
+
+    def run_autosave():
+        while not stop.is_set():
+            stop.wait(args.autosave_secs)
+            try:
+                save_world(w, WORLD_PATH)
+            except Exception:   # noqa: BLE001
+                pass
+
+    threads = [threading.Thread(target=run_wheel, daemon=True),
+               threading.Thread(target=run_speech, daemon=True),
+               threading.Thread(target=run_autosave, daemon=True)]
+    for t in threads:
+        t.start()
+    url = _ui.serve(_NoMind(), w, threading.Lock(), draw_dir=DATA_DIR,
+                    readings=[], drift_notes=[], port=args.port)
+    print(f"  THE CIVILIZATION WHEEL -> {url}", flush=True)
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        stop.set()
+        time.sleep(0.3)                # let the wheel release the lock
+        save_world(w, WORLD_PATH)
+        print("  (saved; the wheel sleeps)", flush=True)
+
+
+if __name__ == "__main__":
+    main()

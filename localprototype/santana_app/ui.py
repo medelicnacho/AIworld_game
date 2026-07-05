@@ -30,9 +30,12 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from agent.agent import WAR_THRESHOLD as _WAR_AT
+
 PORT = 8765
 
-UI_VERSION = 16   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 19   # bump on any dashboard change: live pages reload themselves to match
+                  # (the page's MY_VERSION substitutes from THIS constant at serve time)
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -208,7 +211,7 @@ document.getElementById('mapwrap').addEventListener('click',e=>{
 document.getElementById('who_sel').addEventListener('change',e=>{
  const o=e.target.selectedOptions[0];setTarget(o.value,o.textContent);});
 
-const MY_VERSION=16;
+const MY_VERSION=__UI_VERSION__;
 async function poll(){try{
  const s=await(await fetch('/state2')).json();
  // a page older than the server RELOADS ITSELF -- stale tabs were the source of a
@@ -312,16 +315,21 @@ function drawSouls(now){
  for(const[id,d]of souls){
   let fade=1;
   if(d.dying){const e=(now-d.dying)/1400; if(e>=1){souls.delete(id);continue;} fade=1-e;}
-  const[r,gg,b]=moodRGB(d.mood), night=sky.night&&d.asleep;
+  let[r,gg,b]=moodRGB(d.mood); const night=sky.night&&d.asleep;
+  if(d.war){r=224;gg=58;b=48;}                     // AT WAR: the body burns red
   let rad=d.stage==='child'?3.5:(d.stage==='elder'?6.5:5.5);
   rad*=(0.8+0.5*(d.metab??0.5));                   // the body: metabolism is SIZE
   // night does NOT dim the souls at all -- the sky's cool tint and the stars say
   // "night". Halos are two flat arcs, not radial gradients: 64 gradients x 60fps
   // is exactly the GPU load that provokes context loss on fragile drivers.
   const glow=15+(night?0:4*breathe);
-  g.fillStyle=`rgba(${r},${gg},${b},${0.16*fade})`;
+  // the AURA is CHARACTER (heritable temperament: cold steel-blue .. warm amber);
+  // the flesh below stays MOOD (fast) -- and burns red at war
+  const tw=((d.temp??0)+1)/2;
+  const ar=Math.round(90+150*tw),ag=Math.round(110+60*tw),ab=Math.round(230-140*tw);
+  g.fillStyle=`rgba(${ar},${ag},${ab},${0.16*fade})`;
   g.beginPath();g.arc(d.x,d.y,glow*1.6,0,7);g.fill();
-  g.fillStyle=`rgba(${r},${gg},${b},${0.22*fade})`;
+  g.fillStyle=`rgba(${ar},${ag},${ab},${0.22*fade})`;
   g.beginPath();g.arc(d.x,d.y,glow*0.85,0,7);g.fill();
   g.globalAlpha=fade;
   g.fillStyle=`rgb(${Math.min(255,r+40)},${Math.min(255,gg+40)},${Math.min(255,b+40)})`;
@@ -332,6 +340,9 @@ function drawSouls(now){
      :g.moveTo(d.x+rr*Math.cos(th),d.y+rr*Math.sin(th));}
    g.closePath();g.fill();
   }else{g.beginPath();g.arc(d.x,d.y,rad,0,7);g.fill();}
+  if((d.wrath??0.5)>0.6){                          // wrath: a thorn-red edge, heritable
+   g.strokeStyle=`rgba(235,80,40,${(0.25+0.6*(d.wrath-0.6)/0.4)*fade})`;
+   g.lineWidth=1.2;g.stroke();}
   if((d.fac??-1)>=0){                              // the bloc: a tinted ring
    g.strokeStyle=FAC_TINT[d.fac%FAC_TINT.length];g.lineWidth=1.4;
    g.beginPath();g.arc(d.x,d.y,rad+3,0,7);g.stroke();}
@@ -573,7 +584,15 @@ def snapshot(mind, world, readings: list, drift_notes: list, events: list) -> di
                 "bold": round(getattr(getattr(a, "genome", None), "boldness",
                                       getattr(a, "boldness", 0.5)), 2),
                 "metab": round(getattr(getattr(a, "genome", None), "metabolism", 0.5), 2),
+                # character on the skin, both heritable: temperament is the AURA
+                # (cold steel-blue .. warm amber), wrath is the THORN-TINT
+                "temp": round(getattr(a, "temperament", 0.0), 2),
+                "wrath": round(getattr(getattr(a, "genome", None), "wrath", 0.5), 2),
                 "fac": fmap.get(a.id, -1),
+                # AT WAR: this soul holds open enmity toward someone still living --
+                # the map shows it (the body burns red) so a schism is watchable
+                "war": any(h >= _WAR_AT and t in ids
+                           for t, h in getattr(a, "hostility", {}).items()),
             })
         land = None
         if getattr(world, "regions_enabled", False) and world.regions is not None:
@@ -758,7 +777,11 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = self.ui
         if self.path in ("/", "/index.html"):
-            self._send(DASH.encode(), "text/html; charset=utf-8")
+            # the page's MY_VERSION derives from THE one Python constant at serve
+            # time -- v17 was bumped in Python only and every tab reload-looped
+            # (server 17 > page's hardcoded 16 -> reload -> same page -> forever)
+            self._send(DASH.replace("__UI_VERSION__", str(UI_VERSION)).encode(),
+                       "text/html; charset=utf-8")
         elif self.path.startswith("/bridge/events"):
             self._sse_events()
         elif self.path.startswith("/bridge/state"):
@@ -1026,6 +1049,26 @@ def _wire_events(world, events: list, ev_lock, seq: list) -> None:
                               if payload.get("fallen") else "")})
             del events[:-80]
 
+    def on_skirmish(payload):
+        with ev_lock:
+            seq[0] += 1
+            ground = payload.get("ground", "")
+            events.append({"id": seq[0], "kind": "raid", "who": "",
+                           "text": f"{payload.get('a','?')} and {payload.get('b','?')} "
+                                   f"came to blows"
+                                   + (f" by {ground}" if ground else "")})
+            del events[:-80]
+
+    def on_settlers(payload):
+        with ev_lock:
+            seq[0] += 1
+            events.append({"id": seq[0], "kind": "birth", "who": "",
+                           "text": f"a new people raise their homes in the ruins "
+                                   f"({payload.get('n', '?')} settlers)"})
+            del events[:-80]
+
+    world.bus.subscribe("skirmish", on_skirmish)
+    world.bus.subscribe("settlers", on_settlers)
     world.bus.subscribe("raid", on_raid)
     world.bus.subscribe("utterance", on_speech)
     world.bus.subscribe("death", record("death"))

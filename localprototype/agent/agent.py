@@ -75,6 +75,11 @@ BELIEF_MU = 0.18        # step you take toward someone you engage
 BELIEF_REPEL = 0.5      # fraction of MU you take AWAY from someone you reject
 BELIEF_SATURATION = 0.82  # above this you are ~identical: stop merging (individuation)
 BELIEF_INDIVIDUATE = 0.35  # how hard you hold your distinctness from a near-clone
+RIFT_AT = -0.3            # a heard opinion below this cosine is a WOUNDING disagreement
+RIFT_RATE = 0.8           # grievance one such line accretes (rift_enabled only). Tuned
+                          # on seeds 11-15: at 0.5 a soul died (~400 ticks) at ~2.9 of
+                          # WAR_THRESHOLD's 3.0 -- enmity needs to be reachable inside
+                          # one angry life, ~4 wounding exchanges, not 6
 BELIEF_GROUND = 0.25    # Stage 2: how hard your OWN spoken words pull your opinion
 SAID_HISTORY = 12       # recent lines kept per soul, for reading a cluster's banner
 RAW_DRIFT_N = 8         # raw-mind mode: how many Markov fragments ARE the prompt
@@ -202,6 +207,13 @@ class Agent:
         # ablated control: if factions still appear in the spoken output with this
         # off, the substrate was decorative and the LLM was doing the work.
         self.social_learning = True
+        # THE RIFT (default off, THE RULE): heated debate makes enemies. When on, a
+        # DEEPLY opposed heard opinion (cosine < RIFT_AT) accretes hostility toward
+        # the speaker -- grievance from argument, not just coolness. One exchange is
+        # nothing (WAR_THRESHOLD=3.0 still gates open conflict); a feud is EARNED by
+        # debate after repeated debate. The opinion/affinity movement itself is
+        # untouched -- this only lets the war machinery hear the shouting.
+        self.rift_enabled = False
         self.spoken: list[str] = []   # this agent's own recent lines (anti self-echo)
         # Born in grace. Grace makes the soul's data effective (slow forgetting,
         # words that imprint, a voice that's heard) and gates reproduction at
@@ -513,9 +525,15 @@ class Agent:
         homophily -- my position is not a label, it moves."""
         sim = _cosine(mine, other)
         cur = self.affinity.get(spk, 0.0)
-        if sim >= CONFIDENCE:
+        # how open this mind is: the engagement bound, per-soul. Default is the old
+        # global CONFIDENCE (nothing changes for anyone who didn't ask); the
+        # civilization worlds raise it -- a narrower mind engages only the close and
+        # rejects the rest, which is what lets a schism EMERGE from a united people
+        # (at 0.1, a whole town in one square melts to permanent consensus -- measured).
+        conf = getattr(self, "opinion_confidence", CONFIDENCE)
+        if sim >= conf:
             # kinship grows whenever views are close -- a camp stays cohesive...
-            self.affinity[spk] = max(-1.0, min(1.0, cur + AFFINITY_RATE * (sim - CONFIDENCE)))
+            self.affinity[spk] = max(-1.0, min(1.0, cur + AFFINITY_RATE * (sim - conf)))
             if sim >= BELIEF_SATURATION:
                 # ...but once we are near-identical, I do NOT dissolve further into
                 # you -- I hold my distinctness (a touch apart). Without this,
@@ -526,12 +544,24 @@ class Agent:
             else:
                 step = BELIEF_MU                   # engage: drift toward their view
         else:
-            self.affinity[spk] = max(-1.0, min(1.0, cur - AFFINITY_RATE * (CONFIDENCE - sim)))
+            self.affinity[spk] = max(-1.0, min(1.0, cur - AFFINITY_RATE * (conf - sim)))
             step = -BELIEF_MU * BELIEF_REPEL       # reject: drift away
         return _normalize([v + step * (o - v) for v, o in zip(mine, other)])
 
     def _weigh_opinion(self, u) -> None:
         """Bounded-confidence update on the LEXICAL belief_vec (Stage-1/2 emergent)."""
+        if getattr(self, "rift_enabled", False):
+            sim = _cosine(self.belief_vec, list(u.belief_vec))
+            if sim < RIFT_AT:
+                # the rift: a deeply opposed line lands as grievance, not mere chill.
+                # Scaled by how far past the rift it falls (a flat contradiction
+                # wounds more than a sour disagreement) and by THIS soul's wrath
+                # (the heritable civ dial -- rift_scale, expressed from the genome:
+                # wrathful bloodlines feud, placid ones let the same words pass).
+                self.hostility[u.speaker_id] = (self.hostility.get(u.speaker_id, 0.0)
+                                                + RIFT_RATE
+                                                * getattr(self, "rift_scale", 1.0)
+                                                * (RIFT_AT - sim))
         self.belief_vec = self._bounded_confidence(self.belief_vec, list(u.belief_vec), u.speaker_id)
 
     def _weigh_stance(self, u) -> None:

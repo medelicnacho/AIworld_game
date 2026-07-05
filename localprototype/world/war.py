@@ -29,6 +29,12 @@ ALLY_AT = 0.2            # a bloc stands with another it half-shares a view with
 LOOT_FRAC = 0.35         # share of the defenders' pool taken on a won raid
 CASUALTY_CAP = 2         # per side, per raid -- a raid is a raid, not an apocalypse
 GRIEF_EMO, GRIEF_W = -0.8, 1.4
+RAZE_GRUDGE = 3.0        # open war (WAR_THRESHOLD): past this, raiders do not just take
+RAZE_FRAC = 0.5          # what they can carry -- they BURN the rest. Gated by
+                         # world.raze_enabled (default off: the §5.28 verdict world is
+                         # sealed). The raze is how war compounds: burned granaries make
+                         # hunger, hunger makes desperation raids (G1), and a feud can
+                         # collapse a civilization that mere looting only bruised.
 GRIEVANCE_FLOOR = 0.5    # a grievance is the wound that will not close: decay never
                          # drops it below this (memory.salience_floor -- the §5.16
                          # legend-keeper logic made a field), and retellings carry the
@@ -131,22 +137,27 @@ def war_tick(world) -> None:
         losers = defenders if won else party
         fallen = _fall(losers, rng, CASUALTY_CAP)
         loot = 0.0
+        razed = 0.0
         if won:
             take = world.regions.pools[homes[dfd]] * LOOT_FRAC
             world.regions.pools[homes[dfd]] -= take
             world.regions.pools[home] += take
             loot = take
+            if getattr(world, "raze_enabled", False) and grudge[dfd] >= RAZE_GRUDGE:
+                razed = world.regions.pools[homes[dfd]] * RAZE_FRAC
+                world.regions.pools[homes[dfd]] -= razed
         atk_banner = F.banner_of(world, atk, mapping)
         dfd_banner = F.banner_of(world, dfd, mapping)
         feud = f"feud:{home}>{homes[dfd]}"
         fallen_names = ", ".join(a.name for a in fallen) or "no one"
         # GRIEVANCE lands on every defender-bloc soul: charge IN THE WORDS, tagged to
         # the LAND so the feud can outlive everyone who started it
+        burned = ("; what they could not carry, they burned" if razed > 0 else "")
         for a in F.members(world, dfd, mapping):
             a.memory.write(
                 f"{atk_banner} came for our granary -- {fallen_names} fell, and the "
-                f"bread of {dfd_banner.split('of ')[-1]} was carried off; a bitter, "
-                f"broken day", tick=world.tick, source="event",
+                f"bread of {dfd_banner.split('of ')[-1]} was carried off{burned}; a "
+                f"bitter, broken day", tick=world.tick, source="event",
                 emotion=GRIEF_EMO, weight=GRIEF_W, lore_id=feud,
                 salience_floor=GRIEVANCE_FLOOR)
             for m in party:
@@ -165,7 +176,8 @@ def war_tick(world) -> None:
         world._war_log.append({"tick": world.tick, "atk": home, "dfd": homes[dfd],
                                "won": won, "fallen": [a.name for a in fallen],
                                "party": [a.id for a in party],
-                               "defenders": [a.id for a in defenders], "loot": loot})
+                               "defenders": [a.id for a in defenders], "loot": loot,
+                               "razed": razed})
         del world._war_log[:-200]
         world.bus.publish("raid", {"tick": world.tick, "atk": atk_banner,
                                    "dfd": dfd_banner, "won": won,

@@ -125,6 +125,37 @@ def test_genomes_survive_the_json_town_snapshot():
     assert g.grip == founder.genome.grip           # the germ line rides the ~o tag
 
 
+def test_old_germ_lines_cross_without_the_new_dials():
+    """THE RULE, for heredity: a genome saved before openness/wrath existed still
+    crosses -- the missing dials wake at the population centre (DEFAULTS), mutate,
+    and stay bounded. No old snapshot's lineage can crash a birth."""
+    from agent.genome import DEFAULTS
+    g = Genome(grip=0.4, compassion=0.6, temperament=0.1)
+    del g.openness, g.wrath                        # a pre-civ germ line
+    child = inherit(g, random.Random(2), "s9")
+    assert abs(child.openness - DEFAULTS["openness"]) < 0.15   # centre + one mutation
+    assert abs(child.wrath - DEFAULTS["wrath"]) < 0.15
+    assert 0.0 <= child.openness <= 1.0 and 0.0 <= child.wrath <= 1.0
+
+
+def test_social_genes_express_only_where_the_world_says_so():
+    """openness/wrath ride every genome silently; only a social_genes world writes
+    them onto the flesh (engagement bound + rift multiplier). An ordinary world's
+    opinion dynamics keep the old global CONFIDENCE untouched."""
+    from agent.genome import express_social
+
+    class _A:
+        pass
+    a = _A()
+    g = Genome(grip=0.1, compassion=0.2, temperament=0.0, openness=1.0, wrath=1.0)
+    express(g, a)
+    assert not hasattr(a, "opinion_confidence")    # silent unless the world asks
+    assert not hasattr(a, "rift_scale")
+    express_social(g, a)
+    assert abs(a.opinion_confidence - 0.40) < 1e-9   # wide-open mind -> low bound
+    assert abs(a.rift_scale - 2.0) < 1e-9            # full wrath -> double the wound
+
+
 def test_age_death_heirs_carry_germ_and_worldview():
     """The reproduce() gap (the G2 trace, 2026-07-04): with rebirth OFF, a grace-death
     of old age replaced a soul with an heir holding NO genome and NO belief_vec --
