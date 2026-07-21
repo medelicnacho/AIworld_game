@@ -51,6 +51,8 @@ class Workspace:
         self.names: dict[str, str] = {}    # part id -> name (for logs / the digest)
         self.log: list[str] = []           # winner NAME per tick, bounded
         self._floor: str | None = None     # who HOLDS the floor (stable state, not argmax)
+        self.schema = None                 # AttentionSchema when World.schema_enabled --
+                                           # the mind's model OF this competition (W1/C1)
         self.decay = decay                 # short memory: a moment is ticks, not eras
         self.fatigue_rate = fatigue_rate       # how fast holding the floor wears you out
         self.fatigue_recover = fatigue_recover  # how fast resting restores you
@@ -130,6 +132,14 @@ class Workspace:
             return
         self.log.append(self.names.get(rid, rid))
         del self.log[:-LOG_CAP]
+        # the attention schema (W1/C1): the mind's MODEL of its own attention, fed the
+        # floor-holder and nothing else -- never the presence weights or the fatigue, so
+        # it watches itself from outside its own mechanism. Off unless the world asks.
+        if getattr(world, "schema_enabled", False):
+            if self.schema is None:
+                from agent.schema import AttentionSchema
+                self.schema = AttentionSchema()
+            self.schema.observe(self.names.get(rid, rid), tick=world.tick)
         by_id = {a.id: a for a in parts}
         winner = by_id.get(rid)
         if winner is not None:

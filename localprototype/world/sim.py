@@ -43,6 +43,57 @@ MURMUR_RANGE = 180.0          # how far a murmur carries (quieter than speech)
 MURMUR_WEIGHT = 0.3           # how lightly a murmur lands in a listener's memory
 
 
+def _belief_cos(a, b) -> float | None:
+    """How much two souls agree, on the ONE social space the factions, the allies and
+    the rift all already read (agent.belief_vec). None when either has no view yet --
+    a soul with nothing to disagree about never schisms."""
+    from agent.agent import _cosine
+    u, v = getattr(a, "belief_vec", None), getattr(b, "belief_vec", None)
+    if not u or not v or len(u) != len(v):
+        return None
+    return _cosine(list(u), list(v))
+
+
+def _bound(a) -> float:
+    """This soul's bounded-confidence engagement bound: engage above it, reject below.
+    Under social_genes it is EXPRESSED FROM THE GERM LINE (genome.express_social:
+    openness 0 -> 0.85 a narrow mind, openness 1 -> 0.40 a broad one), so how readily a
+    soul walks out of a room it disagrees with is a heritable trait. Falls back to the
+    world default for any town not running the civ dials."""
+    from agent.agent import CONFIDENCE
+    return float(getattr(a, "opinion_confidence", CONFIDENCE))
+
+
+def _agree_gate(a, b) -> bool:
+    """True when b's heading must NOT pull a's -- they are far enough apart in belief
+    that falling in step would be the very homogenising this fixes. False when either
+    has no view: the old proximity herding, unchanged."""
+    sim = _belief_cos(a, b)
+    return sim is not None and sim < _bound(a)
+
+
+def _lean(a, b) -> float | None:
+    """How much b is A'S PEOPLE, as a signed force in [-1, 1]: +1 we could not agree
+    more, 0 exactly at my engagement bound, -1 we are opposites. None when either has
+    no view to differ over.
+
+    This is the schism walk's whole idea. Attraction was keyed on AFFINITY, which in a
+    town where every soul ends up loving every other (§5.26: 992 warm bonds, median
+    trust 0.94, zero enmity -- measured again here at a median 114 bonds per soul) is
+    positive almost everywhere. So the pull summed to ~2.5 per soul from every side at
+    once and no amount of wanting-to-leave could escape it. Keyed on BELIEF instead,
+    the same crowd stops holding a soul it does not agree with, and the mega-herd
+    fragments into the like-minded bands its opinions already describe."""
+    sim = _belief_cos(a, b)
+    if sim is None:
+        return None
+    bound = _bound(a)
+    gap = sim - bound
+    # normalised each side of the bound so the full range is used whatever the bound is
+    lean = gap / (1.0 - bound) if gap >= 0 else gap / (1.0 + bound)
+    return max(-1.0, min(1.0, lean))
+
+
 class World:
     def __init__(self, bus: EventBus | None = None,
                  events: list[WorldEvent] | None = None,
@@ -183,6 +234,33 @@ class World:
         self.herd_drive = 0.55  # forward amble along the heading (world units, pre-gait)
         self.herd_turn = 0.10   # radians of slow random wander in the heading per tick
         self.herd_align = 0.08  # how hard the heading is pulled to the kin average
+        # THE SCHISM WALK (off by default; the civ arena turns it on). Herding is keyed
+        # on PROXIMITY and gated only on "not an active foe" -- so movement is BLIND TO
+        # BELIEF. Measured on the live arena: opinions were near-random (pairwise cosine
+        # mean -0.02, sd 0.67; 70% of pairs far enough apart that the war code calls them
+        # different peoples) and the town STILL ambled as three merged herds occupying 8
+        # of 24 regions, because disagreement never pushed anybody anywhere. §5.26 found
+        # the same shape from the other side: without a source of social differentiation
+        # the whole town collapses into one blob.
+        #
+        # So disagreement becomes a FORCE, in the pull itself (see _lean). A first
+        # attempt made it a STATE instead -- a "nomad" flag that walked a leaver out of
+        # the crowd -- and it failed on measurement: the escape push was 0.37x the
+        # summed pull holding a soul in (0.90 against a median 2.46, from a median 114
+        # warm bonds each), so leavers wandered INSIDE the herd and were re-absorbed.
+        # 11 souls went nomad over 400 ticks and the biggest clump grew, 59% -> 61%.
+        # No state can win against a force field it does not modify, so this modifies
+        # the field: a soul is pulled by its people and pushed by everyone else, and
+        # going alone is simply what happens when nobody is pulling. The band that
+        # forms elsewhere, travels, and gathers compatible strays needs no new
+        # machinery -- it is the existing herd code, now keyed on agreement.
+        # the attention schema (WORKSPACE_NEXT W1 / RESEARCH C1): a model of the mind's
+        # own attention, kept alongside the workspace. Off by default (THE RULE).
+        self.schema_enabled = False
+        self.schism_walk = False
+        self.schism_push = 1.0    # how hard disagreement repels, relative to the pull
+                                  # agreement gives (1.0 = symmetric: the same force,
+                                  # signed by whether you are my people)
         # World events are the experiment's perturbations, scheduled by tick.
         # `events_enabled` is the on/off switch: same world, one variable, so a
         # control run (off) and a treatment run (on) differ only by the events.
@@ -245,6 +323,9 @@ class World:
         self.__dict__.setdefault("herd_drive", 0.55)
         self.__dict__.setdefault("herd_turn", 0.10)
         self.__dict__.setdefault("herd_align", 0.08)
+        self.__dict__.setdefault("schema_enabled", False)
+        self.__dict__.setdefault("schism_walk", False)
+        self.__dict__.setdefault("schism_push", 1.0)
         self.__dict__.setdefault("culture_noise", 0.18)
         self.__dict__.setdefault("social_genes", False)
         self.__dict__.setdefault("_war_log", [])
@@ -919,6 +1000,7 @@ class World:
             from world import mating as _mating
             gid = by_id or {b.id: b for b in self.agents}
         herd = getattr(self, "herd_enabled", False)
+        schism = getattr(self, "schism_walk", False)
         for a in self.agents:
             ax, ay = a.position
             fx = fy = 0.0
@@ -941,9 +1023,19 @@ class World:
                 # rather than flinging each other to the walls. Long-range pull +
                 # short-range push is what keeps the camps stable clusters.
                 aff = a.feels_about(b.id)
-                radius = self.hearing_range * (2.0 if aff >= 0 else 1.0)
+                # THE SCHISM WALK: under it, what moves a body is AGREEMENT, not mere
+                # absence of enmity -- so a soul is held by its people and by nobody
+                # else. Real enmity still repels at least as hard as disagreement does
+                # (an enemy you happen to agree with is still an enemy).
+                pull = aff
+                if schism:
+                    lean = _lean(a, b)
+                    if lean is not None:
+                        lean *= self.schism_push if lean < 0 else 1.0
+                        pull = min(aff, lean) if aff < 0 else lean
+                radius = self.hearing_range * (2.0 if pull >= 0 else 1.0)
                 falloff = max(0.0, 1.0 - d / radius)
-                f = aff * self.attract * falloff
+                f = pull * self.attract * falloff
                 # personal space: always shove apart when too close to overlap
                 if d < self.min_gap:
                     f -= self.repel * (self.min_gap - d) / self.min_gap
@@ -953,7 +1045,8 @@ class World:
                 # toward the group's -- keyed on PROXIMITY (a settlement is a herd
                 # from tick 0), not on affinity, which barely builds early. Foes
                 # (aff < 0) are excluded so two hostile herds don't merge headings.
-                if herd and aff >= 0 and d < self.hearing_range:
+                if (herd and aff >= 0 and d < self.hearing_range
+                        and not (schism and _agree_gate(a, b))):
                     bh = getattr(b, "_heading", None)
                     if bh is not None:
                         wgt = 1.0 - d / self.hearing_range
