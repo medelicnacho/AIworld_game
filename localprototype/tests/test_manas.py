@@ -77,3 +77,60 @@ def test_self_relevance_ranks_mine_above_world():
         assert mine > world
     finally:
         embed.use_jaccard_only(False)
+
+
+# --- the WORLD's griefs, not just the soul's own words ------------------------------------
+# Every test above uses source="self" -- the one source relevance_of() hardcodes to 1.0 when
+# embeddings are down. But the losses the sim actually delivers (perceive() -> a death, a
+# betrayal) are written source="event", and those are the charges the second arrow is FOR.
+# These pin that path, so a regression there can't hide behind the source-only fallback.
+
+def _grief_event(emotion: float = -0.9):
+    """The canonical world-delivered loss, exactly as perceive() writes it."""
+    return Memory("Your dearest friend Wren has died in the night.", 0.6, 0, 0,
+                  source="event", emotion=emotion)
+
+
+def test_grip_grips_a_world_delivered_grief_when_embeddings_are_up(monkeypatch):
+    # WITH a semantic read available, an event-sourced loss must be judged self-relevant and
+    # gripped like any other: held against decay, and its charge amplified (the second arrow).
+    monkeypatch.setattr(manas, "relevance_of", lambda m: 0.0 if m.source == "doctrine" else 1.0)
+    a = _agent(1.0)
+    m = _grief_event()
+    a.memory.items = [m]
+    manas.apply(a, now=1)
+    assert m.salience > 0.6        # HOLD: the grief looms larger, it is not let go of
+    assert m.emotion < -0.9        # SECOND ARROW: "this happened to ME" magnified the wound
+
+
+def test_transmutation_metabolizes_a_world_delivered_grief(monkeypatch):
+    # the dharmic answer on the SAME memory: engaged (salience still held) AND unwounded
+    # (charge digested toward clarity rather than amplified). See DHARMA.md.
+    monkeypatch.setattr(manas, "relevance_of", lambda m: 0.0 if m.source == "doctrine" else 1.0)
+    a = _agent(1.0)
+    a.transmute = 0.85
+    m = _grief_event()
+    a.memory.items = [m]
+    manas.apply(a, now=1)
+    assert m.salience > 0.6        # ENGAGED: stays in full contact with the loss
+    assert m.emotion > -0.9        # UNWOUNDED: the charge metabolized, not deepened
+
+
+def test_source_only_fallback_cannot_grip_a_world_grief():
+    # DOCUMENTS A KNOWN LIMITATION, so it is a decision and not a silent surprise.
+    # With no embedding model, relevance_of() short-circuits to source membership and an
+    # event-sourced loss scores 0.0 -- so the grip, the second arrow and transmutation are
+    # ALL inert on exactly the memories the affect experiments are built around. Anything
+    # reading manas offline (experiment_liberation / _transmutation / _prajna) is measuring
+    # a disabled faculty. If this assertion ever starts FAILING, the fallback learned to see
+    # world-delivered griefs -- delete this test and re-run those experiments.
+    embed.use_jaccard_only(True)
+    try:
+        assert manas.relevance_of(_grief_event()) == 0.0
+        a = _agent(1.0)
+        m = _grief_event()
+        a.memory.items = [m]
+        manas.apply(a, now=1)
+        assert (m.salience, m.emotion) == (0.6, -0.9)   # untouched: the dial did nothing
+    finally:
+        embed.use_jaccard_only(False)

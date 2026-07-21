@@ -94,6 +94,11 @@ with an experiment designed to come out *false*:
   so a metric is shown to detect *absence*, not just presence.
 - **Semantic measurement where lexical fails** — sentiment word-lists cannot tell sad-toned
   *acceptance* from despair, so affect axes are embedding-anchored (`agent/affect.py`).
+  **This is a hard dependency, not a nicety: `nomic-embed-text` must be reachable or the affect
+  experiments report false FAILs** — the grip's self-relevance gate goes inert on world-delivered
+  memories and the dial silently stops doing anything. See §5.7. Check `embed.using_embeddings()`
+  before trusting any number from the grief/affect protocols (§5.1–5.3, `experiment_transmutation`,
+  `experiment_prajna`).
 - **The right instrument for the question** — and when embeddings can't read a *pragmatic*
   distinction (did a reply concede or hold?), an LLM judge, validated on calibration cases.
 - **MockLLM for pure substrate, the real model for anything downstream of speech** — MockLLM
@@ -146,7 +151,9 @@ cold indifference (the near enemy). *Falsifier:* `experiment_liberation.py`, a g
 across three configs. *Result:* the liberation config is the **only** one that is at once *felt*
 the loss, *lets it go* (grief salience 0.52 vs clinging's 0.88), *unwounded* (+0.030 vs clinging
 −0.084), and *warm* (+0.175 vs numb's −0.005). Clinging grips and suffers; numb lets go by going
-cold; liberation is the third thing.
+cold; liberation is the third thing. *Replicated with `nomic-embed-text` live: 4/4, 5/5 seeds
+(lets-go 0.51 vs 0.78, unwounded +0.021 vs −0.067, warm +0.174 vs −0.005).* **Requires the embedder
+— without it this experiment reports a false FAIL on three of its four criteria; see §5.7.**
 
 ### 5.3 A self can flourish — savour, and rejoice — without craving
 *Claim:* joy is *receiving* the good (and others' good), with craving (the treadmill) as its near
@@ -224,6 +231,31 @@ Honesty about what *didn't* work is the strongest evidence the rest isn't cherry
   dukkha-transmission *claim* was corrected to a drive-level claim. Two confounded variables (faculties
   + carried thirst) had moved together until a control forced them apart. The ablation was added
   *after* the result first looked clean — which is exactly when it matters most.
+- **The harness can report a false FAIL: the affect experiments have a silent hard dependency on the
+  embedding model.** `manas.relevance_of` gates the grip on self-relevance, and with no reachable
+  embedder it short-circuits to *source membership* (`{"self","reflection"}`) — while every
+  world-delivered loss is written `source="event"` (`Agent.perceive`). So offline the grip, the second
+  arrow, transmutation and craving are **inert on exactly the memories these protocols are built
+  around**: the dial moves and nothing happens (grief salience `0.4793` at grip 0.0, 0.45 *and* 1.0 —
+  identical). Re-run without the embedder, §5.2 prints *"did NOT show the signature"* (lets-go effect
+  **+0.0000**), §5.3's craving arm never drains (+0.900, undrained), and `experiment_transmutation`
+  reads **+0.0000** on *both* its criteria — the engaged-and-unwounded signature erased entirely. **What makes it easy to miss is that the failure is partial.** Warmth is
+  pure `felt_mood` arithmetic (ground × `1 − effective_grip`), so it is unaffected — liberation's warmth
+  reads **+0.172** offline vs **+0.174** with embeddings, numb −0.005 in both. The clean tell is
+  `joy.apply`: the same salience re-weighting with **no** relevance gate, which keeps working (held
+  1.00) while the gated craving arm beside it dies. Same mechanism, one gated — and only the gated one
+  falls over. *With `nomic-embed-text` running, all four re-pass and the numbers here replicate*
+  (lets-go 0.51 vs clinging 0.78; unwounded +0.021 vs −0.067; warm +0.174 vs numb −0.005; joy held
+  1.00/0.48, craving drained to +0.770; transmute engaged +0.2603 / unwounded +0.1025; prajñā wing 1
+  +0.0303, 5/5). **So the findings below stand — what does not is the assumption that a run without the
+  embedder is a *valid* run.** The unit tests could not catch it: every case in `tests/test_manas.py`
+  used `source="self"`, the one source the fallback hardcodes to 1.0, so they passed whether or not the
+  semantic path worked at all. `experiment_somatic` passes offline for the same reason (it writes its
+  own `source="self"` memories) — a pass here is not evidence the gate is live. Now pinned by
+  `test_source_only_fallback_cannot_grip_a_world_grief` (plus event-sourced grip/transmute tests), so
+  the limitation is a recorded decision rather than a silent surprise. **Lesson: a degraded dependency
+  that returns a plausible number is worse than one that crashes** — the offline verdict was not
+  "cannot run", it was a confident *false negative* against the project's own thesis.
 
 ### 5.8 Santāna — an emergent collective "I" (the inert prototype)
 *Claim:* the many souls can be integrated into a single first-person mind-stream whose
