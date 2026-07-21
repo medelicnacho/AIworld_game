@@ -70,3 +70,46 @@ class MultiModelTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OllamaAvailableChecksTheModelTest(unittest.TestCase):
+    """available() must mean "this MODEL can speak", not "a server answered".
+    Found live: ollama installed for embeddings only -- /api/tags answered 200,
+    the cockpit enabled the gemma3:4b talk voice, and every talk hung on a model
+    that was never pulled. Pin: a served tag list WITHOUT the model is False,
+    WITH it is True (including the bare-name == :latest ollama convention)."""
+
+    def _fake_tags(self, names):
+        import io as _io
+        import json as _json
+
+        class _Resp(_io.BytesIO):
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        return _Resp(_json.dumps({"models": [{"name": n} for n in names]}).encode())
+
+    def test_server_up_but_model_missing_is_not_available(self):
+        import urllib.request
+        from services.llm import OllamaLLM
+        real = urllib.request.urlopen
+        urllib.request.urlopen = lambda *a, **k: self._fake_tags(["nomic-embed-text:latest"])
+        try:
+            self.assertFalse(OllamaLLM(model="gemma3:4b").available())
+        finally:
+            urllib.request.urlopen = real
+
+    def test_present_model_is_available_and_bare_name_means_latest(self):
+        import urllib.request
+        from services.llm import OllamaLLM
+        real = urllib.request.urlopen
+        urllib.request.urlopen = lambda *a, **k: self._fake_tags(
+            ["gemma3:4b", "nomic-embed-text:latest"])
+        try:
+            self.assertTrue(OllamaLLM(model="gemma3:4b").available())
+            urllib.request.urlopen = lambda *a, **k: self._fake_tags(
+                ["gemma3:4b", "nomic-embed-text:latest"])
+            self.assertTrue(OllamaLLM(model="nomic-embed-text").available())
+        finally:
+            urllib.request.urlopen = real

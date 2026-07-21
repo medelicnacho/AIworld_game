@@ -162,11 +162,23 @@ class OllamaLLM:
         self.think = think
 
     def available(self) -> bool:
+        """True only when the server is up AND this model is actually pulled. Every
+        caller uses this to mean "can this model speak" (viewer: "don't go silently
+        mute"; run.py: enable the clear talk voice) -- a server-up-only check let a
+        missing model pass and every later call hang/404 (found live: ollama installed
+        for embeddings only, so /api/tags answered while gemma3:4b wasn't there and
+        the cockpit talk froze at 'thinking...')."""
         try:
             with urllib.request.urlopen(f"{self.url}/api/tags", timeout=3) as r:
-                return r.status == 200
-        except (urllib.error.URLError, OSError):
+                if r.status != 200:
+                    return False
+                names = {m.get("name", "") for m in json.load(r).get("models", [])}
+        except (urllib.error.URLError, OSError, ValueError, KeyError):
             return False
+        # a bare model name means :latest to ollama ("nomic-embed-text" is served
+        # as "nomic-embed-text:latest"); a tagged one must match exactly
+        want = self.model if ":" in self.model else f"{self.model}:latest"
+        return want in names or self.model in names
 
     def speak(self, ctx: SpeechContext) -> str:
         payload = {
