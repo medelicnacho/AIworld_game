@@ -51,6 +51,29 @@ REFOUND_AT = 6        # fewer souls than this = the civilization has fallen
 REFOUND_N = 12        # how many settlers raise their homes in the ruins
 GENTLE_YIELD = 1.6    # the land is kind: hunger must not be the collapse's author
 HARDSHIP_EVERY = 400  # rare lean seasons -- texture, not the driver
+
+# --- THE TWO REGIMES (EVOLUTION_NEXT stage 0) ------------------------------------------
+# The arena was tuned for WATCHING (kind land, rare hardship: the collapse's author is the
+# schism, not hunger) while EVOLUTION.md's E2 thesis is the opposite -- "starvation and
+# plenty are the whole selection pressure", and the scale addendum found the differential
+# lives in a narrow band of GRADED scarcity. So the land is graded (world/regions.py soils
+# 0.5..1.3) and then multiplied by 1.6 until nobody is hungry: the selection engine is
+# installed and switched off. Measured on the live arena after a FULL founder turnover --
+# genome means still sat at the founding ~0.5 (bold +0.491, metab +0.445, wrath +0.480)
+# while sd had grown to 0.11-0.22. Heredity works; selection is not biting.
+#
+# These are the same world with the pressure knobs at two settings. `watch` IS the shipped
+# arena, byte-for-byte (THE RULE: the default changes for nobody). `press` leans the land
+# so E2's differential has room to appear -- its own data dir and port, so the two never
+# touch and can run side by side.
+REGIMES = {
+    "watch": {"yield_scale": GENTLE_YIELD, "hardship_interval": HARDSHIP_EVERY,
+              "dawn_pool": 6.0, "data_dir": "data/evolution", "port": 8768,
+              "note": "the shipped arena: kind land, war/schism is the story"},
+    "press": {"yield_scale": 0.95, "hardship_interval": 100,
+              "dawn_pool": 3.0, "data_dir": "data/evolution_press", "port": 8770,
+              "note": "lean graded land: selection has something to bite on"},
+}
 # THE ARENA: the big pannable map (CIV_ARENA_PLAN.md) -- 4x each axis, 16x the
 # classic area, 24 regions of ~600x600. Only fresh foundings get it; a resumed
 # old save keeps the land it had (THE RULE).
@@ -137,8 +160,11 @@ def _found_settlements(w: World, rng: random.Random, n: int) -> int:
     return k
 
 
-def _gates(w: World, founders: int) -> None:
-    """Re-assert every runtime gate after any load (THE RULE)."""
+def _gates(w: World, founders: int, regime: str = "watch") -> None:
+    """Re-assert every runtime gate after any load (THE RULE).
+
+    `regime` picks the pressure preset (REGIMES): "watch" is the shipped arena and is
+    the default, so every existing caller (run.py --civ, test_caste) is unchanged."""
     w.stakes_enabled = True
     w.move_enabled = True
     # the classic gentle centre-pull is poison on the arena: linear in distance,
@@ -179,8 +205,9 @@ def _gates(w: World, founders: int) -> None:
     w.commons_first = True
     w.max_souls = founders + 96   # real headroom above the founding so litters land
                                   # in full and the population breathes below the cap
-    w.yield_scale = GENTLE_YIELD
-    w.hardship_interval = HARDSHIP_EVERY
+    cfg = REGIMES[regime]
+    w.yield_scale = cfg["yield_scale"]
+    w.hardship_interval = cfg["hardship_interval"]
     w.hearing_range = 260.0    # the town square: debate carries across knots, or the
                                # rift never finds an opposed ear (the echo-chamber find)
     # THE HOT WHEEL (the game's pace, none of it leaks to older worlds): births come
@@ -222,23 +249,33 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--fresh", action="store_true", help="raze the save; found anew")
-    p.add_argument("--port", type=int, default=PORT)
+    p.add_argument("--regime", choices=sorted(REGIMES), default="watch",
+                   help="pressure preset: watch = the shipped arena (kind land, the "
+                        "schism is the story); press = lean graded land so selection "
+                        "bites. Each has its OWN save dir and port -- run both at once.")
+    p.add_argument("--port", type=int, default=None)
     p.add_argument("--founders", type=int, default=FOUNDERS)
     p.add_argument("--seed", type=int, default=11)
     p.add_argument("--autosave-secs", type=float, default=90.0)
     args = p.parse_args()
-    os.makedirs(DATA_DIR, exist_ok=True)
+    cfg = REGIMES[args.regime]
+    data_dir = cfg["data_dir"]
+    world_path = f"{data_dir}/town.json"
+    port = args.port if args.port is not None else cfg["port"]
+    os.makedirs(data_dir, exist_ok=True)
     rng = random.Random(args.seed)
-    llm, _model = town_voice("markov", WORLD_PATH)
+    llm, _model = town_voice("markov", world_path)
 
-    w = None if args.fresh else load_world(WORLD_PATH, llm)
+    w = None if args.fresh else load_world(world_path, llm)
     fresh = w is None
     if fresh:
         w = World(rebirth_enabled=False, events_enabled=False)
         w.llm = llm
-    _gates(w, args.founders)
+    _gates(w, args.founders, regime=args.regime)
     if fresh:
-        w.regions.pools = [6.0] * len(w.regions.pools)   # a gentle dawn -- ONCE
+        # the dawn pool: watch gets its gentle 6.0, press a leaner 3.0 so the lean
+        # land is felt from the first season instead of coasting on a founding buffer
+        w.regions.pools = [cfg["dawn_pool"]] * len(w.regions.pools)   # ONCE
         k = _found_settlements(w, rng, args.founders)
         print(f"  (founded: {args.founders} souls in {k} settlements spread across "
               f"the arena -- each one people, one view)", flush=True)
@@ -272,7 +309,7 @@ def main() -> None:
         while not stop.is_set():
             stop.wait(args.autosave_secs)
             try:
-                save_world(w, WORLD_PATH)
+                save_world(w, world_path)
             except Exception:   # noqa: BLE001
                 pass
 
@@ -281,8 +318,8 @@ def main() -> None:
                threading.Thread(target=run_autosave, daemon=True)]
     for t in threads:
         t.start()
-    url = _ui.serve(_NoMind(), w, threading.Lock(), draw_dir=DATA_DIR,
-                    readings=[], drift_notes=[], port=args.port)
+    url = _ui.serve(_NoMind(), w, threading.Lock(), draw_dir=data_dir,
+                    readings=[], drift_notes=[], port=port)
     print(f"  THE CIVILIZATION WHEEL -> {url}", flush=True)
     try:
         while True:
@@ -292,7 +329,7 @@ def main() -> None:
     finally:
         stop.set()
         time.sleep(0.3)                # let the wheel release the lock
-        save_world(w, WORLD_PATH)
+        save_world(w, world_path)
         print("  (saved; the wheel sleeps)", flush=True)
 
 

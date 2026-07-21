@@ -370,3 +370,62 @@ def test_camera_clamp_contract():
     fit = min((W - 52) / 900.0, (H - 96) / 600.0)
     x, y = clamp(123.0, -77.0, (900.0, 600.0), fit)
     assert x == (900.0 - W / fit) / 2 and y == (600.0 - H / fit) / 2
+
+
+# --- the two pressure regimes (EVOLUTION_NEXT stage 0) ---------------------------------
+# The arena was tuned for WATCHING (kind land, rare hardship) while E2's thesis needs lean
+# GRADED scarcity, so the selection engine was installed and switched off -- measured on
+# the live arena: after a full founder turnover the genome means still sat at the founding
+# ~0.5. `press` is the same world with the pressure knobs leaned; `watch` is the shipped
+# arena and must stay byte-identical (THE RULE).
+
+def _gated(regime=None):
+    from santana_app.evolution import _gates
+    from world.sim import World
+    w = World(rebirth_enabled=False, events_enabled=False)
+    if regime is None:
+        _gates(w, 72)                     # the legacy two-arg call (run.py --civ, above)
+    else:
+        _gates(w, 72, regime=regime)
+    return w
+
+
+def test_default_regime_is_the_shipped_arena_unchanged():
+    """THE RULE: the default -- and the old two-arg call -- change for nobody."""
+    from santana_app.evolution import GENTLE_YIELD, HARDSHIP_EVERY
+    for w in (_gated(), _gated("watch")):
+        assert w.yield_scale == GENTLE_YIELD
+        assert w.hardship_interval == HARDSHIP_EVERY
+
+
+def test_press_leans_the_land_in_both_directions():
+    """press must be LEANER and its hardship MORE frequent -- selection needs both."""
+    watch, press = _gated("watch"), _gated("press")
+    assert press.yield_scale < watch.yield_scale
+    assert press.hardship_interval < watch.hardship_interval
+
+
+def test_regimes_differ_ONLY_in_the_pressure_knobs():
+    """The confound guard: if a regime quietly moved war, heredity or caste gates too,
+    any trait difference between the arms would be uninterpretable. Only the two
+    pressure knobs may differ; every other gate value must match."""
+    skip = {"lock", "llm", "regions", "agents", "_rng", "bus", "_spent_names"}
+
+    def vals(w):
+        return {k: getattr(w, k) for k in dir(w)
+                if not k.startswith("__") and k not in skip
+                and isinstance(getattr(w, k, None), (int, float, bool, str, type(None), tuple))}
+
+    a, b = vals(_gated("watch")), vals(_gated("press"))
+    differing = {k for k in a if a[k] != b[k]}
+    assert differing == {"yield_scale", "hardship_interval"}, differing
+    assert len(a) > 40          # the comparison actually looked at the gates, not nothing
+
+
+def test_regimes_are_isolated_by_dir_and_port():
+    """Two worlds that can never touch: separate saves AND separate ports, so the
+    scouting pair can run side by side without one resuming the other's town."""
+    from santana_app.evolution import REGIMES
+    dirs = {r["data_dir"] for r in REGIMES.values()}
+    ports = {r["port"] for r in REGIMES.values()}
+    assert len(dirs) == len(REGIMES) and len(ports) == len(REGIMES)

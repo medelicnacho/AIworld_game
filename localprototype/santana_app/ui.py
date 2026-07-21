@@ -34,8 +34,22 @@ from agent.agent import WAR_THRESHOLD as _WAR_AT
 
 PORT = 8765
 
-UI_VERSION = 22   # bump on any dashboard change: live pages reload themselves to match
+UI_VERSION = 23   # bump on any dashboard change: live pages reload themselves to match
                   # (the page's MY_VERSION substitutes from THIS constant at serve time)
+
+# Ambient music -- the same two tracks viewer.py has always played, one after the
+# other forever (viewer.MUSIC). They are gitignored (*.mp3), so a fresh clone has
+# none: every path here degrades to silence and the page hides its own button.
+import os as _os
+
+MUSIC = ("Solitude_at_Dawn.mp3", "Beneath_A_Watching_Sky.mp3")
+_MUSIC_DIR = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+
+
+def _music_tracks() -> list:
+    """The ambient tracks present on disk, in order. Empty (the common case on a
+    fresh machine) means the cockpit simply runs silent -- never a broken control."""
+    return [m for m in MUSIC if _os.path.isfile(_os.path.join(_MUSIC_DIR, m))]
 
 DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit</title>
 <style>
@@ -49,6 +63,10 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
  #hdr .v{font-size:12px;color:var(--dim)}
  #hdr .clock{margin-left:auto;font-size:12px;color:#9a9ab0}
  #hdr .drift{color:#c07a4a;font-size:11px}
+ #mus{background:transparent;border:1px solid var(--edge);color:var(--dim);
+  border-radius:4px;padding:1px 8px;font-size:13px;cursor:pointer;line-height:1.4}
+ #mus:hover{color:var(--warm);border-color:#3a3a48}
+ #mus.on{color:#e6b24a;border-color:#4a4130}
  #grid{display:grid;grid-template-columns:1.7fr 1fr;
   grid-template-rows:1fr 1fr 1.15fr;gap:9px;min-height:0}
  .panel{background:linear-gradient(#141419,#101015);border:1px solid var(--edge);
@@ -102,7 +120,8 @@ DASH = r"""<!doctype html><meta charset='utf-8'><title>Santāna — the cockpit<
 </style>
 <div id=hdr><b>Santāna</b><span class=who id=who></span><span class=v id=vitals></span>
  <span class=clock id=clock></span><span class=drift id=drift></span>
- <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v__UI_VERSION__</span></div>
+ <span class=v title="if this number is missing or lower, your browser is showing a stale cached page">cockpit v__UI_VERSION__</span>
+ <button id=mus title="ambient music" onclick="musToggle()" hidden>♪</button></div>
 <div id=grid>
  <div class=panel id=town><h3>the town — a living map</h3>
   <div id=mapwrap><canvas id=map width=1000 height=660></canvas>
@@ -511,6 +530,39 @@ async function send(){
  catch(e){p.textContent='(no answer)';}
  log.scrollTop=1e9;}
 document.getElementById('say').addEventListener('keydown',e=>{if(e.key==='Enter')send()});
+
+// --- ambient music: the two tracks, one after the other, forever ------------------
+// Mirrors viewer.py's mixer loop (load, play, queue the next on end) in the browser.
+// Three things this has to get right:
+//  * AUTOPLAY: browsers refuse audio before a user gesture, so a blocked play()
+//    arms a one-shot listener and starts on the first click/key instead of dying.
+//  * PERSISTENCE: the choice survives reloads (the page self-reloads on a version
+//    bump, and having the music come back each time would be its own small torment).
+//  * ABSENCE: no mp3s on disk -> /music/list is empty -> the button stays hidden.
+let musA=null, musI=0, musTracks=[], musWant=(localStorage.getItem('mus')!=='off');
+const musBtn=document.getElementById('mus');
+function musPaint(){musBtn.textContent=musWant?'♪':'♪̶';
+ musBtn.classList.toggle('on',musWant&&musA&&!musA.paused);
+ musBtn.title=musWant?'ambient music — click to mute':'muted — click for music';}
+function musNext(){ // advance to the next track and keep the pair cycling forever
+ if(!musTracks.length)return; musI=(musI+1)%musTracks.length;
+ musA.src='/music/'+encodeURIComponent(musTracks[musI]); if(musWant)musPlay();}
+function musPlay(){ if(!musA)return;
+ musA.play().then(()=>musPaint()).catch(()=>{ // autoplay refused: wait for a gesture
+  const go=()=>{document.removeEventListener('click',go);document.removeEventListener('keydown',go);
+   if(musWant)musA.play().then(()=>musPaint()).catch(()=>{});};
+  document.addEventListener('click',go,{once:true});
+  document.addEventListener('keydown',go,{once:true});});}
+function musToggle(){musWant=!musWant; localStorage.setItem('mus',musWant?'on':'off');
+ if(musWant)musPlay(); else if(musA)musA.pause(); musPaint();}
+fetch('/music/list').then(r=>r.json()).then(d=>{
+ musTracks=d.tracks||[]; if(!musTracks.length)return;   // silent machine: no button
+ musBtn.hidden=false;
+ musA=new Audio('/music/'+encodeURIComponent(musTracks[0]));
+ musA.volume=0.15;                    // viewer.py's MUSIC_VOLUME -- under the voices
+ musA.addEventListener('ended',musNext);
+ musPaint(); if(musWant)musPlay();
+}).catch(()=>{});
 setInterval(poll,1500);poll();requestAnimationFrame(frame);
 </script>"""
 
@@ -930,6 +982,26 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(b"{}", "application/json", 404)
             else:
                 self._send(json.dumps(d).encode(), "application/json")
+        elif self.path == "/music/list":
+            # which of the ambient tracks are actually on disk. The page hides its
+            # music button entirely when this is empty, so a machine without the
+            # (gitignored) mp3s shows no dead control.
+            self._send(json.dumps({"tracks": _music_tracks()}).encode(),
+                       "application/json")
+        elif self.path.startswith("/music/"):
+            import os
+            name = os.path.basename(self.path.split("?")[0])   # no traversal: basename only
+            if name not in _music_tracks():        # only the two ambient tracks, ever
+                self._send(b"no such track", "text/plain", 404)
+                return
+            path = os.path.join(_MUSIC_DIR, name)
+            try:
+                with open(path, "rb") as f:
+                    body = f.read()
+            except OSError:
+                self._send(b"unreadable", "text/plain", 404)
+                return
+            self._send(body, "audio/mpeg")
         elif self.path.startswith("/drawings/"):
             import os
             name = os.path.basename(self.path.split("?")[0])   # no traversal: basename only
