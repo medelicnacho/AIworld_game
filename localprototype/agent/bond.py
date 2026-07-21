@@ -28,6 +28,32 @@ HISTORY_GAIN = 0.10     # shared positive history accrued per warm interaction (
 LOYALTY = 1.5           # how strongly history buffers a betrayal (resists evidence)
 BETRAYAL_ERODES = 0.5   # a betrayal damages the very buffer that softened it (memory)
 
+# --- bonding on a SHARED VIEW (Agent.bond_creed, default off) -------------------------------
+# The bond signal in hear() is `0.3 * their_mood * my_mood + semantic_warmth`, and a big town
+# forces the Jaccard fallback (santana_app/run.py), which zeroes the warmth term outright. So
+# in the arena a bond accretes on MOOD PRODUCT ALONE: two souls who are both in decent spirits
+# warm to each other no matter what either believes. Most souls are in decent spirits most of
+# the time, so nearly every pair warms -- measured on the live arena, a median 114 warm bonds
+# per soul out of 162, which is §5.26's "every soul ends up loving every other" arriving by
+# a route nobody was watching.
+#
+# That universal warmth is what makes the kin-pull an inescapable gravity well (the schism
+# walk's post-mortem: a leaver's escape push was 0.37x the summed pull holding it in). Rather
+# than fight that force downstream in the movement physics -- two attempts, both failed and
+# recorded in world/sim.py -- this makes disagreement matter where the pull is BORN: you do
+# not come to love someone you fundamentally disagree with, however cheerful you both are.
+CREED = 0.30            # how hard a shared/opposed view moves the bond signal, against the
+                        # mood-product term's own 0.30 ceiling -- equal footing, not a veto
+
+
+def creed_lean(sim: float, bound: float) -> float:
+    """Signed agreement in [-1, 1]: +1 could not agree more, 0 exactly at my engagement
+    bound, -1 opposites. Same shape the schism walk uses on the movement side, so a soul's
+    bonding and its bearing read the SAME line the same way."""
+    gap = sim - bound
+    lean = gap / (1.0 - bound) if gap >= 0 else gap / (1.0 + bound)
+    return max(-1.0, min(1.0, lean))
+
 
 @dataclass
 class Bond:

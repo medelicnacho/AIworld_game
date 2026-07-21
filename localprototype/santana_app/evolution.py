@@ -80,6 +80,8 @@ REGIMES = {
 ARENA_BOUNDS = (3600.0, 2400.0)
 ARENA_COLS, ARENA_ROWS = 6, 4
 BREEDER_SHARE = 0.5   # the founding caste split: ~half breeders, half warriors
+BOND_CREED = False    # experiment_bond_creed's gate: bonds keyed on a shared view. OFF
+                      # until it earns its way in -- the arena is unchanged by default.
 
 
 class _NoMind:
@@ -123,6 +125,10 @@ def _found_souls(w: World, rng: random.Random, n: int, origin=None) -> None:
         a.bond_enabled = True
         a.somatic_enabled = True       # the bottom-up welfare floor, on from birth
         a.rift_enabled = True          # here, argument can wound (children inherit this)
+        a.bond_creed = BOND_CREED      # bond on a SHARED VIEW, not mood alone -- without it
+                                       # the big town's Jaccard fallback leaves the bond
+                                       # signal as mood-product only and every cheerful
+                                       # pair warms (agent/bond.py CREED)
         a.role, a.aim = "villager", "to live well"
         a.boldness = rng.uniform(0.1, 0.9)
         a.metabolism = rng.uniform(0.2, 0.8)

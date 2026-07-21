@@ -149,6 +149,8 @@ class Agent:
         self.concept_speech = False          # INTERPRET the Markov drift into meaning, then speak that
         self.reflect_enabled = False         # Stage-1 lab toggle: run reflect() (relate to own memory)
         self.bond_enabled = False            # Stage-2 toggle: keep dyadic Bonds (relate to other selves)
+        self.bond_creed = False              # bond on a SHARED VIEW, not mood alone (agent/bond.py CREED):
+                                             # off by default, so every validated world bonds exactly as before
         self.bonds: dict = {}                # directional bonds toward other selves (see agent/bond.py)
         self.grip = 0.0                      # Stage-4 manas: appropriation strength [0,1]; 0 = released (default)
         self.compassion = 0.0                # Stage-6 metta/karuṇā: warm engagement [0,1]; 0 = off (default)
@@ -279,6 +281,7 @@ class Agent:
     _PICKLE_DEFAULTS = {
         "psyche_faculty": "",
         "expect_enabled": False, "exp_fast": 0.0, "exp_slow": 0.0, "arousal": 0.0,
+        "bond_creed": False,
         "self_expect": None, "self_dissonance": 0.0, "_turnings": 0,
     }
 
@@ -456,6 +459,18 @@ class Agent:
             # disposition carries the bond and warmth sharpens it.)
             w = affect.warmth(u.text) if embed.using_embeddings() else 0.0
             sig = 0.3 * u.mood * my_mood + w
+            # ... and, when the world asks, WHAT THEY SAID rather than only how you both
+            # happened to feel: a shared view warms, an opposed one cools. Without this the
+            # signal is mood-product alone in any big town (the warmth term needs embeddings,
+            # which a big town does not run), so every cheerful pair bonds and the town ends
+            # up loving itself uniformly -- see agent/bond.py CREED.
+            if getattr(self, "bond_creed", False) and self.belief_vec:
+                other = getattr(u, "belief_vec", None)
+                if other and len(other) == len(self.belief_vec):
+                    from agent.bond import CREED, creed_lean
+                    sig += CREED * creed_lean(
+                        _cosine(self.belief_vec, list(other)),
+                        getattr(self, "opinion_confidence", CONFIDENCE))
             if u.addressed_to == self.id or u.source == "user":
                 sig *= 2.0   # words aimed at me -- or from the one who inhabits/tends me -- land harder
             bond = self.bonds.setdefault(u.speaker_id, Bond())

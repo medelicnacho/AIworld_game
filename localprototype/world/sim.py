@@ -522,6 +522,10 @@ class World:
         # that arguments wound (gated by the parent, so old towns stay untouched);
         # so is how open a mind is (default = the old global, THE RULE)
         heir.rift_enabled = getattr(parent, "rift_enabled", False)
+        heir.bond_creed = getattr(parent, "bond_creed", False)    # and whether a shared
+                                       # view is what warms a bond -- carried like the rift,
+                                       # or the mechanic dies with the founding cast (the
+                                       # arena turns its founders over completely)
         if hasattr(parent, "opinion_confidence"):
             heir.opinion_confidence = parent.opinion_confidence
         if self.social_genes and getattr(heir, "genome", None) is not None:
@@ -766,6 +770,7 @@ class World:
         a.bonds.setdefault(parent.id, Bond()).warm(0.8)
         parent.bonds.setdefault(a.id, Bond()).warm(0.8)
         a.rift_enabled = getattr(parent, "rift_enabled", False)   # cultural, like the view
+        a.bond_creed = getattr(parent, "bond_creed", False)       # ... and so is what warms it
         if hasattr(parent, "opinion_confidence"):                 # and how open a mind is
             a.opinion_confidence = parent.opinion_confidence
         if self.social_genes:
