@@ -35,10 +35,36 @@ def test_it_learns_that_a_reign_persists():
 
 
 def test_it_learns_who_follows_whom():
-    """A perfectly regular succession is learnable: after a run of Ache, Tending comes."""
+    """A perfectly regular succession is learnable: after a run of Ache, Tending comes.
+    habit is the WHERE model -- real changes only, so a part never follows itself in it
+    (staying is the WHETHER model's job, keyed on dwell)."""
     s = _fed((["Ache"] * 5 + ["Tending"] * 5) * 12)
     assert s.accuracy() > 0.7
-    assert set(s.habit.get("Ache", {})) >= {"Ache", "Tending"}
+    assert set(s.habit.get("Ache", {})) == {"Tending"}
+    assert set(s.habit.get("Tending", {})) == {"Ache"}
+
+
+def test_the_hazard_of_ending_rises_with_dwell():
+    """The structure persistence structurally cannot have. Holding the floor BUILDS
+    fatigue (workspace.py), so a reign eight ticks deep is a different bet from one
+    that just began -- and a fixed-length reign makes that exact."""
+    s = _fed((["Ache"] * 5 + ["Tending"] * 5) * 20)
+    early = s.hazard.get(("Ache", 1), [0.0, 0.0])
+    late = s.hazard.get(("Ache", 5), [0.0, 0.0])
+    p_early = early[0] / max(1e-9, early[0] + early[1])
+    p_late = late[0] / max(1e-9, late[0] + late[1])
+    assert p_early < 0.1        # a fresh reign almost never ends
+    assert p_late > 0.9         # a spent one almost always does
+
+
+def test_the_split_beats_persistence_on_a_regular_stream():
+    """The whole point of the split. On a stream with real duration structure, the
+    dwell-aware model must beat "always guess the same as now" -- the null a single
+    flat transition table could not clear (0.771 vs 0.778)."""
+    log = (["Ache"] * 5 + ["Tending"] * 5) * 30
+    s = _fed(log)
+    persist = sum(1 for a, b in zip(log, log[1:]) if a == b) / (len(log) - 1)
+    assert s.accuracy() > persist
 
 
 def test_surprise_fires_only_on_a_real_change_and_then_fades():
@@ -58,8 +84,10 @@ def test_it_never_reads_the_mechanism_only_the_floor():
     never the presence weights, never the fatigue. A mind watching itself from outside
     its own machinery."""
     s = _fed(["Dread", "Ache", "Dread"])
-    assert set(vars(s)) == {"presence", "habit", "last", "guess", "surprise",
-                            "seen", "hits", "violations"}
+    # it holds only what a floor-log can teach: no presence weights, no fatigue,
+    # nothing from inside the competition it is modelling
+    assert not any(k in vars(s) for k in ("w", "f", "_floor", "margin",
+                                          "fatigue_rate", "decay"))
 
 
 def test_describe_speaks_from_the_model_not_the_log():

@@ -14,8 +14,17 @@ PRE-REGISTERED (tuning on seeds 11-15; VERDICT from virgin seeds 41-45; a claim 
      hard one: a mind dominated by one part is trivially predictable, so the schema must
      beat that, not merely score high.
 
-  A2 SURPRISE IS ABOUT HERSELF. Ticks where the schema is violated carry higher mean
-     AROUSAL than unviolated ticks -- being wrong about oneself is felt.
+  A2 SURPRISE IS ABOUT HERSELF. Schema violations and arousal CO-OCCUR: the violation
+     rate on aroused ticks exceeds the overall violation rate.
+
+     [TUNING REVISION, recorded -- the house practice of iterating on 11-15 and keeping
+     the held-out seeds virgin (§5.14 ran three recorded design iterations).] A2 was
+     first measured as "mean arousal is higher on violated ticks", which is
+     UNDERPOWERED BY CONSTRUCTION: arousal is a rare spike (16 of 600 ticks above 0.05,
+     median exactly 0.0) while violations run ~17% of ticks, so averaging a spike over
+     ~100 ticks dilutes it into noise (measured lift -0.0006, CI spanning 0). Same
+     co-occurrence claim, measured in the direction that has power. NOT a weakened bar:
+     the null is the unconditional violation rate, so chance co-occurrence fails it.
 
   NULL (the integrity check): the same schema fed a SHUFFLED floor log must NOT beat its
   own base rate. Shuffling destroys the succession structure while preserving every part's
@@ -126,7 +135,7 @@ def main() -> None:
     print(f"=== the attention schema: does a model of the floor predict it? "
           f"({'HELD-OUT VERDICT' if args.heldout else 'tuning'} seeds {seeds[0]}..{seeds[-1]}) ===\n")
     print(f"  {'seed':<6}{'acc':>8}{'base':>8}{'gain':>8}{'persist':>9}{'shuf':>8}"
-          f"{'arous+':>9}{'arous-':>9}{'viol':>7}")
+          f"{'viol|hot':>10}{'viol|all':>10}{'spikes':>8}")
     a1, a1b, a2, nulls, gains, lifts = [], [], [], [], [], []
     for sd in seeds:
         r = run(sd)
@@ -135,10 +144,12 @@ def main() -> None:
         shuf_log = list(r["log"])
         random.Random(sd).shuffle(shuf_log)
         shuf = replay(shuf_log) or 0.0
-        hot = [x["arousal"] for x in r["rows"] if x["violated"]]
-        cold = [x["arousal"] for x in r["rows"] if not x["violated"]]
-        mh = statistics.fmean(hot) if hot else float("nan")
-        mc = statistics.fmean(cold) if cold else float("nan")
+        AROUSED = 0.05          # a real spike, against a median of exactly 0.0
+        spikes = [x for x in r["rows"] if x["arousal"] > AROUSED]
+        # violation rate WHEN SHAKEN, vs the unconditional rate (the null)
+        mh = (sum(1 for x in spikes if x["violated"]) / len(spikes)) if spikes else float("nan")
+        mc = (sum(1 for x in r["rows"] if x["violated"]) / len(r["rows"])) if r["rows"] else float("nan")
+        hot, cold = spikes, r["rows"]
         gains.append((acc or 0.0) - base)
         lifts.append((mh - mc) if hot and cold else 0.0)
         pers = persistence(r["log"])
@@ -149,12 +160,12 @@ def main() -> None:
         print(f"  {sd:<6}{(acc or 0.0):>8.3f}{base:>8.3f}{gains[-1]:>+8.3f}{pers:>9.3f}"
               f"{shuf:>8.3f}{mh:>9.3f}{mc:>9.3f}{len(hot):>7}")
     print(f"\n  A1 gain over base rate: {summary(gains)}")
-    print(f"  A2 arousal lift on violated ticks: {summary(lifts)}")
+    print(f"  A2 violation-rate lift when aroused: {summary(lifts)}")
     print(f"\n  -> A1 SCHEMA PREDICTS (beats base rate):        {sum(a1)}/{len(seeds)}"
           f"  {'PASS' if sum(a1) >= 4 else 'FAIL'}")
     print(f"     A1b ... and beats PERSISTENCE (the hard null): {sum(a1b)}/{len(seeds)}"
           f"  {'PASS' if sum(a1b) >= 4 else 'FAIL -- it models that the floor STAYS, not where it GOES'}")
-    print(f"     A2 SURPRISE IS FELT (arousal higher):        {sum(a2)}/{len(seeds)}"
+    print(f"     A2 SURPRISE CO-OCCURS WITH AROUSAL:          {sum(a2)}/{len(seeds)}"
           f"  {'PASS' if sum(a2) >= 4 else 'FAIL'}")
     print(f"     NULL shuffled log beats its base rate:       {sum(nulls)}/{len(seeds)}"
           f"  {'(BAD -- structure is not what is being read)' if sum(nulls) >= 2 else '(good: 0-1)'}")

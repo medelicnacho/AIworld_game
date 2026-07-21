@@ -37,6 +37,8 @@ ALPHA = 0.08          # EWMA rate for presence: slow enough that "who I have bee
 HABIT_PRIOR = 0.5     # Laplace-ish smoothing on the transition counts, so an unseen
                       # succession is merely unlikely and never impossible
 SURPRISE_DECAY = 0.85 # how fast the felt surprise fades once the schema catches up
+DWELL_CAP = 8         # reign-length buckets for the hazard: 1,2,..,7,8+ (a reign runs
+                      # ~4.4 ticks, so the interesting structure is all in the first few)
 
 
 class AttentionSchema:
@@ -44,26 +46,55 @@ class AttentionSchema:
 
     def __init__(self) -> None:
         self.presence: dict[str, float] = {}          # part -> EWMA floor-share
-        self.habit: dict[str, dict[str, float]] = {}  # part -> {next part -> count}
+        self.habit: dict[str, dict[str, float]] = {}  # part -> {successor -> count}, on
+                                                      # ACTUAL CHANGES only (the WHERE model)
+        self.hazard: dict[tuple, list] = {}           # (part, dwell) -> [changed, stayed]
+                                                      # (the WHETHER model)
         self.last: str | None = None                  # who held the floor last tick
+        self.dwell: int = 0                           # how long this reign has run
         self.guess: str | None = None                 # who I expect next
         self.surprise: float = 0.0                    # felt wrongness, decaying
         self.seen: int = 0                            # ticks modelled
         self.hits: int = 0                            # guesses that came true
         self.violations: list = []                    # (tick, expected, actual), bounded
 
-    # --- the model ------------------------------------------------------------------
+    # --- the model, in two questions --------------------------------------------------
+    # A single "who comes next" table cannot beat simply saying "the same as now": a reign
+    # runs ~4.4 ticks, so persistence is right ~78% of the time and one flat table just
+    # learns to say "stay" (measured: 0.771 against persistence's 0.778 -- it had learned
+    # THAT the floor persists and nothing about WHERE IT GOES).
+    #
+    # So the schema asks two questions instead of one:
+    #   WHETHER  is this reign about to end? -- keyed on WHO holds the floor and HOW LONG
+    #            they have held it. This is the part persistence structurally cannot have:
+    #            holding the floor BUILDS fatigue (workspace.py), so the hazard of ending
+    #            RISES with dwell, and a reign eight ticks deep is not the same bet as one
+    #            that just began.
+    #   WHERE    given it ends, who takes it? -- the transition table, over real changes.
+
+    def _hazard_of_ending(self) -> float:
+        """P(the floor changes next tick), from this part's dwell. Unseen buckets fall
+        back to the part's overall change rate, then to a coin -- a schema always answers."""
+        if self.last is None:
+            return 0.0
+        key = (self.last, min(self.dwell, DWELL_CAP))
+        ch, st = self.hazard.get(key, [0.0, 0.0])
+        if ch + st >= 3.0:
+            return ch / (ch + st)
+        tot_ch = sum(v[0] for k, v in self.hazard.items() if k[0] == self.last)
+        tot_st = sum(v[1] for k, v in self.hazard.items() if k[0] == self.last)
+        return (tot_ch / (tot_ch + tot_st)) if (tot_ch + tot_st) > 0 else 0.5
+
     def predict(self) -> str | None:
-        """Who I expect to hold the floor next. Habit first (who follows whom in me),
-        falling back to presence (who I have mostly been) when this part has no history
-        -- a schema always has an answer, which is what makes it falsifiable."""
-        if self.last is not None:
+        """Who I expect to hold the floor next: stay unless this reign looks spent, and
+        if it looks spent, the habitual successor."""
+        if self.last is None:
+            return max(self.presence, key=self.presence.get) if self.presence else None
+        if self._hazard_of_ending() > 0.5:
             nxt = self.habit.get(self.last)
             if nxt:
                 return max(nxt, key=nxt.get)
-        if self.presence:
-            return max(self.presence, key=self.presence.get)
-        return None
+        return self.last
 
     def observe(self, floor: str | None, tick: int = 0) -> bool:
         """One tick of watching myself. Returns True when the schema was SURPRISED --
@@ -90,14 +121,16 @@ class AttentionSchema:
         for pid in set(self.presence) | {floor}:
             hit = 1.0 if pid == floor else 0.0
             self.presence[pid] = (1.0 - ALPHA) * self.presence.get(pid, 0.0) + ALPHA * hit
-        # Record EVERY succession, including a part following itself. The first version
-        # recorded only CHANGES and scored 0.13 against a 0.40 base rate -- because a
-        # reign lasts ~4.4 ticks, so the floor stays put on 77% of them and a model that
-        # can only ever predict a change is wrong nearly every time it opens its mouth.
-        # "Who follows whom in me" has to include "and mostly, I go on as I was."
+        # learn BOTH models from this succession
         if self.last is not None:
-            row = self.habit.setdefault(self.last, {})
-            row[floor] = row.get(floor, HABIT_PRIOR) + 1.0
+            changed = self.last != floor
+            key = (self.last, min(self.dwell, DWELL_CAP))
+            cell = self.hazard.setdefault(key, [0.0, 0.0])
+            cell[0 if changed else 1] += 1.0        # WHETHER: did this reign end here
+            if changed:                              # WHERE: only real changes teach it
+                row = self.habit.setdefault(self.last, {})
+                row[floor] = row.get(floor, HABIT_PRIOR) + 1.0
+        self.dwell = (self.dwell + 1) if self.last == floor else 1
         self.last = floor
         self.guess = self.predict()
         return surprised
