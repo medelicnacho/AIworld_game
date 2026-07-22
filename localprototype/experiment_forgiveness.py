@@ -53,31 +53,37 @@ PRE-REGISTERED (3 seeds; a claim passes at 3/3):
 
   python3 -u experiment_forgiveness.py
 
-VERDICT (seeds 11-13, 12000 ticks, hearth cap 3):
+VERDICT (seeds 11-20, n=10 -- the 3-seed run below was NOT enough and is superseded):
 
-  F1 RATCHET STOPS (a AND b)   3/3   floored/soul 13.91 -> 0.31, 19.15 -> 2.40, 16.18 -> 1.04
-  F2 THE FEUD STILL OUTLIVES   3/3   (veto) 85, 117, 90 carriers -- §5.28's G2 intact
-  F3 NO POPULATION COST        2/3   115/108, 117/106, but 90/105 on seed 13
+  F1 RATCHET STOPS (a AND b)   7/10    F1a effect 9/10, F1b flattened 7/10
+  F2 THE FEUD STILL OUTLIVES   9/10    (veto)
+  F3 NO POPULATION COST        8/10
 
-FAILS the 3/3-on-all bar on F3 alone, so the gates stay OFF. The mechanism itself is not
-in doubt: an 8-45x cut in un-prunable memory while the feud survives on every seed.
+FAILS the bar on all three, so the gates stay OFF. The three-seed run had F1 3/3 and F2 3/3
+and would have been read as "ships once F3 settles". At n=10 that reading is wrong, and the
+extra seven seeds cost an hour to learn it. This is the §5.7 pattern for the third time in
+this session's work: a claim that looked clean at n=3 did not hold.
 
-F3's miss is ONE seed, and the two that pass go the OTHER way (population HIGHER with
-forgiveness, 115/108 and 117/106) -- which is the direction the mechanism predicts, since
-fewer live grievances should mean less war, not more death. There is no mechanism by which
-forgiveness kills people. Two honest caveats against reading that as a pass anyway:
+WHAT IS SOLID. F1a -- forgiveness ends with materially less un-prunable memory than its own
+twin -- holds 9/10, and the effect is large wherever it lands (floored/soul 13.91 -> 0.31,
+19.15 -> 2.40, 18.00 -> 1.82). The leak is real, and this bounds it.
 
-  * The runs are DETERMINISTIC now, so re-running reproduces 90/105 exactly. Repetition
-    proves nothing here; only more SEEDS can settle it.
-  * F3 reads population at a single instant, and population is measured-noisy: the 24k
-    trajectory probe showed a single town swinging 78 <-> 117 between 2000-tick samples.
-    A mean over the last quarter would be the better statistic. That is a REAL weakness of
-    the measure, argued from data taken before this experiment -- but F1 has already been
-    re-specified once in this file, and re-specifying a second claim after seeing it miss
-    is how a harness stops meaning anything. Recorded, not rewritten.
+WHAT IS NOT. F1b, "bounded and not merely slower", is 7/10 -- so on ~a third of towns the
+growth has NOT flattened by the end of the run, it is only climbing more gently. That is the
+difference between a fix and a delay, and it is the claim that decides whether a shard's
+cost converges. It is also the claim I would have skipped: the first F1 could not have
+caught it, since it compared against a first quarter that is structurally ~0.
 
-To settle it: ~7 more seeds (about an hour), F3 on a windowed mean. Until then the honest
-grade is "the leak is bounded and the feud survives; the population claim is unproven".
+F2 slipping to 9/10 matters more than the number looks: it is the WELFARE-ADJACENT veto (a
+memory bound must not be bought by erasing §5.28's feud), and one town in ten losing the
+feud entirely is a real cost, not noise to average away.
+
+WHAT TO DO NEXT, if this is picked up: the erosion rate is a single global constant doing
+two jobs -- bounding memory AND preserving feuds -- and 7/10 vs 9/10 on opposing claims is
+what one constant serving two masters looks like. The honest next step is to separate them
+(erode faster on memories nobody has retold, slower on those carrying a live lore_id) and
+pre-register the split BEFORE running, rather than tuning FLOOR_EROSION until both pass.
+
 """
 from __future__ import annotations
 
@@ -88,7 +94,7 @@ from scripts.arena_harness import build, run
 TICKS = 12000
 EVERY = 1000
 FOUNDERS = 24
-SEEDS = (11, 12, 13)
+SEEDS = tuple(range(11, 21))   # 10 seeds: settling F3 on the UNCHANGED criterion
 HEARTH_CAP = 3
 
 
