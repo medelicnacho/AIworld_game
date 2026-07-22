@@ -355,21 +355,21 @@ export const MOB = {
   // Population scales with TIER as well as being large: the deep is not just meaner, it is
   // more CROWDED. That reinforces D8's gradient with density instead of only with stats,
   // and it's why walking out feels like pressure rather than arithmetic.
-  maxAlive: 110,
-  maxAlivePerTier: 14,    // tier 3: 152 · tier 8: 222 (capped)
-  maxAliveCap: 240,
-  maxPacks: 11,
-  maxPacksPerTier: 2,
-  maxPacksCap: 26,
-  packSize: [7, 14],      // a camp is a crowd, not a squad
-  packCap: 20,            // and it can breed to this
+  maxAlive: 170,
+  maxAlivePerTier: 22,    // tier 3: 236 · tier 8: 346 (capped)
+  maxAliveCap: 380,
+  maxPacks: 16,
+  maxPacksPerTier: 3,
+  maxPacksCap: 34,
+  packSize: [9, 18],      // a camp is a crowd, not a squad
+  packCap: 26,            // and it can breed to this
   breedEvery: [35, 80],   // seconds between a mob's offspring (idle only, never mid-fight)
   // Tighter band than before: camps sat 32-88 units out, which put most of them past the
   // fog and made the world read as empty. 22-58 keeps several in sight at once.
   spawnMin: 22,
   spawnMax: 58,
   despawn: 105,
-  spawnInterval: 0.45,
+  spawnInterval: 0.3,
 };
 
 // D10 — the giant boss. ONE reusable rig, re-dressed per ring. Everything here is tuned

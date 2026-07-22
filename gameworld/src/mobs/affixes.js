@@ -18,13 +18,52 @@
 // ctx carries the few world verbs an affix may need: { blast, mobs, player }.
 
 export const AFFIXES = {
-  // C1 ships exactly one affix, and a deliberately boring one: it proves the whole
-  // pipeline (roll -> colour -> hook -> kill feed -> admin spawn) without introducing any
-  // new system that could mask an engine bug. The interesting ones are C2.
+  // Each affix is ONE RULE, self-contained: its numbers live beside its behaviour, so the
+  // whole thing can be read — and judged — in one place.
+
+  /** Kill it, then LEAVE. Punishes standing on a corpse to finish the next one. */
+  burst: {
+    id: "burst",
+    name: "Dying Burst",
+    color: 0xff2f2f,
+    minTier: 1,
+    weight: 1,
+    desc: "Explodes when it dies. The ground is marked first.",
+    onDeath: (e, ctx) => ctx.mobs.queueBurst(e.x, e.z, e.damage * 3.2, 7.5),
+  },
+
+  /** Stop fighting where it has been. Turns the floor into terrain you have to read. */
+  burning: {
+    id: "burning",
+    name: "Burning",
+    color: 0xff8c1a,
+    minTier: 1,
+    weight: 1,
+    desc: "Leaves fire burning wherever it walks.",
+    onTick: (e, dt, ctx) => {
+      e.burnT = (e.burnT || 0) - dt;
+      if (e.burnT > 0) return;
+      e.burnT = 0.3;
+      ctx.mobs.dropFire(e.x, e.z, e.damage * 1.6, 2.7, 4.5);
+    },
+  },
+
+  /** The kill is not the end. Punishes spending a big cooldown on the wrong target. */
+  splitting: {
+    id: "splitting",
+    name: "Splitting",
+    color: 0xa45cff,
+    minTier: 1,
+    weight: 1,
+    desc: "Breaks into three fast spawn when killed.",
+    onDeath: (e, ctx) => ctx.mobs.spawnSplit(e, 3),
+  },
+
+  /** The C1 pipeline prover. Kept: pure speed is a real, readable modifier. */
   frenzied: {
     id: "frenzied",
     name: "Frenzied",
-    color: 0xff7a1e,
+    color: 0x35d6c8,
     minTier: 1,
     weight: 1,
     desc: "Moves far faster than it should.",

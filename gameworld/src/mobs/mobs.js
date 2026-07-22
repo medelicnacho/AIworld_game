@@ -66,6 +66,35 @@ export class Mobs {
     this._affixCol = new THREE.Color();
     this._affixCache = new Map();     // affix id -> THREE.Color, built once
 
+    // Dying bursts: a telegraph ring, then a bang. Pooled — a wiped elite pack can put
+    // several in the air in the same second.
+    const burstGeo = new THREE.RingGeometry(0.55, 1.0, 28);
+    burstGeo.rotateX(-Math.PI / 2);
+    this.bursts = [];
+    for (let i = 0; i < 12; i++) {
+      const mesh = new THREE.Mesh(burstGeo, new THREE.MeshBasicMaterial({
+        color: 0xff3b30, transparent: true, opacity: 0, depthWrite: false,
+        side: THREE.DoubleSide,
+      }));
+      mesh.visible = false;
+      scene.add(mesh);
+      this.bursts.push({ mesh, active: false, x: 0, z: 0, t: 0, dmg: 0, r: 0 });
+    }
+
+    // Burning ground. A big pool: one burner walking for ten seconds lays a dozen patches.
+    const fireGeo = new THREE.CircleGeometry(1, 16);
+    fireGeo.rotateX(-Math.PI / 2);
+    this.fires = [];
+    for (let i = 0; i < 64; i++) {
+      const mesh = new THREE.Mesh(fireGeo, new THREE.MeshBasicMaterial({
+        color: 0xff7a1e, transparent: true, opacity: 0, depthWrite: false,
+        side: THREE.DoubleSide,
+      }));
+      mesh.visible = false;
+      scene.add(mesh);
+      this.fires.push({ mesh, active: false, x: 0, z: 0, t: 0, life: 1, dps: 0, r: 1 });
+    }
+
     // Fireballs, pooled. Slow and straight, so they're a movement problem, not a DPS race.
     this.ballGeo = new THREE.IcosahedronGeometry(0.42, 1);
     this.ballMat = new THREE.MeshBasicMaterial({ color: 0xff7326 });
@@ -118,7 +147,7 @@ export class Mobs {
     const cap = this.mesh.instanceMatrix.count;
     for (const e of this.entities()) {
       if (i >= cap) break;
-      const sc = e.elite ? MOB.eliteScale : 1;
+      const sc = (e.elite ? MOB.eliteScale : 1) * (e.scale || 1);
       this._q.setFromAxisAngle(this._up, e.facing ?? e.heading ?? 0);
       // Flyers hang point-down, so a threat in the air is a different silhouette from a
       // threat on the ground even before you read its colour.
@@ -194,6 +223,7 @@ export class Mobs {
       wobble: this.rng() * Math.PI * 2,
       bold: false,
       facing: 0,
+      scale: 1,
       kx: 0, kz: 0, kT: 0,
       castT: 0, castCd: 1.5 + this.rng() * MOB.castCd,
       breedCd: this.breedDelay(),
@@ -260,7 +290,7 @@ export class Mobs {
     const out = [];
     for (const e of this.entities()) {
       if (affixHidden(e)) continue;      // Phasing and anything like it
-      const sc = e.elite ? MOB.eliteScale : 1;
+      const sc = (e.elite ? MOB.eliteScale : 1) * (e.scale || 1);
       if (e.flies) {
         // Flyers hang POINT-DOWN, so their body occupies the space BELOW the entity origin
         // — the old sphere at +0.8 sat in empty air above the model, which is why shots
@@ -621,6 +651,7 @@ export class Mobs {
     }
 
     this.updateBalls(dt, onPlayerHit);
+    this.updateGround(dt);
     this.render();
   }
 
@@ -643,6 +674,37 @@ export class Mobs {
     slot.mesh.visible = true;
     slot.mesh.position.set(sx, sy, sz);
     sfx.cast(sx, sz);
+  }
+
+  /** Dying bursts and burning ground. Both hurt the PLAYER only — a mob's own affix
+   *  killing its packmates would read as a bug rather than as friendly fire. */
+  updateGround(dt) {
+    const hurt = this.fx.damagePlayer;
+
+    for (const b of this.bursts) {
+      if (!b.active) continue;
+      b.t -= dt;
+      const f = 1 - Math.max(0, b.t) / b.delay;
+      b.mesh.material.opacity = 0.2 + 0.55 * f * f;      // brightens as it closes
+      b.mesh.scale.setScalar(b.r * (0.75 + 0.25 * f));
+      if (b.t > 0) continue;
+      if (Math.hypot(player.x - b.x, player.z - b.z) < b.r && player.iframes <= 0) {
+        hurt?.(b.dmg, b.x, b.z, MOB.knockback * 1.6);
+      }
+      sfx.explosion(b.x, b.z, 0.8);
+      b.active = false;
+      b.mesh.visible = false;
+    }
+
+    for (const f of this.fires) {
+      if (!f.active) continue;
+      f.t -= dt;
+      f.mesh.material.opacity = Math.max(0, f.t / f.life) * 0.55;
+      if (f.t <= 0) { f.active = false; f.mesh.visible = false; continue; }
+      if (Math.hypot(player.x - f.x, player.z - f.z) < f.r && player.iframes <= 0) {
+        hurt?.(f.dps * dt, f.x, f.z, 0);                 // no knockback: it is a floor
+      }
+    }
   }
 
   updateBalls(dt, onPlayerHit) {
