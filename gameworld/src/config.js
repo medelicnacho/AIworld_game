@@ -103,7 +103,9 @@ export const XP = {
 export const REGEN = {
   delay: 6,          // seconds of NOT fighting before it starts
   rate: 3.2,         // hp per second
-  safeMult: 3.0,     // faster inside the walls: a refuge should feel like relief
+  // Same rate everywhere. A town's value is that nothing can reach you while it happens —
+  // not a faster number. Raise this if a refuge should also mend quicker.
+  safeMult: 1.0,
 };
 
 // Q — the heal. A 1.5s channel that ROOTS you, breaks if you move, and breaks if you're

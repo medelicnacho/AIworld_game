@@ -407,7 +407,7 @@ function frame(now) {
     `${player.hp < player.maxHp
       ? hunted ? "  (hunted)"
         : combatT > 0 ? `  (${combatT.toFixed(0)}s)`
-          : inSafe ? "  ▲▲" : "  ▲"
+          : "  ▲"
       : ""}` +
     `   kills ${mobs.killed}  born ${mobs.born}  packs ${mobs.packs.size}  ${killFeed}\n` +
     `heal ${heal.casting
