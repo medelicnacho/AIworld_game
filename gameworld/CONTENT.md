@@ -102,14 +102,61 @@ Then two genuinely new rigs when the pool feels thin:
 - **The hermit** — one NPC in the wilds per tier, sells ONE random affix-ware cheap.
   Reason to explore off the town bearings.
 
-## 5. Order of work (value ÷ cost, engine-dev honest)
+## 5. The implementation plan — slices C1–C7, each with a gate
 
-1. **Dying burst + Burning + Splitting** — three affixes, ~a day, and every existing camp
-   becomes spikier without one new model.
-2. **Swarm + Charger** — the two missing questions the kit most wants to answer.
-3. **Boss attack-set roll** (Summoner + Stomp first) — bosses stop being identical.
-4. **Shielded/Warding/Puller** — the tactical affix band, tier 3+.
-5. **Artillery + Healer**, then the Serpent rig.
+*Same discipline as STAGES.md: a slice is done when its gate question is answered honestly
+in play, not when the code runs. Cross-cutting rules for every slice:*
+
+- *Every affix/enemy gets an **admin spawn button** the same day it gets code — testing a
+  tier-6 combination must never require walking to tier 6.*
+- *One affix = one colour = one rule. If it needs a tooltip to understand in the field, it
+  fails its gate.*
+- *Ground effects come from **pools**, like meteors and impacts — never allocated per use.*
+
+### C1 — the affix engine ⏱ ~2 days
+The foundation everything else plugs into.
+- [ ] Affix registry: `{id, name, color, minTier, weight, hooks}` — hooks for `onSpawn`,
+      `onTick`, `onHitPlayer`, `onDeath`, and a `targets()` filter (Phasing needs it)
+- [ ] Roll in `rollStats()`: elites roll 1 affix at tier 1+, 2 at tier 3+, 3 at tier 6+
+- [ ] Colour: the FIRST affix owns the body tint (elites stay gold-marked via scale);
+      second/third affixes show as a slow colour pulse between their hues
+- [ ] Admin: a per-affix spawn row in the panel (spawn one pack with exactly these affixes)
+- [ ] HUD kill feed names the affixes ("★ burning-splitting down")
+- **Gate:** in a mixed camp you can name every affix present from colour + behaviour alone.
+
+### C2 — affix wave 1: Dying Burst · Burning · Splitting ⏱ ~1 day
+The cheapest three, all reusing `blast()` / `spawnOne()` / pooled ground marks.
+- **Gate:** you catch yourself *leaving* a fresh kill, *routing around* scorched ground,
+  and *holding a shot* for the split — behaviour change, not stat change.
+
+### C3 — the two missing silhouettes: Swarm · Charger ⏱ ~4 days
+- [ ] Swarm: 10–15 per spawn, 1-shot HP, tight flock, fast — Ring of Fire's customer
+- [ ] Charger: wind-up glow → long straight rush (the lunge code at 4× range) → a genuine
+      recovery window where it is helpless
+- [ ] Spawn tables mix silhouettes per tier instead of one roll for everything
+- **Gate:** you change behaviour on silhouette alone, before reading colour or count.
+
+### C4 — boss attack sets ⏱ ~1 week
+- [ ] Refactor volley/beam into a pool of attack sets; each boss rolls 2, tier-gated
+- [ ] **Summoner** and **Shockwave stomp** (jump, don't strafe) first
+- [ ] **Enrage** (volleys accelerate 1%/s alive) third — the soft DPS check
+- [ ] Mirror Images and the inverted safe-ring phase later, they're the expensive ones
+- **Gate:** two consecutive bosses at the same tier play differently enough to name.
+
+### C5 — the tactical affix band: Shielded · Warding · Puller · Frost · Phasing ⏱ ~3 days
+Tier 3+ material — these ask positioning/priority questions, so they need the player to
+already speak the game's basic language.
+- **Gate:** a Warding star changes your TARGET ORDER, a Shielded one your POSITION.
+
+### C6 — Artillery · Healer, then the Serpent rig ⏱ ~2 weeks
+The last two questions (cover, priority-under-pressure), then the first genuinely new boss
+skeleton once the attack-set pool feels thin.
+
+### C7 — town content: Bounty keeper · Gate wardens · Caravan · Hermit ⏱ ~1 week
+Deliberately LAST among the combat slices but before the substrate: these are also the
+fake-data narration groundwork — a bounty keeper naming a real elite pack is the first
+sentence the town ever says about the world, and it needs no simulation behind it.
+- **Gate:** a new player finds and completes a bounty without being told the system exists.
 
 Sources: [RoR2 elite design analysis](https://parryeverything.com/2021/08/13/the-elites-of-risk-of-rain-2-efficient-design-and-the-fundamentals-of-real-time-combat/) ·
 [RoR2 monsters wiki](https://riskofrain2.wiki.gg/wiki/Monsters) ·
