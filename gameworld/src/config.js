@@ -171,6 +171,18 @@ export const WHIRL = {
   spinSpeed: 1.5,       // and you move faster while you do it
 };
 
+// Boss relics: a bundle of shop upgrades, dropped on the ground to be walked over.
+export const RELIC = {
+  minStats: 2,
+  maxStats: 2,
+  thirdStatTier: 4,     // deep bosses roll a third
+  stacksBase: 2,        // "purchases" of each stat at tier 0...
+  stacksPerTier: 0.55,  // ...growing with the fight
+  pickupRange: 2.4,
+  life: 240,            // seconds it waits on the ground before fading
+  bob: 0.35,
+};
+
 // Haste — the Adept's answer to the smith's plating. Where armour makes you harder to
 // kill, haste makes everything you do arrive sooner. All three terms are multiplicative
 // per stack, so like armour it approaches a limit instead of crossing one.

@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -15,6 +15,7 @@ import { Villagers } from "./town/villagers.js";
 import { Shop, GOODS } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
 import { Inventory } from "./ui/inventory.js";
+import { rollRelic, applyRelic } from "./prog/relics.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY } from "./world/gen.js";
@@ -153,9 +154,12 @@ function dashStrike() {
   }
   if (boss.active
       && segDist(boss.alive.x, boss.alive.z, x0, z0, x1, z1) < DASH.radius + BOSS.contactRange * 0.5) {
+    // Read the position BEFORE the hit: a killing blow despawns the boss, and the relic
+    // has to fall where it stood.
+    const bx = boss.alive.x, bz = boss.alive.z;
     const res = boss.hit("boss", DASH.damage * player.dmgMult);
     hits++;
-    if (res?.killed) { rewardBoss(res.ring); grenades.refill(GRENADE.max); }
+    if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
   }
 
   // Draw the line you cut.
@@ -253,6 +257,54 @@ function whirlSlam() {
   sfx.explosion(player.x, player.z, 1.3);
   player.whirlT = WHIRL.spinTime;
   whirlTick = 0;
+}
+
+// Boss relics lying on the ground. One mesh, one relic at a time — bosses are rare enough
+// that two drops never coexist, and a pool would be ceremony for a maximum of one.
+const relicMesh = (() => {
+  const g = new THREE.OctahedronGeometry(0.6, 0);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffd45e }));
+  m.visible = false;
+  scene.add(m);
+  return m;
+})();
+const relicLight = new THREE.PointLight(0xffc94a, 0, 22);
+scene.add(relicLight);
+let groundRelic = null;      // { relic, x, y, z, t }
+
+function dropRelic(x, z, tier) {
+  const relic = rollRelic(tier, shakeRng);
+  groundRelic = { relic, x, y: groundY(x, z) + 1.1, z, t: RELIC.life };
+  relicMesh.position.set(x, groundRelic.y, z);
+  relicMesh.visible = true;
+  killFeed = `◆ BOSS DOWN ◆   ${relic.name} lies where it fell`;
+}
+
+function updateRelic(dt) {
+  if (!groundRelic) return;
+  groundRelic.t -= dt;
+  const r = groundRelic;
+  relicMesh.rotation.y += dt * 1.6;
+  relicMesh.position.y = r.y + Math.sin(performance.now() * 0.003) * RELIC.bob;
+  relicLight.position.copy(relicMesh.position);
+  relicLight.intensity = 8 + Math.sin(performance.now() * 0.005) * 3;
+
+  if (Math.hypot(player.x - r.x, player.z - r.z) < RELIC.pickupRange) {
+    applyRelic(r.relic);
+    applyLevelStats();                  // fold it in the same way a purchase would
+    tradeMsg = `${r.relic.name}: ${r.relic.lines.join(" · ")}`;
+    tradeMsgT = 6;
+    sfx.healDone();
+    groundRelic = null;
+    relicMesh.visible = false;
+    relicLight.intensity = 0;
+    return;
+  }
+  if (r.t <= 0) {
+    groundRelic = null;
+    relicMesh.visible = false;
+    relicLight.intensity = 0;
+  }
 }
 
 const barEl = document.getElementById("bar");
@@ -369,12 +421,15 @@ function reward(res) {
   if (lv) sfx.healDone();
 }
 
-function rewardBoss(ring) {
+function rewardBoss(ring, x, z) {
   player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult);
   const xp = bossValue(ring);
   const lv = award(xp);
   killFeed = `◆ BOSS DOWN ◆  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) sfx.healDone();
+  // The relic falls where the boss did — you have to walk into the arena to take it, which
+  // is a last small decision if anything else is still alive.
+  if (x !== undefined) dropRelic(x, z, ring);
 }
 
 /**
@@ -402,10 +457,11 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
 
   if (boss.active) {
     const b = boss.alive;
+    const bx = b.x, bz = b.z;
     const d = Math.hypot(b.x - x, b.z - z);
     if (d < radius + BOSS.contactRange * 0.5) {
       const res = boss.hit("boss", damage * player.dmgMult * falloff(Math.max(0, d - BOSS.contactRange * 0.5)));
-      if (res?.killed) { rewardBoss(res.ring); grenades.refill(GRENADE.max); }
+      if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
     }
   }
 
@@ -615,8 +671,9 @@ function frame(now) {
     if (gun.mag !== before) markCombat();     // a shot fired, hit or miss
     if (hit?.targetId != null) {
       if (hit.targetTag === "boss" || hit.targetTag === "bossWeak") {
+        const bx = boss.alive?.x, bz = boss.alive?.z;
         const res = boss.hit(hit.targetTag, GUN.damage * player.dmgMult);
-        if (res?.killed) { rewardBoss(res.ring); grenades.refill(GRENADE.max); }
+        if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
         else if (res?.weak) killFeed = "core hit ×2.5";
       } else {
         const res = mobs.hit(hit.targetId, GUN.damage * player.dmgMult);
@@ -769,6 +826,7 @@ function frame(now) {
       player.hp + REGEN.rate * (inSafe ? REGEN.safeMult : 1) * dt);
   }
 
+  updateRelic(dt);
   minimap.draw(dt, mobs, boss, folk);
 
   const vendor = shop.open ? null : villagers.nearest();
