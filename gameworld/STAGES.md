@@ -10,25 +10,61 @@ noted per stage.*
 
 ---
 
-## Stage 0 — the voice spike ⏱ ~2 days · **do this first**
+## Stage 0 — the voice spike ✅ **DONE** (2026-07-22)
 
-**Goal:** one number. Can a Piper line, generated from a real `gemma3:4b` response, reach the
-game fast enough to feel like speech rather than a loading screen?
+**Goal:** one number. Can a Piper line, generated from a real local model, reach the game
+fast enough to feel like speech rather than a loading screen?
 
 Everything downstream assumes local AI is fast enough to be diegetic. That assumption is
 untested and it is the cheapest thing in the project to falsify.
 
-- [ ] `bash ../localprototype/scripts/get_voices.sh` — no Piper voices are downloaded yet
-- [ ] Throwaway Python script: prompt → `services/llm.py` → `services/tts.py` → `out.wav`.
-      Print time-to-first-token, total generate time, TTS time.
-- [ ] Minimal HTTP endpoint serving that wav; fetch and play it in the game on a keypress.
-- [ ] Measure with the game running: does audio decode hitch the frame?
+- [x] `bash ../localprototype/scripts/get_voices.sh` — 8 voices, ~190MB
+- [x] `bench/voice_spike.py`: prompt → `services/llm.py` → `services/tts.py` → wav, timing
+      each half separately, plus a streaming variant and a model comparison
+- [~] Serving the wav to the browser — folded into Stage 1, where it belongs
+- [~] Frame-hitch measurement — needs the bridge; moved to Stage 1's gate
 
-**Gate:** a spoken line lands in **under ~2.5s** end to end, and playback costs no visible
-frame time.
-**If it fails:** the tiering changes shape — pre-generate lines during quiet moments, cache
-aggressively, or drop the LLM tier for ambient speech and keep it only for direct
-conversation. Better to learn this now than after the bridge is built around it.
+**Gate:** a spoken line lands in **under ~2.5s** end to end.
+
+### Verdict: PASS — but only after two changes, both of which the measurement forced
+
+Run `python3 gameworld/bench/voice_spike.py [--quick] [--model X]` to reproduce. Hardware:
+Intel Core Ultra 5 225U, 14 threads, **CPU-only inference** (no discrete GPU).
+
+| configuration | time to speech | |
+|---|---|---|
+| `gemma3:4b`, long reply (70 tok) | **4.68s** | ✗ |
+| `gemma3:4b`, short reply | 3.50s | ✗ |
+| **`gemma3:1b`, short reply** | **1.99s** | ✓ |
+| `gemma3:1b`, short + streamed | 1.95s | ✓ |
+| `gemma3:1b`, ambient murmur | 1.17s | ✓ |
+
+**Three findings, in order of how much they change the plan:**
+
+1. **TTS is free. Piper runs at 0.05× realtime** — half a second to voice ten seconds of
+   speech. It never needs to be optimised, cached, or streamed. The entire wait is the
+   language model. (One caveat: TTS times were noisy, 0.26s vs 1.19s for identical work —
+   keep voice models loaded rather than reloading per call.)
+2. **Model size is the only lever that matters.** 4b → 1b cut latency in half. On CPU, a 4B
+   model costs ~1s before the first token exists.
+3. **Streaming is not worth building.** 1.95s vs 1.99s — once a reply is short, the whole
+   thing arrives about as fast as its first sentence. **Stage 1 ships without streaming**,
+   which removes a chunk of complexity from the bridge. Revisit only if lines get longer.
+
+**A design finding that outranks the latency one:** the failing 4b reply produced **ten to
+fifteen seconds of speech**. That is far too long for a companion line at *any* latency —
+nobody wants a paragraph while they're being chased. Capping her to one or two sentences
+makes her both faster *and* better written. The constraint improved the design.
+
+**What Stage 2 inherits:**
+- `gemma3:1b` for Santāna — ambient murmur ~1.2s, direct reply ~2.0s
+- keep `gemma3:4b` available for rare high-value moments where a visible "thinking" beat is
+  acceptable, and for the town's souls where nobody is waiting on a reply
+- hard cap: one to two sentences, ~18 words for a murmur
+- no streaming, no pre-generation cache — neither is needed yet
+
+**Still untested:** whether audio decode hitches the frame in the browser. That can only be
+measured once the bridge exists, so it moves to Stage 1's gate.
 
 ---
 
