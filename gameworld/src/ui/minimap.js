@@ -12,7 +12,7 @@
 import { RING_SIZE, RINGS } from "../config.js";
 import { player } from "../state.js";
 import { heightAt, ringAt } from "../world/gen.js";
-import { sanctuariesNear } from "../world/sanctuary.js";
+import { sanctuariesNear, boundaryAt, gateArc } from "../world/sanctuary.js";
 
 const RANGE = 130;        // world units from centre to rim
 const TERRAIN_RES = 72;   // offscreen resolution of the baked terrain
@@ -104,19 +104,55 @@ export class Minimap {
       ctx.stroke();
     }
 
-    // Sanctuaries — the thing most worth being able to find on a map.
+    // Sanctuaries — the thing most worth being able to find on a map, and the GATE most of
+    // all: a doorway you have to run the whole perimeter to find is tedium, not challenge.
     for (const s of sanctuariesNear(player.x, player.z, RANGE * 1.4)) {
+      const pt = (lx, lz) => {
+        const p = this.toMap(s.x + lx - player.x, s.z + lz - player.z);
+        return [R + p.mx * scale, R - p.my * scale];
+      };
+
       ctx.beginPath();
       s.corners.forEach((c, i) => {
-        const p = this.toMap(s.x + c.x - player.x, s.z + c.z - player.z);
-        const px = R + p.mx * scale, py = R - p.my * scale;
+        const [px, py] = pt(c.x, c.z);
         if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       });
       ctx.closePath();
-      ctx.fillStyle = "rgba(79,191,106,0.22)";
+      ctx.fillStyle = "rgba(79,191,106,0.20)";
       ctx.fill();
+
+      // Outline drawn edge by edge with the gate arc LEFT OUT, so the opening reads as a
+      // gap in the wall rather than needing a legend to explain it.
       ctx.strokeStyle = "#4fbf6a";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.6;
+      const arc = gateArc(boundaryAt(s, s.gate));
+      for (let i = 0; i < s.corners.length; i++) {
+        const A = s.corners[i], B = s.corners[(i + 1) % s.corners.length];
+        const steps = 10;
+        for (let k = 0; k < steps; k++) {
+          const f0 = k / steps, f1 = (k + 1) / steps;
+          const x0 = A.x + (B.x - A.x) * f0, z0 = A.z + (B.z - A.z) * f0;
+          const x1 = A.x + (B.x - A.x) * f1, z1 = A.z + (B.z - A.z) * f1;
+          const mid = Math.atan2((z0 + z1) / 2, (x0 + x1) / 2);
+          let d = Math.abs(((mid - s.gate + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+          if (d < arc) continue;                       // the gateway: leave it open
+          const [ax, ay] = pt(x0, z0), [bx, by] = pt(x1, z1);
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+        }
+      }
+
+      // And mark it, so it's findable at a glance rather than only if you study the shape.
+      const gr = boundaryAt(s, s.gate);
+      const [gx, gy] = pt(Math.cos(s.gate) * gr, Math.sin(s.gate) * gr);
+      ctx.beginPath();
+      ctx.arc(gx, gy, 3.4, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffe066";
+      ctx.fill();
+      ctx.strokeStyle = "#4a3a00";
+      ctx.lineWidth = 1.2;
       ctx.stroke();
     }
 

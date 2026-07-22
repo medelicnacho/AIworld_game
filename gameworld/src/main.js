@@ -14,7 +14,7 @@ import { Villagers, trade } from "./town/villagers.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt } from "./world/gen.js";
-import { Sanctuaries, sanctuaryOf } from "./world/sanctuary.js";
+import { Sanctuaries, sanctuaryOf, sanctuariesNear, boundaryAt } from "./world/sanctuary.js";
 import { attachInput, input, stepPlayer } from "./player/controller.js";
 import { CameraRig } from "./player/camera.js";
 import { Gun } from "./player/gun.js";
@@ -209,7 +209,7 @@ addEventListener("resize", () => {
 });
 
 const clickEl = document.getElementById("click");
-let paused = true, everPlayed = false;
+let paused = true, everPlayed = false, inSafe = false;
 
 function setPaused(p) {
   paused = p;
@@ -217,6 +217,19 @@ function setPaused(p) {
   sfx.setPaused(p);
   if (!p) { everPlayed = true; return; }
   if (everPlayed) clickEl.innerHTML = "PAUSED &nbsp;·&nbsp; click to resume";
+}
+
+/** Distance to the nearest town gate — the HUD half of the minimap marker. */
+function nearestGate() {
+  let best = null, bd = 1e9;
+  for (const s of sanctuariesNear(player.x, player.z, 700)) {
+    const r = boundaryAt(s, s.gate);
+    const gx = s.x + Math.cos(s.gate) * r, gz = s.z + Math.sin(s.gate) * r;
+    const d = Math.hypot(gx - player.x, gz - player.z);
+    if (d < bd) { bd = d; best = s; }
+  }
+  if (!best) return "no town within 700m";
+  return inSafe ? "✦ SANCTUARY" : `town gate ${Math.round(bd)}m`;
 }
 
 const hud = document.getElementById("stats");
@@ -249,7 +262,8 @@ function frame(now) {
   // Weapons stow inside the walls. Gated HERE rather than inside gun.js, for the same
   // reason the damage rule lives in damagePlayer: systems don't learn each other's names,
   // and "what does a sanctuary mean" belongs in one place.
-  const inSafeZone = sanctuaryOf(player.x, player.z, 0) !== null;
+  inSafe = sanctuaryOf(player.x, player.z, 0) !== null;
+  const inSafeZone = inSafe;
 
   if (input.firing && !inSafeZone) {
     const hit = gun.tryFire(rig.blend > 0.5, gunRng, [...mobs.targets(), ...boss.targets()]);
@@ -357,7 +371,8 @@ function frame(now) {
     : "";
   hud.textContent =
     bossLine + bossStatus +
-    `${RINGS[ring].name}  (tier ${tier})   ${Math.round(fromSpawn)}m out${sanctuaryOf(player.x, player.z, 0) ? "   ✦ SANCTUARY" : ""}` +
+    `${nearestGate()}\n` +
+    `${RINGS[ring].name}  (tier ${tier})   ${Math.round(fromSpawn)}m out` +
     `${ring + 1 < RINGS.length ? `   next ring ${Math.max(0, Math.ceil(toNextRing))}m` : ""}\n` +
     `xyz  ${player.x.toFixed(1)} ${player.y.toFixed(1)} ${player.z.toFixed(1)}\n` +
     `cam  ${rig.mode}   look ${CAMERA.sensitivity.toFixed(4)}  [ / ]\n` +
