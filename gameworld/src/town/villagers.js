@@ -15,13 +15,12 @@ import { groundY } from "../world/gen.js";
 import { sanctuariesNear } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 
-// What each kind of resident is for. Prices rise with what you can afford to pay by then.
+// Who lives here. What they actually SELL is a table in ui/shop.js (GOODS), keyed by these
+// role keys — stock is data, so adding wares never touches this file or the game loop.
 export const ROLES = [
-  { key: "herbalist", name: "Herbalist", color: 0x63d1a0,
-    offer: "potion", label: "potion", price: 25 },
-  { key: "smith", name: "Smith", color: 0xd8b06a,
-    offer: "damage", label: "sharpen (+8% dmg)", price: 140 },
-  { key: "keeper", name: "Keeper", color: 0x8fa6c4, offer: null },
+  { key: "herbalist", name: "Herbalist", color: 0x63d1a0 },
+  { key: "smith", name: "Smith", color: 0xd8b06a },
+  { key: "keeper", name: "Keeper", color: 0x8fa6c4 },
 ];
 
 export class Villagers {
@@ -118,22 +117,4 @@ export class Villagers {
   }
 }
 
-/**
- * Buy from whoever you're standing next to.
- * @returns {string} a line for the HUD — success or the reason it failed.
- */
-export function trade(v) {
-  if (!v || !v.role.offer) return v ? `${v.role.name}: nothing to sell` : "";
-  const { offer, price, label } = v.role;
-  if (player.gold < price) return `need ${price}g for ${label} (you have ${player.gold})`;
-  player.gold -= price;
-  if (offer === "potion") {
-    player.potions++;
-    return `bought a potion  (-${price}g)`;
-  }
-  if (offer === "damage") {
-    player.gearDmg = (player.gearDmg || 0) + VILLAGE.smithBonus;
-    return `sharpened: +${Math.round(VILLAGE.smithBonus * 100)}% damage  (-${price}g)`;
-  }
-  return "";
-}
+

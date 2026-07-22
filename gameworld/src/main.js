@@ -10,7 +10,8 @@ import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, REGEN, LOOT, VILLAGE, VIEW_RADIU
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
-import { Villagers, trade } from "./town/villagers.js";
+import { Villagers } from "./town/villagers.js";
+import { Shop } from "./ui/shop.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt } from "./world/gen.js";
@@ -24,7 +25,7 @@ import { Grenades } from "./player/grenade.js";
 import { Heal } from "./player/heal.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
-import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel } from "./prog/xp.js";
+import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats } from "./prog/xp.js";
 import { mulberry32 } from "./rng.js";
 
 const FIXED_DT = 1 / 60;
@@ -68,6 +69,11 @@ const sanctuaries = new Sanctuaries(scene);
 const folk = new Folk(scene);
 const villagers = new Villagers(scene);
 let tradeMsg = "", tradeMsgT = 0;
+const shop = new Shop(document.getElementById("shop"), {
+  get grenades() { return grenades; },   // lazily read: grenades is defined further down
+  applyStats: () => applyLevelStats(),  // gear changes re-derive the same way levels do
+  onClose: () => renderer.domElement.requestPointerLock(),
+});
 
 // The bridge to the Python lab. Optional by construction: if it never connects, nothing
 // below notices (STAGES Stage 1). Speech is fire-and-forget — a pending request must never
@@ -179,7 +185,11 @@ attachInput(renderer.domElement, {
   toggleCamera: () => rig.toggle(),
   toggleMusic: () => music.toggle(),
   reload: () => gun.reload(),
-  interact: () => { tradeMsg = trade(villagers.nearest()); tradeMsgT = 3; },
+  interact: () => {
+    const v = villagers.nearest();
+    if (!v) return;
+    shop.show(v);
+  },
   drink: () => {
     if (player.potions <= 0) { tradeMsg = "no potions"; tradeMsgT = 2; return; }
     if (player.hp >= player.maxHp) { tradeMsg = "already whole"; tradeMsgT = 2; return; }
@@ -200,7 +210,7 @@ attachInput(renderer.domElement, {
     killFeed = "boss summoned";
   },
   onLock: () => { music.start(); sfx.unlock(); setPaused(false); },
-  onUnlock: () => setPaused(true),
+  onUnlock: () => { setPaused(true); },
 });
 
 addEventListener("resize", () => {
@@ -353,12 +363,12 @@ function frame(now) {
 
   minimap.draw(dt, mobs, boss, folk);
 
-  const vendor = villagers.nearest();
+  const vendor = shop.open ? null : villagers.nearest();
   if (tradeMsgT > 0) tradeMsgT -= dt;
   if (vendor || tradeMsgT > 0) {
     subEl.textContent = tradeMsgT > 0 ? tradeMsg
       : vendor.role.offer
-        ? `${vendor.role.name} — F: ${vendor.role.label} (${vendor.role.price}g)`
+        ? `${vendor.role.name} — press F to trade`
         : `${vendor.role.name}`;
     subEl.style.opacity = "1";
     subtitleT = 0;

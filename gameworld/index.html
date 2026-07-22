@@ -29,6 +29,30 @@
         font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; color: #eaf2ff;
         text-shadow: 0 2px 8px #000c; transition: opacity .25s;
       }
+      #shop { position: absolute; inset: 0; display: none; place-content: center;
+        pointer-events: auto; font: 13px/1.5 ui-sans-serif, system-ui, sans-serif; }
+      body.shopping #shop { display: grid; }
+      #shop .panel { width: min(560px, 88vw); background: #121722f2; color: #dfe8f5;
+        border: 1px solid #2f3d55; border-radius: 10px; overflow: hidden;
+        box-shadow: 0 18px 60px #000a; }
+      #shop header { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+        background: #1a2233; border-bottom: 1px solid #2f3d55; }
+      #shop h2 { margin: 0; font-size: 15px; letter-spacing: .04em; flex: 1; }
+      #shop .gold { color: #ffd45e; font-weight: 600; }
+      #shop .x { background: none; border: 0; color: #8fa3bf; font-size: 15px; cursor: pointer; }
+      #shop .items { max-height: 52vh; overflow-y: auto; }
+      #shop .item { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px;
+        width: 100%; text-align: left; padding: 11px 14px; background: none; border: 0;
+        border-bottom: 1px solid #222c3e; color: inherit; cursor: pointer; font: inherit; }
+      #shop .item:hover { background: #1c2739; }
+      #shop .item.poor { opacity: .45; cursor: not-allowed; }
+      #shop .nm { font-weight: 600; }
+      #shop .nm em { color: #7fd4a0; font-style: normal; font-size: 11px; }
+      #shop .ds { grid-column: 1; color: #93a6c0; font-size: 12px; }
+      #shop .pr { grid-row: 1 / span 2; align-self: center; color: #ffd45e; font-weight: 600; }
+      #shop .empty { padding: 18px 14px; color: #93a6c0; margin: 0; }
+      #shop footer { padding: 9px 14px; background: #161d2b; color: #8fa3bf; font-size: 12px; }
+      body.shopping #click { display: none; }
       #hurt {
         position: absolute; inset: 0; opacity: 0;
         background: radial-gradient(ellipse at center, #d0202000 45%, #e02a2acc 100%);
@@ -52,6 +76,9 @@
       <canvas id="minimap" width="180" height="180"></canvas>
       <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; B summon boss &nbsp; G speak &nbsp; F trade &nbsp; C potion &nbsp; E grenade &nbsp; Q heal</div>
     </div>
+    <!-- Outside #hud on purpose: the HUD is pointer-events:none so it never eats clicks,
+         and the shop is the one overlay that must receive them. -->
+    <div id="shop"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

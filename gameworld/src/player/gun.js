@@ -77,7 +77,7 @@ export class Gun {
 
   reload() {
     if (this.reloading > 0 || this.mag === GUN.magSize) return;
-    this.reloading = GUN.reloadTime;
+    this.reloading = GUN.reloadTime * (1 - (player.gearReload || 0));
   }
 
   /**
