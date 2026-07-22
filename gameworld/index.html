@@ -79,8 +79,13 @@
       #bar .slot .ic svg { width: 100%; height: 100%; display: block; }
       #bar .slot.up .ic { filter: drop-shadow(0 0 5px #3ce88a88); }
       #bar .slot .n { font-size: 9px; letter-spacing: .03em; color: #f0f5ff; }
+      /* The cooldown veil covers the whole slot, so it must be INVISIBLE when there is no
+         cooldown — otherwise it sits on top of the icon permanently, which is exactly what
+         was hiding the artwork. :empty is true whenever the countdown text is cleared. */
       #bar .slot .cool { position: absolute; inset: 0; background: #0a0f18a6;
-        display: grid; place-content: center; font-size: 15px; color: #cfe0ff; }
+        display: grid; place-content: center; font-size: 15px; color: #cfe0ff;
+        font-weight: 600; text-shadow: 0 1px 3px #000; }
+      #bar .slot .cool:empty { background: none; }
       /* READY = green and lit. ON COOLDOWN = dark and flat. One glance, two states. */
       #bar .slot.up { opacity: 1; background: #4e7f66ee; border-color: #7dffb5;
         box-shadow: 0 0 20px #3ce88a80, inset 0 0 14px #9dffc63a; }
