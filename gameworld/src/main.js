@@ -246,7 +246,12 @@ function frame(now) {
   // subtle, maddening "my shots trail my aim" bug when you're turning fast.
   rig.update(dt, input.aim);
 
-  if (input.firing) {
+  // Weapons stow inside the walls. Gated HERE rather than inside gun.js, for the same
+  // reason the damage rule lives in damagePlayer: systems don't learn each other's names,
+  // and "what does a sanctuary mean" belongs in one place.
+  const inSafeZone = sanctuaryOf(player.x, player.z, 0) !== null;
+
+  if (input.firing && !inSafeZone) {
     const hit = gun.tryFire(rig.blend > 0.5, gunRng, [...mobs.targets(), ...boss.targets()]);
     if (hit?.targetId != null) {
       if (hit.targetTag === "boss" || hit.targetTag === "bossWeak") {
@@ -261,7 +266,12 @@ function frame(now) {
   }
   if (input.throwQueued) {
     input.throwQueued = false;
-    if (grenades.throwFrom(camera)) killFeed = "";
+    if (inSafeZone) {
+      tradeMsg = "weapons stowed inside the walls";
+      tradeMsgT = 2;
+    } else if (grenades.throwFrom(camera)) {
+      killFeed = "";
+    }
   }
   grenades.update(dt, blast);
 
@@ -363,7 +373,7 @@ function frame(now) {
     `gold ${player.gold}   potions ${player.potions}${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
     `nade ${"●".repeat(grenades.count)}${"○".repeat(Math.max(0, GRENADE.max - grenades.count))}` +
     `${grenades.cooldown > 0 ? "  (cd)" : ""}   E throw\n` +
-    `gun  ${gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
+    `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
     `${bridge.label}${speaking ? "  ·  thinking…" : ""}\n` +
     `in   fwd ${input.fwd >= 0 ? " " : ""}${input.fwd} str ${input.right >= 0 ? " " : ""}${input.right}` +
