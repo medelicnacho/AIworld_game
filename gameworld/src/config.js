@@ -98,6 +98,14 @@ export const XP = {
   damageGrowth: 1.09,
 };
 
+// Out-of-combat regeneration. Slow enough that it is never a substitute for the heal or a
+// potion mid-fight — it is what saves you the walk back to town after a scrappy win.
+export const REGEN = {
+  delay: 6,          // seconds of NOT fighting before it starts
+  rate: 3.2,         // hp per second
+  safeMult: 3.0,     // faster inside the walls: a refuge should feel like relief
+};
+
 // Q — the heal. A 1.5s channel that ROOTS you, breaks if you move, and breaks if you're
 // hit. In a game whose every other verb is movement, the cost of standing still is the
 // whole design: it turns the boss's volley gaps into the window you're hunting for.

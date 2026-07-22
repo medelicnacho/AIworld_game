@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
@@ -102,6 +102,7 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
   if (sanctuaryOf(player.x, player.z, 0)) return;
   player.hp -= amount;
   hurtT = 0.35;
+  markCombat();
   if (HEAL.breakOnDamage) heal.interrupt("hit");
   // Knockback, so a hit moves you and reads as physical rather than as a number ticking.
   const dx = player.x - fromX, dz = player.z - fromZ;
@@ -210,6 +211,9 @@ addEventListener("resize", () => {
 
 const clickEl = document.getElementById("click");
 let paused = true, everPlayed = false, inSafe = false;
+// Time left before regen resumes. Dealing damage counts as fighting, not just taking it.
+let combatT = 0;
+const markCombat = () => { combatT = REGEN.delay; };
 
 function setPaused(p) {
   paused = p;
@@ -266,7 +270,9 @@ function frame(now) {
   const inSafeZone = inSafe;
 
   if (input.firing && !inSafeZone) {
+    const before = gun.mag;
     const hit = gun.tryFire(rig.blend > 0.5, gunRng, [...mobs.targets(), ...boss.targets()]);
+    if (gun.mag !== before) markCombat();     // a shot fired, hit or miss
     if (hit?.targetId != null) {
       if (hit.targetTag === "boss" || hit.targetTag === "bossWeak") {
         const res = boss.hit(hit.targetTag, GUN.damage * player.dmgMult);
@@ -285,6 +291,7 @@ function frame(now) {
       tradeMsgT = 2;
     } else if (grenades.throwFrom(camera)) {
       killFeed = "";
+      markCombat();
     }
   }
   grenades.update(dt, blast);
@@ -326,6 +333,14 @@ function frame(now) {
     camera.position.x += (shakeRng() - 0.5) * s;
     camera.position.y += (shakeRng() - 0.5) * s;
     camera.position.z += (shakeRng() - 0.5) * s;
+  }
+
+  // Regeneration: only once you've been out of it a while. Standing in a refuge mends you
+  // faster, which is what makes a town somewhere you WANT to reach rather than just a wall.
+  if (combatT > 0) combatT -= dt;
+  else if (player.hp < player.maxHp) {
+    player.hp = Math.min(player.maxHp,
+      player.hp + REGEN.rate * (inSafe ? REGEN.safeMult : 1) * dt);
   }
 
   minimap.draw(dt, mobs, boss, folk);
@@ -380,7 +395,9 @@ function frame(now) {
     `    ${"▮".repeat(Math.round(levelProgress() * 12))}` +
     `${"▯".repeat(12 - Math.round(levelProgress() * 12))} ${player.xp}/${xpToNext(player.level)}xp\n` +
     `hp   ${"█".repeat(Math.max(0, Math.round(player.hp / 10)))}${"░".repeat(Math.max(0, 10 - Math.round(player.hp / 10)))} ` +
-    `${Math.max(0, Math.round(player.hp))}   kills ${mobs.killed}  born ${mobs.born}  packs ${mobs.packs.size}  ${killFeed}\n` +
+    `${Math.max(0, Math.round(player.hp))}` +
+    `${player.hp < player.maxHp ? (combatT > 0 ? `  (${combatT.toFixed(0)}s)` : inSafe ? "  ▲▲" : "  ▲") : ""}` +
+    `   kills ${mobs.killed}  born ${mobs.born}  packs ${mobs.packs.size}  ${killFeed}\n` +
     `heal ${heal.casting
       ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL`
       : heal.cooldown > 0 ? `ready in ${Math.ceil(heal.cooldown)}s` : "ready  Q"}` +
