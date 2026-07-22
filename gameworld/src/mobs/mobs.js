@@ -47,6 +47,15 @@ export class Mobs {
     };
   }
 
+  /** Population budget where the player is standing — denser the further out you are. */
+  budget() {
+    const tier = tierAt(player.x, player.z);
+    return {
+      alive: Math.min(MOB.maxAliveCap, MOB.maxAlive + MOB.maxAlivePerTier * tier),
+      packs: Math.min(MOB.maxPacksCap, MOB.maxPacks + MOB.maxPacksPerTier * tier),
+    };
+  }
+
   breedDelay() {
     const [lo, hi] = MOB.breedEvery;
     return lo + this.rng() * (hi - lo);
@@ -130,11 +139,18 @@ export class Mobs {
     return n;
   }
 
-  /** Wake a pack. Shoot one and its kin come — the cheapest emergent consequence there is. */
+  /**
+   * Something happened to this one, and the neighbourhood notices. Kin come from further
+   * (they were watching each other anyway); strangers react only if they're close.
+   *
+   * Deliberately ONE HOP — the alerted don't re-alert. Chaining would cascade a single
+   * opening shot across every camp in earshot, which is a stampede, not a reaction.
+   */
   alert(e) {
     for (const o of nearby(e.x, e.z, MOB.alertRadius)) {
-      if (o.kind !== "mob" || o.pack !== e.pack) continue;
-      if (Math.hypot(o.x - e.x, o.z - e.z) > MOB.alertRadius) continue;
+      if (o.kind !== "mob" || o === e) continue;
+      const reach = o.pack === e.pack ? MOB.alertRadius : MOB.alertOthers;
+      if (Math.hypot(o.x - e.x, o.z - e.z) > reach) continue;
       o.aggro = true;
       o.aggroT = MOB.loseInterest;
     }
@@ -193,8 +209,9 @@ export class Mobs {
     let alive = 0;
     for (const _ of this.entities()) alive++;   // eslint-disable-line no-unused-vars
 
+    const cap = this.budget();
     this.spawnTimer -= dt;
-    if (alive < MOB.maxAlive && this.packs.size < MOB.maxPacks && this.spawnTimer <= 0) {
+    if (alive < cap.alive && this.packs.size < cap.packs && this.spawnTimer <= 0) {
       this.spawnTimer = MOB.spawnInterval;
       this.spawnPack();
     }
@@ -308,7 +325,7 @@ export class Mobs {
           e.breedCd = this.breedDelay();
           const kin = near.filter(({ o }) => o.pack === e.pack).length;
           if (kin >= 1 && this.packCount(e.pack) < MOB.packCap
-              && alive + babies.length < MOB.maxAlive) {
+              && alive + babies.length < cap.alive) {
             babies.push(e);
           }
         }

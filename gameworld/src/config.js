@@ -137,7 +137,8 @@ export const MOB = {
   noticeRange: 20,
   leashRange: 62,         // drag them this far from home and they give up and go back
   loseInterest: 7.0,      // seconds out of contact before disengaging
-  alertRadius: 15,        // hurt one and its pack hears about it
+  alertRadius: 18,        // hurt one and its KIN come from this far
+  alertOthers: 11,        // anything else nearby reacts too — a scream is a scream
   homeWander: 8,          // how far they mill around their camp when idle
   homePull: 1.1,
   attackRange: 2.4,
@@ -186,16 +187,24 @@ export const MOB = {
   avoidArc: 1.05,         // radians it will veer to find a walkable line
 
   // Population around the player. Cost is bounded by COUNT, not by world size.
-  // Packs, not scattered individuals: a camp of 3-6 that mills, flocks, and BREEDS.
-  maxAlive: 20,
-  maxPacks: 3,
-  packSize: [3, 6],
-  packCap: 9,             // a camp can grow this large before it stops breeding
-  breedEvery: [55, 120],  // seconds between a mob's offspring (idle only, never mid-fight)
-  spawnMin: 34,
-  spawnMax: 62,
-  despawn: 105,
-  spawnInterval: 2.5,
+  // Packs, not scattered individuals: camps that mill, flock, and BREED.
+  //
+  // Population scales with TIER as well as being large: the deep is not just meaner, it is
+  // more CROWDED. That reinforces D8's gradient with density instead of only with stats,
+  // and it's why walking out feels like pressure rather than arithmetic.
+  maxAlive: 55,
+  maxAlivePerTier: 8,     // tier 5: 95 · tier 8: 119 (capped)
+  maxAliveCap: 130,
+  maxPacks: 6,
+  maxPacksPerTier: 1,
+  maxPacksCap: 13,
+  packSize: [4, 9],
+  packCap: 14,            // a camp can grow this large before it stops breeding
+  breedEvery: [45, 100],  // seconds between a mob's offspring (idle only, never mid-fight)
+  spawnMin: 32,
+  spawnMax: 88,           // camps spread across a wide band, not a ring at one radius
+  despawn: 125,
+  spawnInterval: 0.9,
 };
 
 // D10 — the giant boss. ONE reusable rig, re-dressed per ring. Everything here is tuned
