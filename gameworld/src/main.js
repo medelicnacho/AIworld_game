@@ -9,9 +9,11 @@ import * as THREE from "three";
 import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
+import { Folk } from "./mobs/folk.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt } from "./world/gen.js";
+import { Sanctuaries, sanctuaryOf } from "./world/sanctuary.js";
 import { attachInput, input, stepPlayer } from "./player/controller.js";
 import { CameraRig } from "./player/camera.js";
 import { Gun } from "./player/gun.js";
@@ -61,6 +63,8 @@ const boss = new Boss(scene);
 const grenades = new Grenades(scene);
 const heal = new Heal(scene);
 const minimap = new Minimap(document.getElementById("minimap"));
+const sanctuaries = new Sanctuaries(scene);
+const folk = new Folk(scene);
 
 // The bridge to the Python lab. Optional by construction: if it never connects, nothing
 // below notices (STAGES Stage 1). Speech is fire-and-forget — a pending request must never
@@ -217,6 +221,7 @@ function frame(now) {
   }
 
   streamer.update(player.x, player.z);
+  sanctuaries.update(dt, player.x, player.z);
   // The camera must settle BEFORE the gun reads it — firing off last frame's camera is a
   // subtle, maddening "my shots trail my aim" bug when you're turning fast.
   rig.update(dt, input.aim);
@@ -250,6 +255,7 @@ function frame(now) {
 
   gun.update(dt);
   mobs.update(dt, hurtPlayer);
+  folk.update(dt);
 
   // A boss wanders in on a timer once you're past the Commons. The countdown only runs
   // while you're ELIGIBLE — burning attempts in the safe zone is what made this look broken.
@@ -277,7 +283,7 @@ function frame(now) {
     camera.position.z += (shakeRng() - 0.5) * s;
   }
 
-  minimap.draw(dt, mobs, boss);
+  minimap.draw(dt, mobs, boss, folk);
 
   if (subtitleT > 0) {
     subtitleT -= dt;
@@ -311,7 +317,7 @@ function frame(now) {
     : "";
   hud.textContent =
     bossLine + bossStatus +
-    `${RINGS[ring].name}  (tier ${tier})   ${Math.round(fromSpawn)}m out` +
+    `${RINGS[ring].name}  (tier ${tier})   ${Math.round(fromSpawn)}m out${sanctuaryOf(player.x, player.z, 0) ? "   ✦ SANCTUARY" : ""}` +
     `${ring + 1 < RINGS.length ? `   next ring ${Math.max(0, Math.ceil(toNextRing))}m` : ""}\n` +
     `xyz  ${player.x.toFixed(1)} ${player.y.toFixed(1)} ${player.z.toFixed(1)}\n` +
     `cam  ${rig.mode}   look ${CAMERA.sensitivity.toFixed(4)}  [ / ]\n` +

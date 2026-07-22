@@ -12,6 +12,7 @@
 import { RING_SIZE, RINGS } from "../config.js";
 import { player } from "../state.js";
 import { heightAt, ringAt } from "../world/gen.js";
+import { sanctuariesNear } from "../world/sanctuary.js";
 
 const RANGE = 130;        // world units from centre to rim
 const TERRAIN_RES = 72;   // offscreen resolution of the baked terrain
@@ -62,7 +63,7 @@ export class Minimap {
     this.bakedAt = { x: player.x, z: player.z };
   }
 
-  draw(dt, mobs, boss) {
+  draw(dt, mobs, boss, folk) {
     const ctx = this.ctx, R = this.r;
 
     this.bakeTimer -= dt;
@@ -103,6 +104,19 @@ export class Minimap {
       ctx.stroke();
     }
 
+    // Sanctuaries — the thing most worth being able to find on a map.
+    for (const s of sanctuariesNear(player.x, player.z, RANGE * 1.4)) {
+      const m = this.toMap(s.x - player.x, s.z - player.z);
+      const cx = R + m.mx * scale, cy = R - m.my * scale;
+      ctx.beginPath();
+      ctx.arc(cx, cy, Math.max(3, s.r * scale), 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(79,191,106,0.22)";
+      ctx.fill();
+      ctx.strokeStyle = "#4fbf6a";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
     // Mobs.
     for (const e of mobs.entities()) {
       const m = this.toMap(e.x - player.x, e.z - player.z);
@@ -111,6 +125,18 @@ export class Minimap {
       ctx.arc(R + m.mx * scale, R - m.my * scale, e.elite ? 3.4 : 2.2, 0, Math.PI * 2);
       ctx.fillStyle = e.elite ? "#ffd24a" : "#ff6b6b";
       ctx.fill();
+    }
+
+    // The green folk.
+    if (folk) {
+      for (const e of folk.entities()) {
+        const m = this.toMap(e.x - player.x, e.z - player.z);
+        if (Math.hypot(m.mx, m.my) > RANGE) continue;
+        ctx.beginPath();
+        ctx.arc(R + m.mx * scale, R - m.my * scale, 2, 0, Math.PI * 2);
+        ctx.fillStyle = "#5fe08a";
+        ctx.fill();
+      }
     }
 
     // Boss — always shown, clamped to the rim if it's beyond range.

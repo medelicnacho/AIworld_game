@@ -366,6 +366,36 @@ export class Sfx {
     return buf.duration;
   }
 
+  /** A fireball leaving a caster's hands — short, bright, positional. */
+  cast(x, z) {
+    if (!this.on) return;
+    const t = this.t, dur = 0.34;
+    const { input, gain } = this.place(x, z, 120);
+    if (gain <= 0.001) return;
+
+    const o = this.ctx.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(180, t);
+    o.frequency.exponentialRampToValueAtTime(760, t + dur);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(gain * 0.28, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(og); og.connect(input);
+    o.start(t); o.stop(t + dur + 0.02);
+
+    const air = this.noise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.setValueAtTime(900, t);
+    bp.frequency.exponentialRampToValueAtTime(2600, t + dur);
+    bp.Q.value = 2.5;
+    const ag = this.ctx.createGain();
+    ag.gain.setValueAtTime(gain * 0.22, t);
+    ag.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    air.connect(bp); bp.connect(ag); ag.connect(input);
+    air.start(t); air.stop(t + dur + 0.02);
+  }
+
   /** Grenade throw. */
   whoosh() {
     if (!this.on) return;

@@ -7,6 +7,7 @@
 import { PLAYER, CAMERA, DODGE } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
+import { wallBlocks } from "../world/sanctuary.js";
 
 export const input = {
   fwd: 0, right: 0, sprint: false, aim: false, firing: false,
@@ -113,6 +114,9 @@ export function attachInput(canvas, hooks = {}) {
 
 /** Is the player's capsule blocked at this position? Sampled as a voxel-span AABB test. */
 function blocked(x, y, z) {
+  // The wall is an analytic ring, not voxels — so it's a maths test, and the collision can
+  // never disagree with what's drawn. The gate is a gap: you walk in and out freely.
+  if (wallBlocks(x, z)) return true;
   const r = PLAYER.radius;
   const y0 = Math.floor(y), y1 = Math.floor(y + PLAYER.height - 0.001);
   for (let vy = y0; vy <= y1; vy++) {

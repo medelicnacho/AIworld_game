@@ -124,6 +124,37 @@ export const GRENADE = {
   knockback: 11,
 };
 
+// The green folk — nomad bands. SCOPE, on purpose: movement, bunching and breeding ONLY.
+// No speech, no memory, no bonds. This is the BODY layer that the substrate brain will
+// drive later; until then nothing here pretends to be a mind.
+export const FOLK = {
+  maxAlive: 60,
+  maxBands: 5,
+  bandSize: [4, 8],
+  bandCap: 12,
+  splitAt: 11,            // outgrow this and the band divides and wanders apart
+  maturity: 25,           // seconds before a newborn can itself breed
+  breedEvery: [40, 95],
+  spawnMin: 40,
+  spawnMax: 120,
+  spawnInterval: 3.0,
+  despawn: 190,
+
+  speed: 2.1,
+  travel: 1.5,            // pull toward the band's destination
+  roam: 220,              // how far a band will pick its next destination
+  retarget: [45, 110],    // seconds before choosing somewhere new
+  refugeBias: 0.45,       // ...and how often that somewhere is a sanctuary
+  wary: 22,               // hostiles inside this push them away
+  flee: 3.2,
+  neighborRadius: 11,
+  separation: 2.2,
+  sepForce: 3.0,
+  alignForce: 0.9,
+  cohesionForce: 0.8,     // stronger than the mobs': a band travels tight
+  maxClimb: 1.15,
+};
+
 // D7: mobs are SOULLESS. Stats roll from the ring they spawn in; no memory, no bonds, no
 // substrate — the emergent layer arrives at M3 and lands on settlements, not on things you
 // kill in three seconds.
@@ -163,6 +194,21 @@ export const MOB = {
   eliteHpPerRing: 0.15,   // tier 5 star: ×2.95 · tier 10: ×3.7
   eliteDamage: 1.5,
   eliteScale: 1.55,
+
+  // CASTERS — a second kind of elite that fights at range. They hold a standoff and lob
+  // slow fireballs in a STRAIGHT line, aimed where you were when it left their hands. That
+  // makes them a pure movement problem: the counter is to be somewhere else, not to out-DPS
+  // them. Mixed into a melee pack they force you to keep moving while something closes.
+  casterChance: 0.4,      // of elites; a melee star is still the common case
+  castMin: 11,            // closer than this and they back off — they don't want a brawl
+  castMax: 34,
+  castCd: 3.4,
+  castWindup: 0.8,        // they stop and glow before releasing: the telegraph
+  ballSpeed: 12,          // slow enough to sidestep if you see it coming
+  ballDamage: 24,
+  ballRadius: 1.0,
+  ballLife: 4.5,
+  ballPool: 32,
 
   // --- steering: emergent movement, no substrate required -------------------------
   // The brain decides INTENT (close, hold, lunge); these decide HOW the body gets there.

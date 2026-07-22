@@ -12,10 +12,12 @@
 // drives this same locomotion layer with a substrate brain, and none of it has to change.
 
 import * as THREE from "three";
-import { MOB } from "../config.js";
+import { MOB, PLAYER } from "../config.js";
 import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
-import { groundY, tierAt } from "../world/gen.js";
+import { groundY, solidAt, tierAt } from "../world/gen.js";
+import { sfx } from "../audio/sfx.js";
+import { sanctuaryOf } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 
 const HURT_FLASH = 0.12;
@@ -52,7 +54,20 @@ export class Mobs {
     this._up = new THREE.Vector3(0, 1, 0);
     this.COL_MOB = new THREE.Color(0x8d4d63);
     this.COL_ELITE = new THREE.Color(0xe8c14a);
+    this.COL_CASTER = new THREE.Color(0xd11f1f);   // red: the ones that shoot
+    this.COL_CHARGING = new THREE.Color(0xff8a3c);  // hot while winding up — the telegraph
     this.COL_HURT = new THREE.Color(0xff6655);
+
+    // Fireballs, pooled. Slow and straight, so they're a movement problem, not a DPS race.
+    this.ballGeo = new THREE.IcosahedronGeometry(0.42, 1);
+    this.ballMat = new THREE.MeshBasicMaterial({ color: 0xff7326 });
+    this.balls = [];
+    for (let i = 0; i < MOB.ballPool; i++) {
+      const mesh = new THREE.Mesh(this.ballGeo, this.ballMat);
+      mesh.visible = false;
+      scene.add(mesh);
+      this.balls.push({ mesh, active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0, dmg: 0 });
+    }
   }
 
   /** Write every live mob into the instance buffer. One pass, one draw call. */
@@ -65,8 +80,11 @@ export class Mobs {
       this._q.setFromAxisAngle(this._up, e.facing ?? e.heading ?? 0);
       this._m.compose(this._p.set(e.x, e.y, e.z), this._q, this._s.set(sc, sc, sc));
       this.mesh.setMatrixAt(i, this._m);
-      this.mesh.setColorAt(i, e.hurtT > 0 ? this.COL_HURT
-        : (e.elite ? this.COL_ELITE : this.COL_MOB));
+      this.mesh.setColorAt(i,
+        e.hurtT > 0 ? this.COL_HURT
+          : e.castT > 0 ? this.COL_CHARGING
+            : e.caster ? this.COL_CASTER
+              : e.elite ? this.COL_ELITE : this.COL_MOB);
       i++;
     }
     this.mesh.count = i;
@@ -81,7 +99,8 @@ export class Mobs {
     const eliteHp = MOB.eliteHp + MOB.eliteHpPerRing * ring;
     const hp = MOB.hp * (1 + MOB.hpPerRing * ring) * (elite ? eliteHp : 1);
     return {
-      ring, elite, maxHp: hp, hp,
+      ring, elite, caster: elite && this.rng() < MOB.casterChance,
+      maxHp: hp, hp,
       damage: MOB.damage * (1 + MOB.damagePerRing * ring) * (elite ? MOB.eliteDamage : 1),
       speed: MOB.speed * (1 + MOB.speedPerRing * ring),
     };
@@ -118,6 +137,7 @@ export class Mobs {
       wobble: this.rng() * Math.PI * 2,
       bold: false,
       facing: 0,
+      castT: 0, castCd: 1.5 + this.rng() * MOB.castCd,
       breedCd: this.breedDelay(),
     });
     return e;
@@ -129,6 +149,8 @@ export class Mobs {
     const d = MOB.spawnMin + this.rng() * (MOB.spawnMax - MOB.spawnMin);
     const hx = player.x + Math.cos(a) * d;
     const hz = player.z + Math.sin(a) * d;
+    // Never make camp on holy ground — a refuge you have to clear isn't a refuge.
+    if (sanctuaryOf(hx, hz, MOB.homeWander + 14)) return null;
     const id = this.nextPack++;
     this.packs.set(id, { x: hx, z: hz });
 
@@ -217,12 +239,17 @@ export class Mobs {
   tryMove(e, vx, vz, dt) {
     if (Math.hypot(vx, vz) < 1e-4) return;
     const here = groundY(e.x, e.z);
+    // Hostiles cannot enter a sanctuary AT ALL — not blocked by the wall, barred from the
+    // ground. The wall makes it read as a refuge; this makes it be one. A safe zone that
+    // leaks through the gateway would be worse than none, because you'd stop trusting it.
+    const ward = sanctuaryOf(e.x, e.z, 2) ? null : true;
     for (const turn of [0, MOB.avoidArc * 0.5, -MOB.avoidArc * 0.5, MOB.avoidArc,
                         -MOB.avoidArc, MOB.avoidArc * 1.6, -MOB.avoidArc * 1.6]) {
       const c = Math.cos(turn), s = Math.sin(turn);
       const dx = (vx * c - vz * s) * dt;
       const dz = (vx * s + vz * c) * dt;
-      if (groundY(e.x + dx, e.z + dz) - here <= MOB.maxClimb) {
+      if (groundY(e.x + dx, e.z + dz) - here <= MOB.maxClimb
+          && !(ward && sanctuaryOf(e.x + dx, e.z + dz, 1.5))) {
         e.x += dx; e.z += dz;
         e.heading = Math.atan2(dx, dz);
         return;
@@ -308,7 +335,28 @@ export class Mobs {
 
       let vx = 0, vz = 0;
 
-      if (e.aggro) {
+      if (e.aggro && e.caster) {
+        // CASTER: hold the middle distance and throw. Never lunges, never brawls.
+        e.bold = false;
+        if (e.castT > 0) {
+          // Winding up: rooted and glowing. Standing still IS the tell.
+          e.castT -= dt;
+          if (e.castT <= 0) {
+            this.fire(e);
+            e.castCd = MOB.castCd;
+          }
+        } else {
+          if (e.castCd > 0) e.castCd -= dt;
+          if (e.castCd <= 0 && dist > MOB.castMin && dist < MOB.castMax) e.castT = MOB.castWindup;
+
+          // Keep the range band: back off when crowded, close when you've drifted too far.
+          const want = dist < MOB.castMin ? -1 : dist > MOB.castMax * 0.75 ? 1 : 0;
+          vx += ux * want * 1.4;
+          vz += uz * want * 1.4;
+          vx += -uz * e.bias * 0.6;      // and drift sideways so they're not static targets
+          vz += ux * e.bias * 0.6;
+        }
+      } else if (e.aggro) {
         e.bold = near.length + 1 >= MOB.packCourage;
 
         // Steer to a SLOT on a ring around you rather than at your feet: a pack fans out
@@ -357,6 +405,8 @@ export class Mobs {
         }
       }
 
+      if (e.castT > 0) { vx = 0; vz = 0; }    // rooted mid-cast
+
       vx += sepX * MOB.sepForce + aliX * MOB.alignForce + cohX * MOB.cohesionForce;
       vz += sepZ * MOB.sepForce + aliZ * MOB.alignForce + cohZ * MOB.cohesionForce;
 
@@ -396,7 +446,53 @@ export class Mobs {
       if (!seenPacks.has(id) && this.packCount(id) === 0) this.packs.delete(id);
     }
 
+    this.updateBalls(dt, onPlayerHit);
     this.render();
+  }
+
+  /** Release a fireball at where the player is RIGHT NOW — no homing, so it's dodgeable. */
+  fire(e) {
+    const slot = this.balls.find((b) => !b.active);
+    if (!slot) return;
+    const sx = e.x, sy = e.y + 1.1, sz = e.z;
+    const dx = player.x - sx, dy = (player.y + 0.9) - sy, dz = player.z - sz;
+    const d = Math.hypot(dx, dy, dz) || 1;
+    slot.active = true;
+    slot.x = sx; slot.y = sy; slot.z = sz;
+    slot.vx = (dx / d) * MOB.ballSpeed;
+    slot.vy = (dy / d) * MOB.ballSpeed;
+    slot.vz = (dz / d) * MOB.ballSpeed;
+    slot.t = MOB.ballLife;
+    // Scales with tier like everything else, but off the BALL's base rather than the
+    // caster's melee damage — a fireball is its own attack, not a reskinned bite.
+    slot.dmg = MOB.ballDamage * (1 + MOB.damagePerRing * e.ring);
+    slot.mesh.visible = true;
+    slot.mesh.position.set(sx, sy, sz);
+    sfx.cast(sx, sz);
+  }
+
+  updateBalls(dt, onPlayerHit) {
+    for (const b of this.balls) {
+      if (!b.active) continue;
+      b.t -= dt;
+      b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+
+      const hitPlayer = Math.hypot(player.x - b.x, (player.y + 0.9) - b.y, player.z - b.z)
+        < MOB.ballRadius + PLAYER.radius;
+      if (hitPlayer && player.iframes <= 0) {
+        onPlayerHit?.({ damage: b.dmg, x: b.x, z: b.z });
+        sfx.explosion(b.x, b.z, 0.4);
+        b.active = false; b.mesh.visible = false;
+        continue;
+      }
+      if (b.t <= 0 || solidAt(b.x, b.y, b.z) || sanctuaryOf(b.x, b.z, 0)) {
+        if (b.t > 0) sfx.explosion(b.x, b.z, 0.35);
+        b.active = false; b.mesh.visible = false;
+        continue;
+      }
+      b.mesh.position.set(b.x, b.y, b.z);
+      b.mesh.rotation.y += dt * 5;
+    }
   }
 
   /** Face the player when hunting, face your heading when going about your business. */
