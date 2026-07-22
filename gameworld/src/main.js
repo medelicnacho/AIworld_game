@@ -72,7 +72,7 @@ let tradeMsg = "", tradeMsgT = 0;
 const shop = new Shop(document.getElementById("shop"), {
   get grenades() { return grenades; },   // lazily read: grenades is defined further down
   applyStats: () => applyLevelStats(),  // gear changes re-derive the same way levels do
-  onClose: () => renderer.domElement.requestPointerLock(),
+  onClose: () => resumeFromShop(),
 });
 
 // The bridge to the Python lab. Optional by construction: if it never connects, nothing
@@ -225,8 +225,35 @@ let paused = true, everPlayed = false, inSafe = false;
 let combatT = 0, hunted = false;
 const markCombat = () => { combatT = REGEN.delay; };
 
+/**
+ * Leaving a vendor must resume the GAME, whether or not the browser will give the mouse
+ * back yet. Chrome refuses requestPointerLock for ~1.25s after Escape is pressed — so
+ * asking on close and waiting for the lock to confirm meant Escape reliably dumped you on
+ * the pause screen. Unpause immediately; chase the lock separately and retry until it takes.
+ */
+let lockTries = 0;
+
+function tryLock() {
+  const el = renderer.domElement;
+  if (paused || document.pointerLockElement === el) return;
+  el.requestPointerLock?.();
+}
+
+function resumeFromShop() {
+  setPaused(false);
+  lockTries = 0;
+  tryLock();
+}
+
+document.addEventListener("pointerlockerror", () => {
+  // Denied — almost always the post-Escape cooldown. Wait it out and ask again.
+  if (paused || lockTries++ > 4) return;
+  setTimeout(tryLock, 400 + lockTries * 400);
+});
+
 function setPaused(p) {
   paused = p;
+  document.body.classList.toggle("running", !p);
   // Shopping pauses the WORLD but not the soundtrack: you are standing in a town talking to
   // someone, and the town's music cutting out is the tell that you've left the game. A real
   // pause (Escape to the menu) still silences everything.
@@ -435,6 +462,8 @@ function frame(now) {
     `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
     `${bridge.label}${speaking ? "  ·  thinking…" : ""}\n` +
+    `${!paused && document.pointerLockElement !== renderer.domElement
+      ? "click to restore mouse look\n" : ""}` +
     `in   fwd ${input.fwd >= 0 ? " " : ""}${input.fwd} str ${input.right >= 0 ? " " : ""}${input.right}` +
     `  ${input.aimHeld ? "AIM" : "---"}${input.aim ? "*" : " "}` +
     `  ${player.dodgeT > 0 ? "ROLL" : "    "}  ${player.onGround ? "grnd" : "air "}\n` +
