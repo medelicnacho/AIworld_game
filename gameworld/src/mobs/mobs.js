@@ -465,7 +465,7 @@ export class Mobs {
     }
   }
 
-  hit(id, amount) {
+  hit(id, amount, weak = false) {
     const e = world.entities.get(id);
     if (!e) return null;
     e.hp -= amount;
@@ -476,11 +476,13 @@ export class Mobs {
     if (e.hp <= 0) {
       // Death hook runs BEFORE despawn, while the entity still has a position to explode at.
       runAffix(e, "onDeath", this.fx);
+      sfx.killThud(e.x, e.z, e.elite);     // the reward note — heavier for a star
       const out = { killed: true, elite: e.elite, ring: e.ring, affixes: affixLabel(e) };
       this.despawn(id);
       this.killed++;
       return out;
     }
+    sfx.hitConfirm(e.x, e.z, weak);        // your shot LANDED — the confirm the game lacked
     return { killed: false, elite: e.elite, ring: e.ring, affixes: affixLabel(e) };
   }
 

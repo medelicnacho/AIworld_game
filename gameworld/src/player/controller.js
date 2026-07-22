@@ -218,9 +218,11 @@ export function stepPlayer(dt) {
   } else if (player.dodgeT > 0) {
     player.dodgeT -= dt;
     // The roll OWNS horizontal velocity while it lasts — no steering mid-roll. Committing
-    // to the direction is what makes it a dodge instead of a speed boost.
-    player.vx = player.dodgeX * DODGE.speed;
-    player.vz = player.dodgeZ * DODGE.speed;
+    // to the direction is what makes it a dodge instead of a speed boost. dashMult scales
+    // the SPEED (not the duration), so a faster roll covers more ground in the same i-frame
+    // window — farther and quicker at once, exactly what speed and the Vault stat buy.
+    player.vx = player.dodgeX * DODGE.speed * player.dashMult;
+    player.vz = player.dodgeZ * DODGE.speed * player.dashMult;
   } else {
     const targetVx = dx * speed, targetVz = dz * speed;
     const blend = 1 - Math.exp(-(len > 0 ? PLAYER.accel : PLAYER.friction) * dt);

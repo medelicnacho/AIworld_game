@@ -555,6 +555,16 @@ export const DODGE = {
   // Double-tap window. Too long and ordinary strafing triggers rolls you didn't ask for;
   // too short and deliberate taps get eaten. 280ms is the usual comfortable middle.
   doubleTapMs: 280,
+
+  // The roll SCALES now (see applyLevelStats -> player.dashMult). It gets both faster and
+  // farther — the i-frame window is unchanged, so a bigger dash covers more ground inside
+  // the same protection, which is pure mobility, not more safety. Two sources, each with
+  // sqrt diminishing returns: always growing, never linear, no hard ceiling (faith with the
+  // no-limits rule), but the tenth stack is worth a fraction of the first.
+  //   speedGain: ANY speed increase — levels, Lighten, Swiftness relics — lengthens the dash
+  //   dashStatGain: the dedicated Vault stat you buy or find
+  speedGain: 0.5,
+  dashStatGain: 0.22,
 };
 
 // D3/D4: three camera states. AIM blends to first person so steep upward aim stops

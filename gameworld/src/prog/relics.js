@@ -19,6 +19,7 @@ export const RELIC_POOL = [
   { good: "haste", label: "Haste", weight: 1.0 },
   { good: "lighten", label: "Swiftness", weight: 0.9 },
   { good: "quickload", label: "Loading", weight: 0.7 },
+  { good: "vault", label: "Vault", weight: 0.8 },
 ];
 
 /** Rarity decides how many kinds it bundles and how deep each one goes. */

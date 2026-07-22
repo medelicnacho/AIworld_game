@@ -33,6 +33,10 @@ export const GOODS = {
     { id: "lighten", name: "Lighten Armour", price: 110, upgrade: true,
       desc: "+4% movement speed, permanently.",
       apply: () => { player.gearSpeed += 0.04; } },
+    { id: "vault", name: "Vault Treads", price: 120, upgrade: true,
+      desc: "Your double-tap dodge goes farther and faster. Stacks with diminishing "
+        + "returns — and everything that raises your speed lengthens it too.",
+      apply: () => { player.dashRank += 1; } },
     { id: "quickload", name: "Quick Loader", price: 95, upgrade: true,
       desc: "-8% reload time, permanently.",
       // Capped HERE, and this is now the only place it can be raised from: relics grant

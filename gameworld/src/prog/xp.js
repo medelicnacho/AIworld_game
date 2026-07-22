@@ -10,7 +10,7 @@
 // Which is the intended pressure: to keep levelling you must walk further out, where mobs
 // are worth more AND more of them are elites. Distance is the progression system.
 
-import { XP, PLAYER, VILLAGE, HASTE } from "../config.js";
+import { XP, PLAYER, VILLAGE, HASTE, DODGE } from "../config.js";
 import { player } from "../state.js";
 
 /** XP needed to go from `level` to `level + 1`. */
@@ -69,6 +69,15 @@ export function applyLevelStats() {
   // over a wall. Bounding the number would have limited the fantasy; bounding what the
   // number is allowed to BREAK does not.
   player.reloadMult = 1 - (player.gearReload || 0);
+
+  // The dodge grows with BOTH your general speed and a dedicated Vault stat, each on a sqrt
+  // curve so it keeps climbing but never linearly — derived here like every other stat, so
+  // it can never drift out of step on death. speedMult is already resolved above, so any
+  // source of speed (levels, Lighten, Swiftness relics) feeds the dash for free.
+  const speedExcess = Math.max(0, player.speedMult - 1);
+  player.dashMult = 1
+    + DODGE.speedGain * Math.sqrt(speedExcess)
+    + DODGE.dashStatGain * Math.sqrt(player.dashRank || 0);
 
   const h = player.haste || 0;
   player.hasteFire = Math.pow(HASTE.fire, h);

@@ -168,14 +168,18 @@ export class Boss {
     // resist it most. `capped` is returned so the HUD can tell you the boss shrugged some off.
     const cap = this.alive.maxHp * BOSS.maxHitFraction / (1 + BOSS.hitCapTighten * this.alive.ring);
     const dmg = Math.min(raw, cap);
+    const weak = tag === "bossWeak";
     this.alive.hp -= dmg;
     if (this.alive.hp <= 0) {
       const ring = this.alive.ring;
+      sfx.killThud(this.alive.x, this.alive.z, true);   // a boss going down is always heavy
       this.despawn();
       this.killed++;
-      return { killed: true, ring, weak: tag === "bossWeak", dmg };
+      return { killed: true, ring, weak, dmg };
     }
-    return { killed: false, weak: tag === "bossWeak", dmg, capped: dmg < raw };
+    // Core hits get the bright confirm — the audible half of the ×2.5 reward for aiming.
+    sfx.hitConfirm(this.alive.x, this.alive.z, weak);
+    return { killed: false, weak, dmg, capped: dmg < raw };
   }
 
   fireVolley() {

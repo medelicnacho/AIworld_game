@@ -478,6 +478,76 @@ export class Sfx {
   }
 
   /** Grenade throw. */
+  /**
+   * Hit confirmation — the single cheapest "feels good" multiplier a shooter has, and the
+   * one this game was missing entirely. A short filtered-noise TICK with a tiny pitched
+   * body: enough to tell your ear the shot LANDED without fatiguing at the gun's fire rate.
+   * `weak` (a headshot / weak-point) sharpens and brightens it so aim gets an audible reward.
+   */
+  hitConfirm(x, z, weak = false) {
+    if (!this.on || !this.budget(0.5, 90)) return;
+    const t = this.t;
+    const { input, gain } = this.place(x, z, 130);
+    if (gain <= 0.001) return;
+
+    const src = this.noise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = weak ? 2600 : 1500;
+    bp.Q.value = 0.9;
+    const g = this.ctx.createGain();
+    const vol = gain * (weak ? 0.5 : 0.32);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (weak ? 0.09 : 0.06));
+    src.connect(bp); bp.connect(g); g.connect(input);
+    src.start(t); src.stop(t + 0.12);
+
+    // A tiny pitched click gives it a body, so it reads as an impact rather than static.
+    const o = this.ctx.createOscillator();
+    o.type = "square";
+    o.frequency.setValueAtTime(weak ? 440 : 300, t);
+    o.frequency.exponentialRampToValueAtTime(weak ? 180 : 120, t + 0.05);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(vol * 0.6, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    o.connect(og); og.connect(input);
+    o.start(t); o.stop(t + 0.07);
+  }
+
+  /**
+   * Death — the reward note. A short descending thud with a noise crunch: heavier than a
+   * hit, so a kill is unmistakable from a graze even with your eyes on something else. An
+   * elite gets a lower, longer version, because a star going down should feel earned.
+   */
+  killThud(x, z, big = false) {
+    if (!this.on || !this.budget(1, 130)) return;
+    const t = this.t;
+    const dur = big ? 0.34 : 0.2;
+    const { input, gain } = this.place(x, z, 150);
+    if (gain <= 0.001) return;
+
+    const o = this.ctx.createOscillator();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(big ? 230 : 320, t);
+    o.frequency.exponentialRampToValueAtTime(big ? 46 : 70, t + dur);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(gain * (big ? 0.6 : 0.42), t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(og); og.connect(input);
+    o.start(t); o.stop(t + dur + 0.03);
+
+    const src = this.noise();
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(1800, t);
+    lp.frequency.exponentialRampToValueAtTime(200, t + dur * 0.7);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain * (big ? 0.4 : 0.28), t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.7);
+    src.connect(lp); lp.connect(g); g.connect(input);
+    src.start(t); src.stop(t + dur);
+  }
+
   whoosh() {
     if (!this.on) return;
     const t = this.t, dur = 0.26;
