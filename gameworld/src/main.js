@@ -96,6 +96,10 @@ let hurtT = 0, killFeed = "";
 
 function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
   if (player.iframes > 0) return;      // the dodge window actually pays out here
+  // A sanctuary is safe, FULL STOP. The mobs, the boss and the projectiles each have their
+  // own behavioural guards, but those are about looking right; this is the guarantee. One
+  // rule in one place beats four that each have to be remembered.
+  if (sanctuaryOf(player.x, player.z, 0)) return;
   player.hp -= amount;
   hurtT = 0.35;
   if (HEAL.breakOnDamage) heal.interrupt("hit");

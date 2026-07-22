@@ -272,6 +272,9 @@ export class Mobs {
     const lunged = [];
     const babies = [];
     const seenPacks = new Set();
+    // Standing on holy ground ends the hunt. Computed once: sanctuaryOf() is memoised but
+    // it is still a per-frame question, not a per-mob one.
+    const playerSafe = sanctuaryOf(player.x, player.z, 0) !== null;
 
     for (const e of nearby(player.x, player.z, MOB.despawn)) {
       if (e.kind !== "mob") continue;
@@ -287,7 +290,28 @@ export class Mobs {
       const ux = dx / dist, uz = dz / dist;
       const homeD = Math.hypot(e.x - e.homeX, e.z - e.homeZ) || 0.001;
 
+      // If one is somehow inside anyway — a shape changed under it, a knockback, a bug I
+      // haven't found — evict it rather than leaving a hostile loose in a safe zone. The
+      // polygon is star-shaped, so straight out from the centre always leaves.
+      const inside = sanctuaryOf(e.x, e.z, 0);
+      if (inside) {
+        const ox = e.x - inside.x, oz = e.z - inside.z;
+        const od = Math.hypot(ox, oz) || 1;
+        e.x += (ox / od) * MOB.speed * 2.5 * dt;
+        e.z += (oz / od) * MOB.speed * 2.5 * dt;
+        e.y = groundY(e.x, e.z);
+        e.aggro = false;
+        e.lungeT = 0;
+        reindex(e);
+        this.sync(e, ux, uz);
+        continue;
+      }
+
       // --- attention: do you matter to this creature right now? --------------------
+      // A refuge is a refuge. They give up at the threshold and go home rather than
+      // loitering at the gate waiting for you to step out.
+      if (playerSafe) { e.aggro = false; e.aggroT = 0; e.lungeT = 0; }
+
       if (e.aggro) {
         e.aggroT -= dt;
         if (dist < MOB.noticeRange) e.aggroT = MOB.loseInterest;   // contact refreshes it
@@ -303,8 +327,17 @@ export class Mobs {
       // --- the lunge is committed and unsteered ------------------------------------
       if (e.lungeT > 0) {
         e.lungeT -= dt;
-        e.x += e.lx * MOB.lungeSpeed * dt;
-        e.z += e.lz * MOB.lungeSpeed * dt;
+        // The lunge writes position DIRECTLY — it deliberately skips steering so it can't
+        // course-correct. That also meant it skipped the sanctuary ward, which is how mobs
+        // were getting inside: they committed from outside and flew straight through.
+        const lx = e.x + e.lx * MOB.lungeSpeed * dt;
+        const lz = e.z + e.lz * MOB.lungeSpeed * dt;
+        if (sanctuaryOf(lx, lz, 1.5)) {
+          e.lungeT = 0;                       // stopped at the wall
+        } else {
+          e.x = lx;
+          e.z = lz;
+        }
         if (dist < MOB.attackRange && player.iframes <= 0) {
           e.lungeT = 0;
           onPlayerHit?.(e);

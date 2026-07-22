@@ -12,6 +12,7 @@ import * as THREE from "three";
 import { BOSS } from "../config.js";
 import { player } from "../state.js";
 import { groundY, ringAt, tierAt } from "../world/gen.js";
+import { sanctuaryOf } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 import { sfx } from "../audio/sfx.js";
 
@@ -160,6 +161,7 @@ export class Boss {
 
       slot.x = cx + Math.cos(a) * r;
       slot.z = cz + Math.sin(a) * r;
+      if (sanctuaryOf(slot.x, slot.z, 0)) continue;   // rocks do not fall on holy ground
       slot.y = groundY(slot.x, slot.z);
       slot.state = "telegraph";
       slot.t = BOSS.meteorTelegraph;
@@ -190,7 +192,12 @@ export class Boss {
 
     if (b.contactCd > 0) b.contactCd -= dt;
 
-    if (dist < BOSS.aggroRange) {
+    // A refuge holds against the boss too: it stops calling volleys down on you and stops
+    // advancing. Meteors already in the air still land — you ran, they were already falling.
+    if (sanctuaryOf(player.x, player.z, 0)) {
+      b.charging = false;
+      b.volleyCd = Math.max(b.volleyCd, BOSS.chargeTime + 0.5);
+    } else if (dist < BOSS.aggroRange) {
       // Ambient roars: it is heard before it is seen, and keeps being heard.
       b.roarCd -= dt;
       if (b.roarCd <= 0) {
@@ -215,9 +222,12 @@ export class Boss {
       }
       // Lumbering approach. It should always be outrunnable — the pressure comes from
       // the sky, not from its feet.
+      // Ward the boss the same way as the mobs: it writes position directly, so without
+      // this it would simply walk through a town wall.
       const ux = dx / dist, uz = dz / dist;
-      b.x += ux * BOSS.speed * dt;
-      b.z += uz * BOSS.speed * dt;
+      const nx = b.x + ux * BOSS.speed * dt;
+      const nz = b.z + uz * BOSS.speed * dt;
+      if (!sanctuaryOf(nx, nz, BOSS.contactRange)) { b.x = nx; b.z = nz; }
       b.y = groundY(b.x, b.z);
 
       if (dist < BOSS.contactRange && b.contactCd <= 0 && player.iframes <= 0) {
