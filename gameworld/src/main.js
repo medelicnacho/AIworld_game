@@ -164,13 +164,39 @@ function dashStrike() {
   return true;
 }
 
-const barEl = document.getElementById("bar");
-barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => `
+// The bar is two groups: bought ITEMS on 1-4, then the general abilities you always have.
+// They read the same way but are never confusable with stock you can buy.
+const GENERAL = [
+  {
+    key: "E", name: "Firebomb",
+    cooldown: () => grenades.cooldown, ready: () => grenades.ready,
+    charges: () => grenades.count,
+  },
+  {
+    key: "Q", name: "Heal",
+    cooldown: () => heal.cooldown, ready: () => heal.cooldown <= 0 && !heal.casting,
+  },
+  {
+    key: "C", name: "Potion",
+    cooldown: () => player.potionCd,
+    ready: () => player.potionCd <= 0 && player.potions > 0,
+    charges: () => player.potions,
+  },
+];
+
+const slotHtml = (key) => `
   <div class="slot">
-    <span class="k">${abilities.slots[i]?.key || i + 1}</span>
+    <span class="k">${key}</span>
     <span class="n"></span><span class="ch"></span><span class="cool"></span>
-  </div>`).join("");
-const barSlots = [...barEl.querySelectorAll(".slot")];
+  </div>`;
+
+const barEl = document.getElementById("bar");
+barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => slotHtml(i + 1)).join("")
+  + `<div class="sep"></div>`
+  + GENERAL.map((g) => slotHtml(g.key)).join("");
+const allSlots = [...barEl.querySelectorAll(".slot")];
+const barSlots = allSlots.slice(0, SLOTS);
+const genSlots = allSlots.slice(SLOTS);
 const pointsEl = document.getElementById("points");
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
@@ -310,9 +336,15 @@ attachInput(renderer.domElement, {
     else markCombat();
   },
   drink: () => {
+    if (player.potionCd > 0) {
+      tradeMsg = `potion — ${player.potionCd.toFixed(1)}s`;
+      tradeMsgT = 1.2;
+      return;
+    }
     if (player.potions <= 0) { tradeMsg = "no potions"; tradeMsgT = 2; return; }
     if (player.hp >= player.maxHp) { tradeMsg = "already whole"; tradeMsgT = 2; return; }
     player.potions--;
+    player.potionCd = VILLAGE.potionCd;
     player.hp = Math.min(player.maxHp, player.hp + VILLAGE.potionHeal);
     tradeMsg = `potion  +${VILLAGE.potionHeal}`;
     tradeMsgT = 2;
@@ -495,16 +527,22 @@ function frame(now) {
   }
 
   pointsEl.innerHTML = `${player.points} <small>POINTS</small>`;
+  const paint = (el, def, left, ready) => {
+    el.classList.toggle("up", !!def && ready);
+    el.classList.toggle("empty", !def);
+    el.querySelector(".n").textContent = def?.name || "";
+    el.querySelector(".ch").textContent = def?.charges ? "●".repeat(def.charges()) : "";
+    el.title = def?.desc || "empty";
+    el.querySelector(".cool").textContent = left > 0 ? left.toFixed(left < 3 ? 1 : 0) : "";
+  };
   barSlots.forEach((el, i) => {
     const a = abilities.slots[i];
-    const left = abilities.cooldownOf(i);
-    el.classList.toggle("up", !!a && abilities.readyOf(i));
-    el.classList.toggle("empty", !a);
     el.querySelector(".k").textContent = a?.key || String(i + 1);
-    el.querySelector(".n").textContent = a?.name || "";
-    el.querySelector(".ch").textContent = a?.charges ? "●".repeat(a.charges()) : "";
-    el.title = a?.desc || "empty";
-    el.querySelector(".cool").textContent = left > 0 ? left.toFixed(left < 3 ? 1 : 0) : "";
+    paint(el, a, abilities.cooldownOf(i), abilities.readyOf(i));
+  });
+  genSlots.forEach((el, i) => {
+    const g = GENERAL[i];
+    paint(el, g, g.cooldown(), g.ready());
   });
 
   gun.update(dt);
@@ -543,6 +581,7 @@ function frame(now) {
   // regen while kiting a pack, which is the exact situation it should not rescue.
   music.setPlace(inSafe ? "town" : "world");
 
+  if (player.potionCd > 0) player.potionCd -= dt;
   if (combatT > 0) combatT -= dt;
   hunted = mobs.anyHunting() || (boss.active
     && Math.hypot(boss.alive.x - player.x, boss.alive.z - player.z) < BOSS.aggroRange);
@@ -610,13 +649,10 @@ function frame(now) {
           : "  ▲"
       : ""}` +
     `   kills ${mobs.killed}  born ${mobs.born}  packs ${mobs.packs.size}  ${killFeed}\n` +
-    `heal ${heal.casting
-      ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL`
-      : heal.cooldown > 0 ? `ready in ${Math.ceil(heal.cooldown)}s` : "ready  Q"}` +
-    `${heal.lastResult ? `   ${heal.lastResult}` : ""}\n` +
-    `nade ${"●".repeat(grenades.count)}${"○".repeat(Math.max(0, GRENADE.max - grenades.count))}` +
-    `${grenades.cooldown > 0 ? "  (cd)" : ""}   E throw\n` +
-    `potions ${player.potions}${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
+    `${heal.casting
+      ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL\n`
+      : ""}` +
+    `${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
 
     `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +

@@ -175,6 +175,7 @@ export const VILLAGE = {
   talkRange: 3.6,
   smithBonus: 0.08,       // permanent, stacking damage from the smith
   potionHeal: 60,
+  potionCd: 40,          // long: a potion is an emergency, not a rotation
 };
 
 export const LOOT = {
