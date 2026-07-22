@@ -40,8 +40,8 @@ export const PLAYER = {
   radius: 0.35,
   height: 1.8,
   eye: 1.62,
-  walkSpeed: 5.2,
-  sprintSpeed: 8.0,
+  walkSpeed: 6.3,      // level-1 baseline; levels multiply this (XP.speedGrowth)
+  sprintSpeed: 9.6,
   accel: 45,
   friction: 12,
   gravity: -26,
@@ -122,6 +122,24 @@ export const GRENADE = {
   max: 3,
   refillPerKill: 1,
   knockback: 11,
+};
+
+// Villagers, and the little economy that gives a sanctuary a point. Gold comes off the
+// frontier; it is only worth anything where someone will take it.
+export const VILLAGE = {
+  perSanctuary: 5,
+  maxRendered: 64,
+  keepRange: 420,
+  talkRange: 3.6,
+  smithBonus: 0.08,       // permanent, stacking damage from the smith
+  potionHeal: 60,
+};
+
+export const LOOT = {
+  goldBase: 4,
+  goldPerTier: 2.5,
+  eliteMult: 4,
+  bossMult: 45,
 };
 
 // The green folk — nomad bands. SCOPE, on purpose: movement, bunching and breeding ONLY.

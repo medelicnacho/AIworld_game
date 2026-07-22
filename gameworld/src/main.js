@@ -6,10 +6,11 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
+import { Villagers, trade } from "./town/villagers.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt } from "./world/gen.js";
@@ -65,6 +66,8 @@ const heal = new Heal(scene);
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
 const folk = new Folk(scene);
+const villagers = new Villagers(scene);
+let tradeMsg = "", tradeMsgT = 0;
 
 // The bridge to the Python lab. Optional by construction: if it never connects, nothing
 // below notices (STAGES Stage 1). Speech is fire-and-forget — a pending request must never
@@ -107,6 +110,8 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
 const hurtPlayer = (mob) => damagePlayer(mob.damage, mob.x, mob.z);
 
 function reward(res) {
+  player.gold += Math.round((LOOT.goldBase + LOOT.goldPerTier * res.ring)
+    * (res.elite ? LOOT.eliteMult : 1));
   const xp = killValue(res.ring, res.elite);
   const lv = award(xp);
   killFeed = `${res.elite ? "★ elite" : "kill"}  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
@@ -114,6 +119,7 @@ function reward(res) {
 }
 
 function rewardBoss(ring) {
+  player.gold += Math.round((LOOT.goldBase + LOOT.goldPerTier * ring) * LOOT.bossMult);
   const xp = bossValue(ring);
   const lv = award(xp);
   killFeed = `◆ BOSS DOWN ◆  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
@@ -168,6 +174,16 @@ attachInput(renderer.domElement, {
   toggleCamera: () => rig.toggle(),
   toggleMusic: () => music.toggle(),
   reload: () => gun.reload(),
+  interact: () => { tradeMsg = trade(villagers.nearest()); tradeMsgT = 3; },
+  drink: () => {
+    if (player.potions <= 0) { tradeMsg = "no potions"; tradeMsgT = 2; return; }
+    if (player.hp >= player.maxHp) { tradeMsg = "already whole"; tradeMsgT = 2; return; }
+    player.potions--;
+    player.hp = Math.min(player.maxHp, player.hp + VILLAGE.potionHeal);
+    tradeMsg = `potion  +${VILLAGE.potionHeal}`;
+    tradeMsgT = 2;
+    sfx.healDone();
+  },
   bridgeTest: () => {
     const ring = RINGS[ringAt(player.x, player.z)].name;
     speakLine(`You walk beside a traveller in ${ring}, ${Math.round(Math.hypot(player.x, player.z))} metres from where they began. Murmur one short thought about this place.`);
@@ -256,6 +272,7 @@ function frame(now) {
   gun.update(dt);
   mobs.update(dt, hurtPlayer);
   folk.update(dt);
+  villagers.update(dt);
 
   // A boss wanders in on a timer once you're past the Commons. The countdown only runs
   // while you're ELIGIBLE — burning attempts in the safe zone is what made this look broken.
@@ -285,7 +302,16 @@ function frame(now) {
 
   minimap.draw(dt, mobs, boss, folk);
 
-  if (subtitleT > 0) {
+  const vendor = villagers.nearest();
+  if (tradeMsgT > 0) tradeMsgT -= dt;
+  if (vendor || tradeMsgT > 0) {
+    subEl.textContent = tradeMsgT > 0 ? tradeMsg
+      : vendor.role.offer
+        ? `${vendor.role.name} — F: ${vendor.role.label} (${vendor.role.price}g)`
+        : `${vendor.role.name}`;
+    subEl.style.opacity = "1";
+    subtitleT = 0;
+  } else if (subtitleT > 0) {
     subtitleT -= dt;
     subEl.textContent = subtitle;
     subEl.style.opacity = String(Math.min(1, subtitleT));
@@ -330,6 +356,7 @@ function frame(now) {
       ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL`
       : heal.cooldown > 0 ? `ready in ${Math.ceil(heal.cooldown)}s` : "ready  Q"}` +
     `${heal.lastResult ? `   ${heal.lastResult}` : ""}\n` +
+    `gold ${player.gold}   potions ${player.potions}${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
     `nade ${"●".repeat(grenades.count)}${"○".repeat(Math.max(0, GRENADE.max - grenades.count))}` +
     `${grenades.cooldown > 0 ? "  (cd)" : ""}   E throw\n` +
     `gun  ${gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +

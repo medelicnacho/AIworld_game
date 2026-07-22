@@ -35,6 +35,7 @@ export const player = {
   dodgeT: 0, dodgeCd: 0, iframes: 0, dodgeX: 0, dodgeZ: 0,
   hp: 100, maxHp: 100,
   level: 1, xp: 0, dmgMult: 1, speedMult: 1, jumpMult: 1, maxJumps: 2,
+  gold: 0, potions: 0, gearDmg: 0,
 };
 
 export function spawnPlayer() {

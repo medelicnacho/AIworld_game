@@ -54,7 +54,8 @@ export function award(amount) {
  */
 export function applyLevelStats() {
   const n = player.level - 1;
-  player.dmgMult = Math.pow(XP.damageGrowth, n);
+  // Gear multiplies on top of levels, so the smith stays worth visiting at any level.
+  player.dmgMult = Math.pow(XP.damageGrowth, n) * (1 + (player.gearDmg || 0));
   player.speedMult = Math.pow(XP.speedGrowth, n);
   player.jumpMult = Math.pow(XP.jumpGrowth, n);
   player.maxJumps = PLAYER.jumps + Math.floor(player.level / XP.jumpsPerLevels);
