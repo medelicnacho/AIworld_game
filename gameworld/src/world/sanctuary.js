@@ -13,7 +13,7 @@
 // shape a settlement needs, so the green wanderers here are placeholders for souls.
 
 import * as THREE from "three";
-import { WORLD_SEED } from "../config.js";
+import { WORLD_SEED, RING_SIZE } from "../config.js";
 import { hash2, rand2, mulberry32 } from "../rng.js";
 import { groundY } from "./gen.js";
 
@@ -42,8 +42,7 @@ export const gateArc = (r) => GATE_WIDTH / r;
  * ray-segment solve, no point-in-polygon scan, and collision that cannot disagree with the
  * mesh because both read the same function.
  */
-function makeShape(cx, cz) {
-  const rng = mulberry32(hash2(WORLD_SEED ^ 0x54A9E, cx, cz));
+function makeShape(rng) {
   const n = CORNERS[0] + Math.floor(rng() * (CORNERS[1] - CORNERS[0] + 1));
   const corners = [];
   for (let i = 0; i < n; i++) {
@@ -78,6 +77,33 @@ export function boundaryAt(s, theta) {
   return hit > 0 ? hit : A.r;
 }
 
+/**
+ * One guaranteed town per tier, placed at a random bearing somewhere inside that tier's
+ * band. The grid towns are scattered by luck, which means a whole ring can come up empty —
+ * and a tier with nowhere to resupply is a tier you cannot push into. This makes "there is
+ * always somewhere out there" a rule rather than a probability.
+ */
+export function tierSanctuary(tier) {
+  if (tier < 1) return null;             // tier 0 is the spawn town, forced below
+  const key = `t${tier}`;
+  if (_cache.has(key)) return _cache.get(key);
+  const rng = mulberry32(hash2(WORLD_SEED ^ 0x7139, tier, 0));
+  const ang = rng() * Math.PI * 2;
+  // Kept off the band edges so it clearly belongs to this tier and not the next one.
+  const r = RING_SIZE * (tier + 0.25 + rng() * 0.5);
+  const corners = makeShape(rng);
+  const v = {
+    id: key,
+    x: Math.cos(ang) * r, z: Math.sin(ang) * r,
+    r: RADIUS, corners,
+    rMin: Math.min(...corners.map((c) => c.r)),
+    rMax: Math.max(...corners.map((c) => c.r)),
+    gate: rng() * Math.PI * 2,
+  };
+  _cache.set(key, v);
+  return v;
+}
+
 const _cache = new Map();
 
 /** The sanctuary for a grid cell, or null. Deterministic, and memoised because the mob
@@ -98,7 +124,7 @@ function _build(cx, cz) {
   const jz = rand2(WORLD_SEED ^ 0x22, cx, cz);
   const x = forced ? 96 : cx * CELL + 60 + jx * (CELL - 120);
   const z = forced ? 34 : cz * CELL + 60 + jz * (CELL - 120);
-  const corners = makeShape(cx, cz);
+  const corners = makeShape(mulberry32(hash2(WORLD_SEED ^ 0x54A9E, cx, cz)));
   return {
     id: `${cx},${cz}`,
     x, z, r: RADIUS, corners,
@@ -118,6 +144,15 @@ export function sanctuariesNear(x, z, range = CELL) {
       const s = sanctuaryAt(cx, cz);
       if (s && Math.hypot(s.x - x, s.z - z) <= range) out.push(s);
     }
+  }
+  // Plus the guaranteed per-tier towns. Only the bands this query actually reaches are
+  // considered, so this stays a handful of checks however far out you are.
+  const d = Math.hypot(x, z);
+  const tLo = Math.max(1, Math.floor((d - range) / RING_SIZE));
+  const tHi = Math.floor((d + range) / RING_SIZE);
+  for (let t = tLo; t <= tHi; t++) {
+    const s = tierSanctuary(t);
+    if (s && Math.hypot(s.x - x, s.z - z) <= range) out.push(s);
   }
   return out;
 }
