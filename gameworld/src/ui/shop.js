@@ -35,6 +35,9 @@ export const GOODS = {
       apply: () => { player.gearSpeed += 0.04; } },
     { id: "quickload", name: "Quick Loader", price: 95, upgrade: true,
       desc: "-8% reload time, permanently.",
+      // Capped HERE, and this is now the only place it can be raised from: relics grant
+      // by calling this very function, so a lucky drop obeys the same ceiling a purchase
+      // does. Reload reaching 1.0 was what made the gun's reload vanish entirely.
       apply: () => { player.gearReload = Math.min(0.6, player.gearReload + 0.08); } },
   ],
   adept: [

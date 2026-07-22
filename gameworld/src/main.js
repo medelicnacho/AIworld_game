@@ -280,6 +280,7 @@ function dropRelic(x, z, tier) {
   relicMesh.position.set(x, groundRelic.y, z);
   relicMesh.visible = true;
   killFeed = `◆ BOSS DOWN ◆   ${relic.name} lies where it fell`;
+  relicMesh.material.color.set(relic.color);
 }
 
 function updateRelic(dt) {
@@ -292,9 +293,9 @@ function updateRelic(dt) {
   relicLight.intensity = 8 + Math.sin(performance.now() * 0.005) * 3;
 
   if (Math.hypot(player.x - r.x, player.z - r.z) < RELIC.pickupRange) {
-    applyRelic(r.relic);
+    applyRelic(r.relic, gameCtx);
     applyLevelStats();                  // fold it in the same way a purchase would
-    tradeMsg = `${r.relic.name}: ${r.relic.lines.join(" · ")}`;
+    tradeMsg = `${r.relic.name} — ${r.relic.lines.join(", ")}`;
     tradeMsgT = 6;
     sfx.healDone();
     groundRelic = null;

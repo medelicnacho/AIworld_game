@@ -1,78 +1,91 @@
 // Boss drops: rolled relics you walk over to claim.
 //
-// A relic is a BUNDLE of the same upgrades the vendors sell — two or three of them at once,
-// several purchases deep. That is deliberate: it makes a boss kill worth more than the
-// points it pays, and it hands you a build you did not choose, which is the part a shop can
-// never do. Buying is deliberate; a drop is fate.
+// A relic is NOT its own power system. It is a bundle of VENDOR PURCHASES — "three platings
+// and two hastes" — applied by calling the shop's own apply() functions, the same ones the
+// buy button calls. That matters more than it sounds: relics used to write player fields
+// directly, so they bypassed limits the shop enforced (Quick Loader caps reload reduction at
+// 0.6; a relic did not), and a lucky drop could push a stat somewhere no amount of shopping
+// could. Two paths meant two sets of rules and only one of them was tested.
 //
-// Everything a relic grants routes through the SAME player fields the shop writes, so a
-// relic can never grant something armour or haste do not already understand — and
-// applyLevelStats() derives the result either way.
+// Now there is one path. Anything true of buying an item is true of finding it.
 
 import { RELIC } from "../config.js";
-import { player } from "../state.js";
+import { GOODS } from "../ui/shop.js";
 
-/**
- * The pool. `stat` is the player field, `each` the size of one "purchase" of it, and
- * `weight` how often it turns up. Keeping these identical to shop increments means a relic
- * reads as "three plates and two boots" rather than as a separate power system.
- */
-export const RELIC_STATS = [
-  { id: "armor", label: "Plating", stat: "armor", each: 1, weight: 1.1,
-    fmt: (n) => `-${Math.round((1 - Math.pow(0.90, n)) * 100)}% damage taken` },
-  { id: "haste", label: "Haste", stat: "haste", each: 1, weight: 1.0,
-    fmt: (n) => `+${Math.round((Math.pow(1.07, n) - 1) * 100)}% fire rate, faster cooldowns` },
-  { id: "dmg", label: "Edge", stat: "gearDmg", each: 0.08, weight: 1.0,
-    fmt: (n) => `+${Math.round(n * 8)}% damage` },
-  { id: "speed", label: "Swiftness", stat: "gearSpeed", each: 0.04, weight: 0.9,
-    fmt: (n) => `+${Math.round(n * 4)}% movement speed` },
-  { id: "reload", label: "Loading", stat: "gearReload", each: 0.08, weight: 0.7,
-    fmt: (n) => `-${Math.round(n * 8)}% reload time` },
+/** The vendor goods a relic can bundle, with the word it contributes to the name. */
+export const RELIC_POOL = [
+  { good: "plating", label: "Plating", weight: 1.1 },
+  { good: "sharpen", label: "Edge", weight: 1.0 },
+  { good: "haste", label: "Haste", weight: 1.0 },
+  { good: "lighten", label: "Swiftness", weight: 0.9 },
+  { good: "quickload", label: "Loading", weight: 0.7 },
 ];
 
-// Names are assembled from the rolled parts, so a relic's title tells you what it does
-// before you read the line under it.
-const PREFIX = ["Worn", "Etched", "Blackened", "Gilded", "Cracked", "Humming", "Sunken"];
-const NOUN = ["Sigil", "Ward", "Charm", "Coil", "Reliquary", "Totem", "Fetish"];
+/** Rarity decides how many kinds it bundles and how deep each one goes. */
+export const RARITY = [
+  { name: "Worn", parts: 2, mult: 1.0, weight: 5, color: "#cfd6e4" },
+  { name: "Leather", parts: 2, mult: 1.6, weight: 3, color: "#9ad6a0" },
+  { name: "Heavy", parts: 3, mult: 2.2, weight: 1.6, color: "#7fc4ff" },
+  { name: "Runed", parts: 3, mult: 3.2, weight: 0.7, color: "#d99bff" },
+];
+
+const NOUN = ["Ward", "Sigil", "Charm", "Coil", "Reliquary", "Totem"];
+
+function findGood(id) {
+  for (const list of Object.values(GOODS)) {
+    const g = list.find((x) => x.id === id);
+    if (g) return g;
+  }
+  return null;
+}
+
+function pick(list, rng, key = "weight") {
+  const total = list.reduce((s, o) => s + o[key], 0);
+  let r = rng() * total;
+  for (const o of list) {
+    r -= o[key];
+    if (r <= 0) return o;
+  }
+  return list[list.length - 1];
+}
 
 /**
- * Roll a relic for a boss of this tier. Deeper bosses roll more stats and more purchases
- * of each, so the drop scales with the fight rather than with a table you have to maintain.
+ * Roll a relic for a boss of this tier. Deeper bosses roll rarer, and rarer means both more
+ * kinds of upgrade and more purchases of each.
  */
 export function rollRelic(tier, rng) {
-  const kinds = RELIC.minStats
-    + Math.floor(rng() * (RELIC.maxStats - RELIC.minStats + 1))
-    + (tier >= RELIC.thirdStatTier ? 1 : 0);
+  // Deep bosses tilt the rarity table rather than using a different one.
+  const table = RARITY.map((r, i) => ({ ...r, weight: r.weight * (1 + i * tier * 0.14) }));
+  const rarity = pick(table, rng);
 
-  const pool = [...RELIC_STATS];
+  const pool = [...RELIC_POOL];
   const parts = [];
-  for (let k = 0; k < kinds && pool.length; k++) {
-    const total = pool.reduce((sum, p) => sum + p.weight, 0);
-    let r = rng() * total;
-    let pick = pool[pool.length - 1];
-    for (const p of pool) {
-      r -= p.weight;
-      if (r <= 0) { pick = p; break; }
-    }
-    pool.splice(pool.indexOf(pick), 1);
-
-    // How many "purchases" worth. Grows with tier, jittered so two relics from the same
-    // boss are never the same relic.
+  for (let k = 0; k < rarity.parts && pool.length; k++) {
+    const p = pick(pool, rng);
+    pool.splice(pool.indexOf(p), 1);
     const base = RELIC.stacksBase + tier * RELIC.stacksPerTier;
-    const n = Math.max(1, Math.round(base * (0.65 + rng() * 0.7)));
-    parts.push({ ...pick, n });
+    const n = Math.max(1, Math.round(base * rarity.mult * (0.75 + rng() * 0.5)));
+    parts.push({ ...p, n });
   }
 
   return {
-    name: `${PREFIX[Math.floor(rng() * PREFIX.length)]} `
-      + `${NOUN[Math.floor(rng() * NOUN.length)]}`,
+    rarity: rarity.name,
+    color: rarity.color,
+    name: `${rarity.name} ${NOUN[Math.floor(rng() * NOUN.length)]}`,
     tier,
     parts,
-    lines: parts.map((p) => p.fmt(p.n)),
+    lines: parts.map((p) => `${p.label} ×${p.n}`),
   };
 }
 
-/** Claim it. Writes the same fields the shop writes; nothing here is a special case. */
-export function applyRelic(relic) {
-  for (const p of relic.parts) player[p.stat] += p.each * p.n;
+/**
+ * Claim it — by BUYING each part, free, through the shop's own apply(). Every cap, every
+ * side effect and every future change to an item is inherited automatically.
+ */
+export function applyRelic(relic, ctx) {
+  for (const p of relic.parts) {
+    const good = findGood(p.good);
+    if (!good) continue;
+    for (let i = 0; i < p.n; i++) good.apply(ctx);
+  }
 }
