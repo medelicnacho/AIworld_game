@@ -82,6 +82,22 @@ export function tierAt(wx, wz) {
   return Math.max(0, Math.floor((-b + Math.sqrt(b * b + 2 * k * d / RING_SIZE)) / k));
 }
 
+/**
+ * Difficulty ACCELERATION, as an inflated "effective ring".
+ *
+ * The per-ring multipliers in config are a FLAT exponential, tuned to hold time-to-kill
+ * roughly constant against a levelling player. This bends that curve: the first ring past
+ * the Commons is barely harder, and each ring after bites much faster — "not much harder,
+ * then way harder super fast". It grows QUADRATICALLY, and the `(ring - 1)` term is what
+ * keeps ring 1 unchanged (it is zero there), so only DEPTH compounds. HP, damage and
+ * crowding all read their pressure through here with their own `ramp`, so one shape governs
+ * the whole gradient and there is a single place to make the deep meaner or kinder.
+ */
+export function ringPressure(ring, ramp) {
+  if (ring <= 1) return ring;
+  return ring + ramp * ring * (ring - 1);
+}
+
 /** The NAME and colour of that band — capped, because we only wrote six names. */
 export function ringAt(wx, wz) {
   return Math.min(RINGS.length - 1, tierAt(wx, wz));

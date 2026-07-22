@@ -359,6 +359,17 @@ export const MOB = {
   damagePerRing: 0.40,
   speedPerRing: 0.06,
 
+  // ACCELERATION on top of the flat curve above (see ringPressure() in gen.js). The base
+  // exponentials hold time-to-kill constant; these BEND them so the first ring past the
+  // Commons is barely harder and the deep climbs fast. For an on-level player that lands at
+  // roughly: ring 2 ~1.1x TTK, ring 4 ~1.8x, ring 5 ~2.8x, ring 6 ~4.5x, ring 8 ~16x — so
+  // "multiple bombs per regular mob" arrives around ring 5 and only worsens. An UNDER-level
+  // player (run out ahead of your bed) feels it far sooner, which is the whole point of a
+  // frontier. Turn these DOWN to soften the deep; they are the difficulty dial now.
+  ramp: 0.18,           // HP — the main "bullet-sponge at depth" knob
+  rampDamage: 0.08,     // gentler: tanky is a fun problem, being one-shot is not
+  rampCrowd: 0.13,      // more bodies, sooner — reaches the population cap faster
+
   // ★elites: rarer near spawn, common in the deep. Valheim's star system, which is the
   // cheapest legible "this one is worse" signal there is.
   eliteChance: 0.06,

@@ -15,7 +15,7 @@ import * as THREE from "three";
 import { MOB, PLAYER } from "../config.js";
 import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
-import { groundY, solidAt, tierAt } from "../world/gen.js";
+import { groundY, solidAt, tierAt, ringPressure } from "../world/gen.js";
 import { sfx } from "../audio/sfx.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
 import { guardNear } from "../town/guards.js";
@@ -174,7 +174,9 @@ export class Mobs {
     const ring = tierAt(x, z);
     const elite = this.rng() < MOB.eliteChance + MOB.eliteChancePerRing * ring;
     const eliteHp = MOB.eliteHp + MOB.eliteHpPerRing * ring;
-    const hp = MOB.hp * Math.pow(MOB.hpGrowth, ring) * (elite ? eliteHp : 1);
+    // Depth is felt HERE: the effective ring accelerates, so HP outruns a levelling player
+    // the further out you go. Elites multiply on top, as before.
+    const hp = MOB.hp * Math.pow(MOB.hpGrowth, ringPressure(ring, MOB.ramp)) * (elite ? eliteHp : 1);
     // Ranged comes in two flavours. Elite casters FLY (red, point-down); ordinary ones
     // hold their ground (violet). Same standoff brain, entirely different problem: one you
     // must look up for, the other closes the horizontal gap with you.
@@ -191,7 +193,8 @@ export class Mobs {
     return {
       ring, elite, caster, flies, charger,
       maxHp: hp, hp,
-      damage: MOB.damage * (1 + MOB.damagePerRing * ring) * (elite ? MOB.eliteDamage : 1),
+      damage: MOB.damage * (1 + MOB.damagePerRing * ringPressure(ring, MOB.rampDamage))
+        * (elite ? MOB.eliteDamage : 1),
       speed: MOB.speed * (1 + MOB.speedPerRing * ring),
     };
   }
@@ -199,11 +202,14 @@ export class Mobs {
   /** Population budget where the player is standing — denser the further out you are. */
   budget() {
     const tier = tierAt(player.x, player.z);
+    // Crowding accelerates too: the deep is not just meaner, it fills up and repopulates
+    // faster, so "tuns of mobs" arrives well before the flat caps would have delivered it.
+    const crowd = ringPressure(tier, MOB.rampCrowd);
     return {
-      alive: Math.min(MOB.maxAliveCap, MOB.maxAlive + MOB.maxAlivePerTier * tier),
-      packs: Math.min(MOB.maxPacksCap, MOB.maxPacks + MOB.maxPacksPerTier * tier),
+      alive: Math.min(MOB.maxAliveCap, MOB.maxAlive + MOB.maxAlivePerTier * crowd),
+      packs: Math.min(MOB.maxPacksCap, MOB.maxPacks + MOB.maxPacksPerTier * crowd),
       interval: Math.max(MOB.spawnIntervalMin,
-        MOB.spawnInterval * Math.pow(1 - MOB.spawnFasterPerTier, tier)),
+        MOB.spawnInterval * Math.pow(1 - MOB.spawnFasterPerTier, crowd)),
     };
   }
 
