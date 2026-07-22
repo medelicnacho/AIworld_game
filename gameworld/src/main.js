@@ -210,7 +210,12 @@ attachInput(renderer.domElement, {
     killFeed = "boss summoned";
   },
   onLock: () => { music.start(); sfx.unlock(); setPaused(false); },
-  onUnlock: () => { setPaused(true); },
+  onUnlock: () => {
+    // Belt and braces for the same collision: ignore an unlock that lands in the moment
+    // after a deliberate resume, so a stray release can never re-pause what we just resumed.
+    if (performance.now() - resumedAt < 900) return;
+    setPaused(true);
+  },
   // Look control is allowed whenever the game is actually RUNNING, lock or no lock. The
   // only time it must be off is while a panel owns the cursor.
   lookUnlocked: () => !paused && !shop.open,
@@ -234,7 +239,7 @@ const markCombat = () => { combatT = REGEN.delay; };
  * asking on close and waiting for the lock to confirm meant Escape reliably dumped you on
  * the pause screen. Unpause immediately; chase the lock separately and retry until it takes.
  */
-let lockTries = 0;
+let lockTries = 0, resumedAt = 0;
 
 function tryLock() {
   const el = renderer.domElement;
@@ -245,7 +250,12 @@ function tryLock() {
 function resumeFromShop() {
   setPaused(false);
   lockTries = 0;
-  tryLock();
+  resumedAt = performance.now();
+  // Do NOT request the lock inside the Escape keypress. Our handler runs first, takes the
+  // lock — and then the browser's OWN Escape handling runs and releases it again, which
+  // fires onUnlock and re-pauses. That is the "unpauses then instantly pauses" loop: one
+  // key press doing both jobs. Wait until the key event is completely finished.
+  setTimeout(tryLock, 350);
 }
 
 document.addEventListener("pointerlockerror", () => {
