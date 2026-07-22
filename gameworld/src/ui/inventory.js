@@ -91,6 +91,8 @@ export class Inventory {
 
     if (e.target.closest("[data-admin]")) { this.admin = !this.admin; this.render(); return; }
     if (e.target.closest("[data-grant]")) { this.hooks.grantAll?.(); this.render(); return; }
+    const one = e.target.closest("[data-give]");
+    if (one) { this.hooks.give?.(one.dataset.give); this.render(); return; }
     if (e.target.closest("[data-setlevel]")) {
       const v = Number(this.el.querySelector("#adm-level")?.value);
       if (v > 0) this.hooks.setLevel?.(Math.floor(v));
@@ -138,13 +140,23 @@ export class Inventory {
   adminHtml() {
     if (!this.admin) return "";
     const p = this.hooks.state?.() || {};
+    const owned = new Set(this.abilities.owned.map((o) => o.id));
+    // Every ability the game sells, tier gates ignored — the point of a test panel is to
+    // reach any state quickly, including ones a real run would take an hour to get to.
+    const list = (this.hooks.catalog?.() || []).map((g) => `
+      <button class="give ${owned.has(g.grants) ? "has" : ""}" data-give="${g.id}">
+        ${g.name}${owned.has(g.grants) ? " ✓" : ""}
+      </button>`).join("");
     return `
       <div class="admin">
-        <label>level <input id="adm-level" type="number" min="1" value="${p.level || 1}"></label>
-        <button data-setlevel>set</button>
-        <label>points <input id="adm-points" type="number" min="0" value="1000"></label>
-        <button data-setpoints>add</button>
-        <button data-grant>grant all abilities</button>
+        <div class="row">
+          <label>level <input id="adm-level" type="number" min="1" value="${p.level || 1}"></label>
+          <button data-setlevel>set</button>
+          <label>points <input id="adm-points" type="number" min="0" value="1000"></label>
+          <button data-setpoints>add</button>
+          <button data-grant>grant all</button>
+        </div>
+        <div class="row give-row">${list}</div>
       </div>`;
   }
 

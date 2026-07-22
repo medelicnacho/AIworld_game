@@ -268,8 +268,13 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
     applyLevelStats();
     player.hp = player.maxHp;
   },
-  // Grant every ability an adept sells, free — the point of a test button is to skip the
-  // economy, not to simulate it.
+  // Grant abilities free — the point of a test button is to skip the economy, not to
+  // simulate it. Tier gates are ignored here on purpose.
+  catalog: () => (GOODS.adept || []).map((g) => ({ id: g.id, name: g.name, grants: g.id })),
+  give: (id) => {
+    const g = (GOODS.adept || []).find((x) => x.id === id);
+    g?.apply(gameCtx);
+  },
   grantAll: () => {
     for (const g of GOODS.adept || []) g.apply(gameCtx);
   },
@@ -664,7 +669,7 @@ function frame(now) {
   }
 
   pointsEl.innerHTML = `${player.points} <small>POINTS</small>`;
-  const paint = (el, def, left, ready) => {
+  const paint = (el, def, left, ready, charges = undefined) => {
     el.classList.toggle("up", !!def && ready);
     el.classList.toggle("empty", !def);
     // Icons are static per slot — only rewrite the SVG when the slot's contents change,
@@ -675,14 +680,15 @@ function frame(now) {
       el.querySelector(".ic").innerHTML = ICONS[icon] || "";
     }
     el.querySelector(".n").textContent = def?.name || "";
-    el.querySelector(".ch").textContent = def?.charges ? "●".repeat(def.charges()) : "";
+    const n = charges === undefined ? (def?.charges ? def.charges() : null) : charges;
+    el.querySelector(".ch").textContent = n === null || n === undefined ? "" : "●".repeat(n);
     el.title = def?.desc || "empty";
     el.querySelector(".cool").textContent = left > 0 ? left.toFixed(left < 3 ? 1 : 0) : "";
   };
   barSlots.forEach((el, i) => {
     const a = abilities.slots[i];
     el.querySelector(".k").textContent = a?.key || String(i + 1);
-    paint(el, a, abilities.cooldownOf(i), abilities.readyOf(i));
+    paint(el, a, abilities.cooldownOf(i), abilities.readyOf(i), abilities.chargesOf(i));
   });
   genSlots.forEach((el, i) => {
     const g = GENERAL[i];

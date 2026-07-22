@@ -157,7 +157,7 @@ export const DASH = {
 // button — the slam is the commitment, the spin is the reward for committing.
 export const WHIRL = {
   price: 260,
-  minTier: 2,           // only stocked by adepts from the second ring out
+  minTier: 1,           // stocked from the first ring out
   cd: 13,
   leapSpeed: 24,
   leapUp: 9.5,
@@ -169,6 +169,15 @@ export const WHIRL = {
   spinTick: 0.22,       // damage every this many seconds while spinning
   spinDamage: 34,       // ~154/s sustained
   spinSpeed: 1.5,       // and you move faster while you do it
+};
+
+// Rank 2s. Sold from the first ring out — the reward for leaving the Commons is not just
+// bigger numbers but a better VERSION of what you already know how to use.
+export const RANK2 = {
+  fireringPrice: 210,
+  fireringCd: 12,        // 16 -> 12
+  dashPrice: 230,
+  dashCharges: 2,        // hold two, spend both, then wait two cooldowns
 };
 
 // Abilities sold by the Adept. The first one is deliberately strong for its price: it is

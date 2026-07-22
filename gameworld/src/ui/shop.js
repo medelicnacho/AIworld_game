@@ -9,7 +9,7 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING, DASH, WHIRL } from "../config.js";
+import { VILLAGE, FIRERING, DASH, WHIRL, RANK2 } from "../config.js";
 import { tierAt } from "../world/gen.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
@@ -56,6 +56,25 @@ export const GOODS = {
         icon: "arrow",
         desc: "Blink forward, untouchable, cutting through whatever you pass.",
         cd: DASH.cd,
+        use: () => game.dashStrike(),
+      }) },
+    { id: "firering2", name: "Ring of Fire II", price: RANK2.fireringPrice, once: true,
+      minTier: 1,
+      desc: `The same wall of flame on a ${RANK2.fireringCd}s cooldown instead of `
+        + `${FIRERING.cd}s. Replaces Ring of Fire.`,
+      apply: (game) => game.abilities.acquire({
+        id: "firering2", name: "Ring of Fire II", icon: "burst", replaces: "firering",
+        desc: `A wall of flame around you. ${RANK2.fireringCd}s cooldown.`,
+        cd: RANK2.fireringCd,
+        use: () => game.fireRing(),
+      }) },
+    { id: "dash2", name: "Dash Strike II", price: RANK2.dashPrice, once: true, minTier: 1,
+      desc: `Dash Strike with ${RANK2.dashCharges} charges — blink twice before you wait. `
+        + `Replaces Dash Strike.`,
+      apply: (game) => game.abilities.acquire({
+        id: "dash2", name: "Dash Strike II", icon: "arrow", replaces: "dash",
+        desc: `Blink forward, untouchable. ${RANK2.dashCharges} charges.`,
+        cd: DASH.cd, maxCharges: RANK2.dashCharges,
         use: () => game.dashStrike(),
       }) },
     { id: "whirl", name: "Whirlwind", price: WHIRL.price, once: true, minTier: WHIRL.minTier,
