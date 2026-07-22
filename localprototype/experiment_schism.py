@@ -56,13 +56,12 @@ fork started from a world already collapsing in BOTH arms. Run clean, the walk c
   python3 experiment_schism.py        # ~1 hour, 6 runs; use -u, it is silent otherwise
 """
 import math
-import random
 import statistics as st
 import sys
 
-from santana_app.evolution import _found_settlements, _gates          # noqa: E402
-from services.llm import MockLLM                                      # noqa: E402
-from world.sim import World, _belief_cos                              # noqa: E402
+from scripts.arena_harness import build
+from scripts.arena_harness import run as run_arena
+from world.sim import _belief_cos                              # noqa: E402
 
 TICKS = 2000
 FOUNDERS = 24
@@ -92,18 +91,12 @@ def _clumps(ags):
 
 
 def run(schism, seed):
-    rng = random.Random(seed)
-    # move_seed is LOAD-BEARING: World defaults it to None -> random.Random(None)
-    # -> the movement RNG is seeded from OS entropy and the whole run is
-    # NONDETERMINISTIC. Both of this file's earlier verdicts were produced without
-    # it; re-running the same seed gave 60 / 56 / 46 alive. See the banner above.
-    w = World(rebirth_enabled=False, events_enabled=False, move_seed=seed)
-    w.llm = MockLLM(seed=seed)
-    _gates(w, FOUNDERS)
+    # built and run through the ONE correct door: move_seed wired (or the movement
+    # RNG comes from OS entropy) and speech running (or hear() never fires and the
+    # opinion dynamics this reads are dead). Both faults voided this file once.
+    w = build(seed=seed, founders=FOUNDERS)
     w.schism_walk = schism
-    _found_settlements(w, rng, FOUNDERS)
-    for _ in range(TICKS):
-        w.step(speak=False)
+    run_arena(w, TICKS)
     ags = w.agents
     if not ags:
         return {"n": 0, "clumps": 0, "biggest": 1.0, "regions": 0, "agree": float("nan")}
