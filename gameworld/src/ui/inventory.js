@@ -13,13 +13,25 @@ import { SLOTS } from "../player/abilities.js";
 import { ICONS } from "./icons.js";
 
 export class Inventory {
-  constructor(el, abilities) {
+  constructor(el, abilities, hooks = {}) {
     this.el = el;
     this.abilities = abilities;
+    this.hooks = hooks;      // { onClose, grantAll, setLevel, addPoints }
     this.open = false;
+    this.admin = false;
     this.picked = null;      // {from: "bag"|"slot", index}
 
     this.el.addEventListener("click", (e) => this.onClick(e));
+    // Escape must leave. The lock was already released to open this, so no lockchange will
+    // ever fire — it needs its own handler, in capture, exactly like the shop.
+    window.addEventListener("keydown", (e) => {
+      if (!this.open) return;
+      if (e.code === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        this.close();
+      }
+    }, true);
     this.el.addEventListener("dragstart", (e) => this.onDragStart(e));
     this.el.addEventListener("dragover", (e) => {
       if (e.target.closest("[data-slot],[data-bag]")) e.preventDefault();   // allow drop
@@ -65,8 +77,32 @@ export class Inventory {
     this.render();
   }
 
+  close() {
+    this.hide();
+    this.hooks.onClose?.();
+  }
+
   onClick(e) {
-    if (e.target.closest("[data-close]")) { this.picked = null; this.render(); return; }
+    // THE BACKDROP COVERS THE WHOLE SCREEN, so without this there is nothing left to click
+    // to get back into the game — the panel swallowed every click and the pause was a
+    // dead end.
+    if (e.target === this.el) { this.close(); return; }
+    if (e.target.closest("[data-close]")) { this.close(); return; }
+
+    if (e.target.closest("[data-admin]")) { this.admin = !this.admin; this.render(); return; }
+    if (e.target.closest("[data-grant]")) { this.hooks.grantAll?.(); this.render(); return; }
+    if (e.target.closest("[data-setlevel]")) {
+      const v = Number(this.el.querySelector("#adm-level")?.value);
+      if (v > 0) this.hooks.setLevel?.(Math.floor(v));
+      this.render();
+      return;
+    }
+    if (e.target.closest("[data-setpoints]")) {
+      const v = Number(this.el.querySelector("#adm-points")?.value);
+      if (v >= 0) this.hooks.addPoints?.(Math.floor(v));
+      this.render();
+      return;
+    }
     const o = Inventory.origin(e.target);
     if (!o) return;
     if (!this.picked) {
@@ -98,6 +134,20 @@ export class Inventory {
     }
   }
 
+  /** A testing panel: set level, hand yourself points, grant every ability at once. */
+  adminHtml() {
+    if (!this.admin) return "";
+    const p = this.hooks.state?.() || {};
+    return `
+      <div class="admin">
+        <label>level <input id="adm-level" type="number" min="1" value="${p.level || 1}"></label>
+        <button data-setlevel>set</button>
+        <label>points <input id="adm-points" type="number" min="0" value="1000"></label>
+        <button data-setpoints>add</button>
+        <button data-grant>grant all abilities</button>
+      </div>`;
+  }
+
   render() {
     if (!this.open) return;
     const a = this.abilities;
@@ -119,13 +169,19 @@ export class Inventory {
 
     this.el.innerHTML = `
       <div class="panel">
-        <header><h2>Inventory</h2><button class="x" data-close>✕</button></header>
+        <header>
+          <h2>Inventory</h2>
+          <button class="adm ${this.admin ? "on" : ""}" data-admin>admin</button>
+          <button class="x" data-close>✕</button>
+        </header>
         <div class="bag">${bag}</div>
         <h3>Ability bar</h3>
         <div class="bar">${bar}</div>
+        ${this.adminHtml()}
         <footer>${this.picked
           ? "Now click a slot to place it"
-          : "Drag or click an ability onto a slot · drag it out to unequip · click the world to resume"}</footer>
+          : "Drag or click an ability onto a slot · drag it out to unequip · "
+            + "Esc, ✕ or click outside to resume"}</footer>
       </div>`;
   }
 }

@@ -71,6 +71,9 @@ export class Boss {
 
   spawn(x, z) {
     if (this.alive) return null;
+    // Never on holy ground. A boss inside the walls would be unkillable (weapons are
+    // stowed in there) and would break the one promise a sanctuary makes.
+    if (sanctuaryOf(x, z, BOSS.contactRange + 12)) return null;
     const ring = Math.max(BOSS.spawnRing, tierAt(x, z));
     const hp = BOSS.hp * (1 + BOSS.hpPerRing * ring);
 
@@ -121,10 +124,14 @@ export class Boss {
   /** Spawn one near the player if none is up and we're out past the Commons. */
   maybeSpawn() {
     if (!this.eligible) return false;
-    const a = this.rng() * Math.PI * 2;
-    const d = BOSS.spawnDist[0] + this.rng() * (BOSS.spawnDist[1] - BOSS.spawnDist[0]);
-    this.spawn(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d);
-    return true;
+    // Several attempts: near a big city most bearings are blocked, and one rejected roll
+    // would otherwise mean no boss appears at all for the whole retry interval.
+    for (let i = 0; i < 12; i++) {
+      const a = this.rng() * Math.PI * 2;
+      const d = BOSS.spawnDist[0] + this.rng() * (BOSS.spawnDist[1] - BOSS.spawnDist[0]);
+      if (this.spawn(player.x + Math.cos(a) * d, player.z + Math.sin(a) * d)) return true;
+    }
+    return false;
   }
 
   despawn() {

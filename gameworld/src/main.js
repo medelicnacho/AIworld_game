@@ -11,7 +11,7 @@ import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
 import { Villagers } from "./town/villagers.js";
-import { Shop } from "./ui/shop.js";
+import { Shop, GOODS } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
 import { Inventory } from "./ui/inventory.js";
 import { player, spawnPlayer, world } from "./state.js";
@@ -226,6 +226,7 @@ function whirlwind() {
   player.leapX = dir.x;
   player.leapZ = dir.z;
   player.leapT = WHIRL.leapTime;
+  player.leapPending = true;
   player.vy = WHIRL.leapUp;
   player.onGround = false;
   player.iframes = Math.max(player.iframes, WHIRL.leapTime + 0.15);
@@ -237,6 +238,7 @@ function whirlwind() {
 /** The landing. Ends the leap, hits everything around, and starts the spin. */
 function whirlSlam() {
   player.leapT = 0;
+  player.leapPending = false;
   blast(player.x, player.y + 1, player.z,
         WHIRL.slamRadius, WHIRL.slamDamage, 14, false);
   whirlRing.position.set(player.x, player.y + 0.3, player.z);
@@ -255,21 +257,40 @@ const allSlots = [...barEl.querySelectorAll(".slot")];
 const barSlots = allSlots.slice(0, SLOTS);
 const genSlots = allSlots.slice(SLOTS);
 const pointsEl = document.getElementById("points");
-const inventory = new Inventory(document.getElementById("inv"), abilities);
+const inventory = new Inventory(document.getElementById("inv"), abilities, {
+  onClose: () => resumeFromShop(),
+  state: () => ({ level: player.level, points: player.points }),
+  addPoints: (n) => { player.points += n; },
+  setLevel: (n) => {
+    player.level = Math.max(1, n);
+    player.xp = 0;
+    applyLevelStats();
+    player.hp = player.maxHp;
+  },
+  // Grant every ability an adept sells, free — the point of a test button is to skip the
+  // economy, not to simulate it.
+  grantAll: () => {
+    for (const g of GOODS.adept || []) g.apply(gameCtx);
+  },
+});
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
 const folk = new Folk(scene);
 const villagers = new Villagers(scene);
 let tradeMsg = "", tradeMsgT = 0;
-const shop = new Shop(document.getElementById("shop"), {
+// One context object for anything that can grant or change player state, so the shop and
+// the admin panel hand out abilities through exactly the same path. Getters are lazy
+// because grenades/abilities are constructed further down.
+const gameCtx = {
   get grenades() { return grenades; },
   get abilities() { return abilities; },
   fireRing,
   dashStrike,
-  whirlwind,   // lazily read: grenades is defined further down
-  applyStats: () => applyLevelStats(),  // gear changes re-derive the same way levels do
+  whirlwind,
+  applyStats: () => applyLevelStats(),   // gear changes re-derive the same way levels do
   onClose: () => resumeFromShop(),
-});
+};
+const shop = new Shop(document.getElementById("shop"), gameCtx);
 
 // The bridge to the Python lab. Optional by construction: if it never connects, nothing
 // below notices (STAGES Stage 1). Speech is fire-and-forget — a pending request must never
@@ -589,8 +610,12 @@ function frame(now) {
   }
   const stirring = input.fwd !== 0 || input.right !== 0 || player.dodgeT > 0 || !player.onGround;
   heal.update(dt, stirring);
-  // Leap -> slam: whichever comes first, touching down or running out of airtime.
-  if (player.leapT > 0 && (player.onGround || player.leapT <= dt)) whirlSlam();
+  // Leap -> slam. Gated on a PENDING FLAG, not on leapT still being positive: leapT is
+  // decremented inside the fixed-step physics loop, so by the time this frame-level check
+  // ran it had already crossed zero — and since the arc lasts longer than leapT, the player
+  // was still airborne. The slam never fired at all, which is why the spin did no damage:
+  // it never started.
+  if (player.leapPending && (player.onGround || player.leapT <= 0)) whirlSlam();
 
   if (player.whirlT > 0) {
     player.whirlT -= dt;
