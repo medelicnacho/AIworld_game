@@ -29,6 +29,35 @@ PRE-REGISTERED, on virgin seeds (tuning band 11-15 is NOT used for the verdict):
 
   python3 -u experiment_dose.py --seeds 40      # THE VERDICT (~110 min)
   python3 -u experiment_dose.py --seeds 3       # smoke test
+
+VERDICT (virgin seeds 201-240, n=40):
+
+  D1 THE LAND SELECTS     PASS  +0.0361 [CI +0.0055..+0.0668]  d +0.38  sign 27/40  p 0.019
+  D2 IT BEATS DRIFT       FAIL  +0.0103 [CI -0.0168..+0.0374]  d +0.12  sign 21/40  p 0.437
+  D3 VARIANCE SURVIVES    PASS  mean trait sd 0.161 (founding ~0.17), min 0.085
+
+D1 is E2's deferred claim, settled: the CI now EXCLUDES zero, which is exactly what the
+held-out five-seed run could not manage, and the effect size (d +0.38) landed where E2
+registered it (~+0.45). Lean graded land selects the cheap-to-feed. The population
+phenomenon is real at n=40.
+
+D2 IS THE HONEST HOLE, and it is the more interesting number. The selected regimes differ
+by no more than their own NO-SELECTION twins do (d +0.12, sign 21/40 -- a coin). So the
+regimes diverge, but this experiment CANNOT show that the selection machinery is what
+diverged them: the same gap appears with selection switched off. The likely reading is
+that `press` shapes the population through channels that are not selection_enabled at all
+-- lean land starves and kills regardless of the E2 gate, and hardship every 100 ticks
+reshapes who breeds. That is still the ENVIRONMENT selecting, but it is not E2's mechanism
+being demonstrated, and the two must not be conflated. A cleaner D2 needs an arm where the
+land is lean but mortality is held fixed.
+
+D3 clears the monoculture guard with room: trait sd holds at 0.161 against a founding
+~0.17 (min 0.085), so nothing here was bought by freezing the population. E3
+(Quality-Diversity) is not yet forced by the data.
+
+Power note: the observed d +0.377 wants 57 seeds for 80% power (scripts/stats.power_n);
+40 were run. D1 cleared its CI anyway, so it is not underpowered for the claim it makes
+-- but a replication should budget 57+, not 40.
 """
 from __future__ import annotations
 
