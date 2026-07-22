@@ -60,7 +60,8 @@ export function attachInput(canvas, hooks = {}) {
     if (e.code === "KeyR") hooks.reload?.();
     if (e.code === "KeyE" && !e.repeat) input.throwQueued = true;
     if (e.code === "KeyF" && !e.repeat) hooks.interact?.();
-    if (e.code === "Digit1" && !e.repeat) hooks.drink?.();
+    // C is the potion; 1 stays bound too, since that is what it was five minutes ago.
+    if ((e.code === "KeyC" || e.code === "Digit1") && !e.repeat) hooks.drink?.();
     if (e.code === "KeyQ" && !e.repeat) input.healQueued = true;
     if (e.code === "KeyB" && !e.repeat) hooks.summonBoss?.();   // dev: don't wander to test
     if (e.code === "KeyG" && !e.repeat) hooks.bridgeTest?.();   // dev: speak a line
