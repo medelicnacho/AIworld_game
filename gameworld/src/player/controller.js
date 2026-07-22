@@ -119,7 +119,8 @@ function blocked(x, y, z) {
 }
 
 export function stepPlayer(dt) {
-  const speed = input.sprint && !input.aim ? PLAYER.sprintSpeed : PLAYER.walkSpeed;
+  const speed = (input.sprint && !input.aim ? PLAYER.sprintSpeed : PLAYER.walkSpeed)
+    * player.speedMult;
 
   // Desired horizontal velocity in the yaw frame.
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
@@ -166,7 +167,7 @@ export function stepPlayer(dt) {
 
   // Standing on the ground restocks every jump. Walking off a ledge without jumping leaves
   // the full set — deliberately forgiving, and it doubles as coyote time.
-  if (player.onGround) player.jumpsLeft = PLAYER.jumps;
+  if (player.onGround) player.jumpsLeft = player.maxJumps;
 
   player.vy = Math.max(PLAYER.maxFall, player.vy + PLAYER.gravity * dt);
 
@@ -176,7 +177,7 @@ export function stepPlayer(dt) {
       const fromGround = player.onGround;
       // SET the velocity rather than adding: an air jump while falling fast should feel
       // like a clean second launch, not a rounding error against your downward momentum.
-      player.vy = PLAYER.jumpSpeed * (fromGround ? 1 : PLAYER.airJumpScale);
+      player.vy = PLAYER.jumpSpeed * player.jumpMult * (fromGround ? 1 : PLAYER.airJumpScale);
       player.jumpsLeft--;
       player.onGround = false;
     }

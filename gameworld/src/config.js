@@ -84,7 +84,13 @@ export const XP = {
 
   // Interim level rewards. D9's real answer is a 1-of-3 card pick — this keeps levelling
   // FELT until that UI exists, and is meant to be replaced by it, not kept.
-  hpPerLevel: 8,
+  // Levels buy MOBILITY, not bulk. Max HP never moves, so a meteor is as lethal at level 40
+  // as at level 4 and survival stays a question of reading telegraphs rather than of having
+  // a bigger bar. What you gain is the ability to be somewhere else.
+  hpPerLevel: 0,
+  speedGrowth: 1.02,      // L10 ×1.22 · L20 ×1.49 · L35 ×2.00
+  jumpGrowth: 1.015,      // L20 ×1.35 launch = ~1.8× the height (h scales with v²)
+  jumpsPerLevels: 10,     // +1 air jump at 10, 20, 30, …
   // COMPOUNDING, not additive. Mob HP grows 55% per ring and levelling is what carries you
   // outward, so a flat +6%/level meant getting relatively weaker the further you went.
   // 9% compounding: L5 ×1.4 · L10 ×2.2 · L20 ×5.1 · L35 ×18.7 — it outruns ring HP slowly,

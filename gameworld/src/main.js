@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, PLAYER, GUN, MOB, BOSS, GRENADE, HEAL, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { player, spawnPlayer, world } from "./state.js";
@@ -264,7 +264,8 @@ function frame(now) {
     `${ring + 1 < RINGS.length ? `   next ring ${Math.max(0, Math.ceil(toNextRing))}m` : ""}\n` +
     `xyz  ${player.x.toFixed(1)} ${player.y.toFixed(1)} ${player.z.toFixed(1)}\n` +
     `cam  ${rig.mode}   look ${CAMERA.sensitivity.toFixed(4)}  [ / ]\n` +
-    `LVL ${player.level}  dmg ×${player.dmgMult.toFixed(2)}  ${"▮".repeat(Math.round(levelProgress() * 12))}` +
+    `LVL ${player.level}  dmg ×${player.dmgMult.toFixed(2)}  spd ×${player.speedMult.toFixed(2)}  jmp ×${player.jumpMult.toFixed(2)}\n` +
+    `    ${"▮".repeat(Math.round(levelProgress() * 12))}` +
     `${"▯".repeat(12 - Math.round(levelProgress() * 12))} ${player.xp}/${xpToNext(player.level)}xp\n` +
     `hp   ${"█".repeat(Math.max(0, Math.round(player.hp / 10)))}${"░".repeat(Math.max(0, 10 - Math.round(player.hp / 10)))} ` +
     `${Math.max(0, Math.round(player.hp))}   kills ${mobs.killed}  ${killFeed}\n` +
@@ -277,7 +278,7 @@ function frame(now) {
     `gun  ${gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
     `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ` +
-    `jumps ${"◆".repeat(player.jumpsLeft)}${"◇".repeat(Math.max(0, PLAYER.jumps - player.jumpsLeft))}`;
+    `jumps ${"◆".repeat(player.jumpsLeft)}${"◇".repeat(Math.max(0, player.maxJumps - player.jumpsLeft))}`;
 
   renderer.render(scene, camera);
 }

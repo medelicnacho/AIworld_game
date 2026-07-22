@@ -10,7 +10,7 @@
 // Which is the intended pressure: to keep levelling you must walk further out, where mobs
 // are worth more AND more of them are elites. Distance is the progression system.
 
-import { XP } from "../config.js";
+import { XP, PLAYER } from "../config.js";
 import { player } from "../state.js";
 
 /** XP needed to go from `level` to `level + 1`. */
@@ -38,15 +38,26 @@ export function award(amount) {
     player.xp -= xpToNext(player.level);
     player.level++;
     gained++;
-    // Interim reward — replaced by the 1-of-3 card pick, not kept alongside it.
-    player.maxHp += XP.hpPerLevel;
-    player.dmgMult = Math.pow(XP.damageGrowth, player.level - 1);
+    applyLevelStats();
     // FULL heal on level. It doubles as a mid-fight comeback: grinding a pack while a boss
     // hunts you can top you off, which makes "one more kill" a real tactical option and
     // gives the 12s heal cooldown something to compete with.
     player.hp = player.maxHp;
   }
   return gained;
+}
+
+/**
+ * Every level-scaled stat, DERIVED from level rather than accumulated. Incrementing on
+ * level-up and decrementing on death drifts apart the moment either path changes; deriving
+ * cannot. Max HP is deliberately absent — levels buy mobility, not bulk.
+ */
+export function applyLevelStats() {
+  const n = player.level - 1;
+  player.dmgMult = Math.pow(XP.damageGrowth, n);
+  player.speedMult = Math.pow(XP.speedGrowth, n);
+  player.jumpMult = Math.pow(XP.jumpGrowth, n);
+  player.maxJumps = PLAYER.jumps + Math.floor(player.level / XP.jumpsPerLevels);
 }
 
 /** Fraction of the way to the next level, for the HUD bar. */
@@ -58,8 +69,7 @@ export function levelProgress() {
 export function loseLevel() {
   if (player.level <= 1) { player.xp = 0; return false; }
   player.level--;
-  player.maxHp = Math.max(100, player.maxHp - XP.hpPerLevel);
-  player.dmgMult = Math.pow(XP.damageGrowth, player.level - 1);
+  applyLevelStats();
   player.xp = Math.floor(xpToNext(player.level) * 0.5);
   return true;
 }
