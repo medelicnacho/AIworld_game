@@ -227,7 +227,10 @@ const markCombat = () => { combatT = REGEN.delay; };
 
 function setPaused(p) {
   paused = p;
-  music.setPaused(p);
+  // Shopping pauses the WORLD but not the soundtrack: you are standing in a town talking to
+  // someone, and the town's music cutting out is the tell that you've left the game. A real
+  // pause (Escape to the menu) still silences everything.
+  music.setPaused(p && !shop.open);
   sfx.setPaused(p);
   if (!p) { everPlayed = true; return; }
   if (everPlayed) clickEl.innerHTML = "PAUSED &nbsp;·&nbsp; click to resume";

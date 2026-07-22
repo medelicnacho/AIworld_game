@@ -54,12 +54,17 @@ export class Shop {
       // Clicking the backdrop leaves, the way every panel like this behaves.
       if (e.target === this.el) this.close();
     });
-    // Escape can't come through the pointer-lock path here — opening the shop already
-    // released the lock, so no lockchange will fire. It needs its own key handler.
+    // Escape can't come through the pointer-lock path — opening the shop already released
+    // the lock, so no lockchange will ever fire. It needs its own handler, and it must run
+    // BEFORE anything else can treat Escape as "pause the game", hence capture: true.
     window.addEventListener("keydown", (e) => {
       if (!this.open) return;
-      if (e.code === "Escape" || e.code === "KeyF") { e.preventDefault(); this.close(); }
-    });
+      if (e.code === "Escape" || e.code === "KeyF") {
+        e.preventDefault();
+        e.stopPropagation();
+        this.close();
+      }
+    }, true);
   }
 
   get open() { return this.vendor !== null; }
@@ -73,9 +78,13 @@ export class Shop {
   }
 
   close() {
+    if (!this.open) return;
     this.vendor = null;
     document.body.classList.remove("shopping");
     this.el.innerHTML = "";
+    // Every exit takes the same path — X, backdrop and Escape are one behaviour, not three.
+    // A keydown counts as user activation, so re-locking from Escape is allowed; if the
+    // browser refuses anyway, the ordinary pause overlay is there and one click resumes.
     this.game.onClose?.();
   }
 
