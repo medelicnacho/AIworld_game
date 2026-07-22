@@ -83,11 +83,20 @@ export function attachInput(canvas, hooks = {}) {
     refresh();
   });
   window.addEventListener("keyup", (e) => { keys.delete(e.code); refresh(); });
-  const release = () => { keys.clear(); refresh(); };
+  // Drop held keys ONLY once we have genuinely stopped receiving input. While pointer lock
+  // is active we are still getting events, so clearing would be a lie about what's held.
+  //
+  // This is the bug behind "strafe dies after aiming". Right-click can fire a spurious blur
+  // even while locked, which wiped the key set — and Linux gives key-repeat to the MOST
+  // RECENT key only, so a still-held D then sends nothing further and never returns to the
+  // set. W worked because you had just pressed it. Hence: sideways stops working until you
+  // go forward. Clearing state you cannot rebuild is only safe once input has really ended.
+  const release = () => {
+    if (document.pointerLockElement === canvas) return;   // still playing — keep the keys
+    keys.clear();
+    refresh();
+  };
   window.addEventListener("blur", release);
-  // A keyup that lands while the tab is hidden or unfocused never reaches us, so the key
-  // stays "held" forever. Holding W and S at once reads as fwd 0 — which looks exactly
-  // like "movement stopped and won't go forward or back".
   document.addEventListener("visibilitychange", () => { if (document.hidden) release(); });
 
   canvas.addEventListener("click", () => canvas.requestPointerLock());
@@ -97,10 +106,15 @@ export function attachInput(canvas, hooks = {}) {
     // Escape is reserved by the browser for releasing pointer lock, so a keydown never
     // reliably arrives — losing the lock IS the pause signal, and it also covers
     // alt-tabbing away, which should pause for the same reason.
-    keys.clear();
-    refresh();
-    if (locked) hooks.onLock?.();
-    else hooks.onUnlock?.();
+    if (locked) {
+      hooks.onLock?.();
+    } else {
+      // Clear on UNLOCK only. Clearing as we regain lock would wipe a key you were already
+      // holding, and Linux key-repeat never re-announces it — the same bug in a new place.
+      keys.clear();
+      refresh();
+      hooks.onUnlock?.();
+    }
   });
 
   document.addEventListener("mousemove", (e) => {
@@ -113,6 +127,9 @@ export function attachInput(canvas, hooks = {}) {
   // D4: hold RMB to aim (camera blends toward first person), hold LMB to fire.
   document.addEventListener("mousedown", (e) => {
     if (document.pointerLockElement !== canvas) return;
+    // Keep the right button from triggering any browser/OS focus behaviour at all — the
+    // blur it can provoke is what started this whole class of bug.
+    if (e.button === 2) e.preventDefault();
     if (e.button === 2) input.aimHeld = true;
     if (e.button === 0) input.firing = true;
   });
