@@ -276,6 +276,7 @@ export const GUARD = {
   respawn: 18,          // seconds after falling
   taunt: 22,            // mobs this close to a guard fight the GUARD instead of you
   meleeRange: 3.0,
+  soundRange: 46,       // guard shots are silent past this — a town you are not at is quiet
   // Within this of a guard you earn NOTHING. Otherwise the best way to play is to stand
   // behind the line and let the town farm the frontier for you.
   deadZone: 38,
@@ -450,11 +451,14 @@ export const MOB = {
   // Population scales with TIER as well as being large: the deep is not just meaner, it is
   // more CROWDED. That reinforces D8's gradient with density instead of only with stats,
   // and it's why walking out feels like pressure rather than arithmetic.
-  maxAlive: 170,
-  maxAlivePerTier: 22,    // tier 3: 236 · tier 8: 346 (capped)
+  // The tier-0 BASE is deliberately calm — the Commons is where you learn the game, and it
+  // read as a swarm. The crowd ramp (rampCrowd) climbs off this base fast, so ring 1 is
+  // already busier and the deep still fills to the cap; only the first level is quieter.
+  maxAlive: 115,
+  maxAlivePerTier: 26,    // tier 1: ~141 · tier 3: ~213 · tier 6+: capped
   maxAliveCap: 380,
-  maxPacks: 16,
-  maxPacksPerTier: 3,
+  maxPacks: 11,
+  maxPacksPerTier: 4,
   maxPacksCap: 34,
   packSize: [9, 18],      // a camp is a crowd, not a squad
   packCap: 26,            // and it can breed to this

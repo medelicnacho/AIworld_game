@@ -793,9 +793,10 @@ function frame(now) {
   mobs.update(dt, hurtPlayer);
   folk.update(dt);
   villagers.update(dt);
-  // Guard kills award nothing: the dead zone is checked by reward() itself, so they can be
-  // reported like any other kill without the line becoming a farm.
-  guards.update(dt, mobs, (res) => reward(res));
+  // Guard kills award nothing at all -- guards.update handles their kills internally and
+  // never pays. The reward() dead-zone check remains, but only for YOUR OWN kills made while
+  // standing at the gate; a guard dropping a mob out on the frontier no longer pays you.
+  guards.update(dt, mobs);
   // Only traders get a plate: labelling every keeper would turn a town into a wall of text.
   hpBars.draw(mobs.entities());
   plates.draw(villagers.list

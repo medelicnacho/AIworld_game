@@ -83,7 +83,7 @@ export class Guards {
     return false;
   }
 
-  update(dt, mobs, onKill) {
+  update(dt, mobs) {
     const want = new Set();
     for (const s of sanctuariesNear(player.x, player.z, KEEP)) {
       want.add(s.id);
@@ -153,12 +153,19 @@ export class Guards {
       p.setXYZ(1, best.x, best.y + 0.8, best.z);
       p.needsUpdate = true;
       this.tracerT = 0.06;
-      // Positional and quiet: four guards firing beside a town should be background, not
-      // the loudest thing on the soundtrack.
-      sfx.gunshot(g.x, g.z, 0.22);
+      // Positional, quiet, and SILENT past soundRange: a detachment defending a town you
+      // are nowhere near should not be audible across the map. Four guards firing beside a
+      // town are background at best; from a ridgeline away they are nothing.
+      if (Math.hypot(player.x - g.x, player.z - g.z) < GUARD.soundRange) {
+        sfx.gunshot(g.x, g.z, 0.22);
+      }
 
-      const res = mobs.hit(best.id, dmg);
-      if (res?.killed) onKill?.(res);
+      // A guard kill pays the player NOTHING, wherever the player is. The mob still dies
+      // properly (death sound, affix hooks and despawn all happened inside mobs.hit) -- it
+      // simply awards no points or xp, because the guard did the work, not you. onKill is
+      // deliberately not called: routing it through reward() only paid when you happened to
+      // be standing in the dead zone, so kills out on the frontier were quietly paying you.
+      mobs.hit(best.id, dmg);
     }
   }
 }
