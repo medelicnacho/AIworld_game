@@ -59,7 +59,7 @@ export class Villagers {
       folk.push({
         role: ROLES[ri], ri, s,
         ang: rng() * Math.PI * 2,
-        rad: 4 + rng() * (s.r - 10),
+        rad: 4 + rng() * Math.max(4, s.rMin - 9),   // inside even the nearest wall
         spd: (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.05),   // slower: a bigger circuit
         bob: rng() * Math.PI * 2,
         x: s.x, z: s.z, y: 0,

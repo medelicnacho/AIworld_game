@@ -106,10 +106,13 @@ export class Minimap {
 
     // Sanctuaries — the thing most worth being able to find on a map.
     for (const s of sanctuariesNear(player.x, player.z, RANGE * 1.4)) {
-      const m = this.toMap(s.x - player.x, s.z - player.z);
-      const cx = R + m.mx * scale, cy = R - m.my * scale;
       ctx.beginPath();
-      ctx.arc(cx, cy, Math.max(3, s.r * scale), 0, Math.PI * 2);
+      s.corners.forEach((c, i) => {
+        const p = this.toMap(s.x + c.x - player.x, s.z + c.z - player.z);
+        const px = R + p.mx * scale, py = R - p.my * scale;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
       ctx.fillStyle = "rgba(79,191,106,0.22)";
       ctx.fill();
       ctx.strokeStyle = "#4fbf6a";
