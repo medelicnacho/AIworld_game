@@ -18,6 +18,16 @@
         margin: -1.5px 0 0 -1.5px; background: #eef; border-radius: 50%;
         box-shadow: 0 0 0 1px #0008; opacity: 0; transition: opacity .12s;
       }
+      #minimap {
+        position: absolute; top: 12px; right: 12px;
+        width: 180px; height: 180px;
+        filter: drop-shadow(0 2px 6px #0008);
+      }
+      #hurt {
+        position: absolute; inset: 0; opacity: 0;
+        background: radial-gradient(ellipse at center, #d0202000 45%, #e02a2acc 100%);
+        transition: opacity .08s linear;
+      }
       #click {
         position: absolute; inset: 0; display: grid; place-content: center;
         font-size: 14px; letter-spacing: .08em; color: #9fb0c8;
@@ -30,7 +40,9 @@
     <div id="hud">
       <div id="stats"></div>
       <div id="crosshair"></div>
-      <div id="click">CLICK TO PLAY&nbsp;&nbsp;·&nbsp;&nbsp;WASD move&nbsp;&nbsp;SPACE jump&nbsp;&nbsp;RMB aim&nbsp;&nbsp;F5 camera&nbsp;&nbsp;[ ] look speed&nbsp;&nbsp;M music</div>
+      <div id="hurt"></div>
+      <canvas id="minimap" width="180" height="180"></canvas>
+      <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; B summon boss &nbsp; E grenade &nbsp; Q heal</div>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

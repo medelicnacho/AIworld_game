@@ -31,10 +31,19 @@ export function heightAt(wx, wz) {
   return Math.max(1, Math.min(CHUNK_Y - 2, Math.floor(h)));
 }
 
-/** D8: which difficulty band a column sits in. Distance from spawn, banded and named. */
+/**
+ * D8: which difficulty band a column sits in — UNCAPPED. Stats, xp and elite rates read
+ * this, so the world keeps getting harder forever. In an endless world with endless levels
+ * (D9), capped difficulty means your power eventually outruns everything and the frontier
+ * stops meaning anything.
+ */
+export function tierAt(wx, wz) {
+  return Math.floor(Math.sqrt(wx * wx + wz * wz) / RING_SIZE);
+}
+
+/** The NAME and colour of that band — capped, because we only wrote six names. */
 export function ringAt(wx, wz) {
-  const d = Math.sqrt(wx * wx + wz * wz);
-  return Math.min(RINGS.length - 1, Math.floor(d / RING_SIZE));
+  return Math.min(RINGS.length - 1, tierAt(wx, wz));
 }
 
 /** THE FILL FUNCTION (D15). Everything else in the engine reads the world through here. */

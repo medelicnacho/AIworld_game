@@ -30,9 +30,11 @@ export const player = {
   vx: 0, vy: 0, vz: 0,
   yaw: 0, pitch: 0,
   onGround: false,
+  jumpsLeft: 2,
   sprinting: false,
+  dodgeT: 0, dodgeCd: 0, iframes: 0, dodgeX: 0, dodgeZ: 0,
   hp: 100, maxHp: 100,
-  level: 1, xp: 0,
+  level: 1, xp: 0, dmgMult: 1,
 };
 
 export function spawnPlayer() {

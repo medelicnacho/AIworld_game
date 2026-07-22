@@ -4,15 +4,27 @@
 // slide along a wall instead of sticking to it. It samples the world function directly, so
 // there is no collider to build, bake, or keep in sync with the mesh.
 
-import { PLAYER, CAMERA } from "../config.js";
+import { PLAYER, CAMERA, DODGE } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
 
 export const input = {
-  fwd: 0, right: 0, jump: false, sprint: false, aim: false,
+  fwd: 0, right: 0, sprint: false, aim: false, firing: false,
+  // Dodge is double-tap-a-direction, so the queued roll remembers WHICH key fired it —
+  // you roll the way you tapped, not the way you happen to be steering a frame later.
+  dodgeQueued: false, dodgeFwd: 0, dodgeRight: 0, throwQueued: false, healQueued: false,
+  // Jump is EDGE-triggered, not held: one press = one jump. A held-key check would let you
+  // bunny-hop forever by leaning on space, and would burn both air jumps in a single frame.
+  jumpQueued: false,
 };
 
 const LOOK_KEY = "gw.look";
+
+// [forward, right] per movement key — the frame a dodge direction is built in.
+const MOVE_DIRS = {
+  KeyW: [1, 0], KeyS: [-1, 0], KeyA: [0, -1], KeyD: [0, 1],
+};
+const lastTap = {};
 
 export function attachInput(canvas, hooks = {}) {
   // Live-tuned look speed survives a reload — otherwise every refresh throws away the
@@ -24,7 +36,6 @@ export function attachInput(canvas, hooks = {}) {
   const refresh = () => {
     input.fwd = (keys.has("KeyW") ? 1 : 0) - (keys.has("KeyS") ? 1 : 0);
     input.right = (keys.has("KeyD") ? 1 : 0) - (keys.has("KeyA") ? 1 : 0);
-    input.jump = keys.has("Space");
     input.sprint = keys.has("ShiftLeft") || keys.has("ShiftRight");
   };
 
@@ -37,6 +48,28 @@ export function attachInput(canvas, hooks = {}) {
       CAMERA.sensitivity = Math.max(0.0005, Math.min(0.05, CAMERA.sensitivity * f));
       localStorage.setItem(LOOK_KEY, String(CAMERA.sensitivity));
       return;
+    }
+    // !e.repeat: the OS fires keydown repeatedly while a key is held — without this, one
+    // long press would queue a jump every few milliseconds.
+    if (e.code === "Space" && !e.repeat) input.jumpQueued = true;
+    if (e.code === "KeyR") hooks.reload?.();
+    if (e.code === "KeyE" && !e.repeat) input.throwQueued = true;
+    if (e.code === "KeyQ" && !e.repeat) input.healQueued = true;
+    if (e.code === "KeyB" && !e.repeat) hooks.summonBoss?.();   // dev: don't wander to test
+
+    // Double-tap a movement key to roll that way. Timestamps are per-key, so tapping
+    // W then D reads as two separate first-taps rather than a double-tap.
+    const move = MOVE_DIRS[e.code];
+    if (move && !e.repeat) {
+      const t = performance.now();
+      if (t - (lastTap[e.code] || 0) < DODGE.doubleTapMs) {
+        input.dodgeQueued = true;
+        input.dodgeFwd = move[0];
+        input.dodgeRight = move[1];
+        lastTap[e.code] = 0;      // consumed — a third tap starts a fresh pair
+      } else {
+        lastTap[e.code] = t;
+      }
     }
     keys.add(e.code);
     refresh();
@@ -58,9 +91,16 @@ export function attachInput(canvas, hooks = {}) {
     player.pitch = Math.max(CAMERA.minPitch, Math.min(CAMERA.maxPitch, player.pitch));
   });
 
-  // D4: hold to aim. The camera blends toward first person; releasing blends back.
-  document.addEventListener("mousedown", (e) => { if (e.button === 2) input.aim = true; });
-  document.addEventListener("mouseup", (e) => { if (e.button === 2) input.aim = false; });
+  // D4: hold RMB to aim (camera blends toward first person), hold LMB to fire.
+  document.addEventListener("mousedown", (e) => {
+    if (document.pointerLockElement !== canvas) return;
+    if (e.button === 2) input.aim = true;
+    if (e.button === 0) input.firing = true;
+  });
+  document.addEventListener("mouseup", (e) => {
+    if (e.button === 2) input.aim = false;
+    if (e.button === 0) input.firing = false;
+  });
   window.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 
@@ -88,15 +128,58 @@ export function stepPlayer(dt) {
   const len = Math.hypot(dx, dz);
   if (len > 0) { dx /= len; dz /= len; }
 
-  const targetVx = dx * speed, targetVz = dz * speed;
-  const blend = 1 - Math.exp(-(len > 0 ? PLAYER.accel : PLAYER.friction) * dt);
-  player.vx += (targetVx - player.vx) * blend;
-  player.vz += (targetVz - player.vz) * blend;
+  // --- dodge ---------------------------------------------------------------------
+  if (player.dodgeCd > 0) player.dodgeCd -= dt;
+  if (player.iframes > 0) player.iframes -= dt;
+
+  if (input.dodgeQueued) {
+    input.dodgeQueued = false;
+    if (player.dodgeCd <= 0 && player.dodgeT <= 0) {
+      // Roll the way you TAPPED, resolved against the camera yaw at the moment of the roll.
+      const f = input.dodgeFwd, r = input.dodgeRight;
+      const rx = -sin * f + cos * r;
+      const rz = -cos * f - sin * r;
+      const rl = Math.hypot(rx, rz) || 1;
+      player.dodgeX = rx / rl;
+      player.dodgeZ = rz / rl;
+      player.dodgeT = DODGE.time;
+      player.iframes = DODGE.iframes;
+      player.dodgeCd = DODGE.cooldown;
+      // D4: dodging drops you out of ADS. Rolling needs body awareness, which is exactly
+      // what first person takes away — so the two are mutually exclusive states.
+      input.aim = false;
+    }
+  }
+
+  if (player.dodgeT > 0) {
+    player.dodgeT -= dt;
+    // The roll OWNS horizontal velocity while it lasts — no steering mid-roll. Committing
+    // to the direction is what makes it a dodge instead of a speed boost.
+    player.vx = player.dodgeX * DODGE.speed;
+    player.vz = player.dodgeZ * DODGE.speed;
+  } else {
+    const targetVx = dx * speed, targetVz = dz * speed;
+    const blend = 1 - Math.exp(-(len > 0 ? PLAYER.accel : PLAYER.friction) * dt);
+    player.vx += (targetVx - player.vx) * blend;
+    player.vz += (targetVz - player.vz) * blend;
+  }
+
+  // Standing on the ground restocks every jump. Walking off a ledge without jumping leaves
+  // the full set — deliberately forgiving, and it doubles as coyote time.
+  if (player.onGround) player.jumpsLeft = PLAYER.jumps;
 
   player.vy = Math.max(PLAYER.maxFall, player.vy + PLAYER.gravity * dt);
-  if (input.jump && player.onGround) {
-    player.vy = PLAYER.jumpSpeed;
-    player.onGround = false;
+
+  if (input.jumpQueued) {
+    input.jumpQueued = false;
+    if (player.jumpsLeft > 0) {
+      const fromGround = player.onGround;
+      // SET the velocity rather than adding: an air jump while falling fast should feel
+      // like a clean second launch, not a rounding error against your downward momentum.
+      player.vy = PLAYER.jumpSpeed * (fromGround ? 1 : PLAYER.airJumpScale);
+      player.jumpsLeft--;
+      player.onGround = false;
+    }
   }
 
   // Axis-separated resolution: try each move independently so a blocked X still allows Z.
