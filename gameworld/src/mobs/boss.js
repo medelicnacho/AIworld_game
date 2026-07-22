@@ -298,7 +298,10 @@ export class Boss {
 
     if (b.beamWarm > 0) {
       b.beamWarm -= dt;
-      if (b.beamWarm <= 0) b.beamT = BOSS.beamTime;
+      if (b.beamWarm <= 0) {
+        b.beamT = BOSS.beamTime;
+        this.beamVoice = sfx.beam(b.beamX, b.beamZ, BOSS.beamTime);
+      }
     } else if (b.beamT > 0) {
       b.beamT -= dt;
       const speed = BOSS.beamSpeed + BOSS.beamSpeedPerTier * b.ring;
@@ -331,6 +334,8 @@ export class Boss {
   hideBeam() {
     this.beamCol.visible = false;
     this.beamSpot.visible = false;
+    this.beamVoice?.stop();
+    this.beamVoice = null;
   }
 
   updateMeteors(dt, onMeteorHit) {

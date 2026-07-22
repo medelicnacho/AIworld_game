@@ -8,7 +8,7 @@
 import { fbm } from "../rng.js";
 import {
   WORLD_SEED, CHUNK_X, CHUNK_Y, CHUNK_Z, SEA_LEVEL, BASE_HEIGHT,
-  CONTINENT_SCALE, CONTINENT_AMP, HILL_SCALE, HILL_AMP, RING_SIZE, RINGS,
+  CONTINENT_SCALE, CONTINENT_AMP, HILL_SCALE, HILL_AMP, RING_SIZE, RING_WIDEN, RINGS,
 } from "../config.js";
 
 export const AIR = 0, STONE = 1, DIRT = 2, GRASS = 3, SAND = 4, SNOW = 5;
@@ -23,12 +23,38 @@ export const BLOCK_COLOR = {
   [SNOW]:  [0.90, 0.92, 0.96],
 };
 
-/** Terrain height at a world column. Integer — the world is blocky. */
-export function heightAt(wx, wz) {
+/** The land as the noise wrote it, before anything flattens it. */
+export function rawHeight(wx, wz) {
   const continent = fbm(WORLD_SEED, wx * CONTINENT_SCALE, wz * CONTINENT_SCALE, 4);
   const hills = fbm(WORLD_SEED + 7717, wx * HILL_SCALE, wz * HILL_SCALE, 3);
   const h = BASE_HEIGHT + continent * CONTINENT_AMP + hills * HILL_AMP;
   return Math.max(1, Math.min(CHUNK_Y - 2, Math.floor(h)));
+}
+
+// Cities flatten the ground they stand on. gen.js cannot import sanctuary.js (sanctuary
+// needs groundY from here), so the city list is INJECTED — one small indirection that keeps
+// the dependency pointing one way instead of in a circle.
+let _cityLookup = null;
+export function setCityLookup(fn) { _cityLookup = fn; }
+
+/**
+ * Terrain height, with city plateaus levelled in. A city sits on flat ground and the land
+ * eases into it over the surrounding margin, so you get a buildable plain rather than
+ * streets running up a hillside — and no cliff at the boundary either.
+ */
+export function heightAt(wx, wz) {
+  const h = rawHeight(wx, wz);
+  if (!_cityLookup) return h;
+  const c = _cityLookup(wx, wz);
+  if (!c) return h;
+  const d = Math.hypot(wx - c.x, wz - c.z);
+  if (d >= c.flatR) return h;
+  const inner = c.r;
+  if (d <= inner) return c.plateau;
+  // Smoothstep across the margin: flat inside the walls, blending back to the wild land.
+  const t = (d - inner) / (c.flatR - inner);
+  const e = t * t * (3 - 2 * t);
+  return Math.round(c.plateau + (h - c.plateau) * e);
 }
 
 /**
@@ -37,8 +63,23 @@ export function heightAt(wx, wz) {
  * (D9), capped difficulty means your power eventually outruns everything and the frontier
  * stops meaning anything.
  */
+/** Distance from spawn at which tier `t` begins. Bands widen as you go out. */
+export function tierStart(t) {
+  return RING_SIZE * (t + RING_WIDEN * t * (t - 1) / 2);
+}
+
+export function tierWidth(t) {
+  return RING_SIZE * (1 + RING_WIDEN * t);
+}
+
 export function tierAt(wx, wz) {
-  return Math.floor(Math.sqrt(wx * wx + wz * wz) / RING_SIZE);
+  const d = Math.sqrt(wx * wx + wz * wz);
+  // Closed-form inverse of tierStart (a quadratic in t) — this is called thousands of
+  // times a frame by mob steering, so it must not be a loop.
+  const k = RING_WIDEN;
+  if (k <= 0) return Math.floor(d / RING_SIZE);
+  const b = 1 - k / 2;
+  return Math.max(0, Math.floor((-b + Math.sqrt(b * b + 2 * k * d / RING_SIZE)) / k));
 }
 
 /** The NAME and colour of that band — capped, because we only wrote six names. */

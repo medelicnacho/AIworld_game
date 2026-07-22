@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
@@ -15,7 +15,7 @@ import { Shop } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
-import { ringAt, tierAt } from "./world/gen.js";
+import { ringAt, tierAt, tierStart } from "./world/gen.js";
 import { Sanctuaries, sanctuaryOf, sanctuariesNear, boundaryAt } from "./world/sanctuary.js";
 import { attachInput, input, stepPlayer } from "./player/controller.js";
 import { CameraRig } from "./player/camera.js";
@@ -634,10 +634,10 @@ function frame(now) {
   const ring = ringAt(player.x, player.z);
   const tier = tierAt(player.x, player.z);
   const fromSpawn = Math.hypot(player.x, player.z);
-  const toNextRing = RING_SIZE * (ring + 1) - fromSpawn;
+  const toNextRing = tierStart(tier + 1) - fromSpawn;
   const bossStatus = boss.active ? ""
     : boss.eligible ? `boss  inbound ~${Math.ceil(bossTimer)}s\n`
-      : `boss  none in ${RINGS[0].name} — ${Math.ceil(RING_SIZE - fromSpawn)}m to ${RINGS[1].name}\n`;
+      : `boss  none in ${RINGS[0].name} — ${Math.ceil(tierStart(1) - fromSpawn)}m to ${RINGS[1].name}\n`;
   const bossLine = boss.active
     ? `BOSS ${"█".repeat(Math.max(0, Math.round(boss.alive.hp / boss.alive.maxHp * 20)))}` +
       `${"░".repeat(Math.max(0, 20 - Math.round(boss.alive.hp / boss.alive.maxHp * 20)))}` +
@@ -647,7 +647,7 @@ function frame(now) {
     bossLine + bossStatus +
     `${nearestGate()}\n` +
     `${RINGS[ring].name}  (tier ${tier})   ${Math.round(fromSpawn)}m out` +
-    `${ring + 1 < RINGS.length ? `   next ring ${Math.max(0, Math.ceil(toNextRing))}m` : ""}\n` +
+    `   next ring ${Math.max(0, Math.ceil(toNextRing))}m\n` +
     `xyz  ${player.x.toFixed(1)} ${player.y.toFixed(1)} ${player.z.toFixed(1)}\n` +
     `cam  ${rig.mode}   look ${CAMERA.sensitivity.toFixed(4)}  [ / ]\n` +
     `LVL ${player.level}  dmg ×${player.dmgMult.toFixed(2)}  spd ×${player.speedMult.toFixed(2)}  jmp ×${player.jumpMult.toFixed(2)}\n` +

@@ -25,7 +25,21 @@ export const HILL_AMP = 6;
 // 260, not 400: at a walk of ~5-8 u/s, 400 units meant ~60s of travel IN A STRAIGHT LINE
 // before you left the Commons, and wandering never gets there at all — you can circle for
 // ten minutes and stay in ring 0. A ring should be a journey, not a commute.
-export const RING_SIZE = 260;           // world units per ring
+export const RING_SIZE = 260;           // width of the FIRST band
+// Each band is wider than the last, so the deep tiers are vast rather than a treadmill of
+// thin shells. Band t is RING_SIZE * (1 + t*RING_WIDEN).
+export const RING_WIDEN = 0.25;
+
+// How many settlements a band holds: towns double per tier (capped), plus one CITY from
+// tier 1 outward that grows as you go. So the frontier gets denser AND grander.
+export const SETTLE = {
+  townsBase: 1,           // tier 0: the spawn town, alone
+  townCap: 10,
+  cityFromTier: 1,
+  cityScale: 1.55,        // city radius = RADIUS * (cityScale + cityGrow * tier)
+  cityGrow: 0.32,
+  flatten: 1.25,          // a city flattens terrain out to this multiple of its radius
+};
 export const RINGS = [
   { name: "the Commons",  tint: [1.00, 1.00, 1.00] },
   { name: "the Fallows",  tint: [0.96, 0.98, 0.88] },

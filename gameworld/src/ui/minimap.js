@@ -9,9 +9,9 @@
 // Terrain is baked north-up into an offscreen canvas and rotated at draw time — otherwise
 // every frame would re-sample the heightfield just because you turned your head.
 
-import { RING_SIZE, RINGS } from "../config.js";
+import { RINGS } from "../config.js";
 import { player } from "../state.js";
-import { heightAt, ringAt } from "../world/gen.js";
+import { heightAt, ringAt, tierStart } from "../world/gen.js";
 import { sanctuariesNear, boundaryAt, gateArc } from "../world/sanctuary.js";
 
 const RANGE = 130;        // world units from centre to rim
@@ -94,8 +94,8 @@ export class Minimap {
 
     // Ring boundaries, centred on spawn — the difficulty bands, drawn where they are.
     ctx.lineWidth = 1;
-    for (let k = 1; k < RINGS.length; k++) {
-      const rr = RING_SIZE * k * scale;
+    for (let k = 1; k < RINGS.length + 4; k++) {
+      const rr = tierStart(k) * scale;
       const cx = R + origin.mx * scale, cy = R - origin.my * scale;
       if (rr > R * 6) break;
       ctx.beginPath();

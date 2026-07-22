@@ -53,7 +53,11 @@ export class Villagers {
     // Every refuge has a herbalist, a smith and an adept — a sanctuary you can't resupply
     // or re-arm at is just scenery — plus keepers so it reads as a place people live.
     const roles = ["herbalist", "smith", "adept"];
-    while (roles.length < VILLAGE.perSanctuary) roles.push("keeper");
+    // A city is bigger, so it holds more people AND a second set of traders — walking a
+    // city to find the one adept would be a chore rather than a place.
+    if (s.city) roles.push("herbalist", "smith", "adept");
+    const want = Math.round(VILLAGE.perSanctuary * (s.r / 46));
+    while (roles.length < want) roles.push("keeper");
     for (const key of roles) {
       const ri = ROLES.findIndex((r) => r.key === key);
       folk.push({

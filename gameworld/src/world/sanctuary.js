@@ -13,19 +13,17 @@
 // shape a settlement needs, so the green wanderers here are placeholders for souls.
 
 import * as THREE from "three";
-import { WORLD_SEED, RING_SIZE } from "../config.js";
-import { hash2, rand2, mulberry32 } from "../rng.js";
-import { groundY } from "./gen.js";
+import { WORLD_SEED, SETTLE } from "../config.js";
+import { hash2, mulberry32 } from "../rng.js";
+import { groundY, rawHeight, tierStart, tierWidth, tierAt, setCityLookup } from "./gen.js";
 
-export const CELL = 620;          // one candidate sanctuary per cell of this size
-export const CHANCE = 0.62;       // ...but not every cell has one
 export const RADIUS = 46;         // a town you walk around inside, not a pen
 export const WALL_T = 1.7;        // wall thickness
 export const WALL_H = 10;         // far above any jump height, at any level
 export const GATE_WIDTH = 9;      // the opening, in WORLD UNITS — see gateArc()
 export const CORNERS = [5, 9];    // a town has this many corners
 const SEG_W = 1.5;                // width of one wall block
-const KEEP = 2;                   // cells around the player kept built
+const KEEP_RANGE = 900;           // how far out settlements stay built as meshes
 
 /**
  * The gate as an ANGLE, derived from a fixed width. Specifying the arc directly meant the
@@ -42,13 +40,13 @@ export const gateArc = (r) => GATE_WIDTH / r;
  * ray-segment solve, no point-in-polygon scan, and collision that cannot disagree with the
  * mesh because both read the same function.
  */
-function makeShape(rng) {
+function makeShape(rng, radius = RADIUS) {
   const n = CORNERS[0] + Math.floor(rng() * (CORNERS[1] - CORNERS[0] + 1));
   const corners = [];
   for (let i = 0; i < n; i++) {
     // Even spacing plus jitter: irregular, but never two corners on top of each other.
     const ang = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / n) * 0.6;
-    const r = RADIUS * (0.68 + rng() * 0.58);
+    const r = radius * (0.68 + rng() * 0.58);
     corners.push({ ang, r, x: Math.cos(ang) * r, z: Math.sin(ang) * r });
   }
   corners.sort((a, b) => a.ang - b.ang);
@@ -77,96 +75,102 @@ export function boundaryAt(s, theta) {
   return hit > 0 ? hit : A.r;
 }
 
-/**
- * One guaranteed town per tier, placed at a random bearing somewhere inside that tier's
- * band. The grid towns are scattered by luck, which means a whole ring can come up empty —
- * and a tier with nowhere to resupply is a tier you cannot push into. This makes "there is
- * always somewhere out there" a rule rather than a probability.
- */
-export function tierSanctuary(tier) {
-  if (tier < 1) return null;             // tier 0 is the spawn town, forced below
-  const key = `t${tier}`;
-  if (_cache.has(key)) return _cache.get(key);
-  const rng = mulberry32(hash2(WORLD_SEED ^ 0x7139, tier, 0));
-  const ang = rng() * Math.PI * 2;
-  // Kept off the band edges so it clearly belongs to this tier and not the next one.
-  const r = RING_SIZE * (tier + 0.25 + rng() * 0.5);
-  const corners = makeShape(rng);
-  const v = {
-    id: key,
-    x: Math.cos(ang) * r, z: Math.sin(ang) * r,
-    r: RADIUS, corners,
+/** How big a city is in tier `t` — they grow as you go out. */
+export function cityRadius(t) {
+  return RADIUS * (SETTLE.cityScale + SETTLE.cityGrow * t);
+}
+
+/** How many ordinary towns a tier holds: doubling per tier, capped. */
+export function townCount(t) {
+  return t === 0 ? SETTLE.townsBase : Math.min(SETTLE.townCap, 2 ** t);
+}
+
+function build(key, x, z, radius, rng, city) {
+  const corners = makeShape(rng, radius);
+  return {
+    id: key, x, z, r: radius, corners, city,
     rMin: Math.min(...corners.map((c) => c.r)),
     rMax: Math.max(...corners.map((c) => c.r)),
     gate: rng() * Math.PI * 2,
-  };
-  _cache.set(key, v);
-  return v;
-}
-
-const _cache = new Map();
-
-/** The sanctuary for a grid cell, or null. Deterministic, and memoised because the mob
- *  steering asks about sanctuaries thousands of times a frame. */
-export function sanctuaryAt(cx, cz) {
-  const key = `${cx},${cz}`;
-  if (_cache.has(key)) return _cache.get(key);
-  const v = _build(cx, cz);
-  _cache.set(key, v);
-  return v;
-}
-
-function _build(cx, cz) {
-  // Spawn always has one: you should never have to find your first refuge.
-  const forced = cx === 0 && cz === 0;
-  if (!forced && rand2(WORLD_SEED ^ 0x5A1E, cx, cz) > CHANCE) return null;
-  const jx = rand2(WORLD_SEED ^ 0x11, cx, cz);
-  const jz = rand2(WORLD_SEED ^ 0x22, cx, cz);
-  const x = forced ? 96 : cx * CELL + 60 + jx * (CELL - 120);
-  const z = forced ? 34 : cz * CELL + 60 + jz * (CELL - 120);
-  const corners = makeShape(mulberry32(hash2(WORLD_SEED ^ 0x54A9E, cx, cz)));
-  return {
-    id: `${cx},${cz}`,
-    x, z, r: RADIUS, corners,
-    rMin: Math.min(...corners.map((c) => c.r)),
-    rMax: Math.max(...corners.map((c) => c.r)),
-    gate: rand2(WORLD_SEED ^ 0x33, cx, cz) * Math.PI * 2,
+    // Cities stand on levelled ground; the plateau is read from the RAW land so this can
+    // never feed back into itself through heightAt().
+    plateau: city ? rawHeight(x, z) : 0,
+    flatR: city ? radius * SETTLE.flatten : 0,
   };
 }
 
-/** Every sanctuary whose centre lies within `range` of a point. */
-export function sanctuariesNear(x, z, range = CELL) {
+const _tiers = new Map();
+
+/**
+ * Every settlement in a tier: a doubling number of towns, plus one city from tier 1 out.
+ * Placed on evenly-spread bearings with jitter, at radii inside the band, so a ring is
+ * populated all the way round rather than clumping on one side.
+ */
+export function tierSettlements(t) {
+  if (_tiers.has(t)) return _tiers.get(t);
+  const rng = mulberry32(hash2(WORLD_SEED ^ 0x7139, t, 0));
   const out = [];
-  const c0 = Math.floor((x - range) / CELL), c1 = Math.floor((x + range) / CELL);
-  const d0 = Math.floor((z - range) / CELL), d1 = Math.floor((z + range) / CELL);
-  for (let cz = d0; cz <= d1; cz++) {
-    for (let cx = c0; cx <= c1; cx++) {
-      const s = sanctuaryAt(cx, cz);
-      if (s && Math.hypot(s.x - x, s.z - z) <= range) out.push(s);
+
+  if (t === 0) {
+    // The one you wake next to. Fixed, close, and small — you should never have to search
+    // for your first refuge.
+    out.push(build("t0-home", 96, 34, RADIUS, rng, false));
+  } else {
+    const lo = tierStart(t), w = tierWidth(t);
+    const n = townCount(t);
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / n) * 0.7;
+      const r = lo + w * (0.2 + rng() * 0.6);
+      out.push(build(`t${t}-${i}`, Math.cos(ang) * r, Math.sin(ang) * r, RADIUS, rng, false));
+    }
+    if (t >= SETTLE.cityFromTier) {
+      const ang = rng() * Math.PI * 2;
+      const r = lo + w * (0.35 + rng() * 0.3);
+      out.push(build(`t${t}-city`, Math.cos(ang) * r, Math.sin(ang) * r,
+                     cityRadius(t), rng, true));
     }
   }
-  // Plus the guaranteed per-tier towns. Only the bands this query actually reaches are
-  // considered, so this stays a handful of checks however far out you are.
+  _tiers.set(t, out);
+  return out;
+}
+
+/** Every settlement whose centre lies within `range` of a point. */
+export function sanctuariesNear(x, z, range = 220) {
+  const out = [];
   const d = Math.hypot(x, z);
-  const tLo = Math.max(1, Math.floor((d - range) / RING_SIZE));
-  const tHi = Math.floor((d + range) / RING_SIZE);
+  const tLo = Math.max(0, tierAt(Math.max(0, d - range), 0) - 1);
+  const tHi = tierAt(d + range, 0) + 1;
   for (let t = tLo; t <= tHi; t++) {
-    const s = tierSanctuary(t);
-    if (s && Math.hypot(s.x - x, s.z - z) <= range) out.push(s);
+    for (const s of tierSettlements(t)) {
+      if (Math.hypot(s.x - x, s.z - z) <= range + s.rMax) out.push(s);
+    }
   }
   return out;
 }
 
-/** The sanctuary containing this point (within `margin` of its wall), or null. */
+/** The settlement containing this point (within `margin` of its wall), or null. */
 export function sanctuaryOf(x, z, margin = 0) {
-  for (const s of sanctuariesNear(x, z, CELL)) {
+  for (const s of sanctuariesNear(x, z, 0)) {
     const dx = x - s.x, dz = z - s.z;
-    const d = Math.hypot(dx, dz);
-    if (d > s.rMax + margin) continue;                 // cheap reject before the real test
-    if (d <= boundaryAt(s, Math.atan2(dz, dx)) + margin) return s;
+    const dd = Math.hypot(dx, dz);
+    if (dd > s.rMax + margin) continue;
+    if (dd <= boundaryAt(s, Math.atan2(dz, dx)) + margin) return s;
   }
   return null;
 }
+
+// Cities level the ground they stand on; gen.js asks through this hook (injected, so the
+// dependency stays one-way).
+setCityLookup((x, z) => {
+  const d = Math.hypot(x, z);
+  for (let t = Math.max(1, tierAt(d, 0) - 1); t <= tierAt(d, 0) + 1; t++) {
+    for (const s of tierSettlements(t)) {
+      if (!s.city) continue;
+      if (Math.hypot(s.x - x, s.z - z) < s.flatR) return s;
+    }
+  }
+  return null;
+});
 
 const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
 
@@ -175,7 +179,9 @@ const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Mat
  * and out freely — the wall is what makes the refuge FEEL like one, not what enforces it.
  */
 export function wallBlocks(x, z) {
-  for (const s of sanctuariesNear(x, z, CELL)) {
+  // Range 0: sanctuariesNear already pads by each settlement's own rMax, so a wall test
+  // only needs the ones it could possibly be standing in.
+  for (const s of sanctuariesNear(x, z, 0)) {
     const dx = x - s.x, dz = z - s.z;
     const d = Math.hypot(dx, dz);
     if (d < s.rMin - WALL_T || d > s.rMax + WALL_T) continue;
@@ -252,7 +258,7 @@ export class Sanctuaries {
 
   update(dt, px, pz) {
     const want = new Set();
-    for (const s of sanctuariesNear(px, pz, CELL * KEEP)) {
+    for (const s of sanctuariesNear(px, pz, KEEP_RANGE)) {
       want.add(s.id);
       if (!this.built.has(s.id)) this.build(s);
     }

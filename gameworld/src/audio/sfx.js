@@ -396,6 +396,60 @@ export class Sfx {
     air.start(t); air.stop(t + dur + 0.02);
   }
 
+  /**
+   * The beam, while it burns. A sustained scorching hum rather than a one-shot: the sound
+   * IS the warning that it is still hunting you, so it has to last as long as the threat.
+   * Returns a handle so it can be cut short if the boss dies mid-sweep.
+   */
+  beam(x, z, dur) {
+    if (!this.on) return null;
+    const t = this.t;
+    const { input, gain } = this.place(x, z, 170);
+    if (gain <= 0.001) return null;
+
+    const out = this.ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(gain * 0.5, t + 0.25);
+    out.gain.setValueAtTime(gain * 0.5, t + dur - 0.3);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    out.connect(input);
+
+    const stop = [];
+    // Two detuned saws grinding against each other, low and mean.
+    for (const [f, g] of [[86, 0.3], [129, 0.16]]) {
+      const o = this.ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = f;
+      const og = this.ctx.createGain();
+      og.gain.value = g;
+      const dist = this.distortion(30);
+      o.connect(dist); dist.connect(og); og.connect(out);
+      o.start(t); o.stop(t + dur + 0.1);
+      stop.push(o);
+    }
+    // Scorching air on top, so it reads as heat rather than as an engine.
+    const air = this.noise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2200;
+    bp.Q.value = 0.9;
+    const ag = this.ctx.createGain();
+    ag.gain.value = 0.22;
+    air.connect(bp); bp.connect(ag); ag.connect(out);
+    air.start(t); air.stop(t + dur + 0.1);
+    stop.push(air);
+
+    return {
+      stop: () => {
+        const n = this.t;
+        out.gain.cancelScheduledValues(n);
+        out.gain.setValueAtTime(Math.max(0.0001, out.gain.value), n);
+        out.gain.exponentialRampToValueAtTime(0.0001, n + 0.12);
+        for (const o of stop) { try { o.stop(n + 0.15); } catch { /* already done */ } }
+      },
+    };
+  }
+
   /** Grenade throw. */
   whoosh() {
     if (!this.on) return;
