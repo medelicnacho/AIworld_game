@@ -216,6 +216,10 @@ export const VILLAGE = {
   keepRange: 620,
   talkRange: 3.6,
   smithBonus: 0.08,       // permanent, stacking damage from the smith
+  // Armour stacks MULTIPLICATIVELY: each plate multiplies incoming damage by this, so it
+  // has diminishing returns by construction and can never reach immunity. Additive
+  // reduction would hit 100% at the twelfth purchase and break the game quietly.
+  armorMult: 0.90,
   potionHeal: 60,
   potionCd: 40,          // long: a potion is an emergency, not a rotation
 };

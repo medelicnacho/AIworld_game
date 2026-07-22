@@ -10,7 +10,7 @@
 // Which is the intended pressure: to keep levelling you must walk further out, where mobs
 // are worth more AND more of them are elites. Distance is the progression system.
 
-import { XP, PLAYER } from "../config.js";
+import { XP, PLAYER, VILLAGE } from "../config.js";
 import { player } from "../state.js";
 
 /** XP needed to go from `level` to `level + 1`. */
@@ -59,6 +59,9 @@ export function applyLevelStats() {
   player.speedMult = Math.pow(XP.speedGrowth, n) * (1 + (player.gearSpeed || 0));
   player.jumpMult = Math.pow(XP.jumpGrowth, n);
   player.maxJumps = PLAYER.jumps + Math.floor(player.level / XP.jumpsPerLevels);
+  // Armour is the one stat that reduces rather than adds, so it lives here too — derived,
+  // never accumulated, and therefore impossible to drift out of step on death.
+  player.dmgTakenMult = Math.pow(VILLAGE.armorMult, player.armor || 0);
 }
 
 /** Fraction of the way to the next level, for the HUD bar. */

@@ -341,7 +341,10 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
   // own behavioural guards, but those are about looking right; this is the guarantee. One
   // rule in one place beats four that each have to be remembered.
   if (sanctuaryOf(player.x, player.z, 0)) return;
-  player.hp -= amount;
+  // Armour applies HERE, at the one place damage enters the player — so it covers mob hits,
+  // meteors, the beam, burning ground and your own grenades without any of them knowing it
+  // exists. That is what the choke point was for.
+  player.hp -= amount * player.dmgTakenMult;
   hurtT = 0.35;
   markCombat();
   if (HEAL.breakOnDamage) heal.interrupt("hit");
@@ -828,7 +831,8 @@ function frame(now) {
     `${heal.casting
       ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL\n`
       : ""}` +
-    `${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
+    `${player.gearDmg ? `   dmg +${Math.round(player.gearDmg * 100)}%` : ""}` +
+    `${player.armor ? `   armour -${Math.round((1 - player.dmgTakenMult) * 100)}%` : ""}\n` +
 
     `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
