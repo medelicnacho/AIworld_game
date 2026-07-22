@@ -141,25 +141,89 @@ poisons the whole idea.
 
 ---
 
-## Stage 3 — the first town ⏱ ~2 weeks *(PLAN M3)*
+## Stage 3 — the living town ⏱ ~4–5 weeks *(PLAN M3, expanded)*
 
-**Goal:** a place with people in it, in ring 0.
+**Goal:** not NPCs that look alive — the actual substrate, running: bonds, opinions,
+factions, scarcity, lore, the wheel, and heredity.
 
-- [ ] Bridge hosts a real `World`: 20–30 souls, `bond_enabled`, stakes, lore, murmur;
-      ticking at 10 Hz in its own thread, model calls off the lock (as `sim.py` already does)
-- [ ] Fixed anchor in the Commons (~150m from spawn, inside the boss-free zone)
-- [ ] Coordinate mapping: substrate 2D → game world, ground-snapped browser-side via
-      `groundY()`; the substrate proposes movement, the engine owns the body (PLAN §4)
-- [ ] `src/town/souls.js` — bodies, name labels, bark text, Piper audio when near
-- [ ] **Safe space:** no mob spawns within the town radius; bosses already can't reach ring 0
-- [ ] Simple huts so it reads as a settlement, not a crowd standing in a field
-- [ ] Talk to a specific soul: your line enters the world through `inject_user`, and the
-      souls near you actually *hear* it
-- [ ] Cost guard: log memory-items/tick against the ~14 µs/item law (PLAN §3). Bound the
-      soul count to whatever keeps a settlement affordable.
+Almost all of this is **configuration, not new code**. `santana_app/run.py` already builds a
+64-soul town with the wheel, stakes, roaming bodies and the full affective endowment. The
+work is in the three things below, then surfacing it.
 
-**Gate:** leave for ten minutes, come back, and the town has visibly moved on — someone has
-died, bonded, or fallen out with someone.
+### Three things that decide whether it works
+
+**1. Lab time is not game time — this is the big one.**
+The lab's spans are tuned so an experiment can watch generations inside one run. At the
+bridge's 10 Hz:
+
+| lab setting | ticks | real time |
+|---|---|---|
+| `fast_wheel` lifespan | 120–260 | **12–26 seconds a life** |
+| slow lifespan | 2000–5000 | 3–8 minutes a life |
+| `DAY_TICKS` | 100 | a day every 10 seconds |
+| a year | 3200 | 5 minutes |
+
+A player cannot become attached to someone who dies in four minutes. Game spans want roughly
+**20k–50k ticks (30–80 minutes)**, days of 6k–12k, and a year measured in sessions. Nothing
+in the substrate assumes a scale — but nothing has ever *run* at this one either, so watch
+for decay constants tuned per-tick (memory decay 0.985/tick over 50k ticks is a very
+different mind from the one every experiment measured). **Verify the keystones still hold at
+game spans before trusting them.**
+
+**2. The welfare gate is not satisfied by default.** `somatic_enabled` is `False` on
+`Agent` and is set `True` in exactly one place — `sim.py:906`, for *reborn* streams. So a
+founder endowed by `genesis.endow_faculties()` gets the whole affective stack **without the
+circuit-breaker**. ROADMAP §5 is unambiguous: *the somatic floor ships with the affect
+system — no feeling souls without it.* Set it explicitly on every soul the game creates, and
+treat any code path that makes a feeling soul without it as a bug.
+
+**3. None of it is visible.** Opinion vectors, bond ledgers, heredity, selection pressure —
+a player sees none of this, and an invisible simulation is an expensive way to make NPCs
+wander. Surfacing is most of the design work: banner word and colour per camp, bonds drawn
+when you're close, births and deaths announced, speech aloud with subtitles, and a
+**chronicle** of what the town remembers (which is also how lore drift becomes visible).
+
+### The layers, each shipped with its own payoff
+
+Turn the dials on in order. Everything at once means an unreadable mess with no way to tell
+which layer is wrong.
+
+**3a — a town that lives** *(~2 weeks)*
+- [ ] Bridge hosts a real `World` on its own thread; souls stream over SSE
+- [ ] `bond_enabled`, stakes, murmur, movement, `endow_faculties()` **+ `somatic_enabled`**
+- [ ] Anchor in the Commons; coordinate map to game space; ground-snapped browser-side
+- [ ] Bodies, names, mood colour, barks aloud when near (Markov tier — free)
+- [ ] **Safe space:** no mob spawns inside the town radius
+- [ ] Cost guard: log memory-items/tick against the ~14 µs/item law (PLAN §3)
+- **Gate:** leave ten minutes, return, and someone has bonded, fallen out, or gone hungry.
+
+**3b — the wheel** *(~1 week)*
+- [ ] `rebirth_enabled` with **game-scaled** lifespans and bardo
+- [ ] Deaths and births you can witness; the vāsanā carries; graves or markers
+- **Gate:** you recognise a reborn stream's lean without being told which soul it was.
+
+**3c — factions** *(~1 week)*
+- [ ] Opinion dynamics → camps that **name their own banner** and colour in
+- [ ] `schism_walk` so disagreement moves bodies and camps become territory
+- **Gate:** a camp forms, splits, and its territory visibly moves — and it doesn't reduce to
+  any label you assigned.
+
+**3d — evolution** *(ongoing, the slow one)*
+- [ ] `heredity_enabled` (genome across the bardo), then `selection_enabled`
+- [ ] Settlements at **different tiers**, so soil harshness varies by distance
+- [ ] Telemetry back to the lab: trait distributions over sessions
+
+**Why 3d is worth doing even though a player will never see it happen:** the lab tried twice
+to make selection bite at population scale and failed *both ways* — with uniform mild
+scarcity mutual aid rescues everyone (SC1 v1), with uniform deep scarcity famine kills
+indiscriminately (SC1 v2). Its own conclusion was that the differential needs scarcity that
+is **heterogeneous — regions, gradients, geography — which a spatial engine has natively and
+this flat lab does not.**
+
+The game has exactly that, already built: tiers with graded harshness by distance from
+spawn. **Settlements at different tiers are the experimental design the lab said it needed.**
+That makes the game an instrument, not just a consumer of the research — the one place SC1
+can actually be settled.
 
 ---
 
