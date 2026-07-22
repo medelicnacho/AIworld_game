@@ -30,6 +30,13 @@ export class Music {
     });
   }
 
+  /** Pause/resume with the game. Keeps position, so it doesn't restart the track. */
+  setPaused(paused) {
+    if (!this.started) return;
+    if (paused) this.el.pause();
+    else if (!this.muted) this.el.play().catch(() => {});
+  }
+
   toggle() {
     this.muted = !this.muted;
     if (this.muted) this.fadeTo(0, 300);

@@ -82,7 +82,13 @@ export function attachInput(canvas, hooks = {}) {
   document.addEventListener("pointerlockchange", () => {
     const locked = document.pointerLockElement === canvas;
     document.body.classList.toggle("locked", locked);
+    // Escape is reserved by the browser for releasing pointer lock, so a keydown never
+    // reliably arrives — losing the lock IS the pause signal, and it also covers
+    // alt-tabbing away, which should pause for the same reason.
+    keys.clear();
+    refresh();
     if (locked) hooks.onLock?.();
+    else hooks.onUnlock?.();
   });
 
   document.addEventListener("mousemove", (e) => {

@@ -174,7 +174,8 @@ attachInput(renderer.domElement, {
     boss.spawn(player.x + Math.cos(a) * 34, player.z + Math.sin(a) * 34);
     killFeed = "boss summoned";
   },
-  onLock: () => { music.start(); sfx.unlock(); },
+  onLock: () => { music.start(); sfx.unlock(); setPaused(false); },
+  onUnlock: () => setPaused(true),
 });
 
 addEventListener("resize", () => {
@@ -183,13 +184,30 @@ addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
+const clickEl = document.getElementById("click");
+let paused = true, everPlayed = false;
+
+function setPaused(p) {
+  paused = p;
+  music.setPaused(p);
+  sfx.setPaused(p);
+  if (!p) { everPlayed = true; return; }
+  if (everPlayed) clickEl.innerHTML = "PAUSED &nbsp;·&nbsp; click to resume";
+}
+
 const hud = document.getElementById("stats");
 let acc = 0, last = performance.now(), fps = 60;
 
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, MAX_CATCHUP);
-  last = now;
+  last = now;    // updated even while paused, so resuming never simulates the gap
+
+  if (paused) {
+    renderer.render(scene, camera);
+    return;
+  }
+
   fps += (1 / Math.max(dt, 1e-4) - fps) * 0.05;
 
   acc += dt;

@@ -41,6 +41,14 @@ export class Sfx {
   }
 
   get on() { return this.ctx && !this.muted; }
+
+  /** Suspending the context stops everything mid-flight — including a half-spoken line. */
+  setPaused(paused) {
+    if (!this.ctx) return;
+    if (paused && this.ctx.state === "running") this.ctx.suspend();
+    else if (!paused && this.ctx.state === "suspended") this.ctx.resume();
+  }
+
   get t() { return this.ctx.currentTime; }
 
   noise() {
