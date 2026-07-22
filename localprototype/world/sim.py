@@ -259,6 +259,7 @@ class World:
         # FORGIVENESS + THE HEARTH CAP -- the two bounds on floored memory (see
         # agent/memory.py). Both default to OFF/uncapped, so §5.28's measured feud
         # behaviour and every saved snapshot are untouched (THE RULE).
+        self.parting_enabled = False   # a bloc that has stopped agreeing takes the road
         self.forgive_enabled = False   # souls let dead wounds erode (time + warmth)
         self.hearth_carry = 0          # max floored memories a child inherits; 0 = all
         self.schema_enabled = False
@@ -328,6 +329,7 @@ class World:
         self.__dict__.setdefault("herd_drive", 0.55)
         self.__dict__.setdefault("herd_turn", 0.10)
         self.__dict__.setdefault("herd_align", 0.08)
+        self.__dict__.setdefault("parting_enabled", False)
         self.__dict__.setdefault("forgive_enabled", False)
         self.__dict__.setdefault("hearth_carry", 0)
         self.__dict__.setdefault("schema_enabled", False)
@@ -462,6 +464,14 @@ class World:
             from world import mating as _mating
             if self.tick % _mating.MATE_CHECK == 0:
                 _mating.mating_tick(self)
+        # 2.58) THE PARTING (gated): a bloc whose view has settled past the rift from
+        # the town's own takes its own road as a band -- the one road from "factions
+        # emerge" to "bands roam the wild" (world/parting.py; welfare invariants in its
+        # docstring FIRST -- breeders keep the hearth, children never part, the worn stay,
+        # and nothing here writes hostility).
+        if getattr(self, "parting_enabled", False) and self.tick > 0:
+            from world import parting as _parting
+            _parting.parting_tick(self)
         # 2.6) bodies move: drift under social forces so factions take territory.
         # At night the town is HOME -- bodies rest where they stand (labour already
         # pauses; wandering does too).
