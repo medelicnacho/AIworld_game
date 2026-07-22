@@ -11,7 +11,11 @@
 import { PLAYER } from "./config.js";
 import { groundY } from "./world/gen.js";
 
-export const REGION_SIZE = 128;   // world units per region bucket
+// 24, not 128. Flocking asks for neighbours within ~10 units, and at 128 that query
+// returned nearly every mob on the map — which is O(n²) once there are 340 of them, and
+// exactly the frame-time collapse that makes the audio stutter. Small buckets make the
+// question local again.
+export const REGION_SIZE = 24;   // world units per region bucket
 
 export const regionKey = (x, z) =>
   `${Math.floor(x / REGION_SIZE)},${Math.floor(z / REGION_SIZE)}`;

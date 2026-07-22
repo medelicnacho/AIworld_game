@@ -105,11 +105,30 @@ export function rollAffixes(tier, rng, force = null) {
   return out;
 }
 
-/** Run a lifecycle hook across every affix on an entity. */
+const _broken = new Set();
+
+/**
+ * Run a lifecycle hook across every affix on an entity.
+ *
+ * Wrapped, because a hook that throws runs again next frame and every frame after — which
+ * starves the main thread, and a starved main thread makes WebAudio scream. One bad affix
+ * should switch ITSELF off and leave the game running, and say so once rather than a
+ * thousand times.
+ */
 export function runAffix(e, hook, ...args) {
   const list = e.affixes;
   if (!list || !list.length) return;
-  for (const id of list) AFFIXES[id]?.[hook]?.(e, ...args);
+  for (const id of list) {
+    if (_broken.has(id)) continue;
+    const fn = AFFIXES[id]?.[hook];
+    if (!fn) continue;
+    try {
+      fn(e, ...args);
+    } catch (err) {
+      _broken.add(id);
+      console.error(`[affix] "${id}" disabled — ${hook} threw:`, err);
+    }
+  }
 }
 
 /** Is this entity untargetable right now? */

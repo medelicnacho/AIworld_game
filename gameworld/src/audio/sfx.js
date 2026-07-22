@@ -29,7 +29,17 @@ export class Sfx {
     this.ctx = new AC();
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.9;
-    this.master.connect(this.ctx.destination);
+    // A limiter on the way out. Twenty overlapping explosions sum well past 1.0 and clip
+    // into a scream; this squashes the peaks instead of letting the hardware do it badly.
+    const limiter = this.ctx.createDynamicsCompressor();
+    limiter.threshold.value = -10;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 14;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.16;
+    this.master.connect(limiter);
+    limiter.connect(this.ctx.destination);
+    this.voices = 0;
 
     // One second of white noise, reused by every noise-based sound. Seeded like everything
     // else (D14) — an exception you have to remember is worse than a one-line fix.
@@ -41,6 +51,18 @@ export class Sfx {
   }
 
   get on() { return this.ctx && !this.muted; }
+
+  /**
+   * A budget for loud, overlapping sounds. A wiped elite pack can ask for a dozen
+   * explosions in one frame; past a point they stop being distinguishable and only add
+   * clipping, so the extras are simply not played.
+   */
+  budget(cost = 1, ms = 220) {
+    if (this.voices >= 10) return false;
+    this.voices += cost;
+    setTimeout(() => { this.voices = Math.max(0, this.voices - cost); }, ms);
+    return true;
+  }
 
   /** Suspending the context stops everything mid-flight — including a half-spoken line. */
   setPaused(paused) {
@@ -128,7 +150,7 @@ export class Sfx {
 
   /** The boss. `big` is the spawn/phase-change roar; the quiet one is ambient dread. */
   roar(x, z, big = false) {
-    if (!this.on) return;
+    if (!this.on || !this.budget(2, 1200)) return;
     const t = this.t;
     const dur = big ? 1.9 : 1.25;
     const { input, gain } = this.place(x, z, 200);
@@ -238,7 +260,7 @@ export class Sfx {
 
   /** Meteor impacts and grenades. `size` scales the length and the low thump. */
   explosion(x, z, size = 1) {
-    if (!this.on) return;
+    if (!this.on || !this.budget()) return;
     const t = this.t;
     const dur = 0.75 * size;
     const { input, gain } = this.place(x, z, 150);
@@ -368,7 +390,7 @@ export class Sfx {
 
   /** A fireball leaving a caster's hands — short, bright, positional. */
   cast(x, z) {
-    if (!this.on) return;
+    if (!this.on || !this.budget(1, 160)) return;
     const t = this.t, dur = 0.34;
     const { input, gain } = this.place(x, z, 120);
     if (gain <= 0.001) return;
