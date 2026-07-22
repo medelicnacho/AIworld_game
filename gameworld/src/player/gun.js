@@ -77,7 +77,10 @@ export class Gun {
 
   reload() {
     if (this.reloading > 0 || this.mag === GUN.magSize) return;
-    this.reloading = GUN.reloadTime * (1 - (player.gearReload || 0));
+    // Never zero. A zero-duration reload fails the `> 0` test in update() and therefore
+    // never completes — the magazine stays empty forever and the gun is bricked. Whatever
+    // the multipliers say, a reload takes SOME time.
+    this.reloading = Math.max(0.05, GUN.reloadTime * (player.reloadMult ?? 1));
   }
 
   /**

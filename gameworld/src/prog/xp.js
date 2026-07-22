@@ -63,8 +63,15 @@ export function applyLevelStats() {
   // never accumulated, and therefore impossible to drift out of step on death.
   player.dmgTakenMult = Math.pow(VILLAGE.armorMult, player.armor || 0);
 
+  // Relics grant these in bundles with no ceiling of their own, so the CLAMPS live here —
+  // at the single point every stat is derived. A stat that can reach its own breaking value
+  // is a bug waiting for a lucky drop, and "reload time reaches zero" broke the gun
+  // outright: a zero-length reload never finished, so the magazine never refilled.
+  player.reloadMult = Math.max(0.25, 1 - (player.gearReload || 0));
+  player.speedMult = Math.min(player.speedMult, Math.pow(XP.speedGrowth, n) * 3.5);
+
   const h = player.haste || 0;
-  player.hasteFire = Math.pow(HASTE.fire, h);
+  player.hasteFire = Math.min(4, Math.pow(HASTE.fire, h));   // 4x is already 30 rounds/s
   player.hasteCd = Math.pow(HASTE.cooldown, h);
   // The channel has a FLOOR. Its whole design is that standing still is the cost; haste
   // should shorten that cost, never delete it.
