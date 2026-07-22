@@ -1,0 +1,218 @@
+{
+ "spec": {
+  "seeds": [
+   11,
+   12,
+   13
+  ],
+  "founders": 16,
+  "ticks": 600,
+  "every": 100
+ },
+ "runs": {
+  "11": [
+   {
+    "tick": 100,
+    "souls": 16,
+    "x": 25510.43,
+    "y": 23329.1,
+    "wellbeing": 15.0748,
+    "mood": 2.4638,
+    "items": 275,
+    "warm_bonds": 33,
+    "factions": 3
+   },
+   {
+    "tick": 200,
+    "souls": 32,
+    "x": 57005.2,
+    "y": 45179.67,
+    "wellbeing": 19.6294,
+    "mood": 7.414,
+    "items": 711,
+    "warm_bonds": 131,
+    "factions": 3
+   },
+   {
+    "tick": 300,
+    "souls": 32,
+    "x": 61965.31,
+    "y": 43633.31,
+    "wellbeing": 14.7617,
+    "mood": 7.4975,
+    "items": 813,
+    "warm_bonds": 233,
+    "factions": 2
+   },
+   {
+    "tick": 400,
+    "souls": 39,
+    "x": 81209.59,
+    "y": 51033.39,
+    "wellbeing": 17.5095,
+    "mood": 8.5296,
+    "items": 929,
+    "warm_bonds": 349,
+    "factions": 2
+   },
+   {
+    "tick": 500,
+    "souls": 74,
+    "x": 166361.35,
+    "y": 93066.67,
+    "wellbeing": 39.8813,
+    "mood": 19.23,
+    "items": 1609,
+    "warm_bonds": 467,
+    "factions": 2
+   },
+   {
+    "tick": 600,
+    "souls": 75,
+    "x": 178955.94,
+    "y": 89329.36,
+    "wellbeing": 37.7944,
+    "mood": 20.8088,
+    "items": 2207,
+    "warm_bonds": 642,
+    "factions": 2
+   }
+  ],
+  "12": [
+   {
+    "tick": 100,
+    "souls": 16,
+    "x": 36096.77,
+    "y": 22899.2,
+    "wellbeing": 15.3481,
+    "mood": 3.2215,
+    "items": 291,
+    "warm_bonds": 24,
+    "factions": 1
+   },
+   {
+    "tick": 200,
+    "souls": 37,
+    "x": 88015.79,
+    "y": 49537.83,
+    "wellbeing": 25.4029,
+    "mood": 7.8221,
+    "items": 912,
+    "warm_bonds": 87,
+    "factions": 1
+   },
+   {
+    "tick": 300,
+    "souls": 37,
+    "x": 92922.31,
+    "y": 45206.27,
+    "wellbeing": 16.8843,
+    "mood": 7.7878,
+    "items": 1025,
+    "warm_bonds": 168,
+    "factions": 1
+   },
+   {
+    "tick": 400,
+    "souls": 69,
+    "x": 180974.13,
+    "y": 77614.14,
+    "wellbeing": 24.7736,
+    "mood": 12.8734,
+    "items": 1510,
+    "warm_bonds": 333,
+    "factions": 3
+   },
+   {
+    "tick": 500,
+    "souls": 82,
+    "x": 223619.36,
+    "y": 82255.21,
+    "wellbeing": 14.428,
+    "mood": 17.5826,
+    "items": 2093,
+    "warm_bonds": 436,
+    "factions": 2
+   },
+   {
+    "tick": 600,
+    "souls": 72,
+    "x": 202131.98,
+    "y": 63763.04,
+    "wellbeing": 29.3576,
+    "mood": 18.835,
+    "items": 1925,
+    "warm_bonds": 419,
+    "factions": 1
+   }
+  ],
+  "13": [
+   {
+    "tick": 100,
+    "souls": 16,
+    "x": 26277.72,
+    "y": 15484.96,
+    "wellbeing": 8.9194,
+    "mood": 2.6601,
+    "items": 341,
+    "warm_bonds": 15,
+    "factions": 3
+   },
+   {
+    "tick": 200,
+    "souls": 41,
+    "x": 72849.12,
+    "y": 39012.75,
+    "wellbeing": 1.9578,
+    "mood": 10.3005,
+    "items": 1003,
+    "warm_bonds": 52,
+    "factions": 2
+   },
+   {
+    "tick": 300,
+    "souls": 38,
+    "x": 72617.28,
+    "y": 36634.92,
+    "wellbeing": 4.0617,
+    "mood": 10.2027,
+    "items": 1080,
+    "warm_bonds": 145,
+    "factions": 2
+   },
+   {
+    "tick": 400,
+    "souls": 52,
+    "x": 105680.95,
+    "y": 49551.41,
+    "wellbeing": 20.3156,
+    "mood": 11.5181,
+    "items": 1414,
+    "warm_bonds": 324,
+    "factions": 2
+   },
+   {
+    "tick": 500,
+    "souls": 89,
+    "x": 193412.67,
+    "y": 91258.27,
+    "wellbeing": 45.6035,
+    "mood": 21.8117,
+    "items": 2101,
+    "warm_bonds": 405,
+    "factions": 2
+   },
+   {
+    "tick": 600,
+    "souls": 84,
+    "x": 195246.36,
+    "y": 89827.62,
+    "wellbeing": 23.9497,
+    "mood": 23.5363,
+    "items": 2268,
+    "warm_bonds": 626,
+    "factions": 2
+   }
+  ]
+ }
+}
