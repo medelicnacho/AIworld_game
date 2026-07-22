@@ -8,7 +8,7 @@
 import * as THREE from "three";
 import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
-import { affixList } from "./mobs/affixes.js";
+import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
 import { Villagers } from "./town/villagers.js";
@@ -877,7 +877,9 @@ function frame(now) {
       `${"░".repeat(Math.max(0, 20 - Math.round(boss.alive.hp / boss.alive.maxHp * 20)))}` +
       ` ${Math.max(0, Math.round(boss.alive.hp))}  ${boss.alive.phase === 2 ? "· ENRAGED ·" : ""}\n`
     : "";
+  const broken = brokenAffixes();
   hud.textContent =
+    (broken.length ? `⚠ affix disabled: ${broken.join(", ")} — see console\n` : "") +
     bossLine + bossStatus +
     `${nearestGate()}\n` +
     `${RINGS[ring].name}  (tier ${tier})   ${Math.round(fromSpawn)}m out` +

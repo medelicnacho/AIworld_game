@@ -85,7 +85,7 @@ export class Mobs {
     const fireGeo = new THREE.CircleGeometry(1, 16);
     fireGeo.rotateX(-Math.PI / 2);
     this.fires = [];
-    for (let i = 0; i < 64; i++) {
+    for (let i = 0; i < 110; i++) {
       const mesh = new THREE.Mesh(fireGeo, new THREE.MeshBasicMaterial({
         color: 0xff7a1e, transparent: true, opacity: 0, depthWrite: false,
         side: THREE.DoubleSide,
@@ -699,7 +699,7 @@ export class Mobs {
     for (const f of this.fires) {
       if (!f.active) continue;
       f.t -= dt;
-      f.mesh.material.opacity = Math.max(0, f.t / f.life) * 0.55;
+      f.mesh.material.opacity = 0.25 + Math.max(0, f.t / f.life) * 0.5;
       if (f.t <= 0) { f.active = false; f.mesh.visible = false; continue; }
       if (Math.hypot(player.x - f.x, player.z - f.z) < f.r && player.iframes <= 0) {
         hurt?.(f.dps * dt, f.x, f.z, 0);                 // no knockback: it is a floor

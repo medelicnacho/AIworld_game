@@ -44,7 +44,7 @@ export const AFFIXES = {
       e.burnT = (e.burnT || 0) - dt;
       if (e.burnT > 0) return;
       e.burnT = 0.3;
-      ctx.mobs.dropFire(e.x, e.z, e.damage * 1.6, 2.7, 4.5);
+      ctx.mobs.dropFire(e, e.damage * 1.6, 2.8, 5.0);
     },
   },
 
@@ -148,3 +148,7 @@ export function affixLabel(e) {
 }
 
 export const affixList = () => Object.values(AFFIXES);
+
+/** Affixes that threw and switched themselves off. Surfaced in the HUD: silent
+ *  self-disabling is worse than a crash, because nothing tells you it happened. */
+export const brokenAffixes = () => [..._broken];
