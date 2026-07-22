@@ -93,6 +93,9 @@ export class Inventory {
     if (e.target.closest("[data-grant]")) { this.hooks.grantAll?.(); this.render(); return; }
     const one = e.target.closest("[data-give]");
     if (one) { this.hooks.give?.(one.dataset.give); this.render(); return; }
+    const spawn = e.target.closest("[data-spawn]");
+    if (spawn) { this.hooks.spawnAffix?.(spawn.dataset.spawn); this.close(); return; }
+    if (e.target.closest("[data-spawnmix]")) { this.hooks.spawnAffixMix?.(); this.close(); return; }
     if (e.target.closest("[data-setlevel]")) {
       const v = Number(this.el.querySelector("#adm-level")?.value);
       if (v > 0) this.hooks.setLevel?.(Math.floor(v));
@@ -157,6 +160,12 @@ export class Inventory {
           <button data-grant>grant all</button>
         </div>
         <div class="row give-row">${list}</div>
+        <div class="row give-row">
+          <span class="lbl">spawn star pack:</span>
+          ${(this.hooks.affixes?.() || []).map((a) => `
+            <button class="give spawn" data-spawn="${a.id}" title="${a.desc}">${a.name}</button>`).join("")}
+          <button class="give spawn" data-spawnmix>mixed</button>
+        </div>
       </div>`;
   }
 

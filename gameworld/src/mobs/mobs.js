@@ -19,12 +19,16 @@ import { groundY, solidAt, tierAt } from "../world/gen.js";
 import { sfx } from "../audio/sfx.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
+import { AFFIXES, rollAffixes, runAffix, affixHidden, affixLabel } from "./affixes.js";
 
 const HURT_FLASH = 0.12;
 
 export class Mobs {
-  constructor(scene, seed = 0x5EED) {
+  constructor(scene, seed = 0x5EED, fx = {}) {
     this.scene = scene;
+    // The few world verbs an affix may need. Injected, so affixes can reach blast() without
+    // mobs.js importing main's damage routing and creating a cycle.
+    this.fx = { mobs: this, ...fx };
     this.rng = mulberry32(seed);
     this.packs = new Map();           // packId -> {x, z}
     this.nextPack = 1;
@@ -59,6 +63,8 @@ export class Mobs {
     this.COL_GROUNDCASTER = new THREE.Color(0x8a3fd1);   // violet: ranged, but grounded
     this.COL_CHARGING = new THREE.Color(0xff8a3c);  // hot while winding up — the telegraph
     this.COL_HURT = new THREE.Color(0xff6655);
+    this._affixCol = new THREE.Color();
+    this._affixCache = new Map();     // affix id -> THREE.Color, built once
 
     // Fireballs, pooled. Slow and straight, so they're a movement problem, not a DPS race.
     this.ballGeo = new THREE.IcosahedronGeometry(0.42, 1);
@@ -72,8 +78,42 @@ export class Mobs {
     }
   }
 
+  affixColor(id) {
+    let c = this._affixCache.get(id);
+    if (!c) {
+      c = new THREE.Color(AFFIXES[id]?.color ?? 0xffffff);
+      this._affixCache.set(id, c);
+    }
+    return c;
+  }
+
+  /**
+   * One body, one colour. Priority: being hurt, then charging a cast, then AFFIXES, then
+   * the base kind. With several affixes the tint cycles slowly between their hues rather
+   * than blending them — a blend of orange and blue is just grey, and grey names nothing.
+   */
+  colorOf(e, now) {
+    if (e.hurtT > 0) return this.COL_HURT;
+    if (e.castT > 0) return this.COL_CHARGING;
+    const n = e.affixes?.length || 0;
+    if (n === 1) return this.affixColor(e.affixes[0]);
+    if (n > 1) {
+      const span = 0.9;                       // seconds per affix in the cycle
+      const t = (now / (span * 1000)) % n;
+      const a = this.affixColor(e.affixes[Math.floor(t)]);
+      const b = this.affixColor(e.affixes[(Math.floor(t) + 1) % n]);
+      const f = t % 1;
+      // Hold each colour, then snap across quickly: readable as "orange AND blue", not mud.
+      return this._affixCol.copy(a).lerp(b, Math.max(0, Math.min(1, (f - 0.75) * 4)));
+    }
+    if (e.flies) return this.COL_CASTER;
+    if (e.caster) return this.COL_GROUNDCASTER;
+    return e.elite ? this.COL_ELITE : this.COL_MOB;
+  }
+
   /** Write every live mob into the instance buffer. One pass, one draw call. */
   render() {
+    const now = performance.now();
     let i = 0;
     const cap = this.mesh.instanceMatrix.count;
     for (const e of this.entities()) {
@@ -85,12 +125,7 @@ export class Mobs {
       if (e.flies) this._q.multiply(this._flip);
       this._m.compose(this._p.set(e.x, e.y, e.z), this._q, this._s.set(sc, sc, sc));
       this.mesh.setMatrixAt(i, this._m);
-      this.mesh.setColorAt(i,
-        e.hurtT > 0 ? this.COL_HURT
-          : e.castT > 0 ? this.COL_CHARGING
-            : e.flies ? this.COL_CASTER
-              : e.caster ? this.COL_GROUNDCASTER
-                : e.elite ? this.COL_ELITE : this.COL_MOB);
+      this.mesh.setColorAt(i, this.colorOf(e, now));
       i++;
     }
     this.mesh.count = i;
@@ -142,7 +177,7 @@ export class Mobs {
     return lo + this.rng() * (hi - lo);
   }
 
-  spawnOne(x, z, packId, homeX, homeZ) {
+  spawnOne(x, z, packId, homeX, homeZ, forceAffixes = null) {
     const s = this.rollStats(x, z);
     const e = addEntity({
       kind: "mob", x, z,
@@ -163,9 +198,33 @@ export class Mobs {
       castT: 0, castCd: 1.5 + this.rng() * MOB.castCd,
       breedCd: this.breedDelay(),
       y: 0,
+      affixes: [],
     });
+    // Only stars carry affixes — an ordinary mob with a modifier reads as noise, and the
+    // gold/scale tell is what makes "that one is different" legible at a distance.
+    if (s.elite || forceAffixes) {
+      e.affixes = rollAffixes(s.ring, this.rng, forceAffixes);
+      runAffix(e, "onSpawn", this.fx);
+    }
     e.y = this.restY(e);
     return e;
+  }
+
+  /** Drop a pack right next to the player with exactly these affixes, for testing. */
+  spawnPackWith(affixIds, n = 4) {
+    const a = this.rng() * Math.PI * 2;
+    const hx = player.x + Math.cos(a) * 26;
+    const hz = player.z + Math.sin(a) * 26;
+    if (sanctuaryOf(hx, hz, 20)) return false;
+    const id = this.nextPack++;
+    this.packs.set(id, { x: hx, z: hz });
+    for (let i = 0; i < n; i++) {
+      const ang = this.rng() * Math.PI * 2;
+      const e = this.spawnOne(hx + Math.cos(ang) * 4, hz + Math.sin(ang) * 4,
+                              id, hx, hz, affixIds);
+      e.elite = true;                    // affixes ride on stars, so force the tell too
+    }
+    return true;
   }
 
   /** A camp: several mobs sharing a home they return to and breed at. */
@@ -200,6 +259,7 @@ export class Mobs {
   targets() {
     const out = [];
     for (const e of this.entities()) {
+      if (affixHidden(e)) continue;      // Phasing and anything like it
       const sc = e.elite ? MOB.eliteScale : 1;
       if (e.flies) {
         // Flyers hang POINT-DOWN, so their body occupies the space BELOW the entity origin
@@ -267,12 +327,14 @@ export class Mobs {
     e.aggroT = MOB.loseInterest;
     this.alert(e);                    // being shot at is a pack-wide event
     if (e.hp <= 0) {
-      const out = { killed: true, elite: e.elite, ring: e.ring };
+      // Death hook runs BEFORE despawn, while the entity still has a position to explode at.
+      runAffix(e, "onDeath", this.fx);
+      const out = { killed: true, elite: e.elite, ring: e.ring, affixes: affixLabel(e) };
       this.despawn(id);
       this.killed++;
       return out;
     }
-    return { killed: false, elite: e.elite, ring: e.ring };
+    return { killed: false, elite: e.elite, ring: e.ring, affixes: affixLabel(e) };
   }
 
   neighbours(e) {
@@ -341,6 +403,7 @@ export class Mobs {
       if (e.hurtT > 0) e.hurtT -= dt;
       if (e.atkCd > 0) e.atkCd -= dt;
       if (e.flies) e.wobble += dt;       // the hover bob, independent of any wandering
+      if (e.affixes.length) runAffix(e, "onTick", dt, this.fx);
 
       const ux = dx / dist, uz = dz / dist;
       const homeD = Math.hypot(e.x - e.homeX, e.z - e.homeZ) || 0.001;
@@ -409,6 +472,7 @@ export class Mobs {
         if (dist < MOB.attackRange && player.iframes <= 0) {
           e.lungeT = 0;
           onPlayerHit?.(e);
+          runAffix(e, "onHitPlayer", this.fx);
         }
         e.y = this.restY(e);
         reindex(e);

@@ -8,6 +8,7 @@
 import * as THREE from "three";
 import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
+import { affixList } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
 import { Villagers } from "./town/villagers.js";
@@ -65,7 +66,9 @@ const rig = new CameraRig(camera);
 const music = new Music();
 const gun = new Gun(scene, camera);
 const gunRng = mulberry32(0xBADA55);    // D14: even bullet spread is seeded
-const mobs = new Mobs(scene);
+// Affix hooks reach the world through this, rather than mobs.js importing main's
+// damage routing and creating a cycle. blast is a hoisted declaration, so this is safe here.
+const mobs = new Mobs(scene, 0x5EED, { blast, damagePlayer });
 const boss = new Boss(scene);
 const grenades = new Grenades(scene);
 const heal = new Heal(scene);
@@ -280,6 +283,13 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
   grantAll: () => {
     for (const g of GOODS.adept || []) g.apply(gameCtx);
   },
+  // Spawn a star pack carrying exactly these affixes, next to you, tier gates ignored.
+  affixes: () => affixList().map((a) => ({ id: a.id, name: a.name, desc: a.desc || "" })),
+  spawnAffix: (id) => { mobs.spawnPackWith([id]); },
+  spawnAffixMix: () => {
+    const all = affixList().map((a) => a.id);
+    mobs.spawnPackWith(all.slice(0, 3));
+  },
 });
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
@@ -350,7 +360,9 @@ function reward(res) {
     * (res.elite ? LOOT.eliteMult : 1));
   const xp = killValue(res.ring, res.elite);
   const lv = award(xp);
-  killFeed = `${res.elite ? "★ elite" : "kill"}  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
+  // Naming what you killed is half of learning to read them.
+  const what = res.affixes ? `★ ${res.affixes}` : res.elite ? "★ elite" : "kill";
+  killFeed = `${what}  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) sfx.healDone();
 }
 
