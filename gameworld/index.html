@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>gameworld</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e13; }
+      canvas { display: block; }
+      #hud {
+        position: fixed; inset: 0; pointer-events: none;
+        font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #cfd6e4; text-shadow: 0 1px 2px #000a;
+      }
+      #stats { position: absolute; top: 10px; left: 12px; white-space: pre; opacity: .85; }
+      #crosshair {
+        position: absolute; left: 50%; top: 50%; width: 3px; height: 3px;
+        margin: -1.5px 0 0 -1.5px; background: #eef; border-radius: 50%;
+        box-shadow: 0 0 0 1px #0008; opacity: 0; transition: opacity .12s;
+      }
+      #click {
+        position: absolute; inset: 0; display: grid; place-content: center;
+        font-size: 14px; letter-spacing: .08em; color: #9fb0c8;
+      }
+      body.locked #click { display: none; }
+      body.locked #crosshair { opacity: .9; }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <div id="stats"></div>
+      <div id="crosshair"></div>
+      <div id="click">CLICK TO PLAY&nbsp;&nbsp;·&nbsp;&nbsp;WASD move&nbsp;&nbsp;SPACE jump&nbsp;&nbsp;RMB aim&nbsp;&nbsp;F5 camera&nbsp;&nbsp;[ ] look speed&nbsp;&nbsp;M music</div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
