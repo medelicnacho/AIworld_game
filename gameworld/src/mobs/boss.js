@@ -29,6 +29,24 @@ export class Boss {
 
     // Meteors are pooled: a volley in phase 2 can put a dozen rocks in the air at once,
     // and allocating meshes mid-fight is exactly when you can least afford a GC pause.
+    // The beam: a column of light with a burning spot under it. Reads from any camera
+    // angle and on any slope, which a ground-level beam would not.
+    this.beamCol = new THREE.Mesh(
+      new THREE.CylinderGeometry(BOSS.beamRadius, BOSS.beamRadius * 0.8, 70, 20, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xff4d2b, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+      }));
+    this.beamCol.visible = false;
+    scene.add(this.beamCol);
+
+    const spot = new THREE.CircleGeometry(BOSS.beamRadius, 32);
+    spot.rotateX(-Math.PI / 2);
+    this.beamSpot = new THREE.Mesh(spot, new THREE.MeshBasicMaterial({
+      color: 0xff7a3a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+    }));
+    this.beamSpot.visible = false;
+    scene.add(this.beamSpot);
+
     this.meteors = [];
     const rockGeo = new THREE.IcosahedronGeometry(1.5, 0);
     const ringGeo = new THREE.RingGeometry(BOSS.meteorRadius * 0.55, BOSS.meteorRadius, 24);
@@ -64,6 +82,8 @@ export class Boss {
       phase: 1,
       charging: false,
       roarCd: BOSS.roarEvery[0],
+      nextIsBeam: false,          // alternates with the volley
+      beamWarm: 0, beamT: 0, beamX: x, beamZ: z,
     };
     sfx.roar(x, z, true);          // it announces itself
 
@@ -108,6 +128,7 @@ export class Boss {
   }
 
   despawn() {
+    this.hideBeam();
     if (!this.group) return;
     this.scene.remove(this.group);
     this.group.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
@@ -173,9 +194,10 @@ export class Boss {
     }
   }
 
-  update(dt, onPlayerHit, onMeteorHit) {
+  update(dt, onPlayerHit, onMeteorHit, onBeamHit) {
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 1.8);
     this.updateMeteors(dt, onMeteorHit);
+    this.updateBeam(dt, onBeamHit);
 
     const b = this.alive;
     if (!b) return;
@@ -196,6 +218,8 @@ export class Boss {
     // advancing. Meteors already in the air still land — you ran, they were already falling.
     if (sanctuaryOf(player.x, player.z, 0)) {
       b.charging = false;
+      b.beamWarm = 0;
+      b.beamT = 0;
       b.volleyCd = Math.max(b.volleyCd, BOSS.chargeTime + 0.5);
     } else if (dist < BOSS.aggroRange) {
       // Ambient roars: it is heard before it is seen, and keeps being heard.
@@ -218,7 +242,18 @@ export class Boss {
       if (b.volleyCd <= 0) {
         b.volleyCd = BOSS.volleyCd * (b.phase === 2 ? BOSS.phase2Rate : 1);
         b.charging = false;
-        this.fireVolley();
+        if (b.nextIsBeam) {
+          // Start the beam a little away from the player, so it has to travel to reach
+          // you — arriving already on top of you would be unavoidable damage.
+          const a = this.rng() * Math.PI * 2;
+          b.beamX = player.x + Math.cos(a) * 9;
+          b.beamZ = player.z + Math.sin(a) * 9;
+          b.beamWarm = BOSS.beamWarm;
+          sfx.charge(b.x, b.z, BOSS.beamWarm);
+        } else {
+          this.fireVolley();
+        }
+        b.nextIsBeam = !b.nextIsBeam;
       }
       // Lumbering approach. It should always be outrunnable — the pressure comes from
       // the sky, not from its feet.
@@ -250,6 +285,52 @@ export class Boss {
       this.core.scale.setScalar(pulse);
       this.core.material.color.setHex(0x66ffcc);
     }
+  }
+
+  /**
+   * The beam hunts at a FIXED speed rather than interpolating toward the player. Lerping
+   * would make it fastest when far and slowest when close — the exact opposite of the
+   * pressure we want. Fixed speed means moving always escapes and standing always cooks.
+   */
+  updateBeam(dt, onBeamHit) {
+    const b = this.alive;
+    if (!b) { this.hideBeam(); return; }
+
+    if (b.beamWarm > 0) {
+      b.beamWarm -= dt;
+      if (b.beamWarm <= 0) b.beamT = BOSS.beamTime;
+    } else if (b.beamT > 0) {
+      b.beamT -= dt;
+      const speed = BOSS.beamSpeed + BOSS.beamSpeedPerTier * b.ring;
+      const dx = player.x - b.beamX, dz = player.z - b.beamZ;
+      const d = Math.hypot(dx, dz);
+      if (d > 0.01) {
+        const step = Math.min(d, speed * dt);
+        b.beamX += (dx / d) * step;
+        b.beamZ += (dz / d) * step;
+      }
+      if (d < BOSS.beamRadius && player.iframes <= 0) {
+        onBeamHit?.(BOSS.beamDps * dt, b.beamX, b.beamZ);
+      }
+      if (b.beamT <= 0) this.hideBeam();
+    } else {
+      this.hideBeam();
+      return;
+    }
+
+    const gy = groundY(b.beamX, b.beamZ);
+    const warming = b.beamWarm > 0;
+    this.beamSpot.position.set(b.beamX, gy + 0.07, b.beamZ);
+    this.beamSpot.visible = true;
+    this.beamSpot.material.opacity = warming ? 0.25 + 0.3 * (1 - b.beamWarm / BOSS.beamWarm) : 0.75;
+    this.beamCol.position.set(b.beamX, gy + 35, b.beamZ);
+    this.beamCol.visible = !warming;
+    this.beamCol.material.opacity = warming ? 0 : 0.34;
+  }
+
+  hideBeam() {
+    this.beamCol.visible = false;
+    this.beamSpot.visible = false;
   }
 
   updateMeteors(dt, onMeteorHit) {

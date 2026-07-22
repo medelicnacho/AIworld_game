@@ -52,6 +52,7 @@ export class Mobs {
     this._s = new THREE.Vector3();
     this._c = new THREE.Color();
     this._up = new THREE.Vector3(0, 1, 0);
+    this._flip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
     this.COL_MOB = new THREE.Color(0x8d4d63);
     this.COL_ELITE = new THREE.Color(0xe8c14a);
     this.COL_CASTER = new THREE.Color(0xd11f1f);   // red: the ones that shoot
@@ -78,6 +79,9 @@ export class Mobs {
       if (i >= cap) break;
       const sc = e.elite ? MOB.eliteScale : 1;
       this._q.setFromAxisAngle(this._up, e.facing ?? e.heading ?? 0);
+      // Flyers hang point-down, so a threat in the air is a different silhouette from a
+      // threat on the ground even before you read its colour.
+      if (e.caster) this._q.multiply(this._flip);
       this._m.compose(this._p.set(e.x, e.y, e.z), this._q, this._s.set(sc, sc, sc));
       this.mesh.setMatrixAt(i, this._m);
       this.mesh.setColorAt(i,
@@ -115,6 +119,12 @@ export class Mobs {
     };
   }
 
+  /** Where this body sits vertically: on the ground, or hovering above it. */
+  restY(e) {
+    const g = groundY(e.x, e.z);
+    return e.caster ? g + MOB.flyHeight + Math.sin(e.wobble * 1.6) * MOB.flyBob : g;
+  }
+
   breedDelay() {
     const [lo, hi] = MOB.breedEvery;
     return lo + this.rng() * (hi - lo);
@@ -123,7 +133,7 @@ export class Mobs {
   spawnOne(x, z, packId, homeX, homeZ) {
     const s = this.rollStats(x, z);
     const e = addEntity({
-      kind: "mob", x, y: groundY(x, z), z,
+      kind: "mob", x, z,
       ...s,
       pack: packId, homeX, homeZ,
       aggro: false, aggroT: 0,
@@ -139,7 +149,9 @@ export class Mobs {
       facing: 0,
       castT: 0, castCd: 1.5 + this.rng() * MOB.castCd,
       breedCd: this.breedDelay(),
+      y: 0,
     });
+    e.y = this.restY(e);
     return e;
   }
 
@@ -295,6 +307,7 @@ export class Mobs {
 
       if (e.hurtT > 0) e.hurtT -= dt;
       if (e.atkCd > 0) e.atkCd -= dt;
+      if (e.caster) e.wobble += dt;      // the hover bob, independent of any wandering
 
       const ux = dx / dist, uz = dz / dist;
       const homeD = Math.hypot(e.x - e.homeX, e.z - e.homeZ) || 0.001;
@@ -308,7 +321,7 @@ export class Mobs {
         const od = Math.hypot(ox, oz) || 1;
         e.x += (ox / od) * MOB.speed * 2.5 * dt;
         e.z += (oz / od) * MOB.speed * 2.5 * dt;
-        e.y = groundY(e.x, e.z);
+        e.y = this.restY(e);
         e.aggro = false;
         e.lungeT = 0;
         reindex(e);
@@ -351,7 +364,7 @@ export class Mobs {
           e.lungeT = 0;
           onPlayerHit?.(e);
         }
-        e.y = groundY(e.x, e.z);
+        e.y = this.restY(e);
         reindex(e);
         this.sync(e, ux, uz);
         continue;
@@ -460,8 +473,17 @@ export class Mobs {
         vz = (vz / m) * pace;
       }
 
-      this.tryMove(e, vx, vz, dt);
-      e.y = groundY(e.x, e.z);
+      if (e.caster) {
+        // Flight ignores terrain entirely — that IS the advantage. Sanctuaries still hold.
+        const nx = e.x + vx * dt, nz = e.z + vz * dt;
+        if (!sanctuaryOf(nx, nz, 1.5)) {
+          e.x = nx; e.z = nz;
+          if (Math.hypot(vx, vz) > 1e-4) e.heading = Math.atan2(vx * dt, vz * dt);
+        }
+      } else {
+        this.tryMove(e, vx, vz, dt);
+      }
+      e.y = this.restY(e);
       reindex(e);
       this.sync(e, ux, uz);
     }
@@ -496,7 +518,7 @@ export class Mobs {
   fire(e) {
     const slot = this.balls.find((b) => !b.active);
     if (!slot) return;
-    const sx = e.x, sy = e.y + 1.1, sz = e.z;
+    const sx = e.x, sy = e.y + (e.caster ? -0.6 : 1.1), sz = e.z;
     const dx = player.x - sx, dy = (player.y + 0.9) - sy, dz = player.z - sz;
     const d = Math.hypot(dx, dy, dz) || 1;
     slot.active = true;

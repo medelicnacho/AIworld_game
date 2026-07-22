@@ -574,7 +574,10 @@ function frame(now) {
   }
   boss.update(dt,
     (dmg, bx, bz) => damagePlayer(dmg, bx, bz, 9),
-    (dmg, mx, mz) => damagePlayer(dmg, mx, mz, 7));
+    (dmg, mx, mz) => damagePlayer(dmg, mx, mz, 7),
+    // The beam burns continuously, so it deals damage with NO knockback — being shoved
+    // every frame while standing in it would fight the very movement it is demanding.
+    (dmg, bx, bz) => damagePlayer(dmg, bx, bz, 0));
 
   // Impact shake — applied AFTER the rig sets the camera, so it perturbs the final pose
   // rather than fighting the rig's own smoothing.

@@ -239,6 +239,10 @@ export const MOB = {
   lungeSpeed: 9.5,
   radius: 0.55,
   knockback: 5.5,
+  // Casters FLY. Ranged pressure comes from the sky, which puts it outside the plane every
+  // other threat lives in and finally makes pitch matter.
+  flyHeight: 8.5,
+  flyBob: 0.7,
 
   // Per-ring multipliers — D8's difficulty gradient, expressed as numbers.
   hpPerRing: 0.55,
@@ -340,6 +344,15 @@ export const BOSS = {
   despawn: 190,
 
   // Meteor volleys.
+  // The boss alternates volley -> beam -> volley. They ask opposite questions: meteors
+  // punish predictable movement, the beam punishes stillness. Together you have to keep
+  // moving without moving in a straight line.
+  beamWarm: 1.15,         // telegraph before it burns
+  beamTime: 5.0,          // how long it hunts you
+  beamRadius: 3.2,
+  beamDps: 46,
+  beamSpeed: 6.0,         // just under a level-1 walk (6.3): moving escapes, standing cooks
+  beamSpeedPerTier: 0.5,  // deeper tiers close the gap, so your speed upgrades stay a reward
   volleyCd: 4.6,
   chargeTime: 1.25,       // audible + visible wind-up BEFORE the ground markers appear
   roarEvery: [7, 13],     // ambient roars while it's alive and near — dread on a timer
