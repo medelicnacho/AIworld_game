@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, ABILITY, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
@@ -23,7 +23,7 @@ import { Music } from "./audio/music.js";
 import { sfx } from "./audio/sfx.js";
 import { Grenades } from "./player/grenade.js";
 import { Heal } from "./player/heal.js";
-import { Abilities, ABILITIES } from "./player/abilities.js";
+import { Abilities, SLOTS } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
 import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats } from "./prog/xp.js";
@@ -65,19 +65,17 @@ const mobs = new Mobs(scene);
 const boss = new Boss(scene);
 const grenades = new Grenades(scene);
 const heal = new Heal(scene);
-const abilities = new Abilities(scene, {
+// The bar exists; the slots are empty until something is bought and equipped.
+const abilities = new Abilities({
   get grenades() { return grenades; },
   get heal() { return heal; },
   camera,
-  quake: (x, y, z) => {
-    abilities.showWave(x, y, z);
-    blast(x, y, z, ABILITY.quakeRadius, ABILITY.quakeDamage, ABILITY.quakeKnock, false);
-  },
+  blast,
 });
 const barEl = document.getElementById("bar");
-barEl.innerHTML = ABILITIES.map((a) => `
-  <div class="slot" data-slot="${a.id}" title="${a.desc}">
-    <span class="k">${a.key}</span><span class="n">${a.name}</span>
+barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => `
+  <div class="slot">
+    <span class="k">${i + 1}</span><span class="n"></span>
     <span class="cool"></span>
   </div>`).join("");
 const barSlots = [...barEl.querySelectorAll(".slot")];
@@ -369,8 +367,12 @@ function frame(now) {
   heal.update(dt, stirring);
   abilities.update(dt);
   barSlots.forEach((el, i) => {
+    const a = abilities.slots[i];
     const left = abilities.cd[i];
-    el.classList.toggle("up", left <= 0);
+    el.classList.toggle("up", !!a && left <= 0);
+    el.classList.toggle("empty", !a);
+    el.querySelector(".n").textContent = a ? a.name : "";
+    el.title = a ? a.desc || "" : "empty";
     el.querySelector(".cool").textContent = left > 0 ? left.toFixed(left < 3 ? 1 : 0) : "";
   });
 

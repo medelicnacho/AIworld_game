@@ -118,20 +118,11 @@ export const HEAL = {
   breakOnDamage: true,
 };
 
-// The four ability slots (1-4). Cost is TIME, not stock — nothing here has charges to buy,
-// so you are never sent back to town to re-arm.
+// Ability slots hold whatever you equip; each ability carries its own cooldown, so there
+// is nothing global to tune here. `surgeSpeed` stays because the movement code reads it for
+// any ability that grants a speed burst.
 export const ABILITY = {
-  bombCd: 5.0,
-  mendCd: 12.0,
-  surgeCd: 14.0,
-  surgeTime: 2.2,        // seconds of boosted speed
-  surgeSpeed: 1.75,      // multiplier while it lasts
-  surgeIframes: 0.55,    // and briefly untouchable, so it's an escape as well as a chase
-  quakeCd: 40.0,
-  quakeRadius: 17,
-  quakeDamage: 260,
-  quakeKnock: 16,
-  quakeFlash: 0.55,
+  surgeSpeed: 1.75,
 };
 
 // Grenade: your answer to a crowd, and the only thing in the game that can kill YOU by

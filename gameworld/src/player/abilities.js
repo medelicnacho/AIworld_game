@@ -1,97 +1,66 @@
-// The ability bar: four slots on 1–4, each with its own cooldown.
+// The ability bar: four slots on 1–4.
 //
-// The shape is the MOBA one because it's the one everybody already reads: fixed slots,
-// no ammo, no inventory, cost is time. That also removes the grenade's charge economy —
-// a resource you had to buy is worse than a cooldown you have to respect, because the
-// cooldown is legible at a glance and never sends you back to town for stock.
+// SCOPE, deliberately: this is the FRAME, not the content. Every slot starts empty and
+// nothing is equipped by default — abilities arrive as things you buy from a vendor, so
+// what fills these belongs in the shop's goods table, not here.
 //
-// Each ability is data: a name, a cooldown, and a run(). Adding a fifth is a table entry.
+// An ability is data: {id, name, cd, run(ctx)}. `run` returning false means it declined
+// (already channelling, no projectile free), and a declined ability does NOT spend its
+// cooldown — a cooldown burned on a no-op reads as a bug.
+//
+// LIBRARY holds implementations that are ready to be attached to an item whenever you want
+// one; none of them is reachable until something calls equip().
 
-import * as THREE from "three";
-import { ABILITY } from "../config.js";
 import { player } from "../state.js";
-import { sfx } from "../audio/sfx.js";
 
-export const ABILITIES = [
-  {
-    id: "bomb", key: "1", name: "Firebomb", cd: ABILITY.bombCd,
+export const SLOTS = 4;
+
+export const LIBRARY = {
+  bomb: {
+    id: "bomb", name: "Firebomb", cd: 5,
     desc: "Lobbed explosive, detonates on impact.",
     run: (ctx) => ctx.grenades.throwFrom(ctx.camera),
   },
-  {
-    id: "mend", key: "2", name: "Mend", cd: ABILITY.mendCd,
+  mend: {
+    id: "mend", name: "Mend", cd: 12,
     desc: "Channel to heal. Breaks if you move or are hit.",
     run: (ctx) => ctx.heal.start(),
   },
-  {
-    id: "surge", key: "3", name: "Surge", cd: ABILITY.surgeCd,
-    desc: "Burst of speed, briefly untouchable.",
-    run: () => {
-      player.surgeT = ABILITY.surgeTime;
-      player.iframes = Math.max(player.iframes, ABILITY.surgeIframes);
-      sfx.healCast(0.4);
-      return true;
-    },
-  },
-  {
-    id: "quake", key: "4", name: "Cataclysm", cd: ABILITY.quakeCd,
-    desc: "Shockwave: heavy damage to everything around you.",
-    run: (ctx) => {
-      ctx.quake(player.x, player.y + 1, player.z);
-      return true;
-    },
-  },
-];
+};
 
 export class Abilities {
-  constructor(scene, ctx) {
+  constructor(ctx) {
     this.ctx = ctx;
-    this.cd = ABILITIES.map(() => 0);
-
-    // One shared shockwave ring, reused. Cataclysm is on a long cooldown, so a second one
-    // can never overlap the first.
-    const geo = new THREE.RingGeometry(0.6, 1.0, 40);
-    geo.rotateX(-Math.PI / 2);
-    this.wave = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      color: 0xffc46b, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
-    }));
-    this.wave.visible = false;
-    scene.add(this.wave);
-    this.waveT = 0;
+    this.slots = new Array(SLOTS).fill(null);
+    this.cd = new Array(SLOTS).fill(0);
   }
 
-  ready(i) { return this.cd[i] <= 0; }
+  /** Put an ability (by LIBRARY id, or a definition object) into a slot. */
+  equip(i, ability) {
+    const def = typeof ability === "string" ? LIBRARY[ability] : ability;
+    if (i < 0 || i >= SLOTS || !def) return false;
+    this.slots[i] = def;
+    this.cd[i] = 0;
+    return true;
+  }
 
-  /** @returns {string} a line for the HUD when it couldn't be used. */
+  /** The first free slot, or -1 — what a purchased ability will want. */
+  firstFree() {
+    return this.slots.findIndex((s) => s === null);
+  }
+
+  /** @returns {string} a line for the HUD when nothing happened. */
   use(i) {
-    const a = ABILITIES[i];
-    if (!a) return "";
+    const a = this.slots[i];
+    if (!a) return `slot ${i + 1} is empty`;
     if (this.cd[i] > 0) return `${a.name} — ${this.cd[i].toFixed(1)}s`;
-    // run() returning false means the ability declined (already healing, no slot free), so
-    // the cooldown is NOT spent. A cooldown burned on a no-op feels like a bug.
     if (a.run(this.ctx) === false) return "";
     this.cd[i] = a.cd;
     return "";
   }
 
   update(dt) {
-    for (let i = 0; i < this.cd.length; i++) if (this.cd[i] > 0) this.cd[i] -= dt;
-
+    for (let i = 0; i < SLOTS; i++) if (this.cd[i] > 0) this.cd[i] -= dt;
     if (player.surgeT > 0) player.surgeT -= dt;
-
-    if (this.waveT > 0) {
-      this.waveT -= dt;
-      const f = 1 - this.waveT / ABILITY.quakeFlash;
-      this.wave.scale.setScalar(1 + f * ABILITY.quakeRadius);
-      this.wave.material.opacity = (1 - f) * 0.75;
-      if (this.waveT <= 0) this.wave.visible = false;
-    }
-  }
-
-  showWave(x, y, z) {
-    this.wave.position.set(x, y - 0.4, z);
-    this.wave.visible = true;
-    this.waveT = ABILITY.quakeFlash;
-    sfx.explosion(x, z, 1.5);
   }
 }
