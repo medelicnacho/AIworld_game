@@ -15,6 +15,8 @@ import { Villagers } from "./town/villagers.js";
 import { Shop, GOODS } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
 import { Inventory } from "./ui/inventory.js";
+import { Nameplates } from "./ui/nameplates.js";
+import { HealthBars } from "./ui/healthbars.js";
 import { rollRelic, applyRelic } from "./prog/relics.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
@@ -347,6 +349,8 @@ const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
 const folk = new Folk(scene);
 const villagers = new Villagers(scene);
+const plates = new Nameplates(document.getElementById("plates"), camera);
+const hpBars = new HealthBars(document.getElementById("hpbars"), camera);
 let tradeMsg = "", tradeMsgT = 0;
 // One context object for anything that can grant or change player state, so the shop and
 // the admin panel hand out abilities through exactly the same path. Getters are lazy
@@ -782,6 +786,11 @@ function frame(now) {
   mobs.update(dt, hurtPlayer);
   folk.update(dt);
   villagers.update(dt);
+  // Only traders get a plate: labelling every keeper would turn a town into a wall of text.
+  hpBars.draw(mobs.entities());
+  plates.draw(villagers.list
+    .filter((v) => Villagers.sells(v))
+    .map((v) => ({ x: v.x, y: v.y + 2.05, z: v.z, label: v.role.name, sub: "F to trade" })));
 
   // A boss wanders in on a timer once you're past the Commons. The countdown only runs
   // while you're ELIGIBLE — burning attempts in the safe zone is what made this look broken.

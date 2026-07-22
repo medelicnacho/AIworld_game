@@ -137,6 +137,20 @@
       #bar .slot.up .ch { color: #9dffc6; }
       #bar .slot.empty { opacity: .32; border-style: dashed; box-shadow: none;
         background: #2a344699; }
+      #plates { position: absolute; inset: 0; overflow: hidden; }
+      #plates .plate { position: absolute; transform: translate(-50%, -100%);
+        white-space: nowrap; text-align: center; pointer-events: none;
+        font: 600 12px/1.25 ui-sans-serif, system-ui, sans-serif; color: #fff6dd;
+        text-shadow: 0 1px 3px #000, 0 0 8px #0009; }
+      #plates .plate span { display: block; font-weight: 400; font-size: 10px;
+        color: #ffd45e; opacity: .9; }
+      #hpbars { position: absolute; inset: 0; overflow: hidden; }
+      #hpbars .hpbar { position: absolute; width: 34px; height: 4px;
+        transform: translate(-50%, -100%); background: #0008; border: 1px solid #0009;
+        border-radius: 2px; overflow: hidden; pointer-events: none; }
+      #hpbars .hpbar i { display: block; height: 100%; background: #e2483d; }
+      #hpbars .hpbar.elite { width: 46px; height: 5px; border-color: #7a5c12; }
+      #hpbars .hpbar.elite i { background: #ffc84a; }
       #hurt {
         position: absolute; inset: 0; opacity: 0;
         background: radial-gradient(ellipse at center, #d0202000 45%, #e02a2acc 100%);
@@ -162,6 +176,8 @@
       <div id="subtitle"></div>
       <div id="points"></div>
       <div id="bar"></div>
+      <div id="plates"></div>
+      <div id="hpbars"></div>
       <canvas id="minimap" width="180" height="180"></canvas>
       <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; B summon boss &nbsp; G speak &nbsp; F trade &nbsp; C potion &nbsp; E firebomb &nbsp; Q heal &nbsp; C potion &nbsp; 1-4 items</div>
     </div>

@@ -13,6 +13,7 @@ import { VILLAGE } from "../config.js";
 import { player } from "../state.js";
 import { groundY } from "../world/gen.js";
 import { sanctuariesNear } from "../world/sanctuary.js";
+import { GOODS } from "../ui/shop.js";
 import { mulberry32 } from "../rng.js";
 
 // Who lives here. What they actually SELL is a table in ui/shop.js (GOODS), keyed by these
@@ -70,6 +71,11 @@ export class Villagers {
       });
     }
     this.built.set(s.id, folk);
+  }
+
+  /** Only the ones with something to sell are worth labelling. */
+  static sells(v) {
+    return (GOODS[v.role.key] || []).length > 0;
   }
 
   update(dt) {
