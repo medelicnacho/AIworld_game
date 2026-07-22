@@ -24,14 +24,54 @@ export class Mobs {
   constructor(scene, seed = 0x5EED) {
     this.scene = scene;
     this.rng = mulberry32(seed);
-    this.meshes = new Map();          // entity id -> THREE.Mesh
     this.packs = new Map();           // packId -> {x, z}
     this.nextPack = 1;
     this.spawnTimer = 0;
-    this.geo = new THREE.ConeGeometry(MOB.radius, 1.6, 5);
-    this.geo.translate(0, 0.8, 0);    // pivot at the feet, so ground-snapping is exact
     this.killed = 0;
     this.born = 0;
+
+    // ONE draw call for every mob alive. Individual meshes cost a draw call each, and this
+    // machine has no discrete GPU — at 200 bodies that overhead is the whole frame budget.
+    // Instancing makes population a simulation question rather than a rendering one.
+    this.geo = new THREE.ConeGeometry(MOB.radius, 1.6, 5);
+    this.geo.translate(0, 0.8, 0);    // pivot at the feet, so ground-snapping is exact
+    this.mesh = new THREE.InstancedMesh(
+      this.geo, new THREE.MeshLambertMaterial({}), MOB.maxAliveCap + 32);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.frustumCulled = false;  // instances move every frame; the bounds would lie
+    this.mesh.count = 0;
+    scene.add(this.mesh);
+
+    // Scratch objects, reused every frame — allocating per mob per frame is exactly the
+    // GC sawtooth that ruins frame times at these counts.
+    this._m = new THREE.Matrix4();
+    this._q = new THREE.Quaternion();
+    this._p = new THREE.Vector3();
+    this._s = new THREE.Vector3();
+    this._c = new THREE.Color();
+    this._up = new THREE.Vector3(0, 1, 0);
+    this.COL_MOB = new THREE.Color(0x8d4d63);
+    this.COL_ELITE = new THREE.Color(0xe8c14a);
+    this.COL_HURT = new THREE.Color(0xff6655);
+  }
+
+  /** Write every live mob into the instance buffer. One pass, one draw call. */
+  render() {
+    let i = 0;
+    const cap = this.mesh.instanceMatrix.count;
+    for (const e of this.entities()) {
+      if (i >= cap) break;
+      const sc = e.elite ? MOB.eliteScale : 1;
+      this._q.setFromAxisAngle(this._up, e.facing ?? e.heading ?? 0);
+      this._m.compose(this._p.set(e.x, e.y, e.z), this._q, this._s.set(sc, sc, sc));
+      this.mesh.setMatrixAt(i, this._m);
+      this.mesh.setColorAt(i, e.hurtT > 0 ? this.COL_HURT
+        : (e.elite ? this.COL_ELITE : this.COL_MOB));
+      i++;
+    }
+    this.mesh.count = i;
+    this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 
   /** Roll one mob's stats from the tier it stands in (D8). */
@@ -77,17 +117,9 @@ export class Mobs {
       heading: this.rng() * Math.PI * 2,
       wobble: this.rng() * Math.PI * 2,
       bold: false,
+      facing: 0,
       breedCd: this.breedDelay(),
     });
-
-    const mesh = new THREE.Mesh(this.geo, new THREE.MeshLambertMaterial({
-      color: s.elite ? 0xe8c14a : 0x8d4d63,
-      emissive: 0x000000,
-    }));
-    if (s.elite) mesh.scale.setScalar(MOB.eliteScale);
-    mesh.position.set(x, e.y, z);
-    this.scene.add(mesh);
-    this.meshes.set(e.id, mesh);
     return e;
   }
 
@@ -111,13 +143,7 @@ export class Mobs {
   }
 
   despawn(id) {
-    const mesh = this.meshes.get(id);
-    if (mesh) {
-      this.scene.remove(mesh);
-      mesh.material.dispose();
-      this.meshes.delete(id);
-    }
-    removeEntity(id);
+    removeEntity(id);   // the instance buffer is rebuilt each frame; nothing to free
   }
 
   *entities() {
@@ -369,13 +395,12 @@ export class Mobs {
     for (const id of [...this.packs.keys()]) {
       if (!seenPacks.has(id) && this.packCount(id) === 0) this.packs.delete(id);
     }
+
+    this.render();
   }
 
+  /** Face the player when hunting, face your heading when going about your business. */
   sync(e, ux, uz) {
-    const mesh = this.meshes.get(e.id);
-    if (!mesh) return;
-    mesh.position.set(e.x, e.y, e.z);
-    mesh.rotation.y = e.aggro ? Math.atan2(ux, uz) : e.heading;
-    mesh.material.emissive.setHex(e.hurtT > 0 ? 0xff5544 : 0x000000);
+    e.facing = e.aggro ? Math.atan2(ux, uz) : e.heading;
   }
 }

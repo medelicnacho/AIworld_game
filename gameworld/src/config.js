@@ -139,7 +139,7 @@ export const MOB = {
   loseInterest: 7.0,      // seconds out of contact before disengaging
   alertRadius: 18,        // hurt one and its KIN come from this far
   alertOthers: 11,        // anything else nearby reacts too — a scream is a scream
-  homeWander: 8,          // how far they mill around their camp when idle
+  homeWander: 11,         // how far they mill around their camp when idle
   homePull: 1.1,
   attackRange: 2.4,
   attackCd: 1.15,
@@ -192,19 +192,21 @@ export const MOB = {
   // Population scales with TIER as well as being large: the deep is not just meaner, it is
   // more CROWDED. That reinforces D8's gradient with density instead of only with stats,
   // and it's why walking out feels like pressure rather than arithmetic.
-  maxAlive: 55,
-  maxAlivePerTier: 8,     // tier 5: 95 · tier 8: 119 (capped)
-  maxAliveCap: 130,
-  maxPacks: 6,
-  maxPacksPerTier: 1,
-  maxPacksCap: 13,
-  packSize: [4, 9],
-  packCap: 14,            // a camp can grow this large before it stops breeding
-  breedEvery: [45, 100],  // seconds between a mob's offspring (idle only, never mid-fight)
-  spawnMin: 32,
-  spawnMax: 88,           // camps spread across a wide band, not a ring at one radius
-  despawn: 125,
-  spawnInterval: 0.9,
+  maxAlive: 110,
+  maxAlivePerTier: 14,    // tier 3: 152 · tier 8: 222 (capped)
+  maxAliveCap: 240,
+  maxPacks: 11,
+  maxPacksPerTier: 2,
+  maxPacksCap: 26,
+  packSize: [7, 14],      // a camp is a crowd, not a squad
+  packCap: 20,            // and it can breed to this
+  breedEvery: [35, 80],   // seconds between a mob's offspring (idle only, never mid-fight)
+  // Tighter band than before: camps sat 32-88 units out, which put most of them past the
+  // fog and made the world read as empty. 22-58 keeps several in sight at once.
+  spawnMin: 22,
+  spawnMax: 58,
+  despawn: 105,
+  spawnInterval: 0.45,
 };
 
 // D10 — the giant boss. ONE reusable rig, re-dressed per ring. Everything here is tuned
