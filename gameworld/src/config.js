@@ -189,6 +189,7 @@ export const FIRERING = {
   damage: 210,          // a tier-0 mob has 30hp, an elite 66 — this clears a camp
   knock: 13,
   grow: 0.55,           // seconds for the wall of flame to reach full radius
+  shove: 26,            // rank 2 only: how hard survivors are thrown outward
 };
 
 // Grenade: your answer to a crowd, and the only thing in the game that can kill YOU by
@@ -261,7 +262,7 @@ export const FOLK = {
 // substrate — the emergent layer arrives at M3 and lands on settlements, not on things you
 // kill in three seconds.
 export const MOB = {
-  hp: 30,
+  hp: 48,                 // ~4 shots at level 1, instead of dying to a sneeze
   damage: 8,
   speed: 3.1,
   // They live their own lives until you give them a reason. Notice range is SHORT, and the
@@ -280,13 +281,20 @@ export const MOB = {
   lungeSpeed: 9.5,
   radius: 0.55,
   knockback: 5.5,
+  knockTime: 0.45,        // how long a shoved mob stays airborne-ish
   // Casters FLY. Ranged pressure comes from the sky, which puts it outside the plane every
   // other threat lives in and finally makes pitch matter.
   flyHeight: 8.5,
   flyBob: 0.7,
 
   // Per-ring multipliers — D8's difficulty gradient, expressed as numbers.
-  hpPerRing: 0.55,
+  //
+  // HP grows EXPONENTIALLY because player damage does. Compounding 9%/level works out to
+  // ~1.41x per tier at the pace people actually level, so linear HP inevitably falls behind
+  // and everything starts dying in one shot around level 30. Matching the curve holds
+  // time-to-kill at ~4 shots forever: outlevel the frontier and it gets easier, run ahead
+  // of your level and it bites. That relationship is the difficulty design, not a number.
+  hpGrowth: 1.42,
   damagePerRing: 0.40,
   speedPerRing: 0.06,
 
@@ -294,10 +302,10 @@ export const MOB = {
   // cheapest legible "this one is worse" signal there is.
   eliteChance: 0.06,
   eliteChancePerRing: 0.06,   // ring 5: 36% elite — the deep is mostly stars
-  // Elites get tougher the further out they are, on TOP of the flat per-tier HP every mob
-  // gets — so a star near spawn is a speed bump and a star in the deep is a real fight.
+  // Elites get tougher the further out they are, on TOP of the per-tier HP every mob gets —
+  // so a star near spawn is a speed bump and a star in the deep is a real fight.
   eliteHp: 2.2,
-  eliteHpPerRing: 0.15,   // tier 5 star: ×2.95 · tier 10: ×3.7
+  eliteHpPerRing: 0.12,
   eliteDamage: 1.5,
   eliteScale: 1.55,
 

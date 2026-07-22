@@ -61,12 +61,14 @@ export const GOODS = {
     { id: "firering2", name: "Ring of Fire II", price: RANK2.fireringPrice, once: true,
       minTier: 1,
       desc: `The same wall of flame on a ${RANK2.fireringCd}s cooldown instead of `
-        + `${FIRERING.cd}s. Replaces Ring of Fire.`,
+        + `${FIRERING.cd}s, and anything that survives it is thrown clear. `
+        + `Replaces Ring of Fire.`,
       apply: (game) => game.abilities.acquire({
         id: "firering2", name: "Ring of Fire II", icon: "burst", replaces: "firering",
-        desc: `A wall of flame around you. ${RANK2.fireringCd}s cooldown.`,
+        desc: `A wall of flame around you; survivors are thrown clear. `
+          + `${RANK2.fireringCd}s cooldown.`,
         cd: RANK2.fireringCd,
-        use: () => game.fireRing(),
+        use: () => game.fireRing(true),
       }) },
     { id: "dash2", name: "Dash Strike II", price: RANK2.dashPrice, once: true, minTier: 1,
       desc: `Dash Strike with ${RANK2.dashCharges} charges — blink twice before you wait. `

@@ -52,8 +52,10 @@ scene.add(sun);
 
 // The player's body. A box until M1 gets a real model — but it exists from day one because
 // third person is the default (D3), and you cannot tune a follow camera against nothing.
+// Slimmer than the collision capsule on purpose: a body that exactly fills its hitbox looks
+// bulky in third person and hides more of the screen than it needs to.
 const body = new THREE.Mesh(
-  new THREE.BoxGeometry(0.7, 1.8, 0.5),
+  new THREE.BoxGeometry(0.42, 1.25, 0.3),
   new THREE.MeshLambertMaterial({ color: 0xd8734a }),
 );
 scene.add(body);
@@ -88,7 +90,7 @@ const fireLight = new THREE.PointLight(0xff8a2e, 0, 40);
 scene.add(fireLight);
 let fireT = 0;
 
-function fireRing() {
+function fireRing(knock = false) {
   fireT = FIRERING.grow;
   fireRingMesh.position.set(player.x, player.y + 0.35, player.z);
   fireRingMesh.visible = true;
@@ -97,7 +99,7 @@ function fireRing() {
   // Reuses the same blast path as everything else; hurtsYou = false, since it's centred
   // on you and a ring that killed its caster would be a joke.
   blast(player.x, player.y + 1, player.z,
-        FIRERING.radius, FIRERING.damage, FIRERING.knock, false);
+        FIRERING.radius, FIRERING.damage, FIRERING.knock, false, false, knock);
   markCombat();
 }
 
@@ -371,7 +373,7 @@ function rewardBoss(ring) {
  *   drawn ring and the felt ring disagree, which reads as the hitbox being too small.
  */
 function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
-               knock = GRENADE.knockback, hurtsYou = true, flat = false) {
+               knock = GRENADE.knockback, hurtsYou = true, flat = false, shove = false) {
   const falloff = (d) => (flat ? 1 : Math.max(0.25, 1 - d / radius));
 
   for (const e of [...world.entities.values()]) {
@@ -380,6 +382,7 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
     if (d > radius) continue;
     const res = mobs.hit(e.id, damage * player.dmgMult * falloff(d));
     if (res?.killed) { reward(res); grenades.refill(); }
+    else if (shove) mobs.push(e, x, z, FIRERING.shove);   // survivors get thrown clear
   }
 
   if (boss.active) {
@@ -768,7 +771,7 @@ function frame(now) {
   }
 
   // Socket 2 in practice: the render layer READS sim state and owns none of it.
-  body.position.set(player.x, player.y + 0.9, player.z);
+  body.position.set(player.x, player.y + 0.62, player.z);
   body.rotation.y = player.whirlT > 0 ? (body.rotation.y + dt * 22) : player.yaw;
   body.visible = rig.blend < 0.85;      // hide your own head in first person
 

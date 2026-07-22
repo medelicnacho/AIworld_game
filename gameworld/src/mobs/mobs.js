@@ -103,7 +103,7 @@ export class Mobs {
     const ring = tierAt(x, z);
     const elite = this.rng() < MOB.eliteChance + MOB.eliteChancePerRing * ring;
     const eliteHp = MOB.eliteHp + MOB.eliteHpPerRing * ring;
-    const hp = MOB.hp * (1 + MOB.hpPerRing * ring) * (elite ? eliteHp : 1);
+    const hp = MOB.hp * Math.pow(MOB.hpGrowth, ring) * (elite ? eliteHp : 1);
     // Ranged comes in two flavours. Elite casters FLY (red, point-down); ordinary ones
     // hold their ground (violet). Same standoff brain, entirely different problem: one you
     // must look up for, the other closes the horizontal gap with you.
@@ -159,6 +159,7 @@ export class Mobs {
       wobble: this.rng() * Math.PI * 2,
       bold: false,
       facing: 0,
+      kx: 0, kz: 0, kT: 0,
       castT: 0, castCd: 1.5 + this.rng() * MOB.castCd,
       breedCd: this.breedDelay(),
       y: 0,
@@ -246,6 +247,15 @@ export class Mobs {
       o.aggro = true;
       o.aggroT = MOB.loseInterest;
     }
+  }
+
+  /** Shove a mob outward from a point. Survivors get thrown; the dead do not care. */
+  push(e, fromX, fromZ, force) {
+    const dx = e.x - fromX, dz = e.z - fromZ;
+    const d = Math.hypot(dx, dz) || 1;
+    e.kx = (dx / d) * force;
+    e.kz = (dz / d) * force;
+    e.kT = MOB.knockTime;
   }
 
   hit(id, amount) {
@@ -367,6 +377,19 @@ export class Mobs {
         e.aggro = true;
         e.aggroT = MOB.loseInterest;
         this.alert(e);
+      }
+
+      // Being thrown overrides everything: no steering, no lunging, just flying.
+      if (e.kT > 0) {
+        e.kT -= dt;
+        const f = Math.max(0, e.kT / MOB.knockTime);
+        e.x += e.kx * f * dt;
+        e.z += e.kz * f * dt;
+        e.lungeT = 0;
+        e.y = this.restY(e);
+        reindex(e);
+        this.sync(e, ux, uz);
+        continue;
       }
 
       // --- the lunge is committed and unsteered ------------------------------------
