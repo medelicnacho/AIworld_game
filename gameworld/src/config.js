@@ -158,7 +158,7 @@ export const DASH = {
 export const WHIRL = {
   price: 260,
   minTier: 2,           // only stocked by adepts from the second ring out
-  cd: 22,
+  cd: 13,
   leapSpeed: 24,
   leapUp: 9.5,
   leapTime: 0.55,       // airtime cap; landing early triggers the slam early
