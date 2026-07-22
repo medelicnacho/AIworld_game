@@ -17,6 +17,28 @@ export class Abilities {
     // All four start empty. These slots are ITEMS you buy — the gun, the grenade and the
     // heal are general abilities and live on their own keys, not in here.
     this.slots = new Array(SLOTS).fill(null);
+    // Items granted by a vendor usually have no system of their own, so the bar tracks a
+    // cooldown for any slot whose definition carries a plain `cd` number. Slots backed by a
+    // real system (a grenade, a channel) still report their own and are never touched here.
+    this.cd = new Array(SLOTS).fill(0);
+  }
+
+  /** Seconds left on a slot, from wherever that slot's truth lives. */
+  cooldownOf(i) {
+    const a = this.slots[i];
+    if (!a) return 0;
+    return a.cooldown ? a.cooldown() : this.cd[i];
+  }
+
+  readyOf(i) {
+    const a = this.slots[i];
+    if (!a) return false;
+    if (a.ready) return a.ready();
+    return this.cd[i] <= 0;
+  }
+
+  update(dt) {
+    for (let i = 0; i < SLOTS; i++) if (this.cd[i] > 0) this.cd[i] -= dt;
   }
 
   /** Drop a purchased ability into a slot (or the first free one with i = -1). */
@@ -33,11 +55,13 @@ export class Abilities {
   use(i) {
     const a = this.slots[i];
     if (!a) return `slot ${i + 1} is empty`;
-    if (a.ready && !a.ready()) {
-      const left = a.cooldown?.() || 0;
+    if (!this.readyOf(i)) {
+      const left = this.cooldownOf(i);
       return left > 0 ? `${a.name} — ${left.toFixed(1)}s` : `${a.name} not ready`;
     }
-    a.use();
+    // Declining (returning false) must not spend the cooldown.
+    if (a.use() === false) return "";
+    if (typeof a.cd === "number") this.cd[i] = a.cd;
     return "";
   }
 }

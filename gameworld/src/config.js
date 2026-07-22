@@ -125,6 +125,17 @@ export const ABILITY = {
   surgeSpeed: 1.75,
 };
 
+// Abilities sold by the Adept. The first one is deliberately strong for its price: it is
+// the first real power spike, and it should feel like one on the walk home from buying it.
+export const FIRERING = {
+  price: 90,
+  cd: 16,
+  radius: 15,
+  damage: 210,          // a tier-0 mob has 30hp, an elite 66 — this clears a camp
+  knock: 13,
+  grow: 0.55,           // seconds for the wall of flame to reach full radius
+};
+
 // Grenade: your answer to a crowd, and the only thing in the game that can kill YOU by
 // your own hand. Supply refills on kills, so using it is rewarded by fighting, not hoarding.
 export const GRENADE = {

@@ -20,6 +20,7 @@ import { mulberry32 } from "../rng.js";
 export const ROLES = [
   { key: "herbalist", name: "Herbalist", color: 0x63d1a0 },
   { key: "smith", name: "Smith", color: 0xd8b06a },
+  { key: "adept", name: "Adept", color: 0x14141c },   // black: the one who sells abilities
   { key: "keeper", name: "Keeper", color: 0x8fa6c4 },
 ];
 
@@ -49,9 +50,9 @@ export class Villagers {
   populate(s) {
     const rng = mulberry32(Number(s.id.split(",").reduce((a, b) => a * 31 + Number(b), 7)) >>> 0);
     const folk = [];
-    // Every refuge has a herbalist and a smith — a sanctuary you can't resupply at is
-    // just scenery — plus a few keepers so it reads as a place people live.
-    const roles = ["herbalist", "smith"];
+    // Every refuge has a herbalist, a smith and an adept — a sanctuary you can't resupply
+    // or re-arm at is just scenery — plus keepers so it reads as a place people live.
+    const roles = ["herbalist", "smith", "adept"];
     while (roles.length < VILLAGE.perSanctuary) roles.push("keeper");
     for (const key of roles) {
       const ri = ROLES.findIndex((r) => r.key === key);

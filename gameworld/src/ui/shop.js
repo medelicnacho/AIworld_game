@@ -9,7 +9,7 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE } from "../config.js";
+import { VILLAGE, FIRERING } from "../config.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
 
@@ -32,6 +32,18 @@ export const GOODS = {
     { id: "quickload", name: "Quick Loader", price: 95, upgrade: true,
       desc: "-8% reload time, permanently.",
       apply: () => { player.gearReload = Math.min(0.6, player.gearReload + 0.08); } },
+  ],
+  adept: [
+    { id: "firering", name: "Ring of Fire", price: FIRERING.price, once: true,
+      desc: `A wall of flame erupts outward, ${FIRERING.damage} damage to everything within `
+        + `${FIRERING.radius}m. ${FIRERING.cd}s cooldown. Goes to your first free slot.`,
+      apply: (game) => game.abilities.equip(-1, {
+        id: "firering",
+        name: "Ring of Fire",
+        desc: "A wall of flame erupts around you.",
+        cd: FIRERING.cd,
+        use: () => game.fireRing(),
+      }) },
   ],
   keeper: [],
 };
@@ -95,8 +107,13 @@ export class Shop {
     const price = priceOf(good);
     if (player.gold < price) { this.flash = "not enough gold"; this.render(); return; }
     player.gold -= price;
-    good.apply(this.game);
-    if (good.upgrade) {
+    if (good.apply(this.game) === false) {   // no free slot, nothing bought
+      player.gold += price;
+      this.flash = "no free ability slot";
+      this.render();
+      return;
+    }
+    if (good.upgrade || good.once) {
       player.upgrades[good.id] = (player.upgrades[good.id] || 0) + 1;
       this.game.applyStats?.();     // fold the new gear into the derived stats
     }
@@ -111,6 +128,11 @@ export class Shop {
       const price = priceOf(g);
       const owned = player.upgrades?.[g.id] || 0;
       const afford = player.gold >= price;
+      if (g.once && owned) return `
+        <button class="item poor" disabled>
+          <span class="nm">${g.name} <em>owned</em></span>
+          <span class="ds">${g.desc}</span>
+        </button>`;
       return `
         <button class="item${afford ? "" : " poor"}" data-buy="${g.id}">
           <span class="nm">${g.name}${owned ? ` <em>×${owned}</em>` : ""}</span>

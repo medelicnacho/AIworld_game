@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
@@ -70,6 +70,35 @@ const abilities = new Abilities({
   get heal() { return heal; },
   camera,
 });
+// Ring of Fire: an expanding wall of flame. The mesh is created once and reused — the
+// ability is on a long cooldown, so two can never overlap.
+const fireRingMesh = (() => {
+  const g = new THREE.RingGeometry(0.55, 1.0, 48);
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color: 0xff7a1e, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+  }));
+  m.visible = false;
+  scene.add(m);
+  return m;
+})();
+const fireLight = new THREE.PointLight(0xff8a2e, 0, 40);
+scene.add(fireLight);
+let fireT = 0;
+
+function fireRing() {
+  fireT = FIRERING.grow;
+  fireRingMesh.position.set(player.x, player.y + 0.35, player.z);
+  fireRingMesh.visible = true;
+  fireLight.position.set(player.x, player.y + 2, player.z);
+  sfx.explosion(player.x, player.z, 1.6);
+  // Reuses the same blast path as everything else; hurtsYou = false, since it's centred
+  // on you and a ring that killed its caster would be a joke.
+  blast(player.x, player.y + 1, player.z,
+        FIRERING.radius, FIRERING.damage, FIRERING.knock, false);
+  markCombat();
+}
+
 const barEl = document.getElementById("bar");
 barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => `
   <div class="slot">
@@ -83,7 +112,9 @@ const folk = new Folk(scene);
 const villagers = new Villagers(scene);
 let tradeMsg = "", tradeMsgT = 0;
 const shop = new Shop(document.getElementById("shop"), {
-  get grenades() { return grenades; },   // lazily read: grenades is defined further down
+  get grenades() { return grenades; },
+  get abilities() { return abilities; },
+  fireRing,   // lazily read: grenades is defined further down
   applyStats: () => applyLevelStats(),  // gear changes re-derive the same way levels do
   onClose: () => resumeFromShop(),
 });
@@ -381,10 +412,20 @@ function frame(now) {
   }
   const stirring = input.fwd !== 0 || input.right !== 0 || player.dodgeT > 0 || !player.onGround;
   heal.update(dt, stirring);
+  abilities.update(dt);
+  if (fireT > 0) {
+    fireT -= dt;
+    const f = 1 - Math.max(0, fireT) / FIRERING.grow;
+    fireRingMesh.scale.setScalar(1 + f * FIRERING.radius);
+    fireRingMesh.material.opacity = (1 - f) * 0.9;
+    fireLight.intensity = (1 - f) * 30;
+    if (fireT <= 0) { fireRingMesh.visible = false; fireLight.intensity = 0; }
+  }
+
   barSlots.forEach((el, i) => {
     const a = abilities.slots[i];
-    const left = a?.cooldown?.() || 0;
-    el.classList.toggle("up", !!a && (a.ready ? a.ready() : true));
+    const left = abilities.cooldownOf(i);
+    el.classList.toggle("up", !!a && abilities.readyOf(i));
     el.classList.toggle("empty", !a);
     el.querySelector(".k").textContent = a?.key || String(i + 1);
     el.querySelector(".n").textContent = a?.name || "";
