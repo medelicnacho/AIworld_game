@@ -119,7 +119,11 @@ export function attachInput(canvas, hooks = {}) {
   });
 
   document.addEventListener("mousemove", (e) => {
-    if (document.pointerLockElement !== canvas) return;
+    // movementX/Y are delivered on ORDINARY mousemove too, not only under pointer lock —
+    // so look control does not have to wait for the lock to come back. That matters after
+    // Escape closes a vendor: Chrome refuses to re-lock for ~1.25s, and a game that runs
+    // but will not turn its head reads as "still paused" even though it isn't.
+    if (document.pointerLockElement !== canvas && !hooks.lookUnlocked?.()) return;
     player.yaw -= e.movementX * CAMERA.sensitivity;
     player.pitch -= e.movementY * CAMERA.sensitivity;
     player.pitch = Math.max(CAMERA.minPitch, Math.min(CAMERA.maxPitch, player.pitch));

@@ -211,6 +211,9 @@ attachInput(renderer.domElement, {
   },
   onLock: () => { music.start(); sfx.unlock(); setPaused(false); },
   onUnlock: () => { setPaused(true); },
+  // Look control is allowed whenever the game is actually RUNNING, lock or no lock. The
+  // only time it must be off is while a panel owns the cursor.
+  lookUnlocked: () => !paused && !shop.open,
 });
 
 addEventListener("resize", () => {
