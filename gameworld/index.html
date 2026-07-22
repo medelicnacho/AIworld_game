@@ -64,28 +64,31 @@
          a glow, and white lettering. On cooldown it drops right back to near-invisible so
          the difference is read peripherally rather than by looking. */
       #bar .slot { position: relative; width: 64px; height: 66px; border-radius: 8px;
-        background: #0a0e14e6; border: 1px solid #26303f; overflow: hidden;
+        /* A LIGHT face, so the artwork sits on something instead of disappearing into
+           the night sky behind it. State is carried by the border, the glow and the
+           opacity — the background only has to make the icon legible. */
+        background: #46536be6; border: 1px solid #6b7a95; overflow: hidden;
         display: grid; align-content: center; justify-items: center; gap: 1px;
-        opacity: .42; transition: opacity .12s, box-shadow .12s, background .12s,
+        opacity: .62; transition: opacity .12s, box-shadow .12s, background .12s,
         border-color .12s; }
-      #bar .slot .k { position: absolute; top: 2px; left: 5px; font-size: 10px; color: #8fa3bf; }
+      #bar .slot .k { position: absolute; top: 2px; left: 5px; font-size: 10px; color: #dbe6f5; }
       #bar .slot .ch { position: absolute; bottom: 3px; font-size: 9px; color: #7fd4a0;
         letter-spacing: 1px; }
       #bar .slot .ic { display: block; width: 26px; height: 26px; margin-bottom: 1px;
         filter: drop-shadow(0 1px 2px #0009); }
       #bar .slot .ic svg { width: 100%; height: 100%; display: block; }
       #bar .slot.up .ic { filter: drop-shadow(0 0 5px #3ce88a88); }
-      #bar .slot .n { font-size: 9px; letter-spacing: .03em; color: #dfe8f5; }
-      #bar .slot .cool { position: absolute; inset: 0; background: #000000b3;
+      #bar .slot .n { font-size: 9px; letter-spacing: .03em; color: #f0f5ff; }
+      #bar .slot .cool { position: absolute; inset: 0; background: #0a0f18a6;
         display: grid; place-content: center; font-size: 15px; color: #cfe0ff; }
       /* READY = green and lit. ON COOLDOWN = dark and flat. One glance, two states. */
-      #bar .slot.up { opacity: 1; background: #143323ee; border-color: #59f39a;
-        box-shadow: 0 0 18px #3ce88a66, inset 0 0 12px #3ce88a2e; }
+      #bar .slot.up { opacity: 1; background: #4e7f66ee; border-color: #7dffb5;
+        box-shadow: 0 0 20px #3ce88a80, inset 0 0 14px #9dffc63a; }
       #bar .slot.up .n { color: #ddffe9; }
       #bar .slot.up .k { color: #8df5bb; }
       #bar .slot.up .ch { color: #9dffc6; }
-      #bar .slot.empty { opacity: .28; border-style: dashed; box-shadow: none;
-        background: #0e141e88; }
+      #bar .slot.empty { opacity: .32; border-style: dashed; box-shadow: none;
+        background: #2a344699; }
       #hurt {
         position: absolute; inset: 0; opacity: 0;
         background: radial-gradient(ellipse at center, #d0202000 45%, #e02a2acc 100%);
