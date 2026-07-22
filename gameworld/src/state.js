@@ -42,7 +42,8 @@ export const player = {
   hp: 100, maxHp: 100,
   level: 1, xp: 0, dmgMult: 1, speedMult: 1, jumpMult: 1, maxJumps: 2,
   surgeT: 0,
-  points: 0, potions: 0, potionCd: 0, gearDmg: 0, armor: 0, dmgTakenMult: 1, gearSpeed: 0, gearReload: 0, upgrades: {},
+  points: 0, potions: 0, potionCd: 0, gearDmg: 0, armor: 0, dmgTakenMult: 1,
+  haste: 0, hasteFire: 1, hasteCd: 1, hasteCast: 1, gearSpeed: 0, gearReload: 0, upgrades: {},
 };
 
 export function spawnPlayer() {

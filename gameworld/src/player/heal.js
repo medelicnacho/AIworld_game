@@ -36,14 +36,17 @@ export class Heal {
   }
 
   get casting() { return this.castT > 0; }
-  get progress() { return this.casting ? 1 - this.castT / HEAL.castTime : 0; }
+  get progress() { return this.casting ? 1 - this.castT / (this.castDur || HEAL.castTime) : 0; }
 
   start() {
     if (this.casting || this.cooldown > 0) return false;
     if (player.hp >= player.maxHp) { this.lastResult = "already whole"; return false; }
-    this.castT = HEAL.castTime;
+    // The channel's length is captured at cast time, so `progress` measures against the
+    // duration this cast actually has rather than the config default.
+    this.castDur = HEAL.castTime * (player.hasteCast || 1);
+    this.castT = this.castDur;
     this.ring.visible = true;
-    this.voice = sfx.healCast(HEAL.castTime);
+    this.voice = sfx.healCast(this.castDur);
     this.lastResult = "";
     return true;
   }

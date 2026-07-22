@@ -171,6 +171,17 @@ export const WHIRL = {
   spinSpeed: 1.5,       // and you move faster while you do it
 };
 
+// Haste — the Adept's answer to the smith's plating. Where armour makes you harder to
+// kill, haste makes everything you do arrive sooner. All three terms are multiplicative
+// per stack, so like armour it approaches a limit instead of crossing one.
+export const HASTE = {
+  price: 160,
+  fire: 1.07,           // gun rounds per second, per stack
+  cooldown: 0.92,       // grenade cooldown
+  cast: 0.93,           // heal channel length
+  castFloor: 0.45,      // ...but a channel can never become instant
+};
+
 // Rank 2s. Sold from the first ring out — the reward for leaving the Commons is not just
 // bigger numbers but a better VERSION of what you already know how to use.
 export const RANK2 = {

@@ -10,7 +10,7 @@
 // Which is the intended pressure: to keep levelling you must walk further out, where mobs
 // are worth more AND more of them are elites. Distance is the progression system.
 
-import { XP, PLAYER, VILLAGE } from "../config.js";
+import { XP, PLAYER, VILLAGE, HASTE } from "../config.js";
 import { player } from "../state.js";
 
 /** XP needed to go from `level` to `level + 1`. */
@@ -62,6 +62,13 @@ export function applyLevelStats() {
   // Armour is the one stat that reduces rather than adds, so it lives here too — derived,
   // never accumulated, and therefore impossible to drift out of step on death.
   player.dmgTakenMult = Math.pow(VILLAGE.armorMult, player.armor || 0);
+
+  const h = player.haste || 0;
+  player.hasteFire = Math.pow(HASTE.fire, h);
+  player.hasteCd = Math.pow(HASTE.cooldown, h);
+  // The channel has a FLOOR. Its whole design is that standing still is the cost; haste
+  // should shorten that cost, never delete it.
+  player.hasteCast = Math.max(HASTE.castFloor, Math.pow(HASTE.cast, h));
 }
 
 /** Fraction of the way to the next level, for the HUD bar. */

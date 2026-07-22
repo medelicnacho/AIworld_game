@@ -89,7 +89,7 @@ export class Gun {
     if (this.mag <= 0) { this.reload(); return null; }
     if (this.cooldown > 0) return null;
 
-    this.cooldown = 1 / GUN.fireRate;
+    this.cooldown = 1 / (GUN.fireRate * (player.hasteFire || 1));
     this.mag--;
     this.shots++;
 

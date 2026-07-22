@@ -70,7 +70,7 @@ export class Grenades {
     slot.mesh.position.set(slot.x, slot.y, slot.z);
 
     this.count--;
-    this.cooldown = GRENADE.cooldown;
+    this.cooldown = GRENADE.cooldown * (player.hasteCd || 1);
     sfx.whoosh();
     return true;
   }

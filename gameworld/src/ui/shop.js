@@ -9,7 +9,7 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING, DASH, WHIRL, RANK2 } from "../config.js";
+import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE } from "../config.js";
 import { tierAt } from "../world/gen.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
@@ -38,6 +38,11 @@ export const GOODS = {
       apply: () => { player.gearReload = Math.min(0.6, player.gearReload + 0.08); } },
   ],
   adept: [
+    { id: "haste", name: "Haste Weave", price: HASTE.price, upgrade: true,
+      desc: `+${Math.round((HASTE.fire - 1) * 100)}% fire rate, `
+        + `-${Math.round((1 - HASTE.cooldown) * 100)}% grenade cooldown and a `
+        + `-${Math.round((1 - HASTE.cast) * 100)}% shorter heal channel. Permanent, stacking.`,
+      apply: () => { player.haste += 1; } },
     { id: "firering", name: "Ring of Fire", price: FIRERING.price, once: true,
       desc: `A wall of flame erupts outward, ${FIRERING.damage} damage to everything within `
         + `${FIRERING.radius}m. ${FIRERING.cd}s cooldown. Goes to your first free slot.`,

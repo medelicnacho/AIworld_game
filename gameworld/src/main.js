@@ -832,7 +832,8 @@ function frame(now) {
       ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL\n`
       : ""}` +
     `${player.gearDmg ? `   dmg +${Math.round(player.gearDmg * 100)}%` : ""}` +
-    `${player.armor ? `   armour -${Math.round((1 - player.dmgTakenMult) * 100)}%` : ""}\n` +
+    `${player.armor ? `   armour -${Math.round((1 - player.dmgTakenMult) * 100)}%` : ""}` +
+    `${player.haste ? `   haste +${Math.round((player.hasteFire - 1) * 100)}%` : ""}\n` +
 
     `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
