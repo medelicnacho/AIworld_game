@@ -362,6 +362,9 @@ function frame(now) {
     `gun  ${gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
     `${bridge.label}${speaking ? "  ·  thinking…" : ""}\n` +
+    `in   fwd ${input.fwd >= 0 ? " " : ""}${input.fwd} str ${input.right >= 0 ? " " : ""}${input.right}` +
+    `  ${input.aimHeld ? "AIM" : "---"}${input.aim ? "*" : " "}` +
+    `  ${player.dodgeT > 0 ? "ROLL" : "    "}  ${player.onGround ? "grnd" : "air "}\n` +
     `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ` +
     `jumps ${"◆".repeat(player.jumpsLeft)}${"◇".repeat(Math.max(0, player.maxJumps - player.jumpsLeft))}`;
 

@@ -10,7 +10,11 @@ import { solidAt } from "../world/gen.js";
 import { wallBlocks } from "../world/sanctuary.js";
 
 export const input = {
-  fwd: 0, right: 0, sprint: false, aim: false, firing: false,
+  fwd: 0, right: 0, sprint: false, firing: false,
+  // aimHeld is the PHYSICAL button; `aim` is derived each step. Writing to `aim` directly
+  // (as the dodge used to) desyncs it from the mouse — you hold RMB and nothing happens
+  // until you release and press again.
+  aimHeld: false, aim: false,
   // Dodge is double-tap-a-direction, so the queued roll remembers WHICH key fired it —
   // you roll the way you tapped, not the way you happen to be steering a frame later.
   dodgeQueued: false, dodgeFwd: 0, dodgeRight: 0, throwQueued: false, healQueued: false,
@@ -79,7 +83,12 @@ export function attachInput(canvas, hooks = {}) {
     refresh();
   });
   window.addEventListener("keyup", (e) => { keys.delete(e.code); refresh(); });
-  window.addEventListener("blur", () => { keys.clear(); refresh(); });
+  const release = () => { keys.clear(); refresh(); };
+  window.addEventListener("blur", release);
+  // A keyup that lands while the tab is hidden or unfocused never reaches us, so the key
+  // stays "held" forever. Holding W and S at once reads as fwd 0 — which looks exactly
+  // like "movement stopped and won't go forward or back".
+  document.addEventListener("visibilitychange", () => { if (document.hidden) release(); });
 
   canvas.addEventListener("click", () => canvas.requestPointerLock());
   document.addEventListener("pointerlockchange", () => {
@@ -104,11 +113,11 @@ export function attachInput(canvas, hooks = {}) {
   // D4: hold RMB to aim (camera blends toward first person), hold LMB to fire.
   document.addEventListener("mousedown", (e) => {
     if (document.pointerLockElement !== canvas) return;
-    if (e.button === 2) input.aim = true;
+    if (e.button === 2) input.aimHeld = true;
     if (e.button === 0) input.firing = true;
   });
   document.addEventListener("mouseup", (e) => {
-    if (e.button === 2) input.aim = false;
+    if (e.button === 2) input.aimHeld = false;
     if (e.button === 0) input.firing = false;
   });
   window.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -132,6 +141,8 @@ function blocked(x, y, z) {
 }
 
 export function stepPlayer(dt) {
+  // Derived, every step: held AND not mid-roll.
+  input.aim = input.aimHeld && player.dodgeT <= 0;
   const speed = (input.sprint && !input.aim ? PLAYER.sprintSpeed : PLAYER.walkSpeed)
     * player.speedMult;
 
@@ -159,9 +170,9 @@ export function stepPlayer(dt) {
       player.dodgeT = DODGE.time;
       player.iframes = DODGE.iframes;
       player.dodgeCd = DODGE.cooldown;
-      // D4: dodging drops you out of ADS. Rolling needs body awareness, which is exactly
-      // what first person takes away — so the two are mutually exclusive states.
-      input.aim = false;
+      // D4: dodging drops you out of ADS — but only for the duration of the roll. The
+      // physical button state is untouched, so holding RMB through a dodge resumes aiming
+      // the instant it ends.
     }
   }
 
@@ -196,15 +207,20 @@ export function stepPlayer(dt) {
     }
   }
 
+  // If we're ALREADY inside something — shoved into a sanctuary wall by knockback, or a
+  // grenade — every candidate position is blocked, including the one we're standing on, so
+  // both axes refuse and the player is welded in place. Detect that and let them walk out.
+  const stuck = blocked(player.x, player.y, player.z);
+
   // Axis-separated resolution: try each move independently so a blocked X still allows Z.
   const nx = player.x + player.vx * dt;
-  if (!blocked(nx, player.y, player.z)) player.x = nx; else player.vx = 0;
+  if (stuck || !blocked(nx, player.y, player.z)) player.x = nx; else player.vx = 0;
 
   const nz = player.z + player.vz * dt;
-  if (!blocked(player.x, player.y, nz)) player.z = nz; else player.vz = 0;
+  if (stuck || !blocked(player.x, player.y, nz)) player.z = nz; else player.vz = 0;
 
   const ny = player.y + player.vy * dt;
-  if (!blocked(player.x, ny, player.z)) {
+  if (stuck || !blocked(player.x, ny, player.z)) {
     player.y = ny;
     player.onGround = false;
   } else {
