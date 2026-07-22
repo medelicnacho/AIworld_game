@@ -396,7 +396,11 @@ export const MOB = {
   spawnMin: 22,
   spawnMax: 58,
   despawn: 105,
+  // Deeper rings repopulate faster as well as holding more: a camp you clear at tier 8
+  // is replaced almost at once, so the frontier never feels emptied.
   spawnInterval: 0.3,
+  spawnFasterPerTier: 0.12,   // interval x (1 - this)^tier, floored below
+  spawnIntervalMin: 0.06,
 };
 
 // D10 — the giant boss. ONE reusable rig, re-dressed per ring. Everything here is tuned

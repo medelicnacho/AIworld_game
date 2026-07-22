@@ -251,12 +251,22 @@ export function stepPlayer(dt) {
   // both axes refuse and the player is welded in place. Detect that and let them walk out.
   const stuck = blocked(player.x, player.y, player.z);
 
-  // Axis-separated resolution: try each move independently so a blocked X still allows Z.
-  const nx = player.x + player.vx * dt;
-  if (stuck || !blocked(nx, player.y, player.z)) player.x = nx; else player.vx = 0;
+  // SUBSTEPPED. Speed has no ceiling, so a single frame's movement can be many blocks; a
+  // one-shot test would sample the far side of a wall and find it clear, stepping straight
+  // through. Splitting the move into sub-block pieces makes the collision honest at any
+  // speed, which is what lets the stat stay unbounded.
+  const move = Math.hypot(player.vx * dt, player.vz * dt, player.vy * dt);
+  const steps = Math.min(16, Math.max(1, Math.ceil(move / 0.4)));
+  const sdt = dt / steps;
 
-  const nz = player.z + player.vz * dt;
-  if (stuck || !blocked(player.x, player.y, nz)) player.z = nz; else player.vz = 0;
+  for (let k = 0; k < steps; k++) {
+    // Axis-separated resolution: try each move independently so a blocked X still allows Z.
+    const nx = player.x + player.vx * sdt;
+    if (stuck || !blocked(nx, player.y, player.z)) player.x = nx; else player.vx = 0;
+
+    const nz = player.z + player.vz * sdt;
+    if (stuck || !blocked(player.x, player.y, nz)) player.z = nz; else player.vz = 0;
+  }
 
   const ny = player.y + player.vy * dt;
   if (stuck || !blocked(player.x, ny, player.z)) {

@@ -192,6 +192,8 @@ export class Mobs {
     return {
       alive: Math.min(MOB.maxAliveCap, MOB.maxAlive + MOB.maxAlivePerTier * tier),
       packs: Math.min(MOB.maxPacksCap, MOB.maxPacks + MOB.maxPacksPerTier * tier),
+      interval: Math.max(MOB.spawnIntervalMin,
+        MOB.spawnInterval * Math.pow(1 - MOB.spawnFasterPerTier, tier)),
     };
   }
 
@@ -348,6 +350,62 @@ export class Mobs {
     e.kT = MOB.knockTime;
   }
 
+  // --- the world verbs affixes call through ctx.mobs ---------------------------
+  // These are the whole reason affixes need a context at all. They were referenced by
+  // affixes.js before they existed here, which is why Dying Burst threw on the first kill
+  // and Burning silently did nothing at all.
+
+  /** Dying Burst: mark the ground, then detonate on it. */
+  queueBurst(x, z, dmg, radius, delay = 0.8) {
+    const b = this.bursts.find((o) => !o.active);
+    if (!b) return;
+    Object.assign(b, { active: true, x, z, dmg, r: radius, t: delay, delay });
+    b.mesh.position.set(x, groundY(x, z) + 0.06, z);
+    b.mesh.scale.setScalar(radius);
+    b.mesh.visible = true;
+  }
+
+  /**
+   * Burning: lay a patch of fire that hurts to stand in.
+   *
+   * Spacing is measured against THIS MOB'S last drop rather than against every patch on the
+   * map — a global test would mean two burners walking together laid one shared trail, and
+   * a burner circling you kept landing in its own fire and skipping.
+   */
+  dropFire(e, dps, radius, life) {
+    if (e.fireX !== undefined
+        && Math.hypot(e.fireX - e.x, e.fireZ - e.z) < radius * 0.5) return;
+    const f = this.fires.find((o) => !o.active);
+    if (!f) return;
+    e.fireX = e.x;
+    e.fireZ = e.z;
+    Object.assign(f, { active: true, x: e.x, z: e.z, dps, r: radius, t: life, life });
+    f.mesh.position.set(e.x, groundY(e.x, e.z) + 0.05, e.z);
+    f.mesh.scale.setScalar(radius);
+    f.mesh.visible = true;
+  }
+
+  /** Splitting: the kill is not the end. */
+  spawnSplit(parent, n) {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + this.rng();
+      // forceAffixes = [] means "roll nothing": a spawnling that could itself split would
+      // be an infinite fight, and one that could roll a star would lie about its size.
+      const e = this.spawnOne(parent.x + Math.cos(a) * 1.5, parent.z + Math.sin(a) * 1.5,
+                              parent.pack, parent.homeX, parent.homeZ, []);
+      e.elite = false;
+      e.caster = false;
+      e.flies = false;
+      e.scale = 0.62;
+      e.maxHp = e.hp = parent.maxHp * 0.16;
+      e.speed = parent.speed * 1.4;
+      e.damage = parent.damage * 0.55;
+      e.aggro = true;                    // they burst out of something you just killed
+      e.aggroT = MOB.loseInterest;
+      e.y = this.restY(e);
+    }
+  }
+
   hit(id, amount) {
     const e = world.entities.get(id);
     if (!e) return null;
@@ -411,7 +469,7 @@ export class Mobs {
     const cap = this.budget();
     this.spawnTimer -= dt;
     if (alive < cap.alive && this.packs.size < cap.packs && this.spawnTimer <= 0) {
-      this.spawnTimer = MOB.spawnInterval;
+      this.spawnTimer = cap.interval;
       this.spawnPack();
     }
 
