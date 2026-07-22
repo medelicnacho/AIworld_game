@@ -271,6 +271,100 @@ class MemoryStore:
         return mem
 
     # --- the living part ---------------------------------------------------
+    # --- the closed form: a shard asleep for Δt catches up in O(items) -----------------
+    # gameworld/PLAN.md §3 consequence 2 is the reason this exists: a settlement the player
+    # left 40,000 ticks ago must catch up in microseconds AND have genuinely aged, or the
+    # "leave and come back" promise is a lie. The plan states it as
+    # `salience = max(s · decay^Δt, floor)` -- which was exact when the floor was immovable,
+    # and is NOT exact now that forgiveness erodes it. Three phases, not one:
+    #
+    #   1 FALLING   salience decays exponentially, above the floor:  s₀·d^t
+    #   2 PINNED    salience has met the floor and tracks it DOWN linearly. Only while the
+    #               floor still falls slower than decay would: floor·(1−d) ≥ erosion.
+    #   3 UNPINNED  below floor = erosion/(1−d) the floor outruns decay, so salience comes
+    #               off it and decays exponentially again from that crossing point.
+    #
+    # Phase 3 is not hypothetical: at full warmth in a graced mind the crossing sits at
+    # floor 0.240, well above FORGET_THRESHOLD 0.08, so a wound spends real time there.
+    # Using the plan's one-liner would over-report salience for exactly those memories --
+    # the un-prunable ones -- which is the worst place to be wrong.
+
+    @staticmethod
+    def _advance(s: float, floor: float, decay: float, erosion: float, dt: int):
+        """(salience, floor) after dt ticks. Pure, exact, O(1). Mirrors tick()'s ORDER:
+        the floor erodes first, then salience = max(salience·decay, floor)."""
+        if dt <= 0:
+            return s, floor
+        if floor <= 0.0:                              # no floor: pure exponential decay
+            return s * decay ** dt, 0.0
+        if erosion <= 0.0:                            # immovable floor (forgiveness off)
+            return max(s * decay ** dt, floor), floor
+        end_floor = max(0.0, floor - erosion * dt)
+
+        # Salience is the MAX of two things: what decayed all the way from the start, and
+        # what the floor last pushed it up to at some tick k and then decayed from there.
+        #
+        #     s(t) = max( s0·d^t ,  max over k<=t of  F(k)·d^(t-k) )   with F(k)=floor-e·k
+        #
+        # Differentiating that inner term shows it peaks exactly where F(k) equals
+        # e/(1-d) -- the same critical floor at which erosion starts outrunning decay. So
+        # the best k has a closed form and needs no search at all.
+        #
+        # Two bisections were tried here first and BOTH were wrong, because the predicate
+        # they searched is not monotonic: it flips false->true when a memory starts below
+        # its floor (a floor raised by a retelling), and true->false->true again once the
+        # floor line reaches zero while salience is still positive. Errors of 7.2e-03 and
+        # 7.4e-04, in both cases reporting a pinned memory as freely falling. This form
+        # has no predicate to get wrong.
+        crit = erosion / (1.0 - decay) if decay < 1.0 else 0.0
+        # k starts at 1, never 0: tick() erodes the floor BEFORE comparing salience to it,
+        # so the earliest value a memory can be pinned at is F(1), not F(0). Allowing k=0
+        # let a one-tick advance return the pre-erosion floor -- 9.5e-04 too high.
+        # the peak k is continuous but the process pins at INTEGER ticks, so evaluate the
+        # two neighbouring ticks and take the better -- that is the exact discrete answer
+        # (continuous k alone left a 1.5e-06 residual).
+        k_star = min(float(dt), max(1.0, (floor - crit) / erosion))
+        from_floor = 0.0
+        for k in {max(1, int(k_star)), min(dt, int(k_star) + 1)}:
+            from_floor = max(from_floor,
+                             max(0.0, floor - erosion * k) * decay ** (dt - k))
+        return max(s * decay ** dt, from_floor, end_floor), end_floor
+
+    def fast_forward(self, dt: int, now: int) -> None:
+        """Advance this store by dt ticks WITHOUT ticking: exact on salience and floor,
+        distributional on mutation (a Binomial draw for how many happened). O(items),
+        independent of dt."""
+        if dt <= 0:
+            return
+        decay = 0.97 + 0.025 * self.effectiveness
+        forgive = getattr(self, "forgiveness", 0.0)
+        erosion = FLOOR_EROSION * (1.0 + FORGIVE_GAIN * max(0.0, min(1.0, forgive))) \
+            if forgive > 0.0 else 0.0
+        for m in self.items:
+            m.salience, m.salience_floor = self._advance(
+                m.salience, getattr(m, "salience_floor", 0.0), decay, erosion, dt)
+            # mutation is a per-tick Bernoulli over the ticks this memory was old enough
+            # for; the COUNT is what carries, the exact wording cannot (and a retelling
+            # that drifted differently is not a wrong town, just a different one)
+            eligible = max(0, dt - max(0, MUTATE_MIN_AGE - (now - m.last_touched_tick)))
+            hits = sum(1 for _ in range(eligible) if self._rng.random() < MUTATE_CHANCE) \
+                if eligible < 64 else int(self._rng.gauss(eligible * MUTATE_CHANCE,
+                                                          (eligible * MUTATE_CHANCE
+                                                           * (1 - MUTATE_CHANCE)) ** 0.5))
+            for _ in range(max(0, hits)):
+                before = m.text
+                m.text = self._mutate(m.text)
+                if m.text != before:
+                    m.mutation_count += 1
+        kept, floored = [], 0
+        for m in self.items:
+            if m.salience >= FORGET_THRESHOLD:
+                kept.append(m)
+                if getattr(m, "salience_floor", 0.0) > 0.0:
+                    floored += 1
+        self.items = kept
+        self._floored = floored
+
     def tick(self, now: int) -> list[str]:
         """Advance time: decay all, mutate some, forget the faded. Returns events."""
         events: list[str] = []

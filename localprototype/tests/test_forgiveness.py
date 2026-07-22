@@ -7,6 +7,8 @@ child, so grievances REPLICATE down the generations. Measured over 24k ticks: fl
 went from 0.4% of all memory to 57.6%, still climbing.
 """
 
+import pytest
+
 from agent.memory import FLOOR_EROSION, FORGET_THRESHOLD, MemoryStore
 
 
@@ -132,3 +134,89 @@ def test_the_cap_keeps_the_LOUDEST_wounds():
     kept = {m.text for m in child.memory.items
             if getattr(m, "salience_floor", 0.0) > 0.0}   # its own doctrine is unfloored
     assert kept == {"wound 1", "wound 3"}      # the 0.9 and the 0.8
+
+
+# --- the closed-form fast-forward (gameworld PLAN §3 consequence 2) ------------------
+# A settlement the player left 40,000 ticks ago must catch up in microseconds AND have
+# genuinely aged, or "the world lives while you're away" is a lie. The plan states it as
+# `salience = max(s · decay^Δt, floor)`, which was exact while the floor was immovable and
+# is NOT once forgiveness erodes it. These pin the replacement against literal ticking --
+# the only test that matters for a closed form is that it equals the thing it replaces.
+
+def _ticked(s, floor, decay, erosion, dt):
+    """The ground truth: what MemoryStore.tick() does to one memory, dt times."""
+    for _ in range(dt):
+        if erosion and floor > 0:
+            floor = max(0.0, floor - erosion)
+        s = max(s * decay, floor)
+    return s, floor
+
+
+@pytest.mark.parametrize("eff", (0.0, 0.5, 1.0))
+@pytest.mark.parametrize("warmth", (0.0, 0.25, 1.0))
+@pytest.mark.parametrize("dt", (1, 2, 50, 1000, 40000))
+def test_closed_form_equals_ticking(eff, warmth, dt):
+    from agent.memory import FLOOR_EROSION, FORGIVE_GAIN
+    decay = 0.97 + 0.025 * eff
+    erosion = FLOOR_EROSION * (1.0 + FORGIVE_GAIN * warmth) if warmth > 0 else 0.0
+    for s0 in (1.0, 0.6, 0.12, 0.02):
+        for f0 in (0.0, 0.05, 0.24, 0.5, 0.9):
+            got = MemoryStore._advance(s0, f0, decay, erosion, dt)
+            want = _ticked(s0, f0, decay, erosion, dt)
+            assert abs(got[0] - want[0]) < 1e-9, (s0, f0, dt, got, want)
+            assert abs(got[1] - want[1]) < 1e-9, (s0, f0, dt, got, want)
+
+
+def test_closed_form_handles_a_memory_starting_BELOW_its_floor():
+    """A floor RAISED by a retelling leaves salience under it -- the memory is pinned from
+    tick zero. Two bisection attempts both got this wrong (7.2e-03 and 7.4e-04 too low),
+    because the predicate they searched is not monotonic in that case."""
+    got = MemoryStore._advance(0.02, 0.05, 0.995, 0.0012, 1)
+    want = _ticked(0.02, 0.05, 0.995, 0.0012, 1)
+    assert abs(got[0] - want[0]) < 1e-9
+
+
+def test_fast_forward_matches_a_real_run_on_a_whole_store():
+    """End to end, mutation off so text is deterministic: a store fast-forwarded 5000
+    ticks must hold the same memories, at the same salience, as one that lived them."""
+    import agent.memory as mem
+    old_chance = mem.MUTATE_CHANCE
+    mem.MUTATE_CHANCE = 0.0
+    try:
+        def build():
+            m = MemoryStore(seed=3)
+            m.forgiveness = 0.5
+            for i, (txt, fl) in enumerate((("an ordinary day", 0.0),
+                                           ("they burned our granary", 0.5),
+                                           ("a quiet season", 0.0),
+                                           ("the old wound", 0.2))):
+                m.write(txt, tick=0, source="event", salience_floor=fl)
+            return m
+        lived, jumped = build(), build()
+        for t in range(1, 5001):
+            lived.tick(t)
+        jumped.fast_forward(5000, now=5000)
+        assert len(lived.items) == len(jumped.items)
+        for a, b in zip(sorted(lived.items, key=lambda x: x.text),
+                        sorted(jumped.items, key=lambda x: x.text)):
+            assert a.text == b.text
+            assert abs(a.salience - b.salience) < 1e-9
+            assert abs(a.salience_floor - b.salience_floor) < 1e-9
+        assert lived.holds_floored() == jumped.holds_floored()
+    finally:
+        mem.MUTATE_CHANCE = old_chance
+
+
+def test_fast_forward_is_independent_of_dt():
+    """O(items), not O(dt): the whole point. 40,000 ticks must cost what 10 does."""
+    import time
+    def cost(dt):
+        m = MemoryStore(seed=1)
+        for i in range(200):
+            m.write(f"memory {i}", tick=0, source="event",
+                    salience_floor=0.5 if i % 3 == 0 else 0.0)
+        t0 = time.perf_counter()
+        m.fast_forward(dt, now=dt)
+        return time.perf_counter() - t0
+    cost(10)                                    # warm
+    assert cost(40000) < cost(10) * 5 + 0.05    # generous: it must not scale with dt
