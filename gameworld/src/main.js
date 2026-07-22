@@ -12,6 +12,7 @@ import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
 import { Villagers } from "./town/villagers.js";
 import { Shop } from "./ui/shop.js";
+import { ICONS } from "./ui/icons.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt } from "./world/gen.js";
@@ -168,16 +169,16 @@ function dashStrike() {
 // They read the same way but are never confusable with stock you can buy.
 const GENERAL = [
   {
-    key: "E", name: "Firebomb",
+    key: "E", name: "Firebomb", icon: "octagon",
     cooldown: () => grenades.cooldown, ready: () => grenades.ready,
     charges: () => grenades.count,
   },
   {
-    key: "Q", name: "Heal",
+    key: "Q", name: "Heal", icon: "plus",
     cooldown: () => heal.cooldown, ready: () => heal.cooldown <= 0 && !heal.casting,
   },
   {
-    key: "C", name: "Potion",
+    key: "C", name: "Potion", icon: "flask",
     cooldown: () => player.potionCd,
     ready: () => player.potionCd <= 0 && player.potions > 0,
     charges: () => player.potions,
@@ -187,7 +188,8 @@ const GENERAL = [
 const slotHtml = (key) => `
   <div class="slot">
     <span class="k">${key}</span>
-    <span class="n"></span><span class="ch"></span><span class="cool"></span>
+    <span class="ic"></span><span class="n"></span>
+    <span class="ch"></span><span class="cool"></span>
   </div>`;
 
 const barEl = document.getElementById("bar");
@@ -530,6 +532,13 @@ function frame(now) {
   const paint = (el, def, left, ready) => {
     el.classList.toggle("up", !!def && ready);
     el.classList.toggle("empty", !def);
+    // Icons are static per slot — only rewrite the SVG when the slot's contents change,
+    // rather than reparsing markup 60 times a second for a picture that never moves.
+    const icon = def?.icon || "";
+    if (el.dataset.icon !== icon) {
+      el.dataset.icon = icon;
+      el.querySelector(".ic").innerHTML = ICONS[icon] || "";
+    }
     el.querySelector(".n").textContent = def?.name || "";
     el.querySelector(".ch").textContent = def?.charges ? "●".repeat(def.charges()) : "";
     el.title = def?.desc || "empty";

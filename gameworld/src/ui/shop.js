@@ -40,6 +40,7 @@ export const GOODS = {
       apply: (game) => game.abilities.equip(-1, {
         id: "firering",
         name: "Ring of Fire",
+        icon: "burst",
         desc: "A wall of flame erupts around you.",
         cd: FIRERING.cd,
         use: () => game.fireRing(),
@@ -51,6 +52,7 @@ export const GOODS = {
       apply: (game) => game.abilities.equip(-1, {
         id: "dash",
         name: "Dash Strike",
+        icon: "arrow",
         desc: "Blink forward, untouchable, cutting through whatever you pass.",
         cd: DASH.cd,
         use: () => game.dashStrike(),
