@@ -353,6 +353,8 @@ function frame(now) {
   // Regeneration needs BOTH: you've stopped fighting, and nothing is still hunting you.
   // Being chased is combat even if neither side has landed a hit yet — otherwise you could
   // regen while kiting a pack, which is the exact situation it should not rescue.
+  music.setPlace(inSafe ? "town" : "world");
+
   if (combatT > 0) combatT -= dt;
   hunted = mobs.anyHunting() || (boss.active
     && Math.hypot(boss.alive.x - player.x, boss.alive.z - player.z) < BOSS.aggroRange);
