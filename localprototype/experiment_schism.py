@@ -1,4 +1,26 @@
-"""THE SCHISM WALK FALSIFIER -- clean room, pre-registered, seeded.
+"""
+!!! BOTH VERDICTS BELOW ARE VOID -- THE HARNESS WAS BROKEN TWICE OVER. !!!
+
+1. NONDETERMINISM. World defaults move_seed=None -> random.Random(None) -> the movement
+   RNG is seeded from OS ENTROPY. Every run in this file was built as
+   World(rebirth_enabled=False, events_enabled=False) with no move_seed, so the same
+   "seed" produced a different world every time: three identical calls gave 60 / 56 / 46
+   souls alive. Every per-seed on-vs-off comparison here is therefore a comparison of two
+   DIFFERENT worlds, and the pass/fail counts measure run-to-run noise as much as any
+   mechanism. Fixed below (move_seed=seed); the recorded numbers are NOT re-run.
+
+2. NO OPINION DYNAMICS. w.step(speak=False) makes ZERO hear() calls -- measured: 300
+   ticks, 0 hear(), 0 _bounded_confidence(). The live arena speaks through a separate
+   speak_turn() thread, which nothing here calls. So beliefs never assimilated, never
+   repelled, never individuated; they changed ONLY by inheritance-with-noise at birth.
+   Every mechanism tested here reads belief, and none of them was tested against a
+   living opinion landscape. Headless-with-speak=False is NOT the arena.
+
+What still stands: the DIAGNOSTIC measurements (taken on saved snapshots, not on these
+runs) -- the +0.043 in-clump agreement, the 0.37x escape ratio, the affinity decomposition,
+the bimodal belief histogram. Those were reads of a real running town and are unaffected.
+
+THE SCHISM WALK FALSIFIER -- clean room, pre-registered, seeded.
 
 The first two reads were both confounded: one ran a FRESH world too short (700 ticks, where
 settlements are still like-minded at +0.690 and the mechanic correctly does nothing), the
@@ -71,7 +93,11 @@ def _clumps(ags):
 
 def run(schism, seed):
     rng = random.Random(seed)
-    w = World(rebirth_enabled=False, events_enabled=False)
+    # move_seed is LOAD-BEARING: World defaults it to None -> random.Random(None)
+    # -> the movement RNG is seeded from OS entropy and the whole run is
+    # NONDETERMINISTIC. Both of this file's earlier verdicts were produced without
+    # it; re-running the same seed gave 60 / 56 / 46 alive. See the banner above.
+    w = World(rebirth_enabled=False, events_enabled=False, move_seed=seed)
     w.llm = MockLLM(seed=seed)
     _gates(w, FOUNDERS)
     w.schism_walk = schism
