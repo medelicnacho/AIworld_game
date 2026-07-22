@@ -247,6 +247,21 @@ export const VILLAGE = {
   potionCd: 40,          // long: a potion is an emergency, not a rotation
 };
 
+// Gate turrets: the walls defend themselves a little way out, so stepping through the
+// gateway is not instantly fatal when a camp has wandered up to it.
+export const TURRET = {
+  count: 2,             // flanking the gate
+  offset: 5.5,          // to each side of the gate centre
+  range: 34,
+  fireRate: 1.6,        // shots a second
+  damage: 60,
+  damagePerTier: 0.9,   // keeps up with mob HP, which compounds
+  height: 4.2,
+  // Inside this radius of a turret you earn NOTHING. Otherwise the correct way to play is
+  // to stand behind the guns and let the town farm the frontier for you.
+  deadZone: 40,
+};
+
 export const LOOT = {
   base: 4,
   perTier: 2.5,
