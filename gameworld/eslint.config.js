@@ -9,10 +9,11 @@ export default [
       globals: {
         window: "readonly", document: "readonly", performance: "readonly",
         requestAnimationFrame: "readonly", console: "readonly", localStorage: "readonly",
-        Audio: "readonly", setInterval: "readonly", clearInterval: "readonly",
+        setInterval: "readonly", clearInterval: "readonly",
         setTimeout: "readonly", clearTimeout: "readonly", addEventListener: "readonly",
         innerWidth: "readonly", innerHeight: "readonly", devicePixelRatio: "readonly",
         navigator: "readonly", fetch: "readonly", Worker: "readonly", URL: "readonly",
+        EventSource: "readonly", AudioContext: "readonly", Audio: "readonly",
       },
     },
     rules: {

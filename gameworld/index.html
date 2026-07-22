@@ -23,6 +23,12 @@
         width: 180px; height: 180px;
         filter: drop-shadow(0 2px 6px #0008);
       }
+      #subtitle {
+        position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%);
+        max-width: 60%; text-align: center; opacity: 0;
+        font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; color: #eaf2ff;
+        text-shadow: 0 2px 8px #000c; transition: opacity .25s;
+      }
       #hurt {
         position: absolute; inset: 0; opacity: 0;
         background: radial-gradient(ellipse at center, #d0202000 45%, #e02a2acc 100%);
@@ -41,8 +47,9 @@
       <div id="stats"></div>
       <div id="crosshair"></div>
       <div id="hurt"></div>
+      <div id="subtitle"></div>
       <canvas id="minimap" width="180" height="180"></canvas>
-      <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; B summon boss &nbsp; E grenade &nbsp; Q heal</div>
+      <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; B summon boss &nbsp; G speak &nbsp; E grenade &nbsp; Q heal</div>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

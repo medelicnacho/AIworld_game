@@ -56,6 +56,7 @@ export function attachInput(canvas, hooks = {}) {
     if (e.code === "KeyE" && !e.repeat) input.throwQueued = true;
     if (e.code === "KeyQ" && !e.repeat) input.healQueued = true;
     if (e.code === "KeyB" && !e.repeat) hooks.summonBoss?.();   // dev: don't wander to test
+    if (e.code === "KeyG" && !e.repeat) hooks.bridgeTest?.();   // dev: speak a line
 
     // Double-tap a movement key to roll that way. Timestamps are per-key, so tapping
     // W then D reads as two separate first-taps rather than a double-tap.

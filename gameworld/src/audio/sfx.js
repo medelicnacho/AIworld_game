@@ -332,6 +332,32 @@ export class Sfx {
     o.start(t); o.stop(t + 0.22);
   }
 
+  /**
+   * Play a wav that arrived from the bridge (speech), positioned in the world.
+   *
+   * decodeAudioData is asynchronous and decodes off the main thread, which is why speech
+   * can arrive mid-fight without costing frame time — the thing Stage 1's gate checks.
+   * @returns {Promise<number>} duration in seconds, or 0 if it couldn't be played.
+   */
+  async playClip(arrayBuffer, x, z, volume = 1) {
+    if (!this.on || !arrayBuffer) return 0;
+    let buf;
+    try {
+      buf = await this.ctx.decodeAudioData(arrayBuffer.slice(0));
+    } catch {
+      return 0;
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const { input, gain } = this.place(x, z, 200);
+    const g = this.ctx.createGain();
+    g.gain.value = (gain ?? 1) * volume;
+    src.connect(g);
+    g.connect(input);
+    src.start();
+    return buf.duration;
+  }
+
   /** Grenade throw. */
   whoosh() {
     if (!this.on) return;

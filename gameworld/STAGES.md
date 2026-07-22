@@ -68,24 +68,50 @@ measured once the bridge exists, so it moves to Stage 1's gate.
 
 ---
 
-## Stage 1 — the bridge ⏱ ~3–4 days *(replaces PLAN M2's ordering)*
+## Stage 1 — the bridge ✅ **DONE** (2026-07-22) *(replaces PLAN M2's ordering)*
 
 **Goal:** the browser can see and talk to the Python lab over localhost.
 
 Keep the lab **dependency-free** (stdlib only, per its posture): SSE for the server→browser
 stream, plain POST for browser→server. No websocket library, no FastAPI.
 
-- [ ] `localprototype/bridge.py` — stdlib `http.server`, threaded, CORS for `localhost:5173`
-- [ ] `GET /health` → `{ok, model, voices, world: null}`
-- [ ] `GET /stream` → SSE, ~10 Hz: `{tick, souls:[{id,name,x,z,mood,speaking}], events:[…]}`
-- [ ] `POST /say {text}` → `world.inject_user(text)`
-- [ ] `POST /speak {text, voice}` → wav bytes (or an id + `GET /audio/<id>.wav`)
-- [ ] Browser `src/net/bridge.js` — reconnecting SSE client, POST helpers, **offline-safe**:
-      if the bridge is down the game must run exactly as it does today
-- [ ] HUD indicator: bridge connected / offline
+- [x] `localprototype/bridge.py` — stdlib `http.server`, threaded, CORS for `localhost:5173`
+- [x] `GET /health` → `{ok, model, llm, tts, voices, world, uptime}`
+- [x] `GET /stream` → SSE @10Hz: `{tick, t, souls:[], events:[]}` (souls arrive Stage 3)
+- [x] `POST /say {text}` → recorded as an event; becomes `world.inject_user()` at Stage 3
+- [x] `POST /speak {text, voice}` → wav bytes
+- [x] `POST /line {prompt, words}` → `{text, audio, ms}` + `GET /audio/<id>.wav`
+- [x] Browser `src/net/bridge.js` — SSE with owned reconnect/backoff, POST helpers, every
+      call failing **soft** (returns null, never throws into the frame loop)
+- [x] `sfx.playClip()` — decodes bridge wavs off-thread, positioned in the world
+- [x] HUD indicator + on-screen subtitles; **G** speaks a line about where you're standing
 
-**Gate:** kill the Python process mid-game and the game keeps running, no errors, no hitches.
-Restart it and the connection recovers on its own.
+### Verdict: PASS
+
+    /health          200, llm+tts ready
+    /line (warm)     ~1.07s end to end   (llm ~900ms · tts ~150ms)
+    /line (cold)     ~2.4s               (first synth loads the voice model)
+    /audio           200, 132KB wav
+    /stream          10Hz SSE, clean disconnect handling
+
+**The gate, run properly:** killed the Python process mid-session — the game kept serving
+and logged **zero client errors**; restarted it — `/health` 200 and generation working
+again. The client owns its own reconnect with backoff (1→15s) rather than letting
+`EventSource` retry blindly, because *not running the bridge is a supported way to play*
+and a missing bridge must stay quiet in the console.
+
+**Two things Stage 0 handed forward, both confirmed here:**
+- warm TTS is ~150ms, so keeping voice models loaded (one `PiperTTS` instance) matters —
+  the cold call is 8× slower
+- no streaming was built, and at ~1.07s warm it isn't missed
+
+**Enforced server-side, not trusted to the prompt:** a hard word cap trims every line to one
+sentence (asked for 60 words, got 34 + an ellipsis). Stage 0 found length mattered more than
+latency; a small model will run long whenever it feels like it.
+
+**Still not verified:** whether audio decode hitches the frame *in the browser*. `playClip`
+uses async `decodeAudioData`, which decodes off-thread by design, but that is an argument,
+not a measurement — it needs a human with the tab open pressing **G** during a fight.
 
 ---
 

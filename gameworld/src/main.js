@@ -20,6 +20,7 @@ import { sfx } from "./audio/sfx.js";
 import { Grenades } from "./player/grenade.js";
 import { Heal } from "./player/heal.js";
 import { Minimap } from "./ui/minimap.js";
+import { Bridge } from "./net/bridge.js";
 import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel } from "./prog/xp.js";
 import { mulberry32 } from "./rng.js";
 
@@ -60,10 +61,30 @@ const boss = new Boss(scene);
 const grenades = new Grenades(scene);
 const heal = new Heal(scene);
 const minimap = new Minimap(document.getElementById("minimap"));
+
+// The bridge to the Python lab. Optional by construction: if it never connects, nothing
+// below notices (STAGES Stage 1). Speech is fire-and-forget — a pending request must never
+// hold up a frame, so nothing here is awaited from the loop.
+const bridge = new Bridge();
+bridge.connect();
+let subtitle = "", subtitleT = 0, speaking = false;
+
+async function speakLine(prompt, words = 16) {
+  if (speaking || bridge.state !== "online") return;
+  speaking = true;
+  const res = await bridge.line(prompt, { words });
+  speaking = false;
+  if (!res) return;
+  subtitle = res.text;
+  subtitleT = 4 + res.text.length * 0.05;
+  const dur = await sfx.playClip(res.audio, player.x, player.z);
+  if (dur) subtitleT = Math.max(subtitleT, dur + 0.6);
+}
 const shakeRng = mulberry32(0x51AE);
 let bossTimer = 6;
 
 const hurtEl = document.getElementById("hurt");
+const subEl = document.getElementById("subtitle");
 let hurtT = 0, killFeed = "";
 
 function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
@@ -143,6 +164,10 @@ attachInput(renderer.domElement, {
   toggleCamera: () => rig.toggle(),
   toggleMusic: () => music.toggle(),
   reload: () => gun.reload(),
+  bridgeTest: () => {
+    const ring = RINGS[ringAt(player.x, player.z)].name;
+    speakLine(`You walk beside a traveller in ${ring}, ${Math.round(Math.hypot(player.x, player.z))} metres from where they began. Murmur one short thought about this place.`);
+  },
   summonBoss: () => {
     if (boss.active) { boss.despawn(); killFeed = "boss dismissed"; return; }
     const a = shakeRng() * Math.PI * 2;
@@ -236,6 +261,14 @@ function frame(now) {
 
   minimap.draw(dt, mobs, boss);
 
+  if (subtitleT > 0) {
+    subtitleT -= dt;
+    subEl.textContent = subtitle;
+    subEl.style.opacity = String(Math.min(1, subtitleT));
+  } else if (subEl.style.opacity !== "0") {
+    subEl.style.opacity = "0";
+  }
+
   if (hurtT > 0) {
     hurtT -= dt;
     hurtEl.style.opacity = String(Math.max(0, hurtT / 0.35) * 0.55);
@@ -277,6 +310,7 @@ function frame(now) {
     `${grenades.cooldown > 0 ? "  (cd)" : ""}   E throw\n` +
     `gun  ${gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
+    `${bridge.label}${speaking ? "  ·  thinking…" : ""}\n` +
     `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ` +
     `jumps ${"◆".repeat(player.jumpsLeft)}${"◇".repeat(Math.max(0, player.maxJumps - player.jumpsLeft))}`;
 
