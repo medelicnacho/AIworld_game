@@ -131,7 +131,15 @@ export const MOB = {
   hp: 30,
   damage: 8,
   speed: 3.1,
-  aggroRange: 42,
+  // They live their own lives until you give them a reason. Notice range is SHORT, and the
+  // leash is measured from HOME, not from you — mirroring how the lab's souls are held by
+  // their own place and people rather than by the player (world/sim.py _drift_positions).
+  noticeRange: 20,
+  leashRange: 62,         // drag them this far from home and they give up and go back
+  loseInterest: 7.0,      // seconds out of contact before disengaging
+  alertRadius: 15,        // hurt one and its pack hears about it
+  homeWander: 8,          // how far they mill around their camp when idle
+  homePull: 1.1,
   attackRange: 2.4,
   attackCd: 1.15,
   lungeTime: 0.28,
@@ -155,12 +163,39 @@ export const MOB = {
   eliteDamage: 1.5,
   eliteScale: 1.55,
 
+  // --- steering: emergent movement, no substrate required -------------------------
+  // The brain decides INTENT (close, hold, lunge); these decide HOW the body gets there.
+  // Same seam as PLAN §4 — a mob brain and a soul brain will drive the same locomotion.
+  neighborRadius: 10,     // who counts as "nearby" for flocking
+  separation: 2.8,        // below this they actively push apart — no stacking, ever
+  sepForce: 3.4,
+  alignForce: 1.0,        // match your neighbours' heading: a pack moves as one body
+  cohesionForce: 0.45,    // stragglers rejoin rather than trickling in alone
+  // ENCIRCLEMENT: they steer to a slot on a ring around you, not to your feet. This is
+  // what makes a group spread out and surround instead of forming a queue.
+  ringRadius: 6.0,
+  ringForce: 2.4,
+  slotSpread: 2.4,        // radians of arc a pack fans across
+  // COURAGE FROM NUMBERS: alone they circle at range; in a pack they commit. Emergent
+  // "they gather, then they come" — nothing scripts the wave.
+  packCourage: 3,
+  timidStandoff: 11.0,
+  // One mob committing makes its neighbours more likely to follow within the second.
+  contagion: 0.45,
+  maxClimb: 1.15,         // blocks it can step up; steeper terrain must be walked around
+  avoidArc: 1.05,         // radians it will veer to find a walkable line
+
   // Population around the player. Cost is bounded by COUNT, not by world size.
-  maxAlive: 14,
-  spawnMin: 28,
-  spawnMax: 52,
-  despawn: 95,
-  spawnInterval: 1.1,
+  // Packs, not scattered individuals: a camp of 3-6 that mills, flocks, and BREEDS.
+  maxAlive: 20,
+  maxPacks: 3,
+  packSize: [3, 6],
+  packCap: 9,             // a camp can grow this large before it stops breeding
+  breedEvery: [55, 120],  // seconds between a mob's offspring (idle only, never mid-fight)
+  spawnMin: 34,
+  spawnMax: 62,
+  despawn: 105,
+  spawnInterval: 2.5,
 };
 
 // D10 — the giant boss. ONE reusable rig, re-dressed per ring. Everything here is tuned

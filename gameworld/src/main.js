@@ -301,7 +301,7 @@ function frame(now) {
     `    ${"▮".repeat(Math.round(levelProgress() * 12))}` +
     `${"▯".repeat(12 - Math.round(levelProgress() * 12))} ${player.xp}/${xpToNext(player.level)}xp\n` +
     `hp   ${"█".repeat(Math.max(0, Math.round(player.hp / 10)))}${"░".repeat(Math.max(0, 10 - Math.round(player.hp / 10)))} ` +
-    `${Math.max(0, Math.round(player.hp))}   kills ${mobs.killed}  ${killFeed}\n` +
+    `${Math.max(0, Math.round(player.hp))}   kills ${mobs.killed}  born ${mobs.born}  packs ${mobs.packs.size}  ${killFeed}\n` +
     `heal ${heal.casting
       ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL`
       : heal.cooldown > 0 ? `ready in ${Math.ceil(heal.cooldown)}s` : "ready  Q"}` +
