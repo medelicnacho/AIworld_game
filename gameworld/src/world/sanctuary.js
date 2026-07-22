@@ -17,13 +17,21 @@ import { WORLD_SEED } from "../config.js";
 import { rand2, mulberry32 } from "../rng.js";
 import { groundY } from "./gen.js";
 
-export const CELL = 460;          // one candidate sanctuary per cell of this size
+export const CELL = 620;          // one candidate sanctuary per cell of this size
 export const CHANCE = 0.62;       // ...but not every cell has one
-export const RADIUS = 16;
-export const WALL_T = 1.6;        // wall thickness
-export const WALL_H = 3.6;
-export const GATE_ARC = 0.42;     // radians of opening — wide enough to run through
-const KEEP = 3;                   // cells around the player kept built
+export const RADIUS = 46;         // a town you walk around inside, not a pen
+export const WALL_T = 1.7;        // wall thickness
+export const WALL_H = 10;         // far above any jump height, at any level
+export const GATE_WIDTH = 9;      // the opening, in WORLD UNITS — see gateArc()
+const SEG_W = 1.5;                // width of one wall block
+const KEEP = 2;                   // cells around the player kept built
+
+/**
+ * The gate as an ANGLE, derived from a fixed width. Specifying the arc directly meant the
+ * opening grew with the town — at r=46 the old 0.42rad would have been a 19-unit hole in
+ * the wall. A gateway should be a doorway at any size.
+ */
+export const gateArc = (r) => GATE_WIDTH / r;
 
 /** The sanctuary for a grid cell, or null. Deterministic. */
 export function sanctuaryAt(cx, cz) {
@@ -73,7 +81,7 @@ export function wallBlocks(x, z) {
   for (const s of sanctuariesNear(x, z, CELL)) {
     const d = Math.hypot(x - s.x, z - s.z);
     if (d < s.r - WALL_T || d > s.r + WALL_T) continue;
-    if (angDiff(Math.atan2(z - s.z, x - s.x), s.gate) < GATE_ARC) continue;   // the gate
+    if (angDiff(Math.atan2(z - s.z, x - s.x), s.gate) < gateArc(s.r)) continue;   // the gate
     return true;
   }
   return false;
@@ -87,7 +95,7 @@ export class Sanctuaries {
   constructor(scene) {
     this.scene = scene;
     this.built = new Map();     // id -> {group, folk:[{mesh, ang, r, spd}]}
-    this.wallGeo = new THREE.BoxGeometry(1.5, WALL_H, WALL_T * 2);
+    this.wallGeo = new THREE.BoxGeometry(SEG_W, WALL_H, WALL_T * 2);
     this.wallMat = new THREE.MeshLambertMaterial({ color: 0x9aa7b4 });
     this.rng = mulberry32(0x5A17);
   }
@@ -95,19 +103,23 @@ export class Sanctuaries {
   build(s) {
     const group = new THREE.Group();
 
-    // The ring, snapped to the ground it stands on, with the gate left open.
-    const segs = 46;
+    // Segment count from the CIRCUMFERENCE, not a fixed number: at a fixed 46 the blocks
+    // stood 2.2 apart while being 1.5 wide, so the ring had gaps you could see through —
+    // and they would have become doorways at this size. Slight overlap instead.
+    const segs = Math.ceil((Math.PI * 2 * s.r) / (SEG_W * 0.9));
     const wall = new THREE.InstancedMesh(this.wallGeo, this.wallMat, segs);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
     const pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
     let n = 0;
     for (let i = 0; i < segs; i++) {
       const a = (i / segs) * Math.PI * 2;
-      if (angDiff(a, s.gate) < GATE_ARC) continue;
+      if (angDiff(a, s.gate) < gateArc(s.r)) continue;
       const wx = s.x + Math.cos(a) * s.r;
       const wz = s.z + Math.sin(a) * s.r;
       q.setFromAxisAngle(up, -a);
-      m.compose(pos.set(wx, groundY(wx, wz) - 0.4, wz), q, one);
+      // BoxGeometry is centred, so the box must be raised by half its height or the wall
+      // sinks into the ground — which is why it read as knee-high before.
+      m.compose(pos.set(wx, groundY(wx, wz) + WALL_H / 2 - 0.6, wz), q, one);
       wall.setMatrixAt(n++, m);
     }
     wall.count = n;

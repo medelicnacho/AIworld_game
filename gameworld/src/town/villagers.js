@@ -59,8 +59,8 @@ export class Villagers {
       folk.push({
         role: ROLES[ri], ri, s,
         ang: rng() * Math.PI * 2,
-        rad: 3 + rng() * (s.r - 7),
-        spd: (rng() < 0.5 ? -1 : 1) * (0.04 + rng() * 0.1),
+        rad: 4 + rng() * (s.r - 10),
+        spd: (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.05),   // slower: a bigger circuit
         bob: rng() * Math.PI * 2,
         x: s.x, z: s.z, y: 0,
       });

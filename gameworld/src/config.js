@@ -127,9 +127,9 @@ export const GRENADE = {
 // Villagers, and the little economy that gives a sanctuary a point. Gold comes off the
 // frontier; it is only worth anything where someone will take it.
 export const VILLAGE = {
-  perSanctuary: 5,
-  maxRendered: 64,
-  keepRange: 420,
+  perSanctuary: 14,
+  maxRendered: 180,
+  keepRange: 620,
   talkRange: 3.6,
   smithBonus: 0.08,       // permanent, stacking damage from the smith
   potionHeal: 60,
