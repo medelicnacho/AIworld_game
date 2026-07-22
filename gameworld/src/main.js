@@ -106,6 +106,7 @@ barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => `
     <span class="n"></span><span class="ch"></span><span class="cool"></span>
   </div>`).join("");
 const barSlots = [...barEl.querySelectorAll(".slot")];
+const pointsEl = document.getElementById("points");
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
 const folk = new Folk(scene);
@@ -165,7 +166,7 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
 const hurtPlayer = (mob) => damagePlayer(mob.damage, mob.x, mob.z);
 
 function reward(res) {
-  player.gold += Math.round((LOOT.goldBase + LOOT.goldPerTier * res.ring)
+  player.points += Math.round((LOOT.base + LOOT.perTier * res.ring)
     * (res.elite ? LOOT.eliteMult : 1));
   const xp = killValue(res.ring, res.elite);
   const lv = award(xp);
@@ -174,7 +175,7 @@ function reward(res) {
 }
 
 function rewardBoss(ring) {
-  player.gold += Math.round((LOOT.goldBase + LOOT.goldPerTier * ring) * LOOT.bossMult);
+  player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult);
   const xp = bossValue(ring);
   const lv = award(xp);
   killFeed = `◆ BOSS DOWN ◆  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
@@ -422,6 +423,7 @@ function frame(now) {
     if (fireT <= 0) { fireRingMesh.visible = false; fireLight.intensity = 0; }
   }
 
+  pointsEl.innerHTML = `${player.points} <small>POINTS</small>`;
   barSlots.forEach((el, i) => {
     const a = abilities.slots[i];
     const left = abilities.cooldownOf(i);
@@ -543,7 +545,7 @@ function frame(now) {
     `${heal.lastResult ? `   ${heal.lastResult}` : ""}\n` +
     `nade ${"●".repeat(grenades.count)}${"○".repeat(Math.max(0, GRENADE.max - grenades.count))}` +
     `${grenades.cooldown > 0 ? "  (cd)" : ""}   E throw\n` +
-    `gold ${player.gold}   potions ${player.potions}${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
+    `potions ${player.potions}${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
 
     `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +

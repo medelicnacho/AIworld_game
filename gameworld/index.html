@@ -53,6 +53,10 @@
       #shop .empty { padding: 18px 14px; color: #93a6c0; margin: 0; }
       #shop footer { padding: 9px 14px; background: #161d2b; color: #8fa3bf; font-size: 12px; }
       body.shopping #click { display: none; }
+      #points { position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%);
+        font: 600 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #ffd45e;
+        text-shadow: 0 2px 6px #000b; letter-spacing: .06em; }
+      #points small { color: #b9c6da; font-weight: 400; font-size: 10px; letter-spacing: .12em; }
       #bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
         display: flex; gap: 8px; }
       #bar .slot { position: relative; width: 62px; height: 62px; border-radius: 8px;
@@ -89,6 +93,7 @@
       <div id="crosshair"></div>
       <div id="hurt"></div>
       <div id="subtitle"></div>
+      <div id="points"></div>
       <div id="bar"></div>
       <canvas id="minimap" width="180" height="180"></canvas>
       <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; B summon boss &nbsp; G speak &nbsp; F trade &nbsp; C potion &nbsp; E firebomb &nbsp; Q heal &nbsp; C potion &nbsp; 1-4 items</div>

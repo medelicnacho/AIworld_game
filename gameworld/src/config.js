@@ -164,8 +164,8 @@ export const VILLAGE = {
 };
 
 export const LOOT = {
-  goldBase: 4,
-  goldPerTier: 2.5,
+  base: 4,
+  perTier: 2.5,
   eliteMult: 4,
   bossMult: 45,
 };

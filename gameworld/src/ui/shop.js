@@ -105,10 +105,10 @@ export class Shop {
     const good = goods.find((g) => g.id === id);
     if (!good) return;
     const price = priceOf(good);
-    if (player.gold < price) { this.flash = "not enough gold"; this.render(); return; }
-    player.gold -= price;
+    if (player.points < price) { this.flash = "not enough points"; this.render(); return; }
+    player.points -= price;
     if (good.apply(this.game) === false) {   // no free slot, nothing bought
-      player.gold += price;
+      player.points += price;
       this.flash = "no free ability slot";
       this.render();
       return;
@@ -127,7 +127,7 @@ export class Shop {
     const rows = goods.length ? goods.map((g) => {
       const price = priceOf(g);
       const owned = player.upgrades?.[g.id] || 0;
-      const afford = player.gold >= price;
+      const afford = player.points >= price;
       if (g.once && owned) return `
         <button class="item poor" disabled>
           <span class="nm">${g.name} <em>owned</em></span>
@@ -137,7 +137,7 @@ export class Shop {
         <button class="item${afford ? "" : " poor"}" data-buy="${g.id}">
           <span class="nm">${g.name}${owned ? ` <em>×${owned}</em>` : ""}</span>
           <span class="ds">${g.desc}</span>
-          <span class="pr">${price}g</span>
+          <span class="pr">${price}</span>
         </button>`;
     }).join("") : `<p class="empty">Nothing for sale. Try the herbalist or the smith.</p>`;
 
@@ -145,7 +145,7 @@ export class Shop {
       <div class="panel">
         <header>
           <h2>${this.vendor.role.name}</h2>
-          <span class="gold">${player.gold}g</span>
+          <span class="gold">${player.points} pts</span>
           <button class="x" data-close>✕</button>
         </header>
         <div class="items">${rows}</div>
