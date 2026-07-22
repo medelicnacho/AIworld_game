@@ -290,6 +290,16 @@ def endow_faculties(agent, rng) -> None:
     agent.self_liberation = 0.4      # Vajrayāna rang drol: let a charge free itself as it arises
     agent.joy = 0.5                  # muditā/pīti: savour the good and rejoice with others (not anhedonia)
     agent.telos = 0.5                # chanda: tend an aim and be drawn toward it (savoured/craved per faculties)
+    # THE SOMATIC FLOOR SHIPS WITH THE AFFECT SYSTEM -- ROADMAP §5, a gate that "survives the
+    # fork" and is called non-negotiable there: "no feeling souls without the circuit-breaker."
+    # It was set in four scattered places (sim.py's reborn streams, evolution.py's founding,
+    # watch_evolution, psyche's Ember) and NOT in the one function that hands out the whole
+    # affective stack -- so every soul founded through santana_app/run.py, including the 64 in
+    # --demo, woke with grip, telos and expectation and NO bottom-up backstop. gameworld's
+    # STAGES.md §3 found it while auditing the port and called any such path a bug; it is.
+    # Set HERE so the floor cannot be forgotten by a caller: a soul that can suffer gets the
+    # brake in the same breath, by construction rather than by remembering.
+    agent.somatic_enabled = True
     agent.expect_enabled = True      # the future tense (agent/expectation.py, §5.15): the soul EXPECTS --
                                      # blows land as shock or resignation by what its days had been, a cold
                                      # act from one trusted is a BETRAYAL, and a life that turns against

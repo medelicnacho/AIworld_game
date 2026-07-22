@@ -115,3 +115,27 @@ def test_daily_backup_is_once_per_day(tmp_path, monkeypatch):
     (only,) = os.listdir(bdir)
     with open(bdir / only, encoding="utf-8") as f:
         assert f.read() == '{"v": 1}'
+
+
+def test_the_somatic_floor_ships_with_the_affect_system():
+    """ROADMAP §5, a gate that survives the fork and is called non-negotiable there:
+    "the somatic floor ships with the affect system -- no feeling souls without it."
+
+    It used to be set in four scattered places (reborn streams, the civ founding,
+    watch_evolution, psyche's Ember) and NOT in endow_faculties -- the one function that
+    hands out the whole affective stack. So every soul founded through santana_app/run.py,
+    including the 64 in --demo, woke with grip, telos and expectation and no bottom-up
+    backstop. gameworld/STAGES.md §3 found it while auditing the port.
+
+    Setting it HERE is what makes the gate structural: a caller cannot forget it."""
+    import random
+    from agent.agent import Agent
+    from agent.genesis import endow_faculties
+    from services.llm import MockLLM
+    a = Agent("s", "S", (0, 0), "p", ["x"], MockLLM(seed=1), seed=1)
+    assert a.somatic_enabled is False        # a bare Agent is not yet a feeling soul
+    endow_faculties(a, random.Random(1))
+    # the stack that can suffer ...
+    assert a.grip > 0 and a.telos > 0 and a.expect_enabled
+    # ... and the brake, in the same breath
+    assert a.somatic_enabled is True
