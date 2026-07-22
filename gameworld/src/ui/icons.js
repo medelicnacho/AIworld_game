@@ -30,6 +30,11 @@ export const ICONS = {
         fill="#a11212" stroke="#e04a4a" stroke-width="1.3" stroke-linejoin="round"/>
     </g></svg>`,
 
+  // Whirlwind — a spiral.
+  spiral: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 3a9 9 0 1 1-8.6 11.6M12 7a5 5 0 1 1-4.6 6.9M12 11a1.6 1.6 0 1 1-1.4 2.3"
+      fill="none" stroke="#9fe8ff" stroke-width="2.1" stroke-linecap="round"/></svg>`,
+
   // Potion — a flask.
   flask: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M9.5 2h5v2h-1v5.2l5 8.4A2.6 2.6 0 0 1 16.2 22H7.8a2.6 2.6 0 0 1-2.3-4.4l5-8.4V4h-1z"

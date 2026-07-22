@@ -34,6 +34,7 @@ export const player = {
   sprinting: false,
   dodgeT: 0, dodgeCd: 0, iframes: 0, dodgeX: 0, dodgeZ: 0,
   dashT: 0, dashX: 0, dashZ: 0,
+  leapT: 0, leapX: 0, leapZ: 0, whirlT: 0,
   hp: 100, maxHp: 100,
   level: 1, xp: 0, dmgMult: 1, speedMult: 1, jumpMult: 1, maxJumps: 2,
   surgeT: 0,

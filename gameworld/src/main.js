@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
@@ -192,6 +192,60 @@ const slotHtml = (key) => `
     <span class="ch"></span><span class="cool"></span>
   </div>`;
 
+// Whirlwind. Two phases: a leap that ends in a slam, then a spin you keep moving through.
+const whirlRing = (() => {
+  const g = new THREE.RingGeometry(0.5, 1.0, 40);
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color: 0xffd9a0, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+  }));
+  m.visible = false;
+  scene.add(m);
+  return m;
+})();
+const spinRing = (() => {
+  const g = new THREE.RingGeometry(WHIRL.spinRadius * 0.55, WHIRL.spinRadius, 40);
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color: 0xbfe4ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+  }));
+  m.visible = false;
+  scene.add(m);
+  return m;
+})();
+let slamFx = 0, whirlTick = 0;
+
+function whirlwind() {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  dir.y = 0;
+  if (dir.lengthSq() < 1e-6) return false;
+  dir.normalize();
+
+  player.leapX = dir.x;
+  player.leapZ = dir.z;
+  player.leapT = WHIRL.leapTime;
+  player.vy = WHIRL.leapUp;
+  player.onGround = false;
+  player.iframes = Math.max(player.iframes, WHIRL.leapTime + 0.15);
+  sfx.whoosh();
+  markCombat();
+  return true;
+}
+
+/** The landing. Ends the leap, hits everything around, and starts the spin. */
+function whirlSlam() {
+  player.leapT = 0;
+  blast(player.x, player.y + 1, player.z,
+        WHIRL.slamRadius, WHIRL.slamDamage, 14, false);
+  whirlRing.position.set(player.x, player.y + 0.3, player.z);
+  whirlRing.visible = true;
+  slamFx = 0.45;
+  sfx.explosion(player.x, player.z, 1.3);
+  player.whirlT = WHIRL.spinTime;
+  whirlTick = 0;
+}
+
 const barEl = document.getElementById("bar");
 barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => slotHtml(i + 1)).join("")
   + `<div class="sep"></div>`
@@ -209,7 +263,8 @@ const shop = new Shop(document.getElementById("shop"), {
   get grenades() { return grenades; },
   get abilities() { return abilities; },
   fireRing,
-  dashStrike,   // lazily read: grenades is defined further down
+  dashStrike,
+  whirlwind,   // lazily read: grenades is defined further down
   applyStats: () => applyLevelStats(),  // gear changes re-derive the same way levels do
   onClose: () => resumeFromShop(),
 });
@@ -528,6 +583,33 @@ function frame(now) {
   }
   const stirring = input.fwd !== 0 || input.right !== 0 || player.dodgeT > 0 || !player.onGround;
   heal.update(dt, stirring);
+  // Leap -> slam: whichever comes first, touching down or running out of airtime.
+  if (player.leapT > 0 && (player.onGround || player.leapT <= dt)) whirlSlam();
+
+  if (player.whirlT > 0) {
+    player.whirlT -= dt;
+    player.iframes = Math.max(player.iframes, 0.2);   // untouchable for the whole spin
+    whirlTick -= dt;
+    if (whirlTick <= 0) {
+      whirlTick = WHIRL.spinTick;
+      blast(player.x, player.y + 1, player.z, WHIRL.spinRadius, WHIRL.spinDamage, 5, false);
+    }
+    spinRing.visible = true;
+    spinRing.position.set(player.x, player.y + 0.35, player.z);
+    spinRing.rotation.y += dt * 26;
+    spinRing.material.opacity = 0.35 + 0.25 * Math.sin(performance.now() * 0.03);
+  } else if (spinRing.visible) {
+    spinRing.visible = false;
+  }
+
+  if (slamFx > 0) {
+    slamFx -= dt;
+    const f = 1 - Math.max(0, slamFx) / 0.45;
+    whirlRing.scale.setScalar(1 + f * WHIRL.slamRadius);
+    whirlRing.material.opacity = (1 - f) * 0.85;
+    if (slamFx <= 0) whirlRing.visible = false;
+  }
+
   abilities.update(dt);
   if (dashFx > 0) {
     dashFx -= dt;
@@ -643,7 +725,7 @@ function frame(now) {
 
   // Socket 2 in practice: the render layer READS sim state and owns none of it.
   body.position.set(player.x, player.y + 0.9, player.z);
-  body.rotation.y = player.yaw;
+  body.rotation.y = player.whirlT > 0 ? (body.rotation.y + dt * 22) : player.yaw;
   body.visible = rig.blend < 0.85;      // hide your own head in first person
 
   const ring = ringAt(player.x, player.z);

@@ -9,7 +9,8 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING, DASH } from "../config.js";
+import { VILLAGE, FIRERING, DASH, WHIRL } from "../config.js";
+import { tierAt } from "../world/gen.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
 
@@ -56,6 +57,18 @@ export const GOODS = {
         desc: "Blink forward, untouchable, cutting through whatever you pass.",
         cd: DASH.cd,
         use: () => game.dashStrike(),
+      }) },
+    { id: "whirl", name: "Whirlwind", price: WHIRL.price, once: true, minTier: WHIRL.minTier,
+      desc: `Leap forward and land for ${WHIRL.slamDamage} damage, then spin for `
+        + `${WHIRL.spinTime}s — untouchable, faster, and shredding everything around you. `
+        + `${WHIRL.cd}s cooldown.`,
+      apply: (game) => game.abilities.equip(-1, {
+        id: "whirl",
+        name: "Whirlwind",
+        icon: "spiral",
+        desc: "Leap, slam, then spin through whatever is left.",
+        cd: WHIRL.cd,
+        use: () => game.whirlwind(),
       }) },
   ],
   keeper: [],
@@ -114,7 +127,8 @@ export class Shop {
   }
 
   buy(id) {
-    const goods = GOODS[this.vendor.role.key] || [];
+    const tier = tierAt(this.vendor.s.x, this.vendor.s.z);
+    const goods = (GOODS[this.vendor.role.key] || []).filter((g) => (g.minTier || 0) <= tier);
     const good = goods.find((g) => g.id === id);
     if (!good) return;
     const price = priceOf(good);
@@ -136,7 +150,12 @@ export class Shop {
 
   render() {
     if (!this.vendor) return;
-    const goods = GOODS[this.vendor.role.key] || [];
+    // Stock depends on WHERE the vendor is. Deeper settlements carry the deeper wares, so
+    // pushing outward buys you access as well as points.
+    const tier = tierAt(this.vendor.s.x, this.vendor.s.z);
+    const all = GOODS[this.vendor.role.key] || [];
+    const goods = all.filter((g) => (g.minTier || 0) <= tier);
+    const locked = all.length - goods.length;
     const rows = goods.length ? goods.map((g) => {
       const price = priceOf(g);
       const owned = player.upgrades?.[g.id] || 0;
@@ -162,7 +181,9 @@ export class Shop {
           <button class="x" data-close>✕</button>
         </header>
         <div class="items">${rows}</div>
-        <footer>${this.flash || "Click an item to buy · Esc or ✕ to leave"}</footer>
+        <footer>${this.flash
+          || (locked ? `${locked} more ware${locked > 1 ? "s" : ""} sold further out`
+            : "Click an item to buy · Esc or ✕ to leave")}</footer>
       </div>`;
     this.flash = "";
   }

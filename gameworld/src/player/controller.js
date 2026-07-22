@@ -4,7 +4,7 @@
 // slide along a wall instead of sticking to it. It samples the world function directly, so
 // there is no collider to build, bake, or keep in sync with the mesh.
 
-import { PLAYER, CAMERA, DODGE, DASH, ABILITY } from "../config.js";
+import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
 import { wallBlocks } from "../world/sanctuary.js";
@@ -170,7 +170,8 @@ export function stepPlayer(dt) {
   // Derived, every step: held AND not mid-roll.
   input.aim = input.aimHeld && player.dodgeT <= 0;
   const speed = (input.sprint && !input.aim ? PLAYER.sprintSpeed : PLAYER.walkSpeed)
-    * player.speedMult * (player.surgeT > 0 ? ABILITY.surgeSpeed : 1);
+    * player.speedMult * (player.surgeT > 0 ? ABILITY.surgeSpeed : 1)
+    * (player.whirlT > 0 ? WHIRL.spinSpeed : 1);
 
   // Desired horizontal velocity in the yaw frame.
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
@@ -202,7 +203,13 @@ export function stepPlayer(dt) {
     }
   }
 
-  if (player.dashT > 0) {
+  if (player.leapT > 0) {
+    // The leap drives horizontal velocity only — vertical is left to gravity so it ARCS
+    // rather than flying flat, which is what makes the landing read as a slam.
+    player.leapT -= dt;
+    player.vx = player.leapX * WHIRL.leapSpeed;
+    player.vz = player.leapZ * WHIRL.leapSpeed;
+  } else if (player.dashT > 0) {
     // Dash Strike: committed like the dodge, but faster and further. Terrain still stops
     // you — the normal collision below runs unchanged, so you cannot blink through a wall.
     player.dashT -= dt;

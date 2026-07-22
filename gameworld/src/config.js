@@ -153,6 +153,24 @@ export const DASH = {
   iframePad: 0.1,       // a sliver of grace on landing, so you don't eat a hit on arrival
 };
 
+// Whirlwind: leap in, land hard, then spin through whatever survived. Two phases in one
+// button — the slam is the commitment, the spin is the reward for committing.
+export const WHIRL = {
+  price: 260,
+  minTier: 2,           // only stocked by adepts from the second ring out
+  cd: 22,
+  leapSpeed: 24,
+  leapUp: 9.5,
+  leapTime: 0.55,       // airtime cap; landing early triggers the slam early
+  slamRadius: 10,
+  slamDamage: 185,
+  spinTime: 3.6,
+  spinRadius: 5.6,
+  spinTick: 0.22,       // damage every this many seconds while spinning
+  spinDamage: 34,       // ~154/s sustained
+  spinSpeed: 1.5,       // and you move faster while you do it
+};
+
 // Abilities sold by the Adept. The first one is deliberately strong for its price: it is
 // the first real power spike, and it should feel like one on the walk home from buying it.
 export const FIRERING = {
