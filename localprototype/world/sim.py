@@ -256,6 +256,11 @@ class World:
         # machinery -- it is the existing herd code, now keyed on agreement.
         # the attention schema (WORKSPACE_NEXT W1 / RESEARCH C1): a model of the mind's
         # own attention, kept alongside the workspace. Off by default (THE RULE).
+        # FORGIVENESS + THE HEARTH CAP -- the two bounds on floored memory (see
+        # agent/memory.py). Both default to OFF/uncapped, so §5.28's measured feud
+        # behaviour and every saved snapshot are untouched (THE RULE).
+        self.forgive_enabled = False   # souls let dead wounds erode (time + warmth)
+        self.hearth_carry = 0          # max floored memories a child inherits; 0 = all
         self.schema_enabled = False
         self.schism_walk = False
         self.schism_push = 1.0    # how hard disagreement repels, relative to the pull
@@ -323,6 +328,8 @@ class World:
         self.__dict__.setdefault("herd_drive", 0.55)
         self.__dict__.setdefault("herd_turn", 0.10)
         self.__dict__.setdefault("herd_align", 0.08)
+        self.__dict__.setdefault("forgive_enabled", False)
+        self.__dict__.setdefault("hearth_carry", 0)
         self.__dict__.setdefault("schema_enabled", False)
         self.__dict__.setdefault("schism_walk", False)
         self.__dict__.setdefault("schism_push", 1.0)
@@ -522,6 +529,8 @@ class World:
         # that arguments wound (gated by the parent, so old towns stay untouched);
         # so is how open a mind is (default = the old global, THE RULE)
         heir.rift_enabled = getattr(parent, "rift_enabled", False)
+        heir.forgive_enabled = getattr(parent, "forgive_enabled", False)  # ... and whether
+                                       # a dead wound is allowed to close in this line
         heir.bond_creed = getattr(parent, "bond_creed", False)    # and whether a shared
                                        # view is what warms a bond -- carried like the rift,
                                        # or the mechanic dies with the founding cast (the
@@ -545,12 +554,24 @@ class World:
         cross at birth, in the words the parent CURRENTLY carries (legend dynamics:
         drifted text, same tag), source='lore' so provenance stays honest (a story
         received, not lived -- C14 reads it exactly right)."""
-        for m in parent.memory.items:
-            if getattr(m, "salience_floor", 0.0) > 0.0:
-                child.memory.write(m.text, tick=self.tick, source="lore",
-                                   speaker_id=parent.id, weight=0.9,
-                                   lore_id=getattr(m, "lore_id", ""),
-                                   salience_floor=m.salience_floor)
+        wounds = [m for m in parent.memory.items
+                  if getattr(m, "salience_floor", 0.0) > 0.0]
+        # THE CAP: a child is raised on the house's LOUDEST wounds, not its every wound.
+        # Uncapped, this line is the compounding term behind the memory ratchet -- each
+        # birth copies the parent's whole grievance ledger, so floored items multiply down
+        # the generations instead of merely persisting (measured: 6 -> 217 over 2000 ticks
+        # once war started, doubling ~every 500). Capped, a feud still crosses at birth in
+        # the parent's drifted words -- §5.16's legend dynamics and §5.28's G2 both ride on
+        # the strongest stories, which are exactly the ones kept. 0 = uncapped (the old
+        # behaviour, and the default: THE RULE).
+        cap = getattr(self, "hearth_carry", 0)
+        if cap > 0 and len(wounds) > cap:
+            wounds = sorted(wounds, key=lambda m: m.salience, reverse=True)[:cap]
+        for m in wounds:
+            child.memory.write(m.text, tick=self.tick, source="lore",
+                               speaker_id=parent.id, weight=0.9,
+                               lore_id=getattr(m, "lore_id", ""),
+                               salience_floor=m.salience_floor)
 
     def _mourn(self, dead) -> None:
         """The death LANDS: every living soul that loved the dead writes a charged memory
@@ -770,6 +791,7 @@ class World:
         a.bonds.setdefault(parent.id, Bond()).warm(0.8)
         parent.bonds.setdefault(a.id, Bond()).warm(0.8)
         a.rift_enabled = getattr(parent, "rift_enabled", False)   # cultural, like the view
+        a.forgive_enabled = getattr(parent, "forgive_enabled", False)  # ... and whether it forgives
         a.bond_creed = getattr(parent, "bond_creed", False)       # ... and so is what warms it
         if hasattr(parent, "opinion_confidence"):                 # and how open a mind is
             a.opinion_confidence = parent.opinion_confidence

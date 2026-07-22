@@ -14,6 +14,13 @@ from dataclasses import dataclass, field
 # --- tuning knobs (move to config.yaml later) -------------------------------
 DECAY_PER_TICK = 0.985      # salience multiplier each tick -> slow forgetting
 FORGET_THRESHOLD = 0.08     # below this salience, a memory is pruned
+# Forgiveness rates (MemoryStore.forgiveness; 0 = off, the default -- see the field).
+# A soul lives ~900-1400 ticks, so a grievance nobody renews should outlast its holder
+# and a few heirs, then dull: 0.5 of floor at FLOOR_EROSION erodes in ~4200 ticks,
+# ~3-4 lifetimes. At full warmth that falls to ~420 -- less than one life, so a line
+# that has genuinely made peace can bury a feud inside a generation.
+FLOOR_EROSION = 0.00012     # per tick, from TIME alone
+FORGIVE_GAIN = 9.0          # multiplier at full warmth (10x total)
 REINFORCE_BUMP = 0.35       # salience added when a similar memory is re-heard
 WRITE_SALIENCE = 0.6        # starting salience of a fresh memory
 MUTATE_CHANCE = 0.015       # per-tick chance an old memory mutates its text
@@ -183,6 +190,31 @@ class MemoryStore:
         # mind forgets slowly, a fallen one rots fast. The Agent keeps this in
         # sync with its grace each tick.
         self.effectiveness = 1.0
+        # FORGIVENESS, 0..1 -- how readily this mind lets a floored wound close. The
+        # Agent keeps it in sync each tick, exactly like effectiveness above.
+        #
+        # Why it exists: a floored memory's salience never decays below its floor, and
+        # FORGET_THRESHOLD is 0.08 while a grievance floors at 0.5 -- so a floored
+        # memory can NEVER be pruned. Worse, `World._hearth` copies every floored
+        # memory a parent holds into each child, so grievances REPLICATE down the
+        # generations. Measured on a 24-founder settlement with the arena's own gates:
+        # floored items sat near zero for 6000 ticks, then 6 -> 41 -> 53 -> 155 -> 217
+        # over the next 2000 as war got going -- doubling roughly every 500 ticks,
+        # while ordinary items converged. The capacity law is ~14us per item per tick,
+        # so an un-prunable class of item is a permanent ratchet on every settlement's
+        # cost. (The live arena at tick 181,237 was holding 5.97 GB.)
+        #
+        # §5.28 named the narrative half of this itself: "The hearth has no forgiveness
+        # path -- a floored grievance never fades in a living line; floor-erosion on warm
+        # cross-bloc bonds is future work." This is that work, and it doubles as
+        # ROADMAP's P2 (grudges-that-can-let-go).
+        #
+        # 0.0 is OFF and is the default: with no forgiveness the floor is immovable and
+        # every existing world, test and snapshot behaves exactly as before (THE RULE).
+        self.forgiveness = 0.0
+        self._floored = 0        # count of floored items, kept in sync on write/prune
+                                 # so the Agent can skip the warmth read in the common
+                                 # case (no wounds) without walking the item list
 
     # --- writing -----------------------------------------------------------
     def write(self, text: str, tick: int, source: str, speaker_id: str | None = None,
@@ -214,6 +246,8 @@ class MemoryStore:
                     # in your own voice is precisely how it becomes yours.
                     m.alien_merges = getattr(m, "alien_merges", 0) + 1
                 if salience_floor > getattr(m, "salience_floor", 0.0):
+                    if getattr(m, "salience_floor", 0.0) <= 0.0:
+                        self._floored = getattr(self, "_floored", 0) + 1
                     m.salience_floor = salience_floor
                 if lore_id and not getattr(m, "lore_id", ""):
                     m.lore_id = lore_id
@@ -232,6 +266,8 @@ class MemoryStore:
                      speaker_id=speaker_id, emotion=emo, lore_id=lore_id,
                      mineness=mineness, salience_floor=salience_floor)
         self.items.append(mem)
+        if salience_floor > 0.0:
+            self._floored = getattr(self, "_floored", 0) + 1
         return mem
 
     # --- the living part ---------------------------------------------------
@@ -241,7 +277,18 @@ class MemoryStore:
         # Grace slows forgetting: a graced mind (effectiveness 1) decays at 0.995,
         # a fallen one (0) at 0.97 -- its memories, even the doctrines, rot away.
         decay = 0.97 + 0.025 * self.effectiveness
+        # FORGIVENESS: the floor itself erodes, so a wound nobody renews eventually
+        # becomes forgettable. TIME does it slowly (a grudge dulls across generations);
+        # WARMTH does it much faster (bloodlines that have actually reconciled let go).
+        # An ACTIVE feud is unaffected -- war.py re-writes the grievance and lore.py's
+        # retellings carry the floor, both of which restore it faster than this erodes.
+        # So this ends dead feuds, not live ones.
+        forgive = getattr(self, "forgiveness", 0.0)
+        erosion = FLOOR_EROSION * (1.0 + FORGIVE_GAIN * max(0.0, min(1.0, forgive))) \
+            if forgive > 0.0 else 0.0
         for m in self.items:
+            if erosion and getattr(m, "salience_floor", 0.0) > 0.0:
+                m.salience_floor = max(0.0, m.salience_floor - erosion)
             # the floor holds against decay (getattr: memories from old snapshots)
             m.salience = max(m.salience * decay, getattr(m, "salience_floor", 0.0))
             age = now - m.last_touched_tick
@@ -253,12 +300,25 @@ class MemoryStore:
                     events.append(f"mutated: '{before}' -> '{m.text}'")
 
         kept, forgotten = [], []
+        floored = 0
         for m in self.items:
-            (kept if m.salience >= FORGET_THRESHOLD else forgotten).append(m)
+            if m.salience >= FORGET_THRESHOLD:
+                kept.append(m)
+                if getattr(m, "salience_floor", 0.0) > 0.0:
+                    floored += 1
+            else:
+                forgotten.append(m)
         self.items = kept
+        self._floored = floored     # recounted on the pass that already walks every item
         for m in forgotten:
             events.append(f"forgot: '{m.text}'")
         return events
+
+    def holds_floored(self) -> bool:
+        """Does this mind carry any wound that will not close? O(1) -- the count is kept
+        in sync by write() and by tick()'s prune pass, so the common case (no wounds)
+        costs the Agent nothing per tick."""
+        return getattr(self, "_floored", 0) > 0
 
     def _mutate(self, text: str) -> str:
         """Memories drift by *losing and blurring* detail, never by stuttering.

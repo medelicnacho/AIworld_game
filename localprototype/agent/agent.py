@@ -149,6 +149,9 @@ class Agent:
         self.concept_speech = False          # INTERPRET the Markov drift into meaning, then speak that
         self.reflect_enabled = False         # Stage-1 lab toggle: run reflect() (relate to own memory)
         self.bond_enabled = False            # Stage-2 toggle: keep dyadic Bonds (relate to other selves)
+        self.forgive_enabled = False         # let floored wounds erode (agent/memory.py): time dulls a
+                                             # grudge, warmth buries it. Off by default -- with it off the
+                                             # floor is immovable, exactly as §5.28 measured it
         self.bond_creed = False              # bond on a SHARED VIEW, not mood alone (agent/bond.py CREED):
                                              # off by default, so every validated world bonds exactly as before
         self.bonds: dict = {}                # directional bonds toward other selves (see agent/bond.py)
@@ -281,7 +284,7 @@ class Agent:
     _PICKLE_DEFAULTS = {
         "psyche_faculty": "",
         "expect_enabled": False, "exp_fast": 0.0, "exp_slow": 0.0, "arousal": 0.0,
-        "bond_creed": False,
+        "bond_creed": False, "forgive_enabled": False,
         "self_expect": None, "self_dissonance": 0.0, "_turnings": 0,
     }
 
@@ -327,6 +330,15 @@ class Agent:
         # by active heresy, hostility, or losing the war (see commit_speech/_weigh_faith)
         self.grace = max(0.0, self.grace + (GRACE_FLOOR - self.grace) * GRACE_RELAX)
         self.memory.effectiveness = self.grace
+        # FORGIVENESS: how warm this soul's world is, handed to the memory store so a
+        # floored wound erodes faster in a soul surrounded by trust than in one
+        # surrounded by enemies (agent/memory.py). Gated, and skipped entirely unless
+        # this soul actually carries a floored wound -- the capacity law is per-item per
+        # tick, and walking a 180-entry bond dict every tick for every soul would be a
+        # worse tax than the leak it repairs.
+        if self.forgive_enabled and self.bonds and self.memory.holds_floored():
+            trusts = [b.trust for b in self.bonds.values()]
+            self.memory.forgiveness = max(0.0, min(1.0, sum(trusts) / len(trusts)))
         events = self.memory.tick(now)
         # expectation: track lived mood into the fast/slow reads, settle arousal, and keep
         # the self-expectation of my own conduct (dissonance -> turning). Off by default.
