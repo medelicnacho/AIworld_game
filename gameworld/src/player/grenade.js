@@ -17,6 +17,8 @@ const BLAST_LIFE = 0.38;
 export class Grenades {
   constructor(scene) {
     this.scene = scene;
+    this.count = GRENADE.max;
+    this.cooldown = 0;
     this.live = [];
 
     const geo = new THREE.IcosahedronGeometry(0.22, 0);
@@ -41,9 +43,15 @@ export class Grenades {
     scene.add(this.light);
   }
 
-  /** Throw along the camera's aim ray with an upward bias so it arcs. Ability 1 owns the
-   *  cooldown now, so this only needs a free projectile slot. */
+  get ready() { return this.cooldown <= 0 && this.count > 0; }
+
+  refill(n = GRENADE.refillPerKill) {
+    this.count = Math.min(GRENADE.max, this.count + n);
+  }
+
+  /** Throw along the camera's aim ray, with an upward bias so it arcs. */
   throwFrom(camera) {
+    if (!this.ready) return false;
     const slot = this.live.find((g) => !g.active);
     if (!slot) return false;
 
@@ -61,12 +69,16 @@ export class Grenades {
     slot.mesh.visible = true;
     slot.mesh.position.set(slot.x, slot.y, slot.z);
 
+    this.count--;
+    this.cooldown = GRENADE.cooldown;
     sfx.whoosh();
     return true;
   }
 
   /** @param {(x:number,y:number,z:number)=>void} onDetonate */
   update(dt, onDetonate) {
+    if (this.cooldown > 0) this.cooldown -= dt;
+
     for (const g of this.live) {
       if (!g.active) continue;
 

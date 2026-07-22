@@ -126,7 +126,7 @@ export const ABILITY = {
 };
 
 // Grenade: your answer to a crowd, and the only thing in the game that can kill YOU by
-// your own hand. Thrown by ability 1; the slot cooldown governs it, so no charges.
+// your own hand. Supply refills on kills, so using it is rewarded by fighting, not hoarding.
 export const GRENADE = {
   throwSpeed: 19,
   upBias: 0.28,          // arcs instead of flying flat
@@ -134,7 +134,10 @@ export const GRENADE = {
   radius: 6.5,
   damage: 90,
   selfScale: 0.5,        // you take half — dangerous, not instantly lethal
+  cooldown: 2.2,
   maxFuse: 4.0,          // safety net; ground contact is the real trigger
+  max: 3,
+  refillPerKill: 1,
   knockback: 11,
 };
 

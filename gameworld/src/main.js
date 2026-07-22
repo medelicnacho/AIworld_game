@@ -65,18 +65,16 @@ const mobs = new Mobs(scene);
 const boss = new Boss(scene);
 const grenades = new Grenades(scene);
 const heal = new Heal(scene);
-// The bar exists; the slots are empty until something is bought and equipped.
 const abilities = new Abilities({
   get grenades() { return grenades; },
   get heal() { return heal; },
   camera,
-  blast,
 });
 const barEl = document.getElementById("bar");
 barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => `
   <div class="slot">
-    <span class="k">${i + 1}</span><span class="n"></span>
-    <span class="cool"></span>
+    <span class="k">${abilities.slots[i]?.key || i + 1}</span>
+    <span class="n"></span><span class="ch"></span><span class="cool"></span>
   </div>`).join("");
 const barSlots = [...barEl.querySelectorAll(".slot")];
 const minimap = new Minimap(document.getElementById("minimap"));
@@ -166,7 +164,7 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
     const d = Math.hypot(e.x - x, e.z - z, (e.y - y) * 0.5);
     if (d > radius) continue;
     const res = mobs.hit(e.id, damage * player.dmgMult * falloff(d));
-    if (res?.killed) reward(res);
+    if (res?.killed) { reward(res); grenades.refill(); }
   }
 
   if (boss.active) {
@@ -174,7 +172,7 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
     const d = Math.hypot(b.x - x, b.z - z);
     if (d < radius + BOSS.contactRange * 0.5) {
       const res = boss.hit("boss", damage * player.dmgMult * falloff(Math.max(0, d - BOSS.contactRange * 0.5)));
-      if (res?.killed) rewardBoss(res.ring);
+      if (res?.killed) { rewardBoss(res.ring); grenades.refill(GRENADE.max); }
     }
   }
 
@@ -208,10 +206,14 @@ attachInput(renderer.domElement, {
     shop.show(v);
   },
   ability: (i) => {
-    if (inSafe) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; return; }
+    if (inSafe) {
+      tradeMsg = i === 1 ? "no need — the walls mend you" : "weapons stowed inside the walls";
+      tradeMsgT = 2;
+      return;
+    }
     const msg = abilities.use(i);
     if (msg) { tradeMsg = msg; tradeMsgT = 1.2; }
-    markCombat();
+    else if (i === 0) markCombat();     // throwing is fighting; healing is not
   },
   drink: () => {
     if (player.potions <= 0) { tradeMsg = "no potions"; tradeMsgT = 2; return; }
@@ -352,11 +354,11 @@ function frame(now) {
     if (hit?.targetId != null) {
       if (hit.targetTag === "boss" || hit.targetTag === "bossWeak") {
         const res = boss.hit(hit.targetTag, GUN.damage * player.dmgMult);
-        if (res?.killed) rewardBoss(res.ring);
+        if (res?.killed) { rewardBoss(res.ring); grenades.refill(GRENADE.max); }
         else if (res?.weak) killFeed = "core hit ×2.5";
       } else {
         const res = mobs.hit(hit.targetId, GUN.damage * player.dmgMult);
-        if (res?.killed) reward(res);
+        if (res?.killed) { reward(res); grenades.refill(); }
       }
     }
   }
@@ -365,14 +367,15 @@ function frame(now) {
   // The root condition, in one expression: steering, rolling, or airborne all break it.
   const stirring = input.fwd !== 0 || input.right !== 0 || player.dodgeT > 0 || !player.onGround;
   heal.update(dt, stirring);
-  abilities.update(dt);
   barSlots.forEach((el, i) => {
     const a = abilities.slots[i];
-    const left = abilities.cd[i];
-    el.classList.toggle("up", !!a && left <= 0);
+    const left = a?.cooldown?.() || 0;
+    el.classList.toggle("up", !!a && (a.ready ? a.ready() : true));
     el.classList.toggle("empty", !a);
-    el.querySelector(".n").textContent = a ? a.name : "";
-    el.title = a ? a.desc || "" : "empty";
+    el.querySelector(".k").textContent = a?.key || String(i + 1);
+    el.querySelector(".n").textContent = a?.name || "";
+    el.querySelector(".ch").textContent = a?.charges ? "●".repeat(a.charges()) : "";
+    el.title = a?.desc || "empty";
     el.querySelector(".cool").textContent = left > 0 ? left.toFixed(left < 3 ? 1 : 0) : "";
   });
 
@@ -479,10 +482,9 @@ function frame(now) {
           : "  ▲"
       : ""}` +
     `   kills ${mobs.killed}  born ${mobs.born}  packs ${mobs.packs.size}  ${killFeed}\n` +
-    `heal ${heal.casting
-      ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL`
-      : heal.cooldown > 0 ? `ready in ${Math.ceil(heal.cooldown)}s` : "ready  Q"}` +
-    `${heal.lastResult ? `   ${heal.lastResult}` : ""}\n` +
+    `${heal.casting
+      ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL\n`
+      : ""}` +
     `gold ${player.gold}   potions ${player.potions}${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
 
     `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +

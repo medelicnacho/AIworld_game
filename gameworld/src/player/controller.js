@@ -60,7 +60,10 @@ export function attachInput(canvas, hooks = {}) {
     if (e.code === "KeyR") hooks.reload?.();
     if (e.code === "KeyF" && !e.repeat) hooks.interact?.();
     if (e.code === "KeyC" && !e.repeat) hooks.drink?.();
-    // The ability bar. 1-4 only — E and Q retired so a spell has exactly one key.
+    // The original bindings, unchanged — E throws, Q heals. The number keys reach the same
+    // bar slots, so the UI is an addition rather than a replacement for muscle memory.
+    if (e.code === "KeyE" && !e.repeat) hooks.ability?.(0);
+    if (e.code === "KeyQ" && !e.repeat) hooks.ability?.(1);
     if (!e.repeat && /^Digit[1-4]$/.test(e.code)) {
       hooks.ability?.(Number(e.code.slice(5)) - 1);
     }

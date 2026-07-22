@@ -18,6 +18,9 @@ export const GOODS = {
     { id: "potion", name: "Healing Potion", price: 25, repeat: true,
       desc: `Instantly restores ${VILLAGE.potionHeal} health. Press C to drink.`,
       apply: () => { player.potions++; } },
+    { id: "grenade", name: "Firebomb", price: 45, repeat: true,
+      desc: "Refills one grenade charge.",
+      apply: (game) => { game.grenades.refill(1); } },
   ],
   smith: [
     { id: "sharpen", name: "Sharpen Weapon", price: 140, upgrade: true,
