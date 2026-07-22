@@ -38,7 +38,7 @@ export const GOODS = {
     { id: "firering", name: "Ring of Fire", price: FIRERING.price, once: true,
       desc: `A wall of flame erupts outward, ${FIRERING.damage} damage to everything within `
         + `${FIRERING.radius}m. ${FIRERING.cd}s cooldown. Goes to your first free slot.`,
-      apply: (game) => game.abilities.equip(-1, {
+      apply: (game) => game.abilities.acquire({
         id: "firering",
         name: "Ring of Fire",
         icon: "burst",
@@ -50,7 +50,7 @@ export const GOODS = {
       desc: `Blink forward through your enemies — untouchable while you travel, `
         + `${DASH.damage} damage to anything you cut through. Narrow: only what you pass. `
         + `${DASH.cd}s cooldown.`,
-      apply: (game) => game.abilities.equip(-1, {
+      apply: (game) => game.abilities.acquire({
         id: "dash",
         name: "Dash Strike",
         icon: "arrow",
@@ -62,7 +62,7 @@ export const GOODS = {
       desc: `Leap forward and land for ${WHIRL.slamDamage} damage, then spin for `
         + `${WHIRL.spinTime}s — untouchable, faster, and shredding everything around you. `
         + `${WHIRL.cd}s cooldown.`,
-      apply: (game) => game.abilities.equip(-1, {
+      apply: (game) => game.abilities.acquire({
         id: "whirl",
         name: "Whirlwind",
         icon: "spiral",

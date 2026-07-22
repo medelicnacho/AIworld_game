@@ -17,6 +17,9 @@ export class Abilities {
     // All four start empty. These slots are ITEMS you buy — the gun, the grenade and the
     // heal are general abilities and live on their own keys, not in here.
     this.slots = new Array(SLOTS).fill(null);
+    // Everything you have ever bought. Slots hold references INTO this, so unequipping
+    // something never destroys it — it goes back to the bag.
+    this.owned = [];
     // Items granted by a vendor usually have no system of their own, so the bar tracks a
     // cooldown for any slot whose definition carries a plain `cd` number. Slots backed by a
     // real system (a grenade, a channel) still report their own and are never touched here.
@@ -39,6 +42,15 @@ export class Abilities {
 
   update(dt) {
     for (let i = 0; i < SLOTS; i++) if (this.cd[i] > 0) this.cd[i] -= dt;
+  }
+
+  /** Buy: remember it, and put it straight on the bar if there's room. */
+  acquire(def) {
+    if (!def || this.owned.some((o) => o.id === def.id)) return false;
+    this.owned.push(def);
+    const free = this.firstFree();
+    if (free >= 0) this.slots[free] = def;
+    return true;
   }
 
   /** Drop a purchased ability into a slot (or the first free one with i = -1). */

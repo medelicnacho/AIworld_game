@@ -13,6 +13,7 @@ import { Folk } from "./mobs/folk.js";
 import { Villagers } from "./town/villagers.js";
 import { Shop } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
+import { Inventory } from "./ui/inventory.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY } from "./world/gen.js";
@@ -254,6 +255,7 @@ const allSlots = [...barEl.querySelectorAll(".slot")];
 const barSlots = allSlots.slice(0, SLOTS);
 const genSlots = allSlots.slice(SLOTS);
 const pointsEl = document.getElementById("points");
+const inventory = new Inventory(document.getElementById("inv"), abilities);
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
 const folk = new Folk(scene);
@@ -490,6 +492,10 @@ document.addEventListener("pointerlockerror", () => {
 function setPaused(p) {
   paused = p;
   document.body.classList.toggle("running", !p);
+  // Pausing IS opening the inventory — the paused moment is exactly when you want to
+  // rearrange your kit, and it saves inventing another key for it.
+  if (p && everPlayed && !shop.open) inventory.show();
+  else inventory.hide();
   // Shopping pauses the WORLD but not the soundtrack: you are standing in a town talking to
   // someone, and the town's music cutting out is the tell that you've left the game. A real
   // pause (Escape to the menu) still silences everything.

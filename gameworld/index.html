@@ -53,6 +53,33 @@
       #shop .empty { padding: 18px 14px; color: #93a6c0; margin: 0; }
       #shop footer { padding: 9px 14px; background: #161d2b; color: #8fa3bf; font-size: 12px; }
       body.shopping #click { display: none; }
+      body.inv #click { display: none; }
+
+      #inv { position: absolute; inset: 0; display: none; place-content: center;
+        pointer-events: auto; font: 13px/1.5 ui-sans-serif, system-ui, sans-serif; }
+      body.inv #inv { display: grid; }
+      #inv .panel { width: min(620px, 90vw); background: #121722f2; color: #dfe8f5;
+        border: 1px solid #2f3d55; border-radius: 10px; overflow: hidden;
+        box-shadow: 0 18px 60px #000a; }
+      #inv header { display: flex; align-items: center; padding: 12px 14px;
+        background: #1a2233; border-bottom: 1px solid #2f3d55; }
+      #inv h2 { margin: 0; font-size: 15px; letter-spacing: .04em; flex: 1; }
+      #inv h3 { margin: 4px 14px 6px; font-size: 11px; letter-spacing: .1em;
+        color: #8fa3bf; text-transform: uppercase; }
+      #inv .x { background: none; border: 0; color: #8fa3bf; font-size: 15px; cursor: pointer; }
+      #inv .bag, #inv .bar { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+      #inv .bar { border-top: 1px solid #222c3e; background: #0e1420; }
+      #inv .cell { width: 72px; height: 76px; border-radius: 8px; background: #46536be6;
+        border: 1px solid #6b7a95; display: grid; align-content: center; justify-items: center;
+        gap: 2px; cursor: grab; user-select: none; }
+      #inv .cell.blank { background: #2a344699; border-style: dashed; cursor: default; }
+      #inv .cell.eq { border-color: #7dffb5; box-shadow: 0 0 10px #3ce88a44; }
+      #inv .cell.held { border-color: #ffd45e; box-shadow: 0 0 12px #ffd45e66; }
+      #inv .cell .ic { width: 30px; height: 30px; }
+      #inv .cell .ic svg { width: 100%; height: 100%; display: block; }
+      #inv .cell .nm { font-size: 9px; text-align: center; line-height: 1.15; color: #f0f5ff; }
+      #inv .none { padding: 14px; color: #93a6c0; margin: 0; }
+      #inv footer { padding: 9px 14px; background: #161d2b; color: #8fa3bf; font-size: 12px; }
       #points { position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%);
         font: 600 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #ffd45e;
         text-shadow: 0 2px 6px #000b; letter-spacing: .06em; }
@@ -125,6 +152,7 @@
     <!-- Outside #hud on purpose: the HUD is pointer-events:none so it never eats clicks,
          and the shop is the one overlay that must receive them. -->
     <div id="shop"></div>
+    <div id="inv"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
