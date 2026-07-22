@@ -188,6 +188,59 @@ def parse_character(raw: str, rng: random.Random) -> Character:
                      temperament=temp, lines=lines[:8], conviction=conviction, aim=aim)
 
 
+# --- minting souls without a model -------------------------------------------------------
+# gameworld/PLAN.md §3 consequence 3: "genesis.generate_character is an LLM call -- unusable
+# when the world mints villages as you walk." A world that streams settlements from
+# hash(worldSeed, chunkCoords) needs souls in microseconds, thousands of times, offline.
+#
+# An LLM-free path did already exist -- but only as generate_character's EXCEPTION handler,
+# and measured, it is not fit to found villages on:
+#   * names come from a 16-entry pool, so a second village is already colliding;
+#   * every soul's inner voice is 6 lines sampled from the SAME 10 (_THEMES), so a hamlet
+#     of ten is a hamlet of near-clones;
+#   * `aim` comes out EMPTY, so telos -- the faculty that gives a soul a future to tend --
+#     has nothing to tend.
+# It is a crash path doing duty as a design, which is what this replaces.
+#
+# mint() composes instead of sampling: a procedurally coined name (unbounded), a trade with
+# the day's real business, a preoccupation, and inner lines built from all three. The space
+# is combinatorial rather than a fixed list, so two villages sound like different places.
+
+_VOICE_FORMS = (
+    "{task}, and no one else seems to notice",
+    "some days it is only {concept}",
+    "I am the {role} here, and that is not nothing",
+    "{theme}",
+    "if I do not see to it, {task}",
+    "what I think about, mostly: {concept}",
+    "I believe a {role} who hurries is a {role} who ruins it",
+    "{theme}, and the day goes on",
+)
+
+
+def mint(rng: random.Random, taken=()) -> Character:
+    """One soul, from rng alone -- no model, no network, no exception path. Deterministic:
+    the same rng state yields the same soul, which is what lets a village be a pure
+    function of (worldSeed, chunkCoords)."""
+    role, tasks = rng.choice(ROLES)
+    task = rng.choice(tasks)
+    concept = rng.choice(SEED_CONCEPTS)
+    forms = rng.sample(_VOICE_FORMS, min(6, len(_VOICE_FORMS)))
+    lines = [f.format(role=role, task=task, concept=concept, theme=rng.choice(_THEMES))
+             for f in forms]
+    conviction = next((ln for ln in lines if ln.startswith("I believe")), lines[0])
+    return Character(
+        name=coined_name(rng, taken=taken),
+        temperament=round(rng.uniform(-1.0, 1.0), 2),
+        lines=lines,
+        conviction=conviction,
+        role=role,
+        task=task,
+        # never empty: a soul with no aim has a telos faculty with nothing to tend
+        aim=f"make my work as the {role} come good this season",
+    )
+
+
 def generate_character(llm, rng: random.Random | None = None,
                        concept: str | None = None) -> Character:
     """Author one soul via the LLM (or its mock), anchored to `concept` (a random
