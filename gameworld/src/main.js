@@ -206,14 +206,10 @@ attachInput(renderer.domElement, {
     shop.show(v);
   },
   ability: (i) => {
-    if (inSafe) {
-      tradeMsg = i === 1 ? "no need — the walls mend you" : "weapons stowed inside the walls";
-      tradeMsgT = 2;
-      return;
-    }
+    if (inSafe) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; return; }
     const msg = abilities.use(i);
     if (msg) { tradeMsg = msg; tradeMsgT = 1.2; }
-    else if (i === 0) markCombat();     // throwing is fighting; healing is not
+    else markCombat();
   },
   drink: () => {
     if (player.potions <= 0) { tradeMsg = "no potions"; tradeMsgT = 2; return; }
@@ -362,9 +358,27 @@ function frame(now) {
       }
     }
   }
+  if (input.throwQueued) {
+    input.throwQueued = false;
+    if (inSafeZone) {
+      tradeMsg = "weapons stowed inside the walls";
+      tradeMsgT = 2;
+    } else if (grenades.throwFrom(camera)) {
+      markCombat();
+    }
+  }
   grenades.update(dt, blast);
 
   // The root condition, in one expression: steering, rolling, or airborne all break it.
+  if (input.healQueued) {
+    input.healQueued = false;
+    if (inSafeZone) {
+      tradeMsg = "no need — the walls mend you";
+      tradeMsgT = 2;
+    } else {
+      heal.start();
+    }
+  }
   const stirring = input.fwd !== 0 || input.right !== 0 || player.dodgeT > 0 || !player.onGround;
   heal.update(dt, stirring);
   barSlots.forEach((el, i) => {
@@ -482,9 +496,12 @@ function frame(now) {
           : "  ▲"
       : ""}` +
     `   kills ${mobs.killed}  born ${mobs.born}  packs ${mobs.packs.size}  ${killFeed}\n` +
-    `${heal.casting
-      ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL\n`
-      : ""}` +
+    `heal ${heal.casting
+      ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL`
+      : heal.cooldown > 0 ? `ready in ${Math.ceil(heal.cooldown)}s` : "ready  Q"}` +
+    `${heal.lastResult ? `   ${heal.lastResult}` : ""}\n` +
+    `nade ${"●".repeat(grenades.count)}${"○".repeat(Math.max(0, GRENADE.max - grenades.count))}` +
+    `${grenades.cooldown > 0 ? "  (cd)" : ""}   E throw\n` +
     `gold ${player.gold}   potions ${player.potions}${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
 
     `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +

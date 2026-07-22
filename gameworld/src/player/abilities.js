@@ -1,42 +1,22 @@
-// The ability bar — a VIEW of mechanics that already exist, not an owner of them.
+// The item bar: four slots on 1–4, for things bought from vendors.
 //
-// Grenades keep their own charges and cooldown; the heal keeps its own channel and
-// cooldown. This file neither duplicates nor replaces any of that: each slot names a
-// mechanic, says how to fire it, and reads its live state so the bar can draw it. Change a
-// cooldown in GRENADE or HEAL and the bar follows, because there is only one copy of the
-// number and this isn't it.
+// It holds ITEMS ONLY. The gun, the grenade and the heal are general abilities on their own
+// keys and are shown in the HUD beside the rest of your state — they are not items and do
+// not belong here.
 //
-// Slots 3 and 4 are empty on purpose, waiting for items bought from vendors. equip() drops
-// a definition into any slot: {name, desc, use(), cooldown(), ready(), charges()}.
-
-import { GRENADE, HEAL } from "../config.js";
+// A slot definition is data: {name, desc, use(), cooldown(), ready(), charges()}. Only name
+// and use() are required; a slot with no cooldown() simply always reads as ready. The bar
+// never owns a cooldown — it reads whatever the item's own system reports, so there is only
+// ever one copy of the number.
 
 export const SLOTS = 4;
 
 export class Abilities {
   constructor(ctx) {
     this.ctx = ctx;
-    this.slots = [
-      {
-        id: "bomb", name: "Firebomb", key: "E",
-        desc: "Lobbed explosive, detonates on impact.",
-        use: () => ctx.grenades.throwFrom(ctx.camera),
-        cooldown: () => ctx.grenades.cooldown,
-        maxCooldown: GRENADE.cooldown,
-        charges: () => ctx.grenades.count,
-        ready: () => ctx.grenades.ready,
-      },
-      {
-        id: "mend", name: "Mend", key: "Q",
-        desc: "Channel to heal. Breaks if you move or are hit.",
-        use: () => ctx.heal.start(),
-        cooldown: () => ctx.heal.cooldown,
-        maxCooldown: HEAL.cooldown,
-        ready: () => ctx.heal.cooldown <= 0 && !ctx.heal.casting,
-      },
-      null,
-      null,
-    ];
+    // All four start empty. These slots are ITEMS you buy — the gun, the grenade and the
+    // heal are general abilities and live on their own keys, not in here.
+    this.slots = new Array(SLOTS).fill(null);
   }
 
   /** Drop a purchased ability into a slot (or the first free one with i = -1). */

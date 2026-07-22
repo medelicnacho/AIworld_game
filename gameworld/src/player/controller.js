@@ -17,7 +17,7 @@ export const input = {
   aimHeld: false, aim: false,
   // Dodge is double-tap-a-direction, so the queued roll remembers WHICH key fired it —
   // you roll the way you tapped, not the way you happen to be steering a frame later.
-  dodgeQueued: false, dodgeFwd: 0, dodgeRight: 0,
+  dodgeQueued: false, dodgeFwd: 0, dodgeRight: 0, throwQueued: false, healQueued: false,
   // Jump is EDGE-triggered, not held: one press = one jump. A held-key check would let you
   // bunny-hop forever by leaning on space, and would burn both air jumps in a single frame.
   jumpQueued: false,
@@ -60,10 +60,10 @@ export function attachInput(canvas, hooks = {}) {
     if (e.code === "KeyR") hooks.reload?.();
     if (e.code === "KeyF" && !e.repeat) hooks.interact?.();
     if (e.code === "KeyC" && !e.repeat) hooks.drink?.();
-    // The original bindings, unchanged — E throws, Q heals. The number keys reach the same
-    // bar slots, so the UI is an addition rather than a replacement for muscle memory.
-    if (e.code === "KeyE" && !e.repeat) hooks.ability?.(0);
-    if (e.code === "KeyQ" && !e.repeat) hooks.ability?.(1);
+    // General abilities keep their own keys, exactly as before — they are not items.
+    if (e.code === "KeyE" && !e.repeat) input.throwQueued = true;
+    if (e.code === "KeyQ" && !e.repeat) input.healQueued = true;
+    // 1-4 are the item slots and nothing else.
     if (!e.repeat && /^Digit[1-4]$/.test(e.code)) {
       hooks.ability?.(Number(e.code.slice(5)) - 1);
     }
