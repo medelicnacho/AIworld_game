@@ -19,6 +19,7 @@ export class Grenades {
     this.scene = scene;
     this.count = GRENADE.max;
     this.cooldown = 0;
+    this.reloadT = 0;        // passive regen of one grenade; see update()
     this.live = [];
 
     const geo = new THREE.IcosahedronGeometry(0.22, 0);
@@ -47,6 +48,9 @@ export class Grenades {
 
   refill(n = GRENADE.refillPerKill) {
     this.count = Math.min(GRENADE.max, this.count + n);
+    // If a kill just made us full, cancel the passive timer so it can't hand a bonus 4th
+    // the instant we drop back to two.
+    if (this.count >= GRENADE.max) this.reloadT = 0;
   }
 
   /** Throw along the camera's aim ray, with an upward bias so it arcs. */
@@ -70,7 +74,10 @@ export class Grenades {
     slot.mesh.position.set(slot.x, slot.y, slot.z);
 
     this.count--;
-    this.cooldown = GRENADE.cooldown * (player.hasteCd || 1);
+    // Floored: haste (hasteCd = 0.92^haste) may only make the throw arrive sooner, never
+    // instant. An instant cooldown is what let a fast build dump the whole stock before
+    // anything died.
+    this.cooldown = Math.max(GRENADE.cdFloor, GRENADE.cooldown * (player.hasteCd || 1));
     sfx.whoosh();
     return true;
   }
@@ -78,6 +85,20 @@ export class Grenades {
   /** @param {(x:number,y:number,z:number)=>void} onDetonate */
   update(dt, onDetonate) {
     if (this.cooldown > 0) this.cooldown -= dt;
+
+    // The passive reload. It runs whenever the stock is below max, hasted like everything
+    // else but floored the same way the throw cooldown is, so no amount of speed can zero
+    // it. Kills still top up on their own and faster -- this is only the safety net that
+    // stops spamming from stranding you at zero with no way back.
+    if (this.count < GRENADE.max) {
+      this.reloadT -= dt;
+      if (this.reloadT <= 0) {
+        this.count = Math.min(GRENADE.max, this.count + 1);
+        this.reloadT = Math.max(GRENADE.reloadFloor, GRENADE.reload * (player.hasteCd || 1));
+      }
+    } else {
+      this.reloadT = 0;    // full: the next drop starts a fresh timer, no banked instant refill
+    }
 
     for (const g of this.live) {
       if (!g.active) continue;

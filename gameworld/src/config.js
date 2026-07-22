@@ -225,9 +225,20 @@ export const GRENADE = {
   damage: 90,
   selfScale: 0.5,        // you take half — dangerous, not instantly lethal
   cooldown: 2.2,
+  // Haste shrinks the throw cooldown (0.92^haste). Without a floor, enough speed drives it
+  // to ~0, and you empty the whole stock in a blink -- then, since supply only ever came
+  // from kills, nothing you throw has died yet and they never come back. Same shape as the
+  // gun-reload bug: a rate pushed past the floor it needed. Floor it, and haste makes
+  // grenades arrive SOONER instead of breaking them.
+  cdFloor: 0.4,
   maxFuse: 4.0,          // safety net; ground contact is the real trigger
   max: 3,
   refillPerKill: 1,
+  // A real reload, so spamming can no longer strand you at zero. Kills still refill FASTER
+  // (that is the "rewarded by fighting" design), but the stock always crawls back on its
+  // own -- hasted like everything else, and likewise floored so speed can never zero it.
+  reload: 4.2,
+  reloadFloor: 1.1,
   knockback: 11,
 };
 
