@@ -4,7 +4,7 @@
 // slide along a wall instead of sticking to it. It samples the world function directly, so
 // there is no collider to build, bake, or keep in sync with the mesh.
 
-import { PLAYER, CAMERA, DODGE } from "../config.js";
+import { PLAYER, CAMERA, DODGE, ABILITY } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
 import { wallBlocks } from "../world/sanctuary.js";
@@ -17,7 +17,7 @@ export const input = {
   aimHeld: false, aim: false,
   // Dodge is double-tap-a-direction, so the queued roll remembers WHICH key fired it —
   // you roll the way you tapped, not the way you happen to be steering a frame later.
-  dodgeQueued: false, dodgeFwd: 0, dodgeRight: 0, throwQueued: false, healQueued: false,
+  dodgeQueued: false, dodgeFwd: 0, dodgeRight: 0,
   // Jump is EDGE-triggered, not held: one press = one jump. A held-key check would let you
   // bunny-hop forever by leaning on space, and would burn both air jumps in a single frame.
   jumpQueued: false,
@@ -58,11 +58,12 @@ export function attachInput(canvas, hooks = {}) {
     // long press would queue a jump every few milliseconds.
     if (e.code === "Space" && !e.repeat) input.jumpQueued = true;
     if (e.code === "KeyR") hooks.reload?.();
-    if (e.code === "KeyE" && !e.repeat) input.throwQueued = true;
     if (e.code === "KeyF" && !e.repeat) hooks.interact?.();
-    // C is the potion; 1 stays bound too, since that is what it was five minutes ago.
-    if ((e.code === "KeyC" || e.code === "Digit1") && !e.repeat) hooks.drink?.();
-    if (e.code === "KeyQ" && !e.repeat) input.healQueued = true;
+    if (e.code === "KeyC" && !e.repeat) hooks.drink?.();
+    // The ability bar. 1-4 only — E and Q retired so a spell has exactly one key.
+    if (!e.repeat && /^Digit[1-4]$/.test(e.code)) {
+      hooks.ability?.(Number(e.code.slice(5)) - 1);
+    }
     if (e.code === "KeyB" && !e.repeat) hooks.summonBoss?.();   // dev: don't wander to test
     if (e.code === "KeyG" && !e.repeat) hooks.bridgeTest?.();   // dev: speak a line
 
@@ -166,7 +167,7 @@ export function stepPlayer(dt) {
   // Derived, every step: held AND not mid-roll.
   input.aim = input.aimHeld && player.dodgeT <= 0;
   const speed = (input.sprint && !input.aim ? PLAYER.sprintSpeed : PLAYER.walkSpeed)
-    * player.speedMult;
+    * player.speedMult * (player.surgeT > 0 ? ABILITY.surgeSpeed : 1);
 
   // Desired horizontal velocity in the yaw frame.
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);

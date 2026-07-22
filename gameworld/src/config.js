@@ -118,8 +118,24 @@ export const HEAL = {
   breakOnDamage: true,
 };
 
+// The four ability slots (1-4). Cost is TIME, not stock — nothing here has charges to buy,
+// so you are never sent back to town to re-arm.
+export const ABILITY = {
+  bombCd: 5.0,
+  mendCd: 12.0,
+  surgeCd: 14.0,
+  surgeTime: 2.2,        // seconds of boosted speed
+  surgeSpeed: 1.75,      // multiplier while it lasts
+  surgeIframes: 0.55,    // and briefly untouchable, so it's an escape as well as a chase
+  quakeCd: 40.0,
+  quakeRadius: 17,
+  quakeDamage: 260,
+  quakeKnock: 16,
+  quakeFlash: 0.55,
+};
+
 // Grenade: your answer to a crowd, and the only thing in the game that can kill YOU by
-// your own hand. Supply refills on kills, so using it is rewarded by fighting, not hoarding.
+// your own hand. Thrown by ability 1; the slot cooldown governs it, so no charges.
 export const GRENADE = {
   throwSpeed: 19,
   upBias: 0.28,          // arcs instead of flying flat
@@ -127,10 +143,7 @@ export const GRENADE = {
   radius: 6.5,
   damage: 90,
   selfScale: 0.5,        // you take half — dangerous, not instantly lethal
-  cooldown: 2.2,
   maxFuse: 4.0,          // safety net; ground contact is the real trigger
-  max: 3,
-  refillPerKill: 1,
   knockback: 11,
 };
 

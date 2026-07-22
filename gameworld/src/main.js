@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, ABILITY, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
@@ -23,6 +23,7 @@ import { Music } from "./audio/music.js";
 import { sfx } from "./audio/sfx.js";
 import { Grenades } from "./player/grenade.js";
 import { Heal } from "./player/heal.js";
+import { Abilities, ABILITIES } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
 import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats } from "./prog/xp.js";
@@ -64,6 +65,22 @@ const mobs = new Mobs(scene);
 const boss = new Boss(scene);
 const grenades = new Grenades(scene);
 const heal = new Heal(scene);
+const abilities = new Abilities(scene, {
+  get grenades() { return grenades; },
+  get heal() { return heal; },
+  camera,
+  quake: (x, y, z) => {
+    abilities.showWave(x, y, z);
+    blast(x, y, z, ABILITY.quakeRadius, ABILITY.quakeDamage, ABILITY.quakeKnock, false);
+  },
+});
+const barEl = document.getElementById("bar");
+barEl.innerHTML = ABILITIES.map((a) => `
+  <div class="slot" data-slot="${a.id}" title="${a.desc}">
+    <span class="k">${a.key}</span><span class="n">${a.name}</span>
+    <span class="cool"></span>
+  </div>`).join("");
+const barSlots = [...barEl.querySelectorAll(".slot")];
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
 const folk = new Folk(scene);
@@ -142,31 +159,33 @@ function rewardBoss(ring) {
  * grenade.js only knows a position and a radius, so bosses, mobs and you all take the same
  * blast without it importing any of them. Damage falls off with distance from the centre.
  */
-function blast(x, y, z) {
-  const falloff = (d) => Math.max(0.25, 1 - d / GRENADE.radius);
+function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
+               knock = GRENADE.knockback, hurtsYou = true) {
+  const falloff = (d) => Math.max(0.25, 1 - d / radius);
 
   for (const e of [...world.entities.values()]) {
     if (e.kind !== "mob") continue;
     const d = Math.hypot(e.x - x, e.z - z, (e.y - y) * 0.5);
-    if (d > GRENADE.radius) continue;
-    const res = mobs.hit(e.id, GRENADE.damage * player.dmgMult * falloff(d));
-    if (res?.killed) { reward(res); grenades.refill(); }
+    if (d > radius) continue;
+    const res = mobs.hit(e.id, damage * player.dmgMult * falloff(d));
+    if (res?.killed) reward(res);
   }
 
   if (boss.active) {
     const b = boss.alive;
     const d = Math.hypot(b.x - x, b.z - z);
-    if (d < GRENADE.radius + BOSS.contactRange * 0.5) {
-      const res = boss.hit("boss", GRENADE.damage * player.dmgMult * falloff(Math.max(0, d - BOSS.contactRange * 0.5)));
-      if (res?.killed) { rewardBoss(res.ring); grenades.refill(GRENADE.max); }
+    if (d < radius + BOSS.contactRange * 0.5) {
+      const res = boss.hit("boss", damage * player.dmgMult * falloff(Math.max(0, d - BOSS.contactRange * 0.5)));
+      if (res?.killed) rewardBoss(res.ring);
     }
   }
 
   // You are not exempt. Half damage, but a point-blank throw will still hurt badly —
   // which is what makes it a decision rather than a free button.
+  // Cataclysm is centred on you, so it must not blow you up — hence hurtsYou.
   const dp = Math.hypot(player.x - x, player.z - z, (player.y - y) * 0.5);
-  if (dp < GRENADE.radius) {
-    damagePlayer(GRENADE.damage * falloff(dp) * GRENADE.selfScale, x, z, GRENADE.knockback);
+  if (hurtsYou && dp < radius) {
+    damagePlayer(damage * falloff(dp) * GRENADE.selfScale, x, z, knock);
   }
 }
 
@@ -189,6 +208,12 @@ attachInput(renderer.domElement, {
     const v = villagers.nearest();
     if (!v) return;
     shop.show(v);
+  },
+  ability: (i) => {
+    if (inSafe) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; return; }
+    const msg = abilities.use(i);
+    if (msg) { tradeMsg = msg; tradeMsgT = 1.2; }
+    markCombat();
   },
   drink: () => {
     if (player.potions <= 0) { tradeMsg = "no potions"; tradeMsgT = 2; return; }
@@ -329,38 +354,25 @@ function frame(now) {
     if (hit?.targetId != null) {
       if (hit.targetTag === "boss" || hit.targetTag === "bossWeak") {
         const res = boss.hit(hit.targetTag, GUN.damage * player.dmgMult);
-        if (res?.killed) { rewardBoss(res.ring); grenades.refill(GRENADE.max); }
+        if (res?.killed) rewardBoss(res.ring);
         else if (res?.weak) killFeed = "core hit ×2.5";
       } else {
         const res = mobs.hit(hit.targetId, GUN.damage * player.dmgMult);
-        if (res?.killed) { reward(res); grenades.refill(); }
+        if (res?.killed) reward(res);
       }
-    }
-  }
-  if (input.throwQueued) {
-    input.throwQueued = false;
-    if (inSafeZone) {
-      tradeMsg = "weapons stowed inside the walls";
-      tradeMsgT = 2;
-    } else if (grenades.throwFrom(camera)) {
-      killFeed = "";
-      markCombat();
     }
   }
   grenades.update(dt, blast);
 
-  if (input.healQueued) {
-    input.healQueued = false;
-    if (inSafeZone) {
-      tradeMsg = "no need — the walls mend you";
-      tradeMsgT = 2;
-    } else {
-      heal.start();
-    }
-  }
   // The root condition, in one expression: steering, rolling, or airborne all break it.
   const stirring = input.fwd !== 0 || input.right !== 0 || player.dodgeT > 0 || !player.onGround;
   heal.update(dt, stirring);
+  abilities.update(dt);
+  barSlots.forEach((el, i) => {
+    const left = abilities.cd[i];
+    el.classList.toggle("up", left <= 0);
+    el.querySelector(".cool").textContent = left > 0 ? left.toFixed(left < 3 ? 1 : 0) : "";
+  });
 
   gun.update(dt);
   mobs.update(dt, hurtPlayer);
@@ -470,8 +482,7 @@ function frame(now) {
       : heal.cooldown > 0 ? `ready in ${Math.ceil(heal.cooldown)}s` : "ready  Q"}` +
     `${heal.lastResult ? `   ${heal.lastResult}` : ""}\n` +
     `gold ${player.gold}   potions ${player.potions}${player.gearDmg ? `   gear +${Math.round(player.gearDmg * 100)}%` : ""}\n` +
-    `nade ${"●".repeat(grenades.count)}${"○".repeat(Math.max(0, GRENADE.max - grenades.count))}` +
-    `${grenades.cooldown > 0 ? "  (cd)" : ""}   E throw\n` +
+
     `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
     `${bridge.label}${speaking ? "  ·  thinking…" : ""}\n` +
