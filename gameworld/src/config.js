@@ -125,6 +125,20 @@ export const ABILITY = {
   surgeSpeed: 1.75,
 };
 
+// Dash Strike: a committed line through a fight. Untouchable while it travels, so it is
+// both an escape and an opening — but the hitbox is NARROW, so it only catches what you
+// actually pass through. Aim is the cost; the short cooldown is the reward for aiming well.
+export const DASH = {
+  price: 120,
+  cd: 4,
+  speed: 46,
+  time: 0.26,           // ~12 units of travel
+  radius: 2.6,          // how close a mob must be to the line you cut
+  damage: 115,
+  knock: 9,
+  iframePad: 0.1,       // a sliver of grace on landing, so you don't eat a hit on arrival
+};
+
 // Abilities sold by the Adept. The first one is deliberately strong for its price: it is
 // the first real power spike, and it should feel like one on the walk home from buying it.
 export const FIRERING = {

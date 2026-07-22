@@ -9,7 +9,7 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING } from "../config.js";
+import { VILLAGE, FIRERING, DASH } from "../config.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
 
@@ -43,6 +43,17 @@ export const GOODS = {
         desc: "A wall of flame erupts around you.",
         cd: FIRERING.cd,
         use: () => game.fireRing(),
+      }) },
+    { id: "dash", name: "Dash Strike", price: DASH.price, once: true,
+      desc: `Blink forward through your enemies — untouchable while you travel, `
+        + `${DASH.damage} damage to anything you cut through. Narrow: only what you pass. `
+        + `${DASH.cd}s cooldown.`,
+      apply: (game) => game.abilities.equip(-1, {
+        id: "dash",
+        name: "Dash Strike",
+        desc: "Blink forward, untouchable, cutting through whatever you pass.",
+        cd: DASH.cd,
+        use: () => game.dashStrike(),
       }) },
   ],
   keeper: [],

@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
+import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, REGEN, LOOT, VILLAGE, VIEW_RADIUS, CHUNK_X, RING_SIZE, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
@@ -99,6 +99,71 @@ function fireRing() {
   markCombat();
 }
 
+// Dash Strike. The damage is a LINE test, not a radius: only what you actually cut through
+// is hit, which is what makes aiming it the whole skill.
+const dashTrail = (() => {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 0.9, 1),
+    new THREE.MeshBasicMaterial({ color: 0x9be8ff, transparent: true, opacity: 0, depthWrite: false }),
+  );
+  m.visible = false;
+  scene.add(m);
+  return m;
+})();
+let dashFx = 0;
+
+/** Distance from a point to a segment, on the ground plane. */
+function segDist(px, pz, x0, z0, x1, z1) {
+  const dx = x1 - x0, dz = z1 - z0;
+  const len2 = dx * dx + dz * dz;
+  const t = len2 ? Math.max(0, Math.min(1, ((px - x0) * dx + (pz - z0) * dz) / len2)) : 0;
+  return Math.hypot(px - (x0 + dx * t), pz - (z0 + dz * t));
+}
+
+function dashStrike() {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  dir.y = 0;
+  if (dir.lengthSq() < 1e-6) return false;
+  dir.normalize();
+
+  player.dashX = dir.x;
+  player.dashZ = dir.z;
+  player.dashT = DASH.time;
+  player.iframes = Math.max(player.iframes, DASH.time + DASH.iframePad);
+
+  const x0 = player.x, z0 = player.z;
+  const len = DASH.speed * DASH.time;
+  const x1 = x0 + dir.x * len, z1 = z0 + dir.z * len;
+
+  let hits = 0;
+  for (const e of [...world.entities.values()]) {
+    if (e.kind !== "mob") continue;
+    if (segDist(e.x, e.z, x0, z0, x1, z1) > DASH.radius) continue;
+    const res = mobs.hit(e.id, DASH.damage * player.dmgMult);
+    hits++;
+    if (res?.killed) { reward(res); grenades.refill(); }
+  }
+  if (boss.active
+      && segDist(boss.alive.x, boss.alive.z, x0, z0, x1, z1) < DASH.radius + BOSS.contactRange * 0.5) {
+    const res = boss.hit("boss", DASH.damage * player.dmgMult);
+    hits++;
+    if (res?.killed) { rewardBoss(res.ring); grenades.refill(GRENADE.max); }
+  }
+
+  // Draw the line you cut.
+  dashTrail.position.set((x0 + x1) / 2, player.y + 1, (z0 + z1) / 2);
+  dashTrail.rotation.y = Math.atan2(dir.x, dir.z);
+  dashTrail.scale.set(DASH.radius * 1.4, 1, len);
+  dashTrail.visible = true;
+  dashFx = 0.3;
+
+  sfx.whoosh();
+  if (hits) sfx.explosion(x1, z1, 0.6);
+  markCombat();
+  return true;
+}
+
 const barEl = document.getElementById("bar");
 barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => `
   <div class="slot">
@@ -115,7 +180,8 @@ let tradeMsg = "", tradeMsgT = 0;
 const shop = new Shop(document.getElementById("shop"), {
   get grenades() { return grenades; },
   get abilities() { return abilities; },
-  fireRing,   // lazily read: grenades is defined further down
+  fireRing,
+  dashStrike,   // lazily read: grenades is defined further down
   applyStats: () => applyLevelStats(),  // gear changes re-derive the same way levels do
   onClose: () => resumeFromShop(),
 });
@@ -414,6 +480,11 @@ function frame(now) {
   const stirring = input.fwd !== 0 || input.right !== 0 || player.dodgeT > 0 || !player.onGround;
   heal.update(dt, stirring);
   abilities.update(dt);
+  if (dashFx > 0) {
+    dashFx -= dt;
+    dashTrail.material.opacity = Math.max(0, dashFx / 0.3) * 0.55;
+    if (dashFx <= 0) dashTrail.visible = false;
+  }
   if (fireT > 0) {
     fireT -= dt;
     const f = 1 - Math.max(0, fireT) / FIRERING.grow;

@@ -4,7 +4,7 @@
 // slide along a wall instead of sticking to it. It samples the world function directly, so
 // there is no collider to build, bake, or keep in sync with the mesh.
 
-import { PLAYER, CAMERA, DODGE, ABILITY } from "../config.js";
+import { PLAYER, CAMERA, DODGE, DASH, ABILITY } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
 import { wallBlocks } from "../world/sanctuary.js";
@@ -202,7 +202,13 @@ export function stepPlayer(dt) {
     }
   }
 
-  if (player.dodgeT > 0) {
+  if (player.dashT > 0) {
+    // Dash Strike: committed like the dodge, but faster and further. Terrain still stops
+    // you — the normal collision below runs unchanged, so you cannot blink through a wall.
+    player.dashT -= dt;
+    player.vx = player.dashX * DASH.speed;
+    player.vz = player.dashZ * DASH.speed;
+  } else if (player.dodgeT > 0) {
     player.dodgeT -= dt;
     // The roll OWNS horizontal velocity while it lasts — no steering mid-roll. Committing
     // to the direction is what makes it a dodge instead of a speed boost.
