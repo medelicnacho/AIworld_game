@@ -62,6 +62,8 @@ export class Mobs {
     this.COL_CASTER = new THREE.Color(0xd11f1f);   // red: airborne ranged
     this.COL_GROUNDCASTER = new THREE.Color(0x8a3fd1);   // violet: ranged, but grounded
     this.COL_CHARGING = new THREE.Color(0xff8a3c);  // hot while winding up — the telegraph
+    this.COL_CHARGER = new THREE.Color(0x6b4a2a);   // heavy brown: it comes at you
+    this.COL_SWARM = new THREE.Color(0xc3d94a);     // pale: many, small, brief
     this.COL_HURT = new THREE.Color(0xff6655);
     this._affixCol = new THREE.Color();
     this._affixCache = new Map();     // affix id -> THREE.Color, built once
@@ -123,7 +125,9 @@ export class Mobs {
    */
   colorOf(e, now) {
     if (e.hurtT > 0) return this.COL_HURT;
-    if (e.castT > 0) return this.COL_CHARGING;
+    // Winding up to charge uses the SAME hot tell as a caster's wind-up: one colour for
+    // "something is about to happen", learned once and read everywhere.
+    if (e.castT > 0 || e.windT > 0) return this.COL_CHARGING;
     const n = e.affixes?.length || 0;
     if (n === 1) return this.affixColor(e.affixes[0]);
     if (n > 1) {
@@ -137,6 +141,8 @@ export class Mobs {
     }
     if (e.flies) return this.COL_CASTER;
     if (e.caster) return this.COL_GROUNDCASTER;
+    if (e.charger) return this.COL_CHARGER;
+    if (e.swarm) return this.COL_SWARM;
     return e.elite ? this.COL_ELITE : this.COL_MOB;
   }
 
@@ -178,8 +184,11 @@ export class Mobs {
     } else {
       caster = this.rng() < MOB.groundCasterChance;
     }
+    // A charger is an ordinary body that fights differently — never a caster, since
+    // "closes the gap violently" and "refuses to close the gap" are opposite answers.
+    const charger = !caster && !elite && this.rng() < MOB.chargerChance;
     return {
-      ring, elite, caster, flies,
+      ring, elite, caster, flies, charger,
       maxHp: hp, hp,
       damage: MOB.damage * (1 + MOB.damagePerRing * ring) * (elite ? MOB.eliteDamage : 1),
       speed: MOB.speed * (1 + MOB.speedPerRing * ring),
@@ -226,6 +235,8 @@ export class Mobs {
       bold: false,
       facing: 0,
       scale: 1,
+      swarm: false,
+      windT: 0, rushT: 0, recoverT: 0, rushX: 0, rushZ: 0,
       kx: 0, kz: 0, kT: 0,
       castT: 0, castCd: 1.5 + this.rng() * MOB.castCd,
       breedCd: this.breedDelay(),
@@ -240,6 +251,40 @@ export class Mobs {
     }
     e.y = this.restY(e);
     return e;
+  }
+
+  /** Turn a body into one of the little ones. */
+  makeSwarm(e) {
+    e.swarm = true;
+    e.elite = false;
+    e.caster = false;
+    e.flies = false;
+    e.charger = false;
+    e.affixes = [];
+    e.scale = MOB.swarmScale;
+    e.maxHp = e.hp = e.maxHp * MOB.swarmHp;
+    e.speed *= MOB.swarmSpeed;
+    e.damage *= MOB.swarmDamage;
+    e.y = this.restY(e);
+    return e;
+  }
+
+  /** Drop a pack of a specific BREED next to the player, for testing. */
+  spawnBreed(kind, n = 6) {
+    const a = this.rng() * Math.PI * 2;
+    const hx = player.x + Math.cos(a) * 26;
+    const hz = player.z + Math.sin(a) * 26;
+    if (sanctuaryOf(hx, hz, 20)) return false;
+    const id = this.nextPack++;
+    this.packs.set(id, { x: hx, z: hz });
+    const count = kind === "swarm" ? 18 : n;
+    for (let i = 0; i < count; i++) {
+      const ang = this.rng() * Math.PI * 2;
+      const e = this.spawnOne(hx + Math.cos(ang) * 5, hz + Math.sin(ang) * 5, id, hx, hz, []);
+      if (kind === "swarm") this.makeSwarm(e);
+      if (kind === "charger") { e.charger = true; e.caster = false; e.flies = false; }
+    }
+    return true;
   }
 
   /** Drop a pack right next to the player with exactly these affixes, for testing. */
@@ -270,12 +315,16 @@ export class Mobs {
     const id = this.nextPack++;
     this.packs.set(id, { x: hx, z: hz });
 
-    const [lo, hi] = MOB.packSize;
+    // A camp is either ordinary or a SWARM — mixing them would blur the silhouette read,
+    // and reading the camp before you engage it is the whole point of having breeds.
+    const isSwarm = this.rng() < MOB.swarmPackChance;
+    const [lo, hi] = isSwarm ? MOB.swarmSize : MOB.packSize;
     const n = lo + Math.floor(this.rng() * (hi - lo + 1));
     for (let i = 0; i < n; i++) {
       const ang = this.rng() * Math.PI * 2;
-      const r = this.rng() * MOB.homeWander;
-      this.spawnOne(hx + Math.cos(ang) * r, hz + Math.sin(ang) * r, id, hx, hz);
+      const r = this.rng() * MOB.homeWander * (isSwarm ? 0.5 : 1);
+      const e = this.spawnOne(hx + Math.cos(ang) * r, hz + Math.sin(ang) * r, id, hx, hz);
+      if (isSwarm) this.makeSwarm(e);
     }
     return id;
   }
@@ -303,7 +352,10 @@ export class Mobs {
         out.push({ id: e.id, x: e.x, y: e.y - 0.35, z: e.z, r });
         out.push({ id: e.id, x: e.x, y: e.y - 1.25, z: e.z, r: r * 0.85 });
       } else {
-        out.push({ id: e.id, x: e.x, y: e.y + 0.8, z: e.z, r: MOB.radius * sc });
+        // A floor on the hitbox: a swarm body is half-size, and a target you cannot
+        // reliably click is frustration rather than difficulty.
+        out.push({ id: e.id, x: e.x, y: e.y + 0.8 * sc, z: e.z,
+                   r: Math.max(0.52, MOB.radius * sc) });
       }
     }
     return out;
@@ -588,6 +640,34 @@ export class Mobs {
 
       let vx = 0, vz = 0;
 
+      // CHARGER: wind up rooted, commit in a straight line, then be helpless. Handled
+      // before every other movement rule because each phase OWNS the body completely —
+      // a charge that could be steered would not be a charge.
+      if (e.aggro && e.charger && (e.windT > 0 || e.rushT > 0 || e.recoverT > 0)) {
+        if (e.recoverT > 0) {
+          e.recoverT -= dt;                     // spent: standing still, free to shoot
+        } else if (e.rushT > 0) {
+          e.rushT -= dt;
+          const nx = e.x + e.rushX * MOB.chargeSpeed * dt;
+          const nz = e.z + e.rushZ * MOB.chargeSpeed * dt;
+          if (!sanctuaryOf(nx, nz, 1.5)) { e.x = nx; e.z = nz; }
+          if (dist < MOB.attackRange * 1.3 && player.iframes <= 0) {
+            onPlayerHit?.({ damage: e.damage * MOB.chargeDamage, x: e.x, z: e.z });
+            runAffix(e, "onHitPlayer", this.fx);
+            e.rushT = 0;
+          }
+          if (e.rushT <= 0) e.recoverT = MOB.chargeRecover;
+        } else {
+          e.windT -= dt;                        // rooted, glowing
+          e.rushX = ux; e.rushZ = uz;           // aim updates until the instant it goes
+          if (e.windT <= 0) e.rushT = MOB.chargeTime;
+        }
+        e.y = this.restY(e);
+        reindex(e);
+        this.sync(e, ux, uz);
+        continue;
+      }
+
       if (e.aggro && e.caster) {
         // CASTER: hold the middle distance and throw. Never lunges, never brawls.
         e.bold = false;
@@ -624,7 +704,11 @@ export class Mobs {
 
         if (e.bold && dist > MOB.attackRange * 1.4) { vx += ux * 0.9; vz += uz * 0.9; }
 
-        if (e.bold && dist <= MOB.attackRange * 1.7 && e.atkCd <= 0) {
+        // Begin a charge from mid range — too close and there is no room to read it.
+        if (e.charger && e.atkCd <= 0 && dist > MOB.attackRange * 2.5 && dist < MOB.chargeRange) {
+          e.windT = MOB.chargeWind;
+          e.atkCd = MOB.attackCd * 2.2;
+        } else if (e.bold && dist <= MOB.attackRange * 1.7 && e.atkCd <= 0) {
           e.lungeT = MOB.lungeTime;
           e.lx = ux; e.lz = uz;
           e.atkCd = MOB.attackCd;
@@ -660,8 +744,9 @@ export class Mobs {
 
       if (e.castT > 0) { vx = 0; vz = 0; }    // rooted mid-cast
 
-      vx += sepX * MOB.sepForce + aliX * MOB.alignForce + cohX * MOB.cohesionForce;
-      vz += sepZ * MOB.sepForce + aliZ * MOB.alignForce + cohZ * MOB.cohesionForce;
+      const coh = MOB.cohesionForce * (e.swarm ? MOB.swarmCohesion : 1);
+      vx += sepX * MOB.sepForce + aliX * MOB.alignForce + cohX * coh;
+      vz += sepZ * MOB.sepForce + aliZ * MOB.alignForce + cohZ * coh;
 
       // Normalise so the forces set DIRECTION, not pace. Idling is a stroll; hunting isn't.
       const m = Math.hypot(vx, vz);

@@ -340,6 +340,7 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
   // Spawn a star pack carrying exactly these affixes, next to you, tier gates ignored.
   affixes: () => affixList().map((a) => ({ id: a.id, name: a.name, desc: a.desc || "" })),
   spawnAffix: (id) => { mobs.spawnPackWith([id]); },
+  spawnBreed: (kind) => { mobs.spawnBreed(kind); },
   spawnAffixMix: () => {
     const all = affixList().map((a) => a.id);
     mobs.spawnPackWith(all.slice(0, 3));

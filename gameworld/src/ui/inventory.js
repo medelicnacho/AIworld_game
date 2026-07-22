@@ -96,6 +96,8 @@ export class Inventory {
     const spawn = e.target.closest("[data-spawn]");
     if (spawn) { this.hooks.spawnAffix?.(spawn.dataset.spawn); this.close(); return; }
     if (e.target.closest("[data-spawnmix]")) { this.hooks.spawnAffixMix?.(); this.close(); return; }
+    const breed = e.target.closest("[data-breed]");
+    if (breed) { this.hooks.spawnBreed?.(breed.dataset.breed); this.close(); return; }
     if (e.target.closest("[data-setlevel]")) {
       const v = Number(this.el.querySelector("#adm-level")?.value);
       if (v > 0) this.hooks.setLevel?.(Math.floor(v));
@@ -163,6 +165,8 @@ export class Inventory {
           ${(this.hooks.affixes?.() || []).map((a) => `
             <button class="give spawn" data-spawn="${a.id}" title="${a.desc}">${a.name}</button>`).join("")}
           <button class="give spawn" data-spawnmix>mixed</button>
+          <button class="give spawn" data-breed="swarm">swarm pack</button>
+          <button class="give spawn" data-breed="charger">chargers</button>
         </div>
       </div>`;
   }

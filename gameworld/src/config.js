@@ -354,6 +354,29 @@ export const MOB = {
   ballLife: 4.5,
   ballPool: 32,
 
+  // --- SWARM: tiny, fast, fragile, and only dangerous in numbers ------------------
+  // The question it asks is "do you have a crowd answer" — Ring of Fire finally has a
+  // customer, and a single-target build has to learn to back up.
+  swarmPackChance: 0.26,  // of new camps
+  swarmSize: [14, 22],
+  swarmHp: 0.15,
+  swarmSpeed: 1.55,
+  swarmScale: 0.5,
+  swarmDamage: 0.45,
+  swarmCohesion: 2.4,     // multiplier on the flocking pull: they move as one body
+
+  // --- CHARGER: wind up, commit, then be helpless ---------------------------------
+  // The question is sidestep TIMING. Everything else punishes where you stand; this
+  // punishes when you move. Its recovery is a real window, not a formality.
+  chargerChance: 0.17,    // of ordinary (non-caster) mobs
+  chargeRange: 27,
+  chargeWind: 0.75,       // rooted and glowing before it goes
+  chargeSpeed: 21,
+  chargeTime: 1.15,
+  chargeRecover: 1.7,     // helpless afterwards, whether it hit or missed
+  chargeDamage: 2.3,      // multiplier on its own damage
+  chargeKnock: 15,
+
   // --- steering: emergent movement, no substrate required -------------------------
   // The brain decides INTENT (close, hold, lunge); these decide HOW the body gets there.
   // Same seam as PLAN §4 — a mob brain and a soul brain will drive the same locomotion.
