@@ -454,11 +454,11 @@ export const MOB = {
   // The tier-0 BASE is deliberately calm — the Commons is where you learn the game, and it
   // read as a swarm. The crowd ramp (rampCrowd) climbs off this base fast, so ring 1 is
   // already busier and the deep still fills to the cap; only the first level is quieter.
-  maxAlive: 115,
-  maxAlivePerTier: 26,    // tier 1: ~141 · tier 3: ~213 · tier 6+: capped
+  maxAlive: 78,
+  maxAlivePerTier: 30,    // tier 1: ~108 · tier 3: ~191 · tier 6+: capped
   maxAliveCap: 380,
-  maxPacks: 11,
-  maxPacksPerTier: 4,
+  maxPacks: 8,
+  maxPacksPerTier: 5,
   maxPacksCap: 34,
   packSize: [9, 18],      // a camp is a crowd, not a squad
   packCap: 26,            // and it can breed to this
