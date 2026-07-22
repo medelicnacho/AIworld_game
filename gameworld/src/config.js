@@ -475,14 +475,17 @@ export const MOB = {
 // around a single rule: the fight must be long enough that its pattern becomes legible,
 // and every source of damage must be avoidable by a player who reads the telegraph.
 export const BOSS = {
-  // HP COMPOUNDS, like the mobs' and like your damage. It was still the old linear formula
-  // long after mob HP was fixed, so a full ability rotation went from 89% of a tier-1 boss
-  // to 220% of a tier-8 one — you could delete them with three buttons. Matching the curve
-  // holds a rotation at ~23% of a boss at EVERY depth, so a fight is always four or five
-  // rotations plus gunfire rather than a burst check.
-  //   tier 1: 3550 · tier 3: 7159 · tier 5: 14434 · tier 8: 41328
-  hp: 2500,
+  // HP COMPOUNDS, like the mobs'. The curve was matched to LEVELS alone — but gear and relic
+  // damage are uncapped and multiply on top, so a player who stacked sharpen deleted bosses
+  // that the maths said should last five rotations. That is exactly the "bosses die super
+  // fast" you hit. Two answers: a higher base (the shallow fight), and a depth RAMP so bosses
+  // accelerate alongside the now-accelerating trash instead of becoming the softest thing on
+  // the ring. The ramp is deliberately GENTLER than the mobs' HP ramp — a boss already lasts
+  // ~22s, so mob-grade acceleration would turn the deep ones into minutes of tedium.
+  //   tier 1: 5680 · tier 3: 14100 · tier 5: 46600 · tier 8: ~471000
+  hp: 4000,
   hpGrowth: 1.42,
+  ramp: 0.10,            // see ringPressure(); << MOB.ramp on purpose — bosses tank, not sponge
   // And it hits harder as you go out. A longer fight against fixed damage is an EASIER
   // fight; the deep should not be safer just because it takes longer.
   damagePerTier: 0.18,

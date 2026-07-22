@@ -11,7 +11,7 @@
 import * as THREE from "three";
 import { BOSS } from "../config.js";
 import { player } from "../state.js";
-import { groundY, ringAt, tierAt } from "../world/gen.js";
+import { groundY, ringAt, tierAt, ringPressure } from "../world/gen.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 import { sfx } from "../audio/sfx.js";
@@ -75,7 +75,8 @@ export class Boss {
     // stowed in there) and would break the one promise a sanctuary makes.
     if (sanctuaryOf(x, z, BOSS.contactRange + 12)) return null;
     const ring = Math.max(BOSS.spawnRing, tierAt(x, z));
-    const hp = BOSS.hp * Math.pow(BOSS.hpGrowth, ring);
+    // Accelerates with depth like the trash, but on a gentler ramp — see BOSS.ramp.
+    const hp = BOSS.hp * Math.pow(BOSS.hpGrowth, ringPressure(ring, BOSS.ramp));
 
     this.alive = {
       x, y: groundY(x, z), z,
