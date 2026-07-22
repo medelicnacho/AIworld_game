@@ -212,7 +212,7 @@ addEventListener("resize", () => {
 const clickEl = document.getElementById("click");
 let paused = true, everPlayed = false, inSafe = false;
 // Time left before regen resumes. Dealing damage counts as fighting, not just taking it.
-let combatT = 0;
+let combatT = 0, hunted = false;
 const markCombat = () => { combatT = REGEN.delay; };
 
 function setPaused(p) {
@@ -298,7 +298,12 @@ function frame(now) {
 
   if (input.healQueued) {
     input.healQueued = false;
-    heal.start();
+    if (inSafeZone) {
+      tradeMsg = "no need — the walls mend you";
+      tradeMsgT = 2;
+    } else {
+      heal.start();
+    }
   }
   // The root condition, in one expression: steering, rolling, or airborne all break it.
   const stirring = input.fwd !== 0 || input.right !== 0 || player.dodgeT > 0 || !player.onGround;
@@ -335,10 +340,13 @@ function frame(now) {
     camera.position.z += (shakeRng() - 0.5) * s;
   }
 
-  // Regeneration: only once you've been out of it a while. Standing in a refuge mends you
-  // faster, which is what makes a town somewhere you WANT to reach rather than just a wall.
+  // Regeneration needs BOTH: you've stopped fighting, and nothing is still hunting you.
+  // Being chased is combat even if neither side has landed a hit yet — otherwise you could
+  // regen while kiting a pack, which is the exact situation it should not rescue.
   if (combatT > 0) combatT -= dt;
-  else if (player.hp < player.maxHp) {
+  hunted = mobs.anyHunting() || (boss.active
+    && Math.hypot(boss.alive.x - player.x, boss.alive.z - player.z) < BOSS.aggroRange);
+  if (combatT <= 0 && !hunted && player.hp < player.maxHp) {
     player.hp = Math.min(player.maxHp,
       player.hp + REGEN.rate * (inSafe ? REGEN.safeMult : 1) * dt);
   }
@@ -396,7 +404,11 @@ function frame(now) {
     `${"▯".repeat(12 - Math.round(levelProgress() * 12))} ${player.xp}/${xpToNext(player.level)}xp\n` +
     `hp   ${"█".repeat(Math.max(0, Math.round(player.hp / 10)))}${"░".repeat(Math.max(0, 10 - Math.round(player.hp / 10)))} ` +
     `${Math.max(0, Math.round(player.hp))}` +
-    `${player.hp < player.maxHp ? (combatT > 0 ? `  (${combatT.toFixed(0)}s)` : inSafe ? "  ▲▲" : "  ▲") : ""}` +
+    `${player.hp < player.maxHp
+      ? hunted ? "  (hunted)"
+        : combatT > 0 ? `  (${combatT.toFixed(0)}s)`
+          : inSafe ? "  ▲▲" : "  ▲"
+      : ""}` +
     `   kills ${mobs.killed}  born ${mobs.born}  packs ${mobs.packs.size}  ${killFeed}\n` +
     `heal ${heal.casting
       ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL`

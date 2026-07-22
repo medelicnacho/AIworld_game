@@ -181,6 +181,15 @@ export class Mobs {
     return out;
   }
 
+  /** Is anything actively hunting the player within `range`? Regen reads this. */
+  anyHunting(range = 55) {
+    for (const e of nearby(player.x, player.z, range)) {
+      if (e.kind !== "mob" || !e.aggro) continue;
+      if (Math.hypot(e.x - player.x, e.z - player.z) < range) return true;
+    }
+    return false;
+  }
+
   packCount(id) {
     let n = 0;
     for (const e of this.entities()) if (e.pack === id) n++;
