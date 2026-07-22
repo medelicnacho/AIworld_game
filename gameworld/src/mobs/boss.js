@@ -75,11 +75,13 @@ export class Boss {
     // stowed in there) and would break the one promise a sanctuary makes.
     if (sanctuaryOf(x, z, BOSS.contactRange + 12)) return null;
     const ring = Math.max(BOSS.spawnRing, tierAt(x, z));
-    const hp = BOSS.hp * (1 + BOSS.hpPerRing * ring);
+    const hp = BOSS.hp * Math.pow(BOSS.hpGrowth, ring);
 
     this.alive = {
       x, y: groundY(x, z), z,
       ring, hp, maxHp: hp,
+      // One multiplier, applied wherever this boss deals damage.
+      dmg: 1 + BOSS.damagePerTier * ring,
       volleyCd: 2.6,
       contactCd: 0,
       phase: 1,
@@ -274,7 +276,7 @@ export class Boss {
 
       if (dist < BOSS.contactRange && b.contactCd <= 0 && player.iframes <= 0) {
         b.contactCd = BOSS.contactCd;
-        onPlayerHit?.(BOSS.contactDamage, b.x, b.z);
+        onPlayerHit?.(BOSS.contactDamage * b.dmg, b.x, b.z);
       }
     }
 
@@ -320,7 +322,7 @@ export class Boss {
         b.beamZ += (dz / d) * step;
       }
       if (d < BOSS.beamRadius && player.iframes <= 0) {
-        onBeamHit?.(BOSS.beamDps * dt, b.beamX, b.beamZ);
+        onBeamHit?.(BOSS.beamDps * b.dmg * dt, b.beamX, b.beamZ);
       }
       if (b.beamT <= 0) this.hideBeam();
     } else {
@@ -369,7 +371,7 @@ export class Boss {
         if (m.t <= 0) {
           const d = Math.hypot(player.x - m.x, player.z - m.z);
           if (d < BOSS.meteorRadius && player.iframes <= 0) {
-            onMeteorHit?.(BOSS.meteorDamage, m.x, m.z);
+            onMeteorHit?.(BOSS.meteorDamage * (this.alive?.dmg || 1), m.x, m.z);
           }
           sfx.explosion(m.x, m.z, 1.35);
           this.shake = Math.min(1, this.shake + BOSS.shake);

@@ -148,7 +148,7 @@ export const DASH = {
   speed: 46,
   time: 0.26,           // ~12 units of travel
   radius: 2.6,          // how close a mob must be to the line you cut
-  damage: 115,
+  damage: 95,
   knock: 9,
   iframePad: 0.1,       // a sliver of grace on landing, so you don't eat a hit on arrival
 };
@@ -163,11 +163,11 @@ export const WHIRL = {
   leapUp: 9.5,
   leapTime: 0.55,       // airtime cap; landing early triggers the slam early
   slamRadius: 10,
-  slamDamage: 185,
+  slamDamage: 150,
   spinTime: 3.6,
   spinRadius: 7.0,      // matches the drawn ring exactly
   spinTick: 0.22,       // damage every this many seconds while spinning
-  spinDamage: 34,       // ~154/s sustained
+  spinDamage: 22,       // ~100/s sustained
   spinSpeed: 1.5,       // and you move faster while you do it
 };
 
@@ -186,7 +186,7 @@ export const FIRERING = {
   price: 90,
   cd: 16,
   radius: 15,
-  damage: 210,          // a tier-0 mob has 30hp, an elite 66 — this clears a camp
+  damage: 150,          // still clears an early camp; no longer deletes a boss
   knock: 13,
   grow: 0.55,           // seconds for the wall of flame to reach full radius
   shove: 26,            // rank 2 only: how hard survivors are thrown outward
@@ -376,13 +376,17 @@ export const MOB = {
 // around a single rule: the fight must be long enough that its pattern becomes legible,
 // and every source of damage must be avoidable by a player who reads the telegraph.
 export const BOSS = {
-  // Base was 1800 with +80%/tier, which made your FIRST boss (tier 1) a 3240 HP slog at
-  // level 3 — a minute-plus of holding the trigger, which is tedium, not difficulty.
-  // Halved the base and steepened the distance term instead: the frontier, not the floor,
-  // is where a boss gets terrifying.
-  //   tier 1: 1700 · tier 3: 3400 · tier 5: 5100 · tier 10: 9350
-  hp: 850,
-  hpPerRing: 1.0,
+  // HP COMPOUNDS, like the mobs' and like your damage. It was still the old linear formula
+  // long after mob HP was fixed, so a full ability rotation went from 89% of a tier-1 boss
+  // to 220% of a tier-8 one — you could delete them with three buttons. Matching the curve
+  // holds a rotation at ~23% of a boss at EVERY depth, so a fight is always four or five
+  // rotations plus gunfire rather than a burst check.
+  //   tier 1: 4544 · tier 3: 9163 · tier 5: 18470 · tier 8: 52900
+  hp: 3200,
+  hpGrowth: 1.42,
+  // And it hits harder as you go out. A longer fight against fixed damage is an EASIER
+  // fight; the deep should not be safer just because it takes longer.
+  damagePerTier: 0.18,
   speed: 1.7,             // slow — you can always outrun it; the meteors are the threat
   scale: 6.0,
   contactRange: 6.5,
