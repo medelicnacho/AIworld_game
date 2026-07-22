@@ -21,11 +21,11 @@ export const ICONS = {
     <circle cx="12" cy="12" r="10" fill="#ff5a1e" stroke="#ffb066" stroke-width="1.4"/>
     <circle cx="12" cy="12" r="4.6" fill="#ffd08a" opacity="0.9"/></svg>`,
 
-  // Dash Strike — a blood-red arrow, angled 45° up. Rotated about the icon's centre
-  // (negative is anticlockwise in SVG, where y grows downward), so it reads as lunging
-  // forward-and-up rather than sliding sideways.
+  // Dash Strike — a blood-red arrow pointing straight up. Rotated about the icon's centre
+  // (negative is anticlockwise in SVG, where y grows downward), so the arrowhead geometry
+  // is untouched and only its heading changes.
   arrow: `<svg viewBox="0 0 24 24" aria-hidden="true">
-    <g transform="rotate(-45 12 12)">
+    <g transform="rotate(-90 12 12)">
       <path d="M2 9.2h12V4l8 8-8 8v-5.2H2z"
         fill="#a11212" stroke="#e04a4a" stroke-width="1.3" stroke-linejoin="round"/>
     </g></svg>`,
