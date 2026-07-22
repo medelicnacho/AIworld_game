@@ -205,7 +205,8 @@ const whirlRing = (() => {
   return m;
 })();
 const spinRing = (() => {
-  const g = new THREE.RingGeometry(WHIRL.spinRadius * 0.55, WHIRL.spinRadius, 40);
+  // Inner/outer straight from the damage radius: one number, one truth.
+  const g = new THREE.RingGeometry(WHIRL.spinRadius * 0.45, WHIRL.spinRadius, 48);
   g.rotateX(-Math.PI / 2);
   const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
     color: 0xbfe4ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
@@ -359,9 +360,14 @@ function rewardBoss(ring) {
  * grenade.js only knows a position and a radius, so bosses, mobs and you all take the same
  * blast without it importing any of them. Damage falls off with distance from the centre.
  */
+/**
+ * @param {boolean} flat - full damage right out to the rim instead of tapering. A spin you
+ *   are standing inside should hurt the same wherever something is in it; taper made the
+ *   drawn ring and the felt ring disagree, which reads as the hitbox being too small.
+ */
 function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
-               knock = GRENADE.knockback, hurtsYou = true) {
-  const falloff = (d) => Math.max(0.25, 1 - d / radius);
+               knock = GRENADE.knockback, hurtsYou = true, flat = false) {
+  const falloff = (d) => (flat ? 1 : Math.max(0.25, 1 - d / radius));
 
   for (const e of [...world.entities.values()]) {
     if (e.kind !== "mob") continue;
@@ -623,7 +629,8 @@ function frame(now) {
     whirlTick -= dt;
     if (whirlTick <= 0) {
       whirlTick = WHIRL.spinTick;
-      blast(player.x, player.y + 1, player.z, WHIRL.spinRadius, WHIRL.spinDamage, 5, false);
+      // Flat damage to the rim, so what you see is what it hits.
+      blast(player.x, player.y + 1, player.z, WHIRL.spinRadius, WHIRL.spinDamage, 5, false, true);
     }
     spinRing.visible = true;
     spinRing.position.set(player.x, player.y + 0.35, player.z);

@@ -165,7 +165,7 @@ export const WHIRL = {
   slamRadius: 10,
   slamDamage: 185,
   spinTime: 3.6,
-  spinRadius: 5.6,
+  spinRadius: 7.0,      // matches the drawn ring exactly
   spinTick: 0.22,       // damage every this many seconds while spinning
   spinDamage: 34,       // ~154/s sustained
   spinSpeed: 1.5,       // and you move faster while you do it
