@@ -162,7 +162,12 @@ export class Boss {
 
   hit(tag, amount) {
     if (!this.alive) return null;
-    const dmg = tag === "bossWeak" ? amount * BOSS.weakMultiplier : amount;
+    const raw = tag === "bossWeak" ? amount * BOSS.weakMultiplier : amount;
+    // Per-hit cap: burst is clamped, ordinary hits pass through. The cap is a fraction of
+    // max HP that tightens with depth, so no gear stack can delete a boss and the deep ones
+    // resist it most. `capped` is returned so the HUD can tell you the boss shrugged some off.
+    const cap = this.alive.maxHp * BOSS.maxHitFraction / (1 + BOSS.hitCapTighten * this.alive.ring);
+    const dmg = Math.min(raw, cap);
     this.alive.hp -= dmg;
     if (this.alive.hp <= 0) {
       const ring = this.alive.ring;
@@ -170,7 +175,7 @@ export class Boss {
       this.killed++;
       return { killed: true, ring, weak: tag === "bossWeak", dmg };
     }
-    return { killed: false, weak: tag === "bossWeak", dmg };
+    return { killed: false, weak: tag === "bossWeak", dmg, capped: dmg < raw };
   }
 
   fireVolley() {

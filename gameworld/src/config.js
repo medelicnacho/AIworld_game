@@ -486,6 +486,22 @@ export const BOSS = {
   hp: 4000,
   hpGrowth: 1.42,
   ramp: 0.10,            // see ringPressure(); << MOB.ramp on purpose — bosses tank, not sponge
+
+  // TOUGHNESS — the answer to uncapped gear, and why it does NOT punish an ungeared player.
+  //
+  // A flat "damage taken x0.7" would be a lie: mathematically it is identical to giving the
+  // boss more HP, so it hits the level-baseline damage exactly as hard as it hits the gear
+  // bonus, and an ungeared player just fights a longer fight for no reason. What actually
+  // separates a geared player from a bare one is BIG PER-HIT NUMBERS. So the boss caps the
+  // damage any SINGLE hit may deal to a fraction of its max HP: small hits sail under it
+  // untouched, burst gets clamped. A whale can no longer delete a boss in three buttons, an
+  // ungeared player never even notices the cap exists, and the floor on a fight becomes
+  // "1 / fraction" hits no matter how absurd your sharpen stack.
+  //
+  // It scales with tier two ways: the cap is a fraction of a tier-scaled HP pool, and the
+  // fraction itself tightens with depth — so the deep bosses are the hardest to burst.
+  maxHitFraction: 0.03,     // ring 1: no single hit may exceed 3% of max HP (~34-hit floor)
+  hitCapTighten: 0.06,      // and that shrinks: fraction / (1 + this * ring)
   // And it hits harder as you go out. A longer fight against fixed damage is an EASIER
   // fight; the deep should not be safer just because it takes longer.
   damagePerTier: 0.18,
