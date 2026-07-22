@@ -15,8 +15,8 @@ import { Shop } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
-import { ringAt, tierAt, tierStart } from "./world/gen.js";
-import { Sanctuaries, sanctuaryOf, sanctuariesNear, boundaryAt } from "./world/sanctuary.js";
+import { ringAt, tierAt, tierStart, groundY } from "./world/gen.js";
+import { Sanctuaries, sanctuaryOf, sanctuariesNear, boundaryAt, homeOfTier } from "./world/sanctuary.js";
 import { attachInput, input, stepPlayer } from "./player/controller.js";
 import { CameraRig } from "./player/camera.js";
 import { Gun } from "./player/gun.js";
@@ -315,10 +315,25 @@ function respawn() {
   // D9: death costs your top level. Not the run, not your gear — one level, and you land
   // halfway to earning it back, so the loss stings without erasing the walk that bought it.
   const lost = loseLevel();
-  spawnPlayer();
+
+  // You wake in the great city of the ring you fell in, not back at spawn. Losing an hour's
+  // walk on top of a level would make dying deep unaffordable, and the frontier is meant to
+  // be somewhere you push into rather than somewhere you dread being sent back from.
+  const home = homeOfTier(tierAt(player.x, player.z));
+  if (home) {
+    player.x = home.x;
+    player.z = home.z;
+    player.y = groundY(home.x, home.z) + 0.5;
+    player.vx = player.vy = player.vz = 0;
+    player.dodgeT = player.dashT = player.surgeT = 0;
+  } else {
+    spawnPlayer();
+  }
+
   player.hp = player.maxHp;
   player.iframes = 1.5;                 // grace on arrival, so you can't be spawn-camped
-  killFeed = lost ? `you died  ▼ LEVEL ${player.level}` : "you died";
+  killFeed = `you died${lost ? `  ▼ LEVEL ${player.level}` : ""}`
+    + (home?.city ? "  · woke in the city" : "  · woke in town");
 }
 
 spawnPlayer();

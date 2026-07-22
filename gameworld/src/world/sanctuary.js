@@ -134,6 +134,16 @@ export function tierSettlements(t) {
   return out;
 }
 
+/** The city of a tier, or null — tier 0 has none, so callers fall back to the spawn town. */
+export function cityOfTier(t) {
+  return tierSettlements(t).find((s) => s.city) || null;
+}
+
+/** The settlement a respawn should use for a tier: its city, else its first town. */
+export function homeOfTier(t) {
+  return cityOfTier(t) || tierSettlements(t)[0] || tierSettlements(0)[0];
+}
+
 /** Every settlement whose centre lies within `range` of a point. */
 export function sanctuariesNear(x, z, range = 220) {
   const out = [];
