@@ -66,6 +66,24 @@ export function levelProgress() {
   return Math.max(0, Math.min(1, player.xp / xpToNext(player.level)));
 }
 
+/**
+ * The deepest tier your level entitles you to WAKE in. Dying deep at a low level should not
+ * hand you a free teleport past everything you skipped — you get carried back to where you
+ * have actually earned a bed.
+ *
+ *   level  1-9   tier 0 (the Commons)
+ *   level 10-14  tier 1
+ *   level 15-19  tier 2 ... and one more tier every 5 levels after
+ */
+export function respawnTierFor(level) {
+  return Math.max(0, Math.floor((level - 5) / 5));
+}
+
+/** The level a tier expects, for telling the player why they woke where they did. */
+export function levelForTier(t) {
+  return t <= 0 ? 1 : 5 + 5 * t;
+}
+
 /** D9's death penalty: lose the top level, and land just short of regaining it. */
 export function loseLevel() {
   if (player.level <= 1) { player.xp = 0; return false; }

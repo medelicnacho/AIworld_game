@@ -125,11 +125,9 @@ export class Inventory {
     if (from.from === "bag" && to.from === "slot") {
       const def = a.owned[from.index];
       if (!def) return;
-      // Already equipped elsewhere? Move it rather than cloning it into two slots.
-      const at = a.slots.findIndex((s) => s && s.id === def.id);
-      const displaced = a.slots[to.index];
-      a.slots[to.index] = def;
-      if (at >= 0 && at !== to.index) a.slots[at] = displaced || null;
+      // equip() owns the one-ability-one-slot rule, including moving it if it is already
+      // on the bar. Doing that here as well is how the two copies happened.
+      a.equip(to.index, def);
     } else if (from.from === "slot" && to.from === "slot") {
       const t = a.slots[to.index];
       a.slots[to.index] = a.slots[from.index];

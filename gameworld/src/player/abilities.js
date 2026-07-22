@@ -23,11 +23,23 @@ export class Abilities {
     // Items granted by a vendor usually have no system of their own, so the bar tracks a
     // cooldown for any slot whose definition carries a plain `cd` number. Slots backed by a
     // real system (a grenade, a channel) still report their own and are never touched here.
-    this.cd = new Array(SLOTS).fill(0);
-    // Charges, for abilities that carry more than one use. They recharge one at a time off
-    // the same cd timer, so holding two and spending both means waiting two cooldowns —
-    // the Genji model: burst now, pay for it after.
-    this.ch = new Array(SLOTS).fill(0);
+    // Cooldowns and charges are keyed by ABILITY ID, not by slot index. Keying by slot
+    // meant dragging an ability to a different bar position gave it a fresh cooldown, and
+    // an ability sitting in two slots ran two independent timers. By id, an ability has one
+    // cooldown wherever it happens to sit — and cannot be duplicated into two of them.
+    this.state = new Map();   // id -> { cd, ch, def }
+  }
+
+  /** The live cooldown/charge record for an ability, created on first sight. */
+  stateOf(def) {
+    if (!def) return null;
+    let st = this.state.get(def.id);
+    if (!st) {
+      st = { cd: 0, ch: def.maxCharges || 1, def };
+      this.state.set(def.id, st);
+    }
+    st.def = def;
+    return st;
   }
 
   maxChargesOf(i) { return this.slots[i]?.maxCharges || 1; }
@@ -37,36 +49,38 @@ export class Abilities {
     const a = this.slots[i];
     if (!a) return null;
     if (a.charges) return a.charges();              // backed by its own system
-    return (a.maxCharges || 1) > 1 ? this.ch[i] : null;
+    return (a.maxCharges || 1) > 1 ? this.stateOf(a).ch : null;
   }
 
   /** Seconds left on a slot, from wherever that slot's truth lives. */
   cooldownOf(i) {
     const a = this.slots[i];
     if (!a) return 0;
-    return a.cooldown ? a.cooldown() : this.cd[i];
+    return a.cooldown ? a.cooldown() : this.stateOf(a).cd;
   }
 
   readyOf(i) {
     const a = this.slots[i];
     if (!a) return false;
     if (a.ready) return a.ready();
-    if ((a.maxCharges || 1) > 1) return this.ch[i] > 0;
-    return this.cd[i] <= 0;
+    const st = this.stateOf(a);
+    if ((a.maxCharges || 1) > 1) return st.ch > 0;
+    return st.cd <= 0;
   }
 
   update(dt) {
-    for (let i = 0; i < SLOTS; i++) {
-      if (this.cd[i] <= 0) continue;
-      this.cd[i] -= dt;
-      if (this.cd[i] > 0) continue;
-      const a = this.slots[i];
-      const max = a?.maxCharges || 1;
-      if (max > 1 && this.ch[i] < max) {
-        this.ch[i]++;
+    // Every ability you own ticks, equipped or not — an ability does not stop recovering
+    // because you dragged it off the bar for a moment.
+    for (const st of this.state.values()) {
+      if (st.cd <= 0) continue;
+      st.cd -= dt;
+      if (st.cd > 0) continue;
+      const max = st.def?.maxCharges || 1;
+      if (max > 1 && st.ch < max) {
+        st.ch++;
         // Still short of full? Start the next charge immediately rather than waiting for
         // a use — otherwise a half-empty ability would sit there never refilling.
-        if (this.ch[i] < max) this.cd[i] = a.cd;
+        if (st.ch < max) st.cd = st.def.cd;
       }
     }
   }
@@ -77,27 +91,39 @@ export class Abilities {
 
     // An upgrade takes the place of what it upgrades, in the bag AND on the bar. Leaving
     // rank 1 lying around next to rank 2 is clutter that can only ever be a mistake.
+    let placed = false;
     if (def.replaces) {
       const at = this.owned.findIndex((o) => o.id === def.replaces);
       if (at >= 0) this.owned.splice(at, 1);
+      this.state.delete(def.replaces);          // the old rank's timer goes with it
       for (let i = 0; i < SLOTS; i++) {
-        if (this.slots[i]?.id === def.replaces) this.equip(i, def);
+        if (this.slots[i]?.id === def.replaces) { this.slots[i] = def; placed = true; }
       }
     }
 
     this.owned.push(def);
-    const free = this.firstFree();
-    if (free >= 0) this.equip(free, def);
+    // Only reach for a free slot if the upgrade did not already take its predecessor's
+    // place. Doing both is what put rank 1 and rank 2 on the bar at once, each running its
+    // own cooldown.
+    if (!placed) {
+      const free = this.firstFree();
+      if (free >= 0) this.equip(free, def);
+    }
     return true;
   }
 
-  /** Drop a purchased ability into a slot (or the first free one with i = -1). */
+  /**
+   * Drop an ability into a slot (or the first free one with i = -1). An ability can only
+   * be in ONE slot: if it is already on the bar it MOVES rather than appearing twice.
+   */
   equip(i, def) {
     const at = i < 0 ? this.slots.findIndex((s) => s === null) : i;
     if (at < 0 || at >= SLOTS || !def) return false;
+    const already = this.slots.findIndex((s) => s && s.id === def.id);
+    const displaced = this.slots[at];
     this.slots[at] = def;
-    this.cd[at] = 0;
-    this.ch[at] = def.maxCharges || 1;
+    if (already >= 0 && already !== at) this.slots[already] = displaced || null;
+    this.stateOf(def);      // make sure it has a timer record; never resets an existing one
     return true;
   }
 
@@ -113,12 +139,13 @@ export class Abilities {
     }
     // Declining (returning false) must not spend the cooldown.
     if (a.use() === false) return "";
+    const st = this.stateOf(a);
     const max = a.maxCharges || 1;
     if (max > 1) {
-      this.ch[i]--;
-      if (this.cd[i] <= 0) this.cd[i] = a.cd;   // don't restart a recharge already running
+      st.ch--;
+      if (st.cd <= 0) st.cd = a.cd;   // don't restart a recharge already running
     } else if (typeof a.cd === "number") {
-      this.cd[i] = a.cd;
+      st.cd = a.cd;
     }
     return "";
   }

@@ -381,8 +381,8 @@ export const BOSS = {
   // to 220% of a tier-8 one — you could delete them with three buttons. Matching the curve
   // holds a rotation at ~23% of a boss at EVERY depth, so a fight is always four or five
   // rotations plus gunfire rather than a burst check.
-  //   tier 1: 4544 · tier 3: 9163 · tier 5: 18470 · tier 8: 52900
-  hp: 3200,
+  //   tier 1: 3550 · tier 3: 7159 · tier 5: 14434 · tier 8: 41328
+  hp: 2500,
   hpGrowth: 1.42,
   // And it hits harder as you go out. A longer fight against fixed damage is an EASIER
   // fight; the deep should not be safer just because it takes longer.

@@ -29,7 +29,7 @@ import { Heal } from "./player/heal.js";
 import { Abilities, SLOTS } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
-import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats } from "./prog/xp.js";
+import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, levelForTier } from "./prog/xp.js";
 import { mulberry32 } from "./rng.js";
 
 const FIXED_DT = 1 / 60;
@@ -420,10 +420,14 @@ function respawn() {
   // halfway to earning it back, so the loss stings without erasing the walk that bought it.
   const lost = loseLevel();
 
-  // You wake in the great city of the ring you fell in, not back at spawn. Losing an hour's
-  // walk on top of a level would make dying deep unaffordable, and the frontier is meant to
-  // be somewhere you push into rather than somewhere you dread being sent back from.
-  const home = homeOfTier(tierAt(player.x, player.z));
+  // You wake in the great city of the ring you fell in — but only as deep as your LEVEL
+  // entitles you to. Dying at tier 5 while under-levelled would otherwise be a free
+  // teleport past everything you skipped, and the walk back out is the thing that makes
+  // the frontier feel earned rather than handed over.
+  const diedIn = tierAt(player.x, player.z);
+  const allowed = respawnTierFor(player.level);
+  const wokeIn = Math.min(diedIn, allowed);
+  const home = homeOfTier(wokeIn);
   if (home) {
     player.x = home.x;
     player.z = home.z;
@@ -436,8 +440,12 @@ function respawn() {
 
   player.hp = player.maxHp;
   player.iframes = 1.5;                 // grace on arrival, so you can't be spawn-camped
-  killFeed = `you died${lost ? `  ▼ LEVEL ${player.level}` : ""}`
-    + (home?.city ? "  · woke in the city" : "  · woke in town");
+  const where = home?.city ? "the city" : "town";
+  killFeed = `you died${lost ? `  ▼ LEVEL ${player.level}` : ""}  · woke in ${where}`
+    + (wokeIn < diedIn
+      ? `, carried back to ${RINGS[Math.min(wokeIn, RINGS.length - 1)].name}`
+        + ` (tier ${diedIn} wants level ${levelForTier(diedIn)})`
+      : "");
 }
 
 spawnPlayer();
