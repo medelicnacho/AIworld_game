@@ -114,11 +114,16 @@ export class Sfx {
 
   // --- the sounds ---------------------------------------------------------------
 
-  /** Your gun. Non-positional and quiet — it fires 7.5×/sec and must not fatigue. */
-  gunshot() {
+  /**
+   * A gun. Yours is non-positional and quiet — it fires 7.5×/sec and must not fatigue.
+   * Guards pass their position and a low `vol`: four of them firing beside a town has to
+   * sit UNDER the mix, or the safest place in the world becomes the loudest.
+   */
+  gunshot(x, z, vol = 1) {
     if (!this.on) return;
     const t = this.t, dur = 0.12;
-    const { input } = this.place();
+    const { input, gain } = x === undefined ? this.place() : this.place(x, z, 90);
+    if (vol !== 1 && gain?.gain) gain.gain.value *= vol;   // non-positional returns 1, not a node
 
     const src = this.noise();
     const lp = this.ctx.createBiquadFilter();

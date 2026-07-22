@@ -12,7 +12,7 @@ import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
 import { Villagers } from "./town/villagers.js";
-import { Turrets } from "./town/turrets.js";
+import { Guards } from "./town/guards.js";
 import { Shop, GOODS } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
 import { Inventory } from "./ui/inventory.js";
@@ -352,7 +352,7 @@ const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
 const folk = new Folk(scene);
 const villagers = new Villagers(scene);
-const turrets = new Turrets(scene);
+const guards = new Guards(scene);
 const plates = new Nameplates(document.getElementById("plates"), camera);
 const hpBars = new HealthBars(document.getElementById("hpbars"), camera);
 let tradeMsg = "", tradeMsgT = 0;
@@ -421,7 +421,7 @@ const hurtPlayer = (mob) => damagePlayer(mob.damage, mob.x, mob.z);
 function reward(res) {
   // Standing behind the guns must never pay. Without this the optimal way to play is to let
   // the town farm the frontier for you, which is both boring and unbeatable.
-  if (turrets.inDeadZone()) { killFeed = "no reward near the gate guns"; return; }
+  if (guards.inDeadZone()) { killFeed = "no reward near the gate guards"; return; }
   player.points += Math.round((LOOT.base + LOOT.perTier * res.ring)
     * (res.elite ? LOOT.eliteMult : 1));
   const xp = killValue(res.ring, res.elite);
@@ -793,9 +793,9 @@ function frame(now) {
   mobs.update(dt, hurtPlayer);
   folk.update(dt);
   villagers.update(dt);
-  // Turret kills award nothing: the dead zone is checked by reward() itself, so this can
-  // report them like any other kill without becoming a farm.
-  turrets.update(dt, mobs, (res) => reward(res));
+  // Guard kills award nothing: the dead zone is checked by reward() itself, so they can be
+  // reported like any other kill without the line becoming a farm.
+  guards.update(dt, mobs, (res) => reward(res));
   // Only traders get a plate: labelling every keeper would turn a town into a wall of text.
   hpBars.draw(mobs.entities());
   plates.draw(villagers.list

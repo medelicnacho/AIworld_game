@@ -18,6 +18,7 @@ import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
 import { groundY, solidAt, tierAt } from "../world/gen.js";
 import { sfx } from "../audio/sfx.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
+import { guardNear } from "../town/guards.js";
 import { mulberry32 } from "../rng.js";
 import { AFFIXES, rollAffixes, runAffix, affixHidden, affixLabel } from "./affixes.js";
 
@@ -570,6 +571,13 @@ export class Mobs {
       // loitering at the gate waiting for you to step out.
       if (playerSafe) { e.aggro = false; e.aggroT = 0; e.lungeT = 0; }
 
+      // A gate guard within taunt range becomes the target INSTEAD of you. That is the
+      // whole reason the detachment exists: it can only take pressure off you by being the
+      // better thing to hit. It also holds while you are INSIDE the walls — which is what
+      // makes a town read as a place under siege rather than a place with a fence.
+      const foe = guardNear(e.x, e.z);
+      if (foe) { e.aggro = true; e.aggroT = MOB.loseInterest; }
+
       if (e.aggro) {
         e.aggroT -= dt;
         if (dist < MOB.noticeRange) e.aggroT = MOB.loseInterest;   // contact refreshes it
@@ -694,26 +702,37 @@ export class Mobs {
 
         // Steer to a SLOT on a ring around you rather than at your feet: a pack fans out
         // and surrounds. Timid ones hold further back and circle instead of closing.
-        const ang = Math.atan2(-dz, -dx) + e.slot + (e.bold ? 0 : e.bias * 0.35);
+        // Everything below aims at `foe` when a guard has taunted this one, and at you
+        // otherwise — one piece of pack logic serving both, so a pack surrounds a guard
+        // exactly the way it surrounds you.
+        const aX = foe ? foe.x : player.x, aZ = foe ? foe.z : player.z;
+        const adx = aX - e.x, adz = aZ - e.z;
+        const adist = Math.hypot(adx, adz) || 1;
+        const aux = adx / adist, auz = adz / adist;
+
+        const ang = Math.atan2(-adz, -adx) + e.slot + (e.bold ? 0 : e.bias * 0.35);
         const standoff = e.bold ? MOB.ringRadius : MOB.timidStandoff;
-        const tx = player.x + Math.cos(ang) * standoff;
-        const tz = player.z + Math.sin(ang) * standoff;
+        const tx = aX + Math.cos(ang) * standoff;
+        const tz = aZ + Math.sin(ang) * standoff;
         const rd = Math.hypot(tx - e.x, tz - e.z) || 1;
         vx += ((tx - e.x) / rd) * MOB.ringForce;
         vz += ((tz - e.z) / rd) * MOB.ringForce;
 
-        if (e.bold && dist > MOB.attackRange * 1.4) { vx += ux * 0.9; vz += uz * 0.9; }
+        if (e.bold && adist > MOB.attackRange * 1.4) { vx += aux * 0.9; vz += auz * 0.9; }
 
         // Begin a charge from mid range — too close and there is no room to read it.
-        if (e.charger && e.atkCd <= 0 && dist > MOB.attackRange * 2.5 && dist < MOB.chargeRange) {
+        if (!foe && e.charger && e.atkCd <= 0 && dist > MOB.attackRange * 2.5 && dist < MOB.chargeRange) {
           e.windT = MOB.chargeWind;
           e.atkCd = MOB.attackCd * 2.2;
-        } else if (e.bold && dist <= MOB.attackRange * 1.7 && e.atkCd <= 0) {
+        } else if (!foe && e.bold && dist <= MOB.attackRange * 1.7 && e.atkCd <= 0) {
+          // No lunge at a guard: a lunge writes position directly and would shove the mob
+          // straight through the line. Damage to guards comes from PRESSING them — the
+          // guard counts what is standing on it — so the brawl stays where it started.
           e.lungeT = MOB.lungeTime;
           e.lx = ux; e.lz = uz;
           e.atkCd = MOB.attackCd;
           lunged.push(e);
-        } else if (dist <= MOB.attackRange * 1.7) {
+        } else if (adist <= MOB.attackRange * 1.7) {
           vx += -uz * e.bias * 0.9;
           vz += ux * e.bias * 0.9;
         }

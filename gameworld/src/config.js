@@ -247,19 +247,27 @@ export const VILLAGE = {
   potionCd: 40,          // long: a potion is an emergency, not a rotation
 };
 
-// Gate turrets: the walls defend themselves a little way out, so stepping through the
-// gateway is not instantly fatal when a camp has wandered up to it.
-export const TURRET = {
-  count: 2,             // flanking the gate
-  offset: 5.5,          // to each side of the gate centre
-  range: 34,
-  fireRate: 1.6,        // shots a second
-  damage: 60,
-  damagePerTier: 0.9,   // keeps up with mob HP, which compounds
-  height: 4.2,
-  // Inside this radius of a turret you earn NOTHING. Otherwise the correct way to play is
-  // to stand behind the guns and let the town farm the frontier for you.
-  deadZone: 40,
+// Gate guards: a standing detachment outside every gate, permanently in a scrap with
+// whatever has wandered up. Better than a turret in every way that matters — it is a fight
+// to walk past rather than a wall of fire, it pulls mobs OFF you, and it makes a town look
+// like somewhere people are holding rather than somewhere the architecture is.
+export const GUARD = {
+  count: 4,
+  spread: 7,            // how far they fan out from the gate
+  post: 11,             // how far they will stray from their post
+  range: 26,            // engagement range
+  fireRate: 0.85,
+  damage: 55,
+  damagePerTier: 0.9,   // mob HP compounds; a fixed number would be decoration by tier 3
+  hp: 320,
+  hpPerTier: 0.9,
+  regen: 9,             // per second, when nothing is on them
+  respawn: 18,          // seconds after falling
+  taunt: 22,            // mobs this close to a guard fight the GUARD instead of you
+  meleeRange: 3.0,
+  // Within this of a guard you earn NOTHING. Otherwise the best way to play is to stand
+  // behind the line and let the town farm the frontier for you.
+  deadZone: 38,
 };
 
 export const LOOT = {
