@@ -55,7 +55,8 @@ export class Mobs {
     this._flip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
     this.COL_MOB = new THREE.Color(0x8d4d63);
     this.COL_ELITE = new THREE.Color(0xe8c14a);
-    this.COL_CASTER = new THREE.Color(0xd11f1f);   // red: the ones that shoot
+    this.COL_CASTER = new THREE.Color(0xd11f1f);   // red: airborne ranged
+    this.COL_GROUNDCASTER = new THREE.Color(0x8a3fd1);   // violet: ranged, but grounded
     this.COL_CHARGING = new THREE.Color(0xff8a3c);  // hot while winding up — the telegraph
     this.COL_HURT = new THREE.Color(0xff6655);
 
@@ -81,14 +82,15 @@ export class Mobs {
       this._q.setFromAxisAngle(this._up, e.facing ?? e.heading ?? 0);
       // Flyers hang point-down, so a threat in the air is a different silhouette from a
       // threat on the ground even before you read its colour.
-      if (e.caster) this._q.multiply(this._flip);
+      if (e.flies) this._q.multiply(this._flip);
       this._m.compose(this._p.set(e.x, e.y, e.z), this._q, this._s.set(sc, sc, sc));
       this.mesh.setMatrixAt(i, this._m);
       this.mesh.setColorAt(i,
         e.hurtT > 0 ? this.COL_HURT
           : e.castT > 0 ? this.COL_CHARGING
-            : e.caster ? this.COL_CASTER
-              : e.elite ? this.COL_ELITE : this.COL_MOB);
+            : e.flies ? this.COL_CASTER
+              : e.caster ? this.COL_GROUNDCASTER
+                : e.elite ? this.COL_ELITE : this.COL_MOB);
       i++;
     }
     this.mesh.count = i;
@@ -102,8 +104,18 @@ export class Mobs {
     const elite = this.rng() < MOB.eliteChance + MOB.eliteChancePerRing * ring;
     const eliteHp = MOB.eliteHp + MOB.eliteHpPerRing * ring;
     const hp = MOB.hp * (1 + MOB.hpPerRing * ring) * (elite ? eliteHp : 1);
+    // Ranged comes in two flavours. Elite casters FLY (red, point-down); ordinary ones
+    // hold their ground (violet). Same standoff brain, entirely different problem: one you
+    // must look up for, the other closes the horizontal gap with you.
+    let caster = false, flies = false;
+    if (elite) {
+      caster = this.rng() < MOB.casterChance;
+      if (caster) flies = this.rng() < MOB.flyChance;
+    } else {
+      caster = this.rng() < MOB.groundCasterChance;
+    }
     return {
-      ring, elite, caster: elite && this.rng() < MOB.casterChance,
+      ring, elite, caster, flies,
       maxHp: hp, hp,
       damage: MOB.damage * (1 + MOB.damagePerRing * ring) * (elite ? MOB.eliteDamage : 1),
       speed: MOB.speed * (1 + MOB.speedPerRing * ring),
@@ -122,7 +134,7 @@ export class Mobs {
   /** Where this body sits vertically: on the ground, or hovering above it. */
   restY(e) {
     const g = groundY(e.x, e.z);
-    return e.caster ? g + MOB.flyHeight + Math.sin(e.wobble * 1.6) * MOB.flyBob : g;
+    return e.flies ? g + MOB.flyHeight + Math.sin(e.wobble * 1.6) * MOB.flyBob : g;
   }
 
   breedDelay() {
@@ -187,8 +199,19 @@ export class Mobs {
   targets() {
     const out = [];
     for (const e of this.entities()) {
-      out.push({ id: e.id, x: e.x, y: e.y + 0.8, z: e.z,
-                 r: MOB.radius * (e.elite ? MOB.eliteScale : 1) });
+      const sc = e.elite ? MOB.eliteScale : 1;
+      if (e.flies) {
+        // Flyers hang POINT-DOWN, so their body occupies the space BELOW the entity origin
+        // — the old sphere at +0.8 sat in empty air above the model, which is why shots
+        // that visibly connected did nothing. Two spheres cover the hanging body properly,
+        // and they're generous, because hitting a small drifting target while it shoots at
+        // you is meant to be the challenge, not reading its exact silhouette.
+        const r = MOB.radius * sc * MOB.flyHitScale;
+        out.push({ id: e.id, x: e.x, y: e.y - 0.35, z: e.z, r });
+        out.push({ id: e.id, x: e.x, y: e.y - 1.25, z: e.z, r: r * 0.85 });
+      } else {
+        out.push({ id: e.id, x: e.x, y: e.y + 0.8, z: e.z, r: MOB.radius * sc });
+      }
     }
     return out;
   }
@@ -307,7 +330,7 @@ export class Mobs {
 
       if (e.hurtT > 0) e.hurtT -= dt;
       if (e.atkCd > 0) e.atkCd -= dt;
-      if (e.caster) e.wobble += dt;      // the hover bob, independent of any wandering
+      if (e.flies) e.wobble += dt;       // the hover bob, independent of any wandering
 
       const ux = dx / dist, uz = dz / dist;
       const homeD = Math.hypot(e.x - e.homeX, e.z - e.homeZ) || 0.001;
@@ -473,7 +496,7 @@ export class Mobs {
         vz = (vz / m) * pace;
       }
 
-      if (e.caster) {
+      if (e.flies) {
         // Flight ignores terrain entirely — that IS the advantage. Sanctuaries still hold.
         const nx = e.x + vx * dt, nz = e.z + vz * dt;
         if (!sanctuaryOf(nx, nz, 1.5)) {
@@ -518,7 +541,7 @@ export class Mobs {
   fire(e) {
     const slot = this.balls.find((b) => !b.active);
     if (!slot) return;
-    const sx = e.x, sy = e.y + (e.caster ? -0.6 : 1.1), sz = e.z;
+    const sx = e.x, sy = e.y + (e.flies ? -0.6 : 1.1), sz = e.z;
     const dx = player.x - sx, dy = (player.y + 0.9) - sy, dz = player.z - sz;
     const d = Math.hypot(dx, dy, dz) || 1;
     slot.active = true;

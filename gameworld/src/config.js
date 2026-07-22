@@ -265,6 +265,9 @@ export const MOB = {
   // makes them a pure movement problem: the counter is to be somewhere else, not to out-DPS
   // them. Mixed into a melee pack they force you to keep moving while something closes.
   casterChance: 0.4,      // of elites; a melee star is still the common case
+  flyChance: 1.0,         // ...and elite casters take to the air
+  groundCasterChance: 0.2, // ranged that stays on the ground: common, not elite
+  flyHitScale: 2.4,       // flyers get a generous hitbox — see targets()
   castMin: 11,            // closer than this and they back off — they don't want a brawl
   castMax: 34,
   castCd: 3.4,
