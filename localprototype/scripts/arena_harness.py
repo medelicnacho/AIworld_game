@@ -45,8 +45,21 @@ def build(seed: int, founders: int = 24, regime: str = "watch", speak: bool = Tr
     deliberate no-speech control, but it is NOT the arena: say so in any verdict that uses it.
     """
     from santana_app.evolution import _found_settlements, _gates
+    from services import embed as _embed
     from services.llm import MockLLM
     from world.sim import World
+    # Lexical similarity, as the arena itself runs it: santana_app/run.py forces
+    # use_jaccard_only(True) for any town past the founder threshold ("big towns run the
+    # lexical similarity everywhere: identical mechanics, no per-pair embedding cost, no
+    # network in the wheel"). Not a shortcut -- matching it is what makes a headless run a
+    # read of the ARENA rather than of some faster-but-different world.
+    #
+    # It is also the difference between a usable harness and an unusable one. With an
+    # Ollama instance up, every hear() reaches for a real embedding over HTTP: measured,
+    # 300 ticks took 133s wall against 5.6s of CPU -- ~96% of it blocked on localhost.
+    # Forced to Jaccard the same run takes 1.5s. An experiment nobody can afford to run
+    # enough times is an experiment that ships underpowered.
+    _embed.use_jaccard_only(True)
     w = World(rebirth_enabled=False, events_enabled=False, move_seed=seed)
     w.llm = MockLLM(seed=seed)
     _gates(w, founders, regime=regime)
