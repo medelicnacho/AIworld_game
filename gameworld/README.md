@@ -12,6 +12,7 @@ thing in the world that remembers your last life.
 
 Right now the game half is real and playable. The living half is next.
 
+- **[`STAGES.md`](STAGES.md)** — the executable build order: stages, tasks, and the gate on each.
 - **[`PLAN.md`](PLAN.md)** — the decisions with their reasons (D1–D16), the measured capacity
   law, the milestones and their gates. Read that for *why*; this file is *what and how*.
 
