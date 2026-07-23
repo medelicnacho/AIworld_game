@@ -42,9 +42,10 @@ export const player = {
   hp: 100, maxHp: 100,
   level: 1, xp: 0, dmgMult: 1, speedMult: 1, jumpMult: 1, maxJumps: 2,
   surgeT: 0,
-  // GEAR.md G1: `armor` is now armour POINTS (see stats.js armorDR), not a stack count; its
-  // mitigation is resolved at the damage choke point by attacker tier. `stamina` -> max HP.
+  // `armor` is the POINTS of the ONE armour piece you have equipped (see stats.js armorDR),
+  // derived from armorId — never stacked. `ownedArmor` is the pieces you can switch between.
   points: 0, potions: 0, potionCd: 0, gearDmg: 0, armor: 0, stamina: 0,
+  armorId: null, ownedArmor: [],
   // GEAR.md attributes & damage buckets — 0 until gear rolls them; the character sheet and
   // the (coming) damage step read them from here so nothing has to be added twice later.
   str: 0, agi: 0, dmgGlobal: 0, dmgGun: 0, dmgSpell: 0, dmgGrenade: 0,

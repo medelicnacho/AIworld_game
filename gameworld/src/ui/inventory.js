@@ -101,9 +101,11 @@ export class Inventory {
     const tab = e.target.closest("[data-tab]");
     if (tab) { this.tab = tab.dataset.tab; this.picked = null; this.render(); return; }
 
-    // Character tab: click an owned weapon to equip it into the Weapon slot.
+    // Character tab: click an owned weapon or armour piece to equip it.
     const wep = e.target.closest("[data-weapon]");
     if (wep) { this.hooks.equipWeapon?.(wep.dataset.weapon); this.render(); return; }
+    const arm = e.target.closest("[data-armor]");
+    if (arm) { this.hooks.equipArmor?.(arm.dataset.armor); this.render(); return; }
 
     if (e.target.closest("[data-admin]")) { this.admin = !this.admin; this.render(); return; }
     if (e.target.closest("[data-grant]")) { this.hooks.grantAll?.(); this.render(); return; }
@@ -171,14 +173,12 @@ export class Inventory {
   characterHtml() {
     const gun = this.hooks.gun?.();
     const s = this.hooks.charStats?.() || {};
+    const arm = this.hooks.armorState?.() || {};
 
-    // Equipment paperdoll. Weapon is live; the rest are placeholders waiting on the gear
-    // system (GEAR.md G2), shown so the sheet reads as the real thing from day one.
+    // Equipment paperdoll — the two real slots: your Weapon and your one worn Armour piece.
     const slots = [
       { name: "Weapon", val: gun?.weapon?.name || "—", live: !!gun },
-      { name: "Armor", val: "—" },
-      { name: "Trinket", val: "—" },
-      { name: "Boots", val: "—" },
+      { name: "Armor", val: arm.equippedName || "—", live: !!arm.equippedName },
     ];
     const doll = slots.map((sl) => `
       <div class="gslot ${sl.live ? "" : "empty"}">
@@ -205,8 +205,8 @@ export class Inventory {
       row("Dash", `×${(s.dashMult ?? 1).toFixed(2)}`),
     ].join("");
 
-    // Bags. Weapons you own live here as items you can equip; found gear will join them once
-    // the gear system lands.
+    // Bags: everything you own that you can equip — weapons and armour pieces. The one worn /
+    // held item is marked; click any to equip it (single-equip, so it replaces what's in slot).
     const weps = gun
       ? [...gun.owned].map((id) => {
         const w = WEAPONS[id];
@@ -214,6 +214,10 @@ export class Inventory {
                      title="${w.name} — ${w.desc}"><span class="nm">${w.name}</span></div>`;
       }).join("")
       : "";
+    const armours = (arm.owned || []).map((a) =>
+      `<div class="cell ${arm.equipped === a.id ? "eq" : ""}" data-armor="${a.id}"
+            title="${a.name} — ${a.armor} Armor. ${a.desc}"><span class="nm">${a.name}</span></div>`).join("");
+    const items = weps + armours;
 
     // Paperdoll, stats and bags all in ONE row, so equipping from a bag and watching the
     // stat column move happen on the same screen — the whole point of a character sheet.
@@ -226,7 +230,7 @@ export class Inventory {
         <div class="statcol">${stats}</div>
         <div class="bagcol">
           <h3>Bags — click to equip</h3>
-          <div class="bag">${weps
+          <div class="bag">${items
             || `<p class="none">Empty. Gear you find or buy drops here.</p>`}</div>
         </div>
       </div>`;

@@ -9,7 +9,7 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, STATS, WEAPONS } from "../config.js";
+import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, WEAPONS, ARMOR } from "../config.js";
 import { tierAt } from "../world/gen.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
@@ -33,10 +33,15 @@ export const GOODS = {
     { id: "w_mg", name: "Ripper", price: WEAPONS.mg.price, once: true, minTier: 1,
       desc: WEAPONS.mg.desc + " Mouse-wheel to switch weapons.",
       apply: (game) => game.gun.acquire("mg") },
-    { id: "plating", name: "Heavy Plating", price: 130, upgrade: true,
-      desc: `+${STATS.platingArmor} Armor. Reduces damage taken — diminishing returns, and `
-        + `worth less against deeper enemies. Stacks.`,
-      apply: () => { player.armor += STATS.platingArmor; } },
+    { id: "a_padded", name: ARMOR.padded.name, price: ARMOR.padded.price, once: true,
+      desc: `${ARMOR.padded.armor} Armor. ${ARMOR.padded.desc} You wear ONE piece at a time.`,
+      apply: (game) => game.equipArmor("padded") },
+    { id: "a_mail", name: ARMOR.mail.name, price: ARMOR.mail.price, once: true, minTier: 1,
+      desc: `${ARMOR.mail.armor} Armor. ${ARMOR.mail.desc} Replaces your current armour.`,
+      apply: (game) => game.equipArmor("mail") },
+    { id: "a_plate", name: ARMOR.plate.name, price: ARMOR.plate.price, once: true, minTier: 3,
+      desc: `${ARMOR.plate.armor} Armor. ${ARMOR.plate.desc} Replaces your current armour.`,
+      apply: (game) => game.equipArmor("plate") },
     { id: "lighten", name: "Lighten Armour", price: 110, upgrade: true,
       desc: "+4% movement speed, permanently.",
       apply: () => { player.gearSpeed += 0.04; } },

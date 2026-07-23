@@ -79,7 +79,7 @@ export const WEAPONS = {
     id: "rifle", name: "Repeater", price: 0,   // the starter; owned from the first frame
     damage: 12, fireRate: 7.5, magSize: 18, reloadTime: 1.15, range: 220,
     pellets: 1, auto: true, recoil: 0.016, recoilRecover: 0.75,
-    spreadHip: 0.022, spreadAim: 0.002, sound: "rifle",
+    spreadHip: 0.06, spreadAim: 0.002, sound: "rifle",
     desc: "Balanced automatic. Hold to fire.",
   },
   shotgun: {
@@ -95,7 +95,7 @@ export const WEAPONS = {
     // One enormous round across the whole map, then a bolt cycle. bam — ka-chunk — bam.
     damage: 165, fireRate: 1.1, magSize: 1, reloadTime: 1.05, range: 600,
     pellets: 1, auto: false, pump: true, recoil: 0.09, recoilRecover: 0.5,
-    spreadHip: 0.03, spreadAim: 0.0002, sound: "sniper",
+    spreadHip: 0.11, spreadAim: 0.0, sound: "sniper",
     desc: "One huge round per reload — bam, bolt, bam. Enormous damage, map-long range.",
   },
   mg: {
@@ -103,13 +103,26 @@ export const WEAPONS = {
     // A hose. Low per-shot, huge belt, so it answers crowds and never stops for long.
     damage: 6, fireRate: 12, magSize: 60, reloadTime: 2.0, range: 180,
     pellets: 1, auto: true, recoil: 0.012, recoilRecover: 0.8,
-    spreadHip: 0.05, spreadAim: 0.03, sound: "mg",
+    spreadHip: 0.12, spreadAim: 0.028, sound: "mg",
     desc: "Low damage, huge belt, high rate. Hoses down crowds.",
   },
 };
 
 // The starting weapon, and a back-compat alias for a few call sites that still say GUN.
 export const GUN = WEAPONS.rifle;
+
+// ARMOR — equipment, not a stacking buff. You OWN pieces and wear exactly ONE, so a better
+// piece REPLACES the old one (there is no "stack twelve plates"). Its `armor` number feeds
+// the WoW curve (stats.js armorDR), so what a piece is worth still diminishes and still
+// falls off with depth — the value is the piece, the mitigation is the formula.
+export const ARMOR = {
+  padded: { id: "padded", name: "Padded Vest", price: 120, armor: 70,
+    desc: "Light armour. A first layer against the frontier." },
+  mail: { id: "mail", name: "Chain Hauberk", price: 240, armor: 160, minTier: 1,
+    desc: "Interlocked rings — solid mid-tier protection." },
+  plate: { id: "plate", name: "Plate Harness", price: 420, armor: 320, minTier: 3,
+    desc: "Heavy plate. Turns aside what lighter armour only slows." },
+};
 
 // D9 — endless levels, and the economy that makes distance the real progression.
 //

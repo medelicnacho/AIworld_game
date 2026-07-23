@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -324,6 +324,13 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
   onClose: () => resumeFromShop(),
   gun: () => gun,
   equipWeapon: (id) => gun.equip(id),
+  // Armour equipment: what you're wearing and the pieces you own to switch between.
+  armorState: () => ({
+    equipped: player.armorId,
+    equippedName: player.armorId ? ARMOR[player.armorId].name : null,
+    owned: (player.ownedArmor || []).map((id) => ARMOR[id]).filter(Boolean),
+  }),
+  equipArmor: (id) => equipArmor(id),
   // The live character-sheet numbers. Damage buckets and Str/Agi are 0 until the gear step
   // wires them, but the sheet reads them now so it's complete the day gear rolls them.
   charStats: () => ({
@@ -381,8 +388,18 @@ const gameCtx = {
   dashStrike,
   whirlwind,
   applyStats: () => applyLevelStats(),   // gear changes re-derive the same way levels do
+  equipArmor,
   onClose: () => resumeFromShop(),
 };
+
+// Armour is single-equip: owning is a set, wearing is exactly one, and player.armor is just
+// the equipped piece's number — no stacking, so a better piece REPLACES the old one.
+function equipArmor(id) {
+  if (!ARMOR[id]) return;
+  if (!player.ownedArmor.includes(id)) player.ownedArmor.push(id);
+  player.armorId = id;
+  player.armor = ARMOR[id].armor;
+}
 const shop = new Shop(document.getElementById("shop"), gameCtx);
 
 // The bridge to the Python lab. Optional by construction: if it never connects, nothing

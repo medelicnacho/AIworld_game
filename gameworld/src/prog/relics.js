@@ -14,7 +14,6 @@ import { GOODS } from "../ui/shop.js";
 
 /** The vendor goods a relic can bundle, with the word it contributes to the name. */
 export const RELIC_POOL = [
-  { good: "plating", label: "Plating", weight: 1.1 },
   { good: "haste", label: "Haste", weight: 1.0 },
   { good: "lighten", label: "Swiftness", weight: 0.9 },
   { good: "quickload", label: "Loading", weight: 0.7 },
