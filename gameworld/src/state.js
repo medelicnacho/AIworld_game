@@ -42,13 +42,16 @@ export const player = {
   hp: 100, maxHp: 100,
   level: 1, xp: 0, dmgMult: 1, speedMult: 1, jumpMult: 1, maxJumps: 2,
   surgeT: 0,
-  // `armor` is the POINTS of the ONE armour piece you have equipped (see stats.js armorDR),
-  // derived from armorId — never stacked. `ownedArmor` is the pieces you can switch between.
-  points: 0, potions: 0, potionCd: 0, gearDmg: 0, armor: 0, stamina: 0,
-  armorId: null, ownedArmor: [],
-  // GEAR.md attributes & damage buckets — 0 until gear rolls them; the character sheet and
-  // the (coming) damage step read them from here so nothing has to be added twice later.
-  str: 0, agi: 0, dmgGlobal: 0, dmgGun: 0, dmgSpell: 0, dmgGrenade: 0,
+  points: 0, potions: 0, potionCd: 0, gearDmg: 0,
+  // GEAR: five equipment slots (one piece each) and everything you own. All the stats across
+  // worn pieces are SUMMED into the fields below by recomputeGear() — armor, the attributes,
+  // the four damage buckets, and the three secondary ratings — then applyLevelStats derives
+  // the effects. These are outputs of the gear sum; do not write them directly.
+  gearSlots: { helm: null, shoulders: null, vest: null, pants: null, boots: null },
+  ownedGear: [],
+  armor: 0, stamina: 0, str: 0, agi: 0,
+  dmgGlobal: 0, dmgGun: 0, dmgSpell: 0, dmgGrenade: 0,
+  rHaste: 0, rAtkSpeed: 0, rReload: 0,
   haste: 0, hasteFire: 1, hasteCd: 1, hasteCast: 1, gearSpeed: 0, gearReload: 0,
   dashRank: 0, dashMult: 1, upgrades: {},
 };

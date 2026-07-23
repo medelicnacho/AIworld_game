@@ -12,7 +12,10 @@
 
 import { SLOTS } from "../player/abilities.js";
 import { ICONS } from "./icons.js";
-import { WEAPONS } from "../config.js";
+import { WEAPONS, STAT_INFO } from "../config.js";
+import { statLine } from "./shop.js";
+
+const SLOT_LABEL = { helm: "Helm", shoulders: "Shoulders", vest: "Vest", pants: "Legs", boots: "Boots" };
 
 const TABS = [
   { id: "character", name: "Character" },
@@ -104,8 +107,8 @@ export class Inventory {
     // Character tab: click an owned weapon or armour piece to equip it.
     const wep = e.target.closest("[data-weapon]");
     if (wep) { this.hooks.equipWeapon?.(wep.dataset.weapon); this.render(); return; }
-    const arm = e.target.closest("[data-armor]");
-    if (arm) { this.hooks.equipArmor?.(arm.dataset.armor); this.render(); return; }
+    const arm = e.target.closest("[data-gear]");
+    if (arm) { this.hooks.equipGear?.(arm.dataset.gear); this.render(); return; }
 
     if (e.target.closest("[data-admin]")) { this.admin = !this.admin; this.render(); return; }
     if (e.target.closest("[data-grant]")) { this.hooks.grantAll?.(); this.render(); return; }
@@ -173,18 +176,21 @@ export class Inventory {
   characterHtml() {
     const gun = this.hooks.gun?.();
     const s = this.hooks.charStats?.() || {};
-    const arm = this.hooks.armorState?.() || {};
+    const gear = this.hooks.gearState?.() || { slots: [], owned: [] };
 
-    // Equipment paperdoll — the two real slots: your Weapon and your one worn Armour piece.
-    const slots = [
-      { name: "Weapon", val: gun?.weapon?.name || "—", live: !!gun },
-      { name: "Armor", val: arm.equippedName || "—", live: !!arm.equippedName },
-    ];
-    const doll = slots.map((sl) => `
-      <div class="gslot ${sl.live ? "" : "empty"}">
-        <span class="lbl">${sl.name}</span>
-        <span class="val">${sl.val}</span>
-      </div>`).join("");
+    // Paperdoll: the Weapon slot, then the five armour slots. A worn piece shows its name in
+    // its rarity colour, so a glance reads what's blue, what's still grey, and what's empty.
+    let doll = `
+      <div class="gslot ${gun ? "" : "empty"}">
+        <span class="lbl">Weapon</span><span class="val">${gun?.weapon?.name || "—"}</span>
+      </div>`;
+    for (const { slot, piece } of gear.slots) {
+      doll += `
+        <div class="gslot ${piece ? "" : "empty"}">
+          <span class="lbl">${SLOT_LABEL[slot] || slot}</span>
+          <span class="val" style="${piece ? `color:${piece.color}` : ""}">${piece ? piece.name : "—"}</span>
+        </div>`;
+    }
 
     const row = (label, val) => `<div class="strow"><span>${label}</span><b>${val}</b></div>`;
     const stats = [
@@ -193,7 +199,7 @@ export class Inventory {
       `<div class="sthr"></div>`,
       row("Strength", `${s.str ?? 0}  <em>+${Math.round((s.globalPct ?? 0))}% dmg</em>`),
       row("Agility", `${s.agi ?? 0}  <em>speed & dash</em>`),
-      row("Stamina", `${s.stamina ?? 0}`),
+      row("Stamina", `${s.stamina ?? 0}  <em>health</em>`),
       row("Armor", `${s.armor ?? 0}  <em>-${Math.round((s.armorDR ?? 0) * 100)}%</em>`),
       `<div class="sthr"></div>`,
       row("Global dmg", `+${Math.round((s.dmgGlobal ?? 0) * 100)}%`),
@@ -205,8 +211,8 @@ export class Inventory {
       row("Dash", `×${(s.dashMult ?? 1).toFixed(2)}`),
     ].join("");
 
-    // Bags: everything you own that you can equip — weapons and armour pieces. The one worn /
-    // held item is marked; click any to equip it (single-equip, so it replaces what's in slot).
+    // Bags: your weapons and every gear piece you own. A piece's border is its rarity colour;
+    // its tooltip is its full stat list. Click to equip (into its slot, replacing what's there).
     const weps = gun
       ? [...gun.owned].map((id) => {
         const w = WEAPONS[id];
@@ -214,13 +220,19 @@ export class Inventory {
                      title="${w.name} — ${w.desc}"><span class="nm">${w.name}</span></div>`;
       }).join("")
       : "";
-    const armours = (arm.owned || []).map((a) =>
-      `<div class="cell ${arm.equipped === a.id ? "eq" : ""}" data-armor="${a.id}"
-            title="${a.name} — ${a.armor} Armor. ${a.desc}"><span class="nm">${a.name}</span></div>`).join("");
-    const items = weps + armours;
+    const worn = new Set(gear.slots.map((x) => x.piece?.uid).filter(Boolean));
+    const pieces = (gear.owned || []).map((p) =>
+      `<div class="cell ${worn.has(p.uid) ? "eq" : ""}" data-gear="${p.uid}"
+            style="border-color:${p.color}"
+            title="${p.name} — ${statLine(p.stats)}"><span class="nm"
+            style="color:${p.color}">${p.name}</span></div>`).join("");
+    const items = weps + pieces;
 
-    // Paperdoll, stats and bags all in ONE row, so equipping from a bag and watching the
-    // stat column move happen on the same screen — the whole point of a character sheet.
+    // The legend: every stat, in plain terms. This is what makes the numbers on a piece mean
+    // something without a wiki.
+    const legend = Object.values(STAT_INFO).map((info) =>
+      `<span class="leg"><b>${info.label}</b> — ${info.note}</span>`).join("");
+
     return `
       <div class="char">
         <div class="paperdoll">
@@ -233,7 +245,8 @@ export class Inventory {
           <div class="bag">${items
             || `<p class="none">Empty. Gear you find or buy drops here.</p>`}</div>
         </div>
-      </div>`;
+      </div>
+      <div class="legend"><h3>What the stats do</h3>${legend}</div>`;
   }
 
   // --- SPELLS: the ability bag + bar (the old inventory, now a tab) ---------------

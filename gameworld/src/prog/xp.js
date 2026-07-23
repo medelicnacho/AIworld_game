@@ -10,9 +10,9 @@
 // Which is the intended pressure: to keep levelling you must walk further out, where mobs
 // are worth more AND more of them are elites. Distance is the progression system.
 
-import { XP, PLAYER, HASTE, DODGE } from "../config.js";
+import { XP, PLAYER, HASTE, DODGE, STATS } from "../config.js";
 import { player } from "../state.js";
-import { maxHpFor } from "./stats.js";
+import { maxHpFor, ratingPct } from "./stats.js";
 
 /** XP needed to go from `level` to `level + 1`. */
 export function xpToNext(level) {
@@ -55,15 +55,21 @@ export function award(amount) {
  */
 export function applyLevelStats() {
   const n = player.level - 1;
-  // Gear multiplies on top of levels, so the smith stays worth visiting at any level.
-  player.dmgMult = Math.pow(XP.damageGrowth, n) * (1 + (player.gearDmg || 0));
+  player.levelMult = Math.pow(XP.damageGrowth, n);
+  // Damage = level × (1 + GLOBAL). Global is Strength (STATS.strDmg per point) plus any
+  // Global-Damage gear. The gun/spell/grenade BUCKETS are per-source and applied at the use
+  // sites (they can't be uniform here). gearDmg is 0 now that Sharpen is gone, kept for safety.
+  player.dmgMult = player.levelMult
+    * (1 + (player.gearDmg || 0) + STATS.strDmg * (player.str || 0) + (player.dmgGlobal || 0));
   // Speed used to be a raw exponential with no ceiling, so a high-level geared build ran 3-5x
   // base and only got faster -- unreadable, and it made the world feel small. Now the raw
   // intent (levels x gear) is the INPUT to a diminishing-returns curve: tanh is ~linear for
   // the first ~20 levels, so early game is unchanged, then bends and approaches a soft ceiling
   // of +speedSoftCap. You keep gaining forever, each gain worth less than the last, and you
   // can never outrun the game. (The dash reads speedMult too, so it tames in step.)
-  const rawSpeedBonus = Math.pow(XP.speedGrowth, n) * (1 + (player.gearSpeed || 0)) - 1;
+  // Agility feeds the speed input alongside Lighten (STATS.agiSpeed per point).
+  const speedGear = (player.gearSpeed || 0) + STATS.agiSpeed * (player.agi || 0);
+  const rawSpeedBonus = Math.pow(XP.speedGrowth, n) * (1 + speedGear) - 1;
   player.speedMult = 1 + XP.speedSoftCap * Math.tanh(rawSpeedBonus / XP.speedSoftCap);
   player.jumpMult = Math.pow(XP.jumpGrowth, n);
   player.maxJumps = PLAYER.jumps + Math.floor(player.level / XP.jumpsPerLevels);
@@ -83,23 +89,27 @@ export function applyLevelStats() {
   // the reload has a hard minimum duration, and movement is substepped so no speed can step
   // over a wall. Bounding the number would have limited the fantasy; bounding what the
   // number is allowed to BREAK does not.
-  player.reloadMult = 1 - (player.gearReload || 0);
+  // Reload speed: the old Quick Loader term × the gear Reload rating (diminishing).
+  player.reloadMult = (1 - (player.gearReload || 0)) * (1 - ratingPct(player.rReload, STATS.reloadK));
 
-  // The dodge grows with BOTH your general speed and a dedicated Vault stat, each on a sqrt
-  // curve so it keeps climbing but never linearly — derived here like every other stat, so
-  // it can never drift out of step on death. speedMult is already resolved above, so any
-  // source of speed (levels, Lighten, Swiftness relics) feeds the dash for free.
+  // The dodge grows with your speed, the old Vault stat, AND Agility — each on a sqrt curve
+  // so it keeps climbing but never linearly. Derived here like every other stat.
   const speedExcess = Math.max(0, player.speedMult - 1);
   player.dashMult = 1
     + DODGE.speedGain * Math.sqrt(speedExcess)
-    + DODGE.dashStatGain * Math.sqrt(player.dashRank || 0);
+    + DODGE.dashStatGain * Math.sqrt(player.dashRank || 0)
+    + STATS.agiDash * Math.sqrt(player.agi || 0);
 
+  // Haste family: the old integer Haste stat × the gear ratings (Haste → cooldowns & cast,
+  // Attack Speed → fire rate), each rating on the diminishing rating/(rating+K) curve.
   const h = player.haste || 0;
-  player.hasteFire = Math.pow(HASTE.fire, h);
-  player.hasteCd = Math.pow(HASTE.cooldown, h);
+  const hasteR = ratingPct(player.rHaste, STATS.hasteK);
+  const atkR = ratingPct(player.rAtkSpeed, STATS.attackSpeedK);
+  player.hasteFire = Math.pow(HASTE.fire, h) * (1 + atkR);
+  player.hasteCd = Math.pow(HASTE.cooldown, h) * (1 - hasteR);
   // The channel keeps its floor: this one is a DESIGN limit, not a safety one. Standing
   // still is the cost of Mend, and an instant channel would quietly make it a second potion.
-  player.hasteCast = Math.max(HASTE.castFloor, Math.pow(HASTE.cast, h));
+  player.hasteCast = Math.max(HASTE.castFloor, Math.pow(HASTE.cast, h) * (1 - hasteR));
 }
 
 /** Fraction of the way to the next level, for the HUD bar. */

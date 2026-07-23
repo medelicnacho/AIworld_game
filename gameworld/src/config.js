@@ -111,17 +111,57 @@ export const WEAPONS = {
 // The starting weapon, and a back-compat alias for a few call sites that still say GUN.
 export const GUN = WEAPONS.rifle;
 
-// ARMOR — equipment, not a stacking buff. You OWN pieces and wear exactly ONE, so a better
-// piece REPLACES the old one (there is no "stack twelve plates"). Its `armor` number feeds
-// the WoW curve (stats.js armorDR), so what a piece is worth still diminishes and still
-// falls off with depth — the value is the piece, the mitigation is the formula.
-export const ARMOR = {
-  padded: { id: "padded", name: "Padded Vest", price: 120, armor: 70,
-    desc: "Light armour. A first layer against the frontier." },
-  mail: { id: "mail", name: "Chain Hauberk", price: 240, armor: 160, minTier: 1,
-    desc: "Interlocked rings — solid mid-tier protection." },
-  plate: { id: "plate", name: "Plate Harness", price: 420, armor: 320, minTier: 3,
-    desc: "Heavy plate. Turns aside what lighter armour only slows." },
+// ARMOR — a WoW-style SLOT SET, and every piece rolls a LIST of stats, not just armour.
+// Five slots, one unique piece each; ALL the stats across your worn pieces add up (see
+// recomputeGear in main). A better piece REPLACES the one in ITS slot — you can never wear
+// two of the same slot, but a full kit of five, each contributing its spread, is the goal.
+//
+// Each slot has a CHARACTER, so building a set is a set of choices: the vest is the tank
+// piece, shoulders bring Strength, boots bring Agility and speed, and so on. The plain-terms
+// meaning of every stat is spelled out in the character sheet's legend.
+export const ARMOR_SLOT_ORDER = ["helm", "shoulders", "vest", "pants", "boots"];
+const ARMOR_SLOT_NOUN = { helm: "Helm", shoulders: "Guards", vest: "Vest", pants: "Legs", boots: "Boots" };
+// Three material tiers. `a` armour, `attr` primary points, `stam`, `rate` secondary rating,
+// `dmg` a damage-bucket fraction — each slot draws the ones that fit its character.
+const ARMOR_TIERS = [
+  { key: "padded", label: "Padded", a: 26, attr: 3, stam: 6, rate: 22, dmg: 0.02, price: 70, minTier: 0 },
+  { key: "chain", label: "Chain", a: 58, attr: 6, stam: 12, rate: 46, dmg: 0.04, price: 150, minTier: 1 },
+  { key: "plate", label: "Plate", a: 108, attr: 11, stam: 21, rate: 82, dmg: 0.07, price: 300, minTier: 3 },
+];
+// What each slot rolls, as a function of the tier row. This is where slot identity lives.
+const ARMOR_SLOT_STATS = {
+  helm: (t) => ({ armor: t.a, rHaste: t.rate, dmgSpell: t.dmg }),
+  shoulders: (t) => ({ armor: t.a, str: t.attr, dmgGun: t.dmg }),
+  vest: (t) => ({ armor: Math.round(t.a * 1.3), stamina: t.stam, dmgGlobal: t.dmg }),
+  pants: (t) => ({ armor: t.a, agi: t.attr, dmgGrenade: t.dmg }),
+  boots: (t) => ({ armor: Math.round(t.a * 0.75), agi: t.attr, rAtkSpeed: t.rate }),
+};
+export const ARMOR = {};
+for (const slot of ARMOR_SLOT_ORDER) {
+  for (const t of ARMOR_TIERS) {
+    const id = `${t.key}_${slot}`;
+    const stats = ARMOR_SLOT_STATS[slot](t);
+    ARMOR[id] = {
+      id, slot, name: `${t.label} ${ARMOR_SLOT_NOUN[slot]}`,
+      stats, armor: stats.armor, price: t.price, minTier: t.minTier,
+    };
+  }
+}
+
+// Human-readable stat meanings — the legend the character sheet prints so the numbers on a
+// piece mean something. Keyed by the stat field; {label, kind} where kind picks formatting.
+export const STAT_INFO = {
+  armor: { label: "Armor", kind: "flat", note: "reduces damage taken (less per point as it grows, and less against deeper enemies)" },
+  stamina: { label: "Stamina", kind: "flat", note: "+8 max health each" },
+  str: { label: "Strength", kind: "flat", note: "raises ALL your damage — gun, grenade and spells" },
+  agi: { label: "Agility", kind: "flat", note: "movement speed and dash distance" },
+  dmgGlobal: { label: "Global Damage", kind: "pct", note: "more damage from every source" },
+  dmgGun: { label: "Gun Damage", kind: "pct", note: "more damage from your guns" },
+  dmgSpell: { label: "Spell Damage", kind: "pct", note: "more damage from abilities (ring, dash, whirlwind)" },
+  dmgGrenade: { label: "Grenade Damage", kind: "pct", note: "more grenade damage" },
+  rHaste: { label: "Haste", kind: "rate", note: "shorter ability cooldowns" },
+  rAtkSpeed: { label: "Attack Speed", kind: "rate", note: "faster gun fire rate" },
+  rReload: { label: "Reload", kind: "rate", note: "faster reloads" },
 };
 
 // D9 — endless levels, and the economy that makes distance the real progression.
@@ -305,17 +345,16 @@ export const STATS = {
   armorK: 300,
   armorPerTier: 60,
   armorDRCap: 0.85,       // a rail, not a target; the formula approaches but rarely nears it
-  platingArmor: 45,       // what one Heavy Plating purchase now grants, as armour POINTS
-  // Secondary-rating denominators (rating -> % via rating/(rating+K)). Placeholders until
-  // G2 gear rolls these stats; kept here so the spine is complete and one place tunes them.
-  hasteK: 100,
-  attackSpeedK: 100,
-  reloadK: 100,
-  moveSpeedK: 220,
-  // Primary damage coefficients (flat add before the level multiplier), wired in the G1
-  // damage step. Present now so the model is whole and documented.
-  powerCoef: 0.9,         // gun/grenade damage per Power point
-  spellCoef: 1.4,         // ability damage per Spell Power point
+  // Primary attributes -> effect. Strength pours into GLOBAL damage; Agility into speed and
+  // dash. Both are flat integers on gear; these coefficients turn a point into an effect.
+  strDmg: 0.006,          // each Strength = +0.6% to ALL damage
+  agiSpeed: 0.004,        // each Agility = +0.4% into the speed input (before the soft cap)
+  agiDash: 0.05,          // dash gains agiDash * sqrt(Agility)
+  // Secondary-rating denominators (rating -> % via rating/(rating+K)). Diminishing by shape:
+  // a lone 80-rating helm ~35%, and stacking more approaches but never reaches 100%.
+  hasteK: 150,
+  attackSpeedK: 150,
+  reloadK: 150,
 };
 
 // frontier; it is only worth anything where someone will take it.

@@ -9,10 +9,26 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, WEAPONS, ARMOR } from "../config.js";
+import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, WEAPONS, ARMOR, STAT_INFO } from "../config.js";
 import { tierAt } from "../world/gen.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
+
+/** A piece's stats as a readable line: "26 Armor, +3 Strength, +3% Gun Damage". */
+export function statLine(stats) {
+  return Object.entries(stats).map(([k, v]) => {
+    const info = STAT_INFO[k];
+    if (!info) return null;
+    return info.kind === "pct" ? `+${Math.round(v * 100)}% ${info.label}` : `${v} ${info.label}`;
+  }).filter(Boolean).join(", ");
+}
+
+// The smith's FIXED armour stock: every config piece, one buyable instance each, tier-gated.
+const ARMOR_GOODS = Object.values(ARMOR).map((a) => ({
+  id: `buy_${a.id}`, name: a.name, price: a.price, once: true, minTier: a.minTier || 0,
+  desc: `${statLine(a.stats)}. Fills your ${a.slot} slot — replaces what's there.`,
+  apply: (game) => game.equipArmor(a.id),
+}));
 
 export const GOODS = {
   herbalist: [
@@ -33,15 +49,7 @@ export const GOODS = {
     { id: "w_mg", name: "Ripper", price: WEAPONS.mg.price, once: true, minTier: 1,
       desc: WEAPONS.mg.desc + " Mouse-wheel to switch weapons.",
       apply: (game) => game.gun.acquire("mg") },
-    { id: "a_padded", name: ARMOR.padded.name, price: ARMOR.padded.price, once: true,
-      desc: `${ARMOR.padded.armor} Armor. ${ARMOR.padded.desc} You wear ONE piece at a time.`,
-      apply: (game) => game.equipArmor("padded") },
-    { id: "a_mail", name: ARMOR.mail.name, price: ARMOR.mail.price, once: true, minTier: 1,
-      desc: `${ARMOR.mail.armor} Armor. ${ARMOR.mail.desc} Replaces your current armour.`,
-      apply: (game) => game.equipArmor("mail") },
-    { id: "a_plate", name: ARMOR.plate.name, price: ARMOR.plate.price, once: true, minTier: 3,
-      desc: `${ARMOR.plate.armor} Armor. ${ARMOR.plate.desc} Replaces your current armour.`,
-      apply: (game) => game.equipArmor("plate") },
+    ...ARMOR_GOODS,
     { id: "lighten", name: "Lighten Armour", price: 110, upgrade: true,
       desc: "+4% movement speed, permanently.",
       apply: () => { player.gearSpeed += 0.04; } },

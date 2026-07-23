@@ -6,20 +6,21 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
 import { Folk } from "./mobs/folk.js";
 import { Villagers } from "./town/villagers.js";
 import { Guards } from "./town/guards.js";
-import { Shop, GOODS } from "./ui/shop.js";
+import { Shop, GOODS, statLine } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
 import { Inventory } from "./ui/inventory.js";
 import { Nameplates } from "./ui/nameplates.js";
 import { HealthBars } from "./ui/healthbars.js";
 import { rollRelic, applyRelic } from "./prog/relics.js";
 import { armorDR } from "./prog/stats.js";
+import { rollGear, vendorPiece } from "./prog/gear.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY } from "./world/gen.js";
@@ -107,7 +108,7 @@ function fireRing(knock = false) {
   // Reuses the same blast path as everything else; hurtsYou = false, since it's centred
   // on you and a ring that killed its caster would be a joke.
   blast(player.x, player.y + 1, player.z,
-        FIRERING.radius, FIRERING.damage, FIRERING.knock, false, false, knock);
+        FIRERING.radius, FIRERING.damage, FIRERING.knock, false, false, knock, "spell");
   markCombat();
 }
 
@@ -152,7 +153,7 @@ function dashStrike() {
   for (const e of [...world.entities.values()]) {
     if (e.kind !== "mob") continue;
     if (segDist(e.x, e.z, x0, z0, x1, z1) > DASH.radius) continue;
-    const res = mobs.hit(e.id, DASH.damage * player.dmgMult);
+    const res = mobs.hit(e.id, DASH.damage * player.dmgMult * (1 + (player.dmgSpell || 0)));
     hits++;
     if (res?.killed) { reward(res); grenades.refill(); }
   }
@@ -161,7 +162,7 @@ function dashStrike() {
     // Read the position BEFORE the hit: a killing blow despawns the boss, and the relic
     // has to fall where it stood.
     const bx = boss.alive.x, bz = boss.alive.z;
-    const res = boss.hit("boss", DASH.damage * player.dmgMult);
+    const res = boss.hit("boss", DASH.damage * player.dmgMult * (1 + (player.dmgSpell || 0)));
     hits++;
     if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
   }
@@ -254,7 +255,7 @@ function whirlSlam() {
   player.leapT = 0;
   player.leapPending = false;
   blast(player.x, player.y + 1, player.z,
-        WHIRL.slamRadius, WHIRL.slamDamage, 14, false);
+        WHIRL.slamRadius, WHIRL.slamDamage, 14, false, false, false, "spell");
   whirlRing.position.set(player.x, player.y + 0.3, player.z);
   whirlRing.visible = true;
   slamFx = 0.45;
@@ -312,6 +313,55 @@ function updateRelic(dt) {
   }
 }
 
+// GEAR DROPS. Mobs drop often, so unlike the single boss relic these are a POOL of small
+// coloured cubes lying on the ground — grey/green/blue by rarity. Walk over one and it goes
+// to your BAG (never auto-worn), so picking a drop up is free but wearing it is a choice.
+const GEAR_DROP_POOL = 16;
+const gearDrops = [];      // { piece, x, y, z, t, mesh }
+let gearDropI = 0;
+const gearDropMeshes = (() => {
+  const geo = new THREE.BoxGeometry(0.55, 0.55, 0.55);
+  const arr = [];
+  for (let i = 0; i < GEAR_DROP_POOL; i++) {
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    m.visible = false;
+    scene.add(m);
+    arr.push(m);
+  }
+  return arr;
+})();
+
+function dropGear(x, z, ring) {
+  const piece = rollGear(ring, shakeRng);
+  const mesh = gearDropMeshes[gearDropI = (gearDropI + 1) % gearDropMeshes.length];
+  // Recycling a mesh drops whatever old item was still riding it — a fair trade at 16 slots.
+  const old = gearDrops.findIndex((d) => d.mesh === mesh);
+  if (old >= 0) gearDrops.splice(old, 1);
+  mesh.material.color.set(piece.color);
+  const y = groundY(x, z) + 0.8;
+  mesh.position.set(x, y, z);
+  mesh.visible = true;
+  gearDrops.push({ piece, x, y, z, t: RELIC.life, mesh });
+}
+
+function updateGearDrops(dt) {
+  for (let i = gearDrops.length - 1; i >= 0; i--) {
+    const d = gearDrops[i];
+    d.t -= dt;
+    d.mesh.rotation.y += dt * 1.7;
+    d.mesh.position.y = d.y + Math.sin(performance.now() * 0.004 + i) * 0.14;
+    if (Math.hypot(player.x - d.x, player.z - d.z) < RELIC.pickupRange) {
+      bagGear(d.piece);
+      killFeed = `↑ ${d.piece.name}  (${statLine(d.piece.stats)})`;
+      sfx.hitConfirm(d.x, d.z);
+      d.mesh.visible = false;
+      gearDrops.splice(i, 1);
+      continue;
+    }
+    if (d.t <= 0) { d.mesh.visible = false; gearDrops.splice(i, 1); }
+  }
+}
+
 const barEl = document.getElementById("bar");
 barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => slotHtml(i + 1)).join("")
   + `<div class="sep"></div>`
@@ -324,13 +374,12 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
   onClose: () => resumeFromShop(),
   gun: () => gun,
   equipWeapon: (id) => gun.equip(id),
-  // Armour equipment: what you're wearing and the pieces you own to switch between.
-  armorState: () => ({
-    equipped: player.armorId,
-    equippedName: player.armorId ? ARMOR[player.armorId].name : null,
-    owned: (player.ownedArmor || []).map((id) => ARMOR[id]).filter(Boolean),
+  // Gear: the five worn slots, and every piece you own (for the bag).
+  gearState: () => ({
+    slots: ARMOR_SLOT_ORDER.map((slot) => ({ slot, piece: player.gearSlots[slot] })),
+    owned: player.ownedGear,
   }),
-  equipArmor: (id) => equipArmor(id),
+  equipGear: (uid) => equipGearByUid(uid),
   // The live character-sheet numbers. Damage buckets and Str/Agi are 0 until the gear step
   // wires them, but the sheet reads them now so it's complete the day gear rolls them.
   charStats: () => ({
@@ -388,18 +437,41 @@ const gameCtx = {
   dashStrike,
   whirlwind,
   applyStats: () => applyLevelStats(),   // gear changes re-derive the same way levels do
-  equipArmor,
+  equipArmor: (id) => buyArmor(id),      // smith buys a fixed piece by config id
   onClose: () => resumeFromShop(),
 };
 
-// Armour is single-equip: owning is a set, wearing is exactly one, and player.armor is just
-// the equipped piece's number — no stacking, so a better piece REPLACES the old one.
-function equipArmor(id) {
-  if (!ARMOR[id]) return;
-  if (!player.ownedArmor.includes(id)) player.ownedArmor.push(id);
-  player.armorId = id;
-  player.armor = ARMOR[id].armor;
+// GEAR ENGINE. Five slots, one piece each; recomputeGear sums EVERY stat across the worn
+// pieces into the player fields, then re-derives. There is no stacking of a slot — a new
+// piece replaces the one already there — but a full kit of five sums to something real.
+function recomputeGear() {
+  const sum = {
+    armor: 0, stamina: 0, str: 0, agi: 0,
+    dmgGlobal: 0, dmgGun: 0, dmgSpell: 0, dmgGrenade: 0,
+    rHaste: 0, rAtkSpeed: 0, rReload: 0,
+  };
+  for (const slot of ARMOR_SLOT_ORDER) {
+    const p = player.gearSlots[slot];
+    if (!p) continue;
+    for (const k of Object.keys(p.stats)) sum[k] = (sum[k] || 0) + p.stats[k];
+  }
+  for (const k of Object.keys(sum)) player[k] = sum[k];
+  applyLevelStats();
 }
+
+/** Equip a piece into its slot (replacing what's there), owning it first if new. */
+function equipGear(piece) {
+  if (!piece || !ARMOR_SLOT_ORDER.includes(piece.slot)) return;
+  if (!player.ownedGear.some((g) => g.uid === piece.uid)) player.ownedGear.push(piece);
+  player.gearSlots[piece.slot] = piece;
+  recomputeGear();
+}
+const equipGearByUid = (uid) => equipGear(player.ownedGear.find((g) => g.uid === uid));
+/** Smith purchase: a FIXED config piece becomes an owned instance and equips. */
+const buyArmor = (id) => { if (ARMOR[id]) equipGear(vendorPiece(ARMOR[id])); };
+/** A dropped piece goes to the BAG (not auto-worn) — you choose when to swap it in. */
+const bagGear = (piece) => { if (piece) player.ownedGear.push(piece); };
+
 const shop = new Shop(document.getElementById("shop"), gameCtx);
 
 // The bridge to the Python lab. Optional by construction: if it never connects, nothing
@@ -464,6 +536,13 @@ function reward(res) {
   const what = res.affixes ? `★ ${res.affixes}` : res.elite ? "★ elite" : "kill";
   killFeed = `${what}  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) sfx.healDone();
+
+  // Gear drops: frequent, and a lot more from elites. A piece lands a couple of steps away
+  // so you walk over it. rollGear scales the numbers and rolls the rarity by ring.
+  if (shakeRng() < (res.elite ? 0.4 : 0.12)) {
+    const a = shakeRng() * Math.PI * 2, r = 2 + shakeRng() * 2.5;
+    dropGear(player.x + Math.cos(a) * r, player.z + Math.sin(a) * r, res.ring);
+  }
 }
 
 function rewardBoss(ring, x, z) {
@@ -488,14 +567,19 @@ function rewardBoss(ring, x, z) {
  *   drawn ring and the felt ring disagree, which reads as the hitbox being too small.
  */
 function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
-               knock = GRENADE.knockback, hurtsYou = true, flat = false, shove = false) {
+               knock = GRENADE.knockback, hurtsYou = true, flat = false, shove = false,
+               kind = "grenade") {
   const falloff = (d) => (flat ? 1 : Math.max(0.25, 1 - d / radius));
+  // The damage BUCKET for this source (grenade blasts vs spell/ability blasts). It scales the
+  // ENEMY damage only — your own self-damage below stays on the base so it can't grow with
+  // your gear and blow you up.
+  const bucket = 1 + (kind === "spell" ? (player.dmgSpell || 0) : (player.dmgGrenade || 0));
 
   for (const e of [...world.entities.values()]) {
     if (e.kind !== "mob") continue;
     const d = Math.hypot(e.x - x, e.z - z, (e.y - y) * 0.5);
     if (d > radius) continue;
-    const res = mobs.hit(e.id, damage * player.dmgMult * falloff(d));
+    const res = mobs.hit(e.id, damage * player.dmgMult * bucket * falloff(d));
     if (res?.killed) { reward(res); grenades.refill(); }
     else if (shove) mobs.push(e, x, z, FIRERING.shove);   // survivors get thrown clear
   }
@@ -505,7 +589,7 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
     const bx = b.x, bz = b.z;
     const d = Math.hypot(b.x - x, b.z - z);
     if (d < radius + BOSS.contactRange * 0.5) {
-      const res = boss.hit("boss", damage * player.dmgMult * falloff(Math.max(0, d - BOSS.contactRange * 0.5)));
+      const res = boss.hit("boss", damage * player.dmgMult * bucket * falloff(Math.max(0, d - BOSS.contactRange * 0.5)));
       if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
     }
   }
@@ -721,7 +805,7 @@ function frame(now) {
     if (shot?.fired) {
       markCombat();
       for (const t of shot.targets) {
-        const dmg = shot.damage * player.dmgMult;
+        const dmg = shot.damage * player.dmgMult * (1 + (player.dmgGun || 0));
         if (t.tag === "boss" || t.tag === "bossWeak") {
           const bx = boss.alive?.x, bz = boss.alive?.z;
           const res = boss.hit(t.tag, dmg);
@@ -771,7 +855,7 @@ function frame(now) {
     if (whirlTick <= 0) {
       whirlTick = WHIRL.spinTick;
       // Flat damage to the rim, so what you see is what it hits.
-      blast(player.x, player.y + 1, player.z, WHIRL.spinRadius, WHIRL.spinDamage, 5, false, true);
+      blast(player.x, player.y + 1, player.z, WHIRL.spinRadius, WHIRL.spinDamage, 5, false, true, false, "spell");
     }
     spinRing.visible = true;
     spinRing.position.set(player.x, player.y + 0.35, player.z);
@@ -889,6 +973,7 @@ function frame(now) {
   }
 
   updateRelic(dt);
+  updateGearDrops(dt);
   minimap.draw(dt, mobs, boss, folk);
 
   const vendor = shop.open ? null : villagers.nearest();
