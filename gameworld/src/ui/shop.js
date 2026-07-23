@@ -11,6 +11,7 @@
 import { player } from "../state.js";
 import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, WEAPONS, ARMOR, STAT_INFO } from "../config.js";
 import { tierAt } from "../world/gen.js";
+import { sellValue } from "../prog/gear.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
 
@@ -143,7 +144,20 @@ export class Shop {
     this.vendor = null;
     this.el.addEventListener("click", (e) => {
       const id = e.target?.closest?.("[data-buy]")?.dataset?.buy;
-      if (id) this.buy(id);
+      if (id) { this.buy(id); return; }
+      const sellId = e.target?.closest?.("[data-sell]")?.dataset?.sell;
+      if (sellId) {
+        const got = this.game.sellGear?.(sellId);
+        this.flash = got ? `sold — +${got} pts` : "";
+        this.render();
+        return;
+      }
+      if (e.target?.closest?.("[data-sellgray]")) {
+        const got = this.game.sellAllCommon?.() || 0;
+        this.flash = got ? `sold all gray — +${got} pts` : "no gray to sell";
+        this.render();
+        return;
+      }
       if (e.target?.closest?.("[data-close]")) this.close();
       // Clicking the backdrop leaves, the way every panel like this behaves.
       if (e.target === this.el) this.close();
@@ -229,17 +243,40 @@ export class Shop {
         </button>`;
     }).join("") : `<p class="empty">Nothing for sale. Try the herbalist or the smith.</p>`;
 
+    // The SELL side: your bags. Click a piece to sell it for points; one button dumps all the
+    // grey clutter at once. Worn pieces aren't here (the bag holds only what you aren't using).
+    const bag = player.ownedGear || [];
+    const grayCount = bag.filter((p) => p.rarity === "common").length;
+    const sellRows = bag.length ? bag.map((p) => `
+      <button class="sellitem" data-sell="${p.uid}" style="border-color:${p.color}"
+              title="${statLine(p.stats)}">
+        <span class="nm" style="color:${p.color}">${p.name}</span>
+        <span class="pr">+${sellValue(p)}</span>
+      </button>`).join("") : `<p class="empty">Your bags are empty.</p>`;
+
     this.el.innerHTML = `
-      <div class="panel">
+      <div class="panel wide">
         <header>
           <h2>${this.vendor.role.name}</h2>
           <span class="gold">${player.points} pts</span>
           <button class="x" data-close>✕</button>
         </header>
-        <div class="items">${rows}</div>
+        <div class="cols">
+          <div class="col">
+            <h3>For sale</h3>
+            <div class="items">${rows}</div>
+          </div>
+          <div class="col sellcol">
+            <h3>Your bags — click to sell</h3>
+            <button class="sellall ${grayCount ? "" : "off"}" data-sellgray>
+              Sell all gray${grayCount ? ` (${grayCount})` : ""}
+            </button>
+            <div class="items sellitems">${sellRows}</div>
+          </div>
+        </div>
         <footer>${this.flash
           || (locked ? `${locked} more ware${locked > 1 ? "s" : ""} sold further out`
-            : "Click an item to buy · Esc or ✕ to leave")}</footer>
+            : "Click to buy · click a bag piece to sell · Esc or ✕ to leave")}</footer>
       </div>`;
     this.flash = "";
   }

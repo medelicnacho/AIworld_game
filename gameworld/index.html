@@ -52,6 +52,26 @@
       #shop .pr { grid-row: 1 / span 2; align-self: center; color: #ffd45e; font-weight: 600; }
       #shop .empty { padding: 18px 14px; color: #93a6c0; margin: 0; }
       #shop footer { padding: 9px 14px; background: #161d2b; color: #8fa3bf; font-size: 12px; }
+      #shop .panel.wide { width: min(820px, 94vw); }
+      #shop .cols { display: grid; grid-template-columns: 1fr 1fr; }
+      #shop .col { min-width: 0; }
+      #shop .col.sellcol { border-left: 1px solid #222c3e; background: #0e1420; }
+      #shop .col h3 { margin: 0; padding: 10px 14px 4px; font-size: 11px; letter-spacing: .1em;
+        color: #8fa3bf; text-transform: uppercase; }
+      #shop .sellall { display: block; width: calc(100% - 28px); margin: 4px 14px 8px;
+        background: #3a3550; border: 1px solid #5a4d7d; color: #d9cbff; border-radius: 6px;
+        padding: 6px; cursor: pointer; font: inherit; font-size: 12px; }
+      #shop .sellall.off { opacity: .4; cursor: default; }
+      #shop .sellitems { max-height: 46vh; }
+      #shop .sellitem { display: flex; justify-content: space-between; align-items: center;
+        width: calc(100% - 20px); margin: 4px 10px; gap: 10px; background: #46536b55;
+        border: 1px solid #6b7a95; border-radius: 6px; padding: 7px 10px; cursor: pointer;
+        font: inherit; text-align: left; }
+      #shop .sellitem:hover { background: #1c2739; }
+      #shop .sellitem .nm { font-size: 12px; font-weight: 600; }
+      #shop .sellitem .pr { color: #ffd45e; font-weight: 600; font-size: 12px; }
+      @media (max-width: 640px) { #shop .cols { grid-template-columns: 1fr; }
+        #shop .col.sellcol { border-left: 0; border-top: 1px solid #222c3e; } }
       body.shopping #click { display: none; }
       body.inv #click { display: none; }
 

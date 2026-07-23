@@ -54,7 +54,7 @@ export const PLAYER = {
   radius: 0.35,
   height: 1.8,
   eye: 1.62,
-  walkSpeed: 7.0,      // level-1 baseline; levels multiply this (XP.speedGrowth)
+  walkSpeed: 7.3,      // level-1 baseline; levels multiply this (XP.speedGrowth)
   sprintSpeed: 9.6,
   accel: 45,
   friction: 12,

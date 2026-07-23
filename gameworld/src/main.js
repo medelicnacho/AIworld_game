@@ -439,6 +439,8 @@ const gameCtx = {
   whirlwind,
   applyStats: () => applyLevelStats(),   // gear changes re-derive the same way levels do
   equipArmor: (id) => buyArmor(id),      // smith buys a fixed piece by config id
+  sellGear: (uid) => sellGear(uid),      // sell one bag piece at a vendor
+  sellAllCommon: () => sellAllCommon(),  // "sell all gray" button
   onClose: () => resumeFromShop(),
 };
 
@@ -487,6 +489,15 @@ function sellGear(uid) {
   player.points += worth;
   recomputeGear();
   return worth;
+}
+
+/** Dump every grey (common) piece in the bag at once — the one-click declutter. */
+function sellAllCommon() {
+  let total = 0;
+  for (const p of [...player.ownedGear]) {
+    if (p.rarity === "common") total += sellGear(p.uid);
+  }
+  return total;
 }
 /** Smith purchase: a FIXED config piece becomes an owned instance and equips. */
 const buyArmor = (id) => { if (ARMOR[id]) equipGear(vendorPiece(ARMOR[id])); };

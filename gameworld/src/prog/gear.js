@@ -77,7 +77,9 @@ export function rollGear(ring, rng) {
   const rarMult = rarity.key === "rare" ? 1.5 : rarity.key === "uncommon" ? 1.18 : 1.0;
   const ringScale = 1 + ring * 0.5;
 
-  const stats = { armor: Math.max(1, Math.round((20 + ring * 13) * rarMult)) };
+  // Armour VARIES piece to piece (±25%), so two greys of the same slot are rarely identical
+  // and there's always a slightly-better one worth grabbing.
+  const stats = { armor: Math.max(1, Math.round((20 + ring * 13) * rarMult * (0.75 + rng() * 0.5))) };
   const pool = [...ROLL_STATS];
   const rolled = [];
   for (let i = 0; i < rarity.nStats && pool.length; i++) {
