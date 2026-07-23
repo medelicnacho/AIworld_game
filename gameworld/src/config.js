@@ -475,7 +475,10 @@ export const MOB = {
   // time-to-kill at ~4 shots forever: outlevel the frontier and it gets easier, run ahead
   // of your level and it bites. That relationship is the difficulty design, not a number.
   hpGrowth: 1.42,
-  damagePerRing: 0.50,
+  // The LINEAR term sets early-ring damage; the ramp below sets how it accelerates. Rings 1-3
+  // were too punishing, so the linear base drops (gentle early) while rampDamage rises (still
+  // brutal deep) — the acceleration does the work instead of a flat high number everywhere.
+  damagePerRing: 0.30,
   speedPerRing: 0.06,
 
   // ACCELERATION on top of the flat curve above (see ringPressure() in gen.js). The base
@@ -492,8 +495,8 @@ export const MOB = {
   // damage has to climb hard to matter against a plated build, and HP should climb GENTLY so
   // depth is lethal, not tedious.
   ramp: 0.09,           // HP — halved: deep mobs die in a few shots, not a magazine
-  rampDamage: 0.18,     // damage — doubled: the deep HITS now, which is where the threat lives
-  rampCrowd: 0.13,      // more bodies, sooner — reaches the population cap faster
+  rampDamage: 0.38,     // damage — accelerates hard, so the deep still bites despite the lower base
+  rampCrowd: 0.14,      // more bodies, sooner — reaches the population cap faster
 
   // ★elites: rarer near spawn, common in the deep. Valheim's star system, which is the
   // cheapest legible "this one is worse" signal there is.
@@ -583,7 +586,7 @@ export const MOB = {
   // a handful of mobs you can read while the deep stays a horde. (GEAR.md G5/G6 take this
   // further into the MMO direction: fewer, meatier mobs.)
   maxAlive: 44,
-  maxAlivePerTier: 33,    // tier 1: ~77 · tier 3: ~169 · tier 6+: capped
+  maxAlivePerTier: 28,    // tier 1: ~72 · tier 3: ~150 · tier 6+: capped — less swarm early
   maxAliveCap: 380,
   maxPacks: 6,
   maxPacksPerTier: 5,

@@ -478,6 +478,59 @@ export class Sfx {
   }
 
   /** Grenade throw. */
+  /** Picking a drop off the ground — a light rising blip, quick and clean. */
+  pickup() {
+    if (!this.on || !this.budget(0.5, 120)) return;
+    const t = this.t;
+    const { input } = this.place();
+    const o = this.ctx.createOscillator();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(520, t);
+    o.frequency.exponentialRampToValueAtTime(900, t + 0.09);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(g); g.connect(input);
+    o.start(t); o.stop(t + 0.18);
+  }
+
+  /**
+   * Equipping a piece — a donning THUNK for every tier, then a chime that grows with rarity:
+   * common is just the thunk, uncommon adds a two-note lift, rare a full rising arpeggio. So
+   * a blue upgrade sounds like an event and a grey one like putting on socks.
+   */
+  equip(rarity = "common") {
+    if (!this.on || !this.budget(1, 220)) return;
+    const t = this.t;
+    const { input } = this.place();
+    // The thunk of the piece settling on — all tiers get it.
+    const thunk = this.ctx.createOscillator();
+    thunk.type = "sine";
+    thunk.frequency.setValueAtTime(190, t);
+    thunk.frequency.exponentialRampToValueAtTime(72, t + 0.12);
+    const tg = this.ctx.createGain();
+    tg.gain.setValueAtTime(0.5, t);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    thunk.connect(tg); tg.connect(input);
+    thunk.start(t); thunk.stop(t + 0.18);
+    // The reward chime, by rarity.
+    const notes = rarity === "rare" ? [523, 659, 784, 1047]
+      : rarity === "uncommon" ? [523, 784] : [];
+    for (let i = 0; i < notes.length; i++) {
+      const ct = t + 0.05 + i * 0.06;
+      const o = this.ctx.createOscillator();
+      o.type = "triangle";
+      o.frequency.value = notes[i];
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, ct);
+      g.gain.exponentialRampToValueAtTime(0.15, ct + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ct + 0.3);
+      o.connect(g); g.connect(input);
+      o.start(ct); o.stop(ct + 0.33);
+    }
+  }
+
   /** Shotgun: a deep, wide BOOM — noise swept down through a lowpass with a fat sub thump. */
   shotgunBlast() {
     if (!this.on || !this.budget()) return;

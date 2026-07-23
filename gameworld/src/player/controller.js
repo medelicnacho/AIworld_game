@@ -67,7 +67,6 @@ export function attachInput(canvas, hooks = {}) {
     if (!e.repeat && /^Digit[1-4]$/.test(e.code)) {
       hooks.ability?.(Number(e.code.slice(5)) - 1);
     }
-    if (e.code === "KeyB" && !e.repeat) hooks.summonBoss?.();   // dev: don't wander to test
     if (e.code === "KeyG" && !e.repeat) hooks.bridgeTest?.();   // dev: speak a line
 
     // Double-tap a movement key to roll that way. Timestamps are per-key, so tapping

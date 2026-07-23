@@ -353,7 +353,7 @@ function updateGearDrops(dt) {
     if (Math.hypot(player.x - d.x, player.z - d.z) < RELIC.pickupRange) {
       bagGear(d.piece);
       killFeed = `↑ ${d.piece.name}  (${statLine(d.piece.stats)})`;
-      sfx.hitConfirm(d.x, d.z);
+      sfx.pickup();
       d.mesh.visible = false;
       gearDrops.splice(i, 1);
       continue;
@@ -460,12 +460,19 @@ function recomputeGear() {
   applyLevelStats();
 }
 
-/** Equip a piece into its slot (replacing what's there), owning it first if new. */
+/**
+ * Equip a piece into its slot. The bag holds only what you AREN'T wearing: the piece leaves
+ * the bag, and whatever it replaces returns to the bag — a straight swap, nothing lost.
+ */
 function equipGear(piece) {
   if (!piece || !ARMOR_SLOT_ORDER.includes(piece.slot)) return;
-  if (!player.ownedGear.some((g) => g.uid === piece.uid)) player.ownedGear.push(piece);
+  const i = player.ownedGear.findIndex((g) => g.uid === piece.uid);
+  if (i >= 0) player.ownedGear.splice(i, 1);          // out of the bag
+  const prev = player.gearSlots[piece.slot];
+  if (prev && prev.uid !== piece.uid) player.ownedGear.push(prev);   // the old one goes back
   player.gearSlots[piece.slot] = piece;
   recomputeGear();
+  sfx.equip(piece.rarity);
 }
 const equipGearByUid = (uid) => equipGear(player.ownedGear.find((g) => g.uid === uid));
 
@@ -685,12 +692,6 @@ attachInput(renderer.domElement, {
   bridgeTest: () => {
     const ring = RINGS[ringAt(player.x, player.z)].name;
     speakLine(`You walk beside a traveller in ${ring}, ${Math.round(Math.hypot(player.x, player.z))} metres from where they began. Murmur one short thought about this place.`);
-  },
-  summonBoss: () => {
-    if (boss.active) { boss.despawn(); killFeed = "boss dismissed"; return; }
-    const a = shakeRng() * Math.PI * 2;
-    boss.spawn(player.x + Math.cos(a) * 34, player.z + Math.sin(a) * 34);
-    killFeed = "boss summoned";
   },
   onLock: () => { music.start(); sfx.unlock(); setPaused(false); },
   onUnlock: () => {
