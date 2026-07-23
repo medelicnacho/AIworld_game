@@ -142,6 +142,18 @@ export class Shop {
     this.el = el;
     this.game = game;         // { grenades, applyStats, onClose }
     this.vendor = null;
+    this.shift = false;
+    this._hoverEl = null;
+    // Same compare tooltip as the character sheet: hover a piece for its stats, hold Shift to
+    // see the +/- against what you're wearing. .geartip is a global class, shared styling.
+    this.tip = document.createElement("div");
+    this.tip.className = "geartip";
+    this.tip.style.display = "none";
+    document.body.appendChild(this.tip);
+    this.el.addEventListener("mousemove", (e) => this.onHover(e));
+    this.el.addEventListener("mouseleave", () => this.hideTip());
+    window.addEventListener("keydown", (e) => { if (e.key === "Shift" && !this.shift) { this.shift = true; this.refreshTip(); } });
+    window.addEventListener("keyup", (e) => { if (e.key === "Shift") { this.shift = false; this.refreshTip(); } });
     this.el.addEventListener("click", (e) => {
       const id = e.target?.closest?.("[data-buy]")?.dataset?.buy;
       if (id) { this.buy(id); return; }
@@ -185,9 +197,87 @@ export class Shop {
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
+  // --- the compare tooltip (mirrors inventory.js) -------------------------------
+  fmt(k, v, signed) {
+    const info = STAT_INFO[k];
+    const s = signed && v > 0 ? "+" : "";
+    if (info?.kind === "pct") return `${s}${Math.round(v * 100)}%`;
+    return `${s}${v}`;
+  }
+
+  statRows(stats) {
+    return Object.entries(stats).map(([k, v]) => {
+      const info = STAT_INFO[k];
+      return info ? `<div><span>${info.label}</span><b>${this.fmt(k, v, false)}</b></div>` : "";
+    }).join("");
+  }
+
+  deltaRows(next, cur) {
+    const keys = new Set([...Object.keys(next), ...Object.keys(cur)]);
+    return [...keys].map((k) => {
+      const info = STAT_INFO[k];
+      if (!info) return "";
+      const d = (next[k] || 0) - (cur[k] || 0);
+      if (Math.abs(d) < 1e-9) return "";
+      return `<div><span>${info.label}</span><b class="${d > 0 ? "up" : "down"}">${this.fmt(k, d, true)}</b></div>`;
+    }).join("");
+  }
+
+  /** The piece a hovered row refers to — an armour ware, or a bag piece being sold. */
+  pieceFromTarget(el) {
+    const buyId = el.closest("[data-buy]")?.dataset.buy;
+    if (buyId?.startsWith("buy_")) {
+      const cfg = ARMOR[buyId.slice(4)];
+      return cfg ? { slot: cfg.slot, name: cfg.name, stats: cfg.stats, color: "#5fd66a" } : null;
+    }
+    const sellUid = el.closest("[data-sell]")?.dataset.sell;
+    if (sellUid) return (player.ownedGear || []).find((p) => p.uid === sellUid) || null;
+    return null;
+  }
+
+  buildTip(el) {
+    const piece = this.pieceFromTarget(el);
+    if (!piece) return "";
+    const equipped = player.gearSlots?.[piece.slot];
+    const worn = equipped && equipped.uid === piece.uid;
+    let html = `<div class="tt-name" style="color:${piece.color || "#dfe8f5"}">${piece.name}</div>`;
+    html += `<div class="tt-slot">${piece.slot}${worn ? " · equipped" : ""}</div>`;
+    html += `<div class="tt-stats">${this.statRows(piece.stats)}</div>`;
+    if (this.shift && equipped && !worn) {
+      html += `<div class="tt-cmp">vs equipped — ${equipped.name}</div>`;
+      const d = this.deltaRows(piece.stats, equipped.stats);
+      html += `<div class="tt-stats">${d || '<div class="tt-hint">identical stats</div>'}</div>`;
+    } else if (!worn) {
+      html += `<div class="tt-hint">${equipped ? "hold Shift to compare" : (this.shift ? "that slot is empty" : "hold Shift to compare")}</div>`;
+    }
+    return html;
+  }
+
+  onHover(e) {
+    if (!this.open) return;
+    const target = e.target.closest?.("[data-buy],[data-sell]");
+    if (!target) { this.hideTip(); return; }
+    this._hoverEl = target;
+    const html = this.buildTip(target);
+    if (!html) { this.hideTip(); return; }
+    this.tip.innerHTML = html;
+    this.tip.style.display = "block";
+    this.tip.style.left = `${Math.min(e.clientX + 16, innerWidth - 270)}px`;
+    this.tip.style.top = `${Math.min(e.clientY + 12, innerHeight - this.tip.offsetHeight - 12)}px`;
+  }
+
+  refreshTip() {
+    if (!this.open || !this._hoverEl || this.tip.style.display === "none") return;
+    const html = this.buildTip(this._hoverEl);
+    if (html) this.tip.innerHTML = html;
+  }
+
+  hideTip() { this.tip.style.display = "none"; this._hoverEl = null; }
+
   close() {
     if (!this.open) return;
     this.vendor = null;
+    this.hideTip();
     document.body.classList.remove("shopping");
     this.el.innerHTML = "";
     // Every exit takes the same path — X, backdrop and Escape are one behaviour, not three.
