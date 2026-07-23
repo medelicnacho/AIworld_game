@@ -215,13 +215,21 @@ export class Inventory {
       }).join("")
       : "";
 
+    // Paperdoll, stats and bags all in ONE row, so equipping from a bag and watching the
+    // stat column move happen on the same screen — the whole point of a character sheet.
     return `
       <div class="char">
-        <div class="paperdoll">${doll}</div>
+        <div class="paperdoll">
+          <h3>Equipped</h3>
+          ${doll}
+        </div>
         <div class="statcol">${stats}</div>
-      </div>
-      <h3>Bags — weapons (click to equip · wheel switches in game)</h3>
-      <div class="bag">${weps || `<p class="none">Empty. Gear you find or buy appears here.</p>`}</div>`;
+        <div class="bagcol">
+          <h3>Bags — click to equip</h3>
+          <div class="bag">${weps
+            || `<p class="none">Empty. Gear you find or buy drops here.</p>`}</div>
+        </div>
+      </div>`;
   }
 
   // --- SPELLS: the ability bag + bar (the old inventory, now a tab) ---------------
