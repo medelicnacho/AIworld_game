@@ -32,8 +32,23 @@ export class Inventory {
     this.admin = false;
     this.tab = "character";
     this.picked = null;      // {from: "bag"|"slot", index} — Spells tab only
+    this.hoverUid = null;    // gear cell under the cursor, for the compare tooltip
+    this.shift = false;
+
+    // A floating tooltip that lives OUTSIDE the panel's innerHTML, so a re-render can't wipe
+    // it. Shows a hovered piece's stats, and — with Shift held — the +/- against what you wear.
+    this.tip = document.createElement("div");
+    this.tip.className = "geartip";
+    this.tip.style.display = "none";
+    document.body.appendChild(this.tip);
 
     this.el.addEventListener("click", (e) => this.onClick(e));
+    this.el.addEventListener("mousemove", (e) => this.onHover(e));
+    this.el.addEventListener("mouseleave", () => this.hideTip());
+    this.el.addEventListener("contextmenu", (e) => this.onSell(e));   // right-click sells
+    // Shift toggles the comparison while the cursor sits still on a piece.
+    window.addEventListener("keydown", (e) => { if (e.key === "Shift" && !this.shift) { this.shift = true; this.refreshTip(); } });
+    window.addEventListener("keyup", (e) => { if (e.key === "Shift") { this.shift = false; this.refreshTip(); } });
     // Escape must leave. The lock was already released to open this, so no lockchange will
     // ever fire — it needs its own handler, in capture, exactly like the shop.
     window.addEventListener("keydown", (e) => {
@@ -61,6 +76,7 @@ export class Inventory {
   hide() {
     this.open = false;
     this.picked = null;
+    this.hideTip();
     document.body.classList.remove("inv");
   }
 
@@ -172,6 +188,97 @@ export class Inventory {
       </div>`;
   }
 
+  // --- the compare tooltip & selling --------------------------------------------
+  /** Format a stat value; `signed` prefixes a + on positives (for deltas). */
+  fmt(k, v, signed) {
+    const info = STAT_INFO[k];
+    const s = signed && v > 0 ? "+" : "";
+    if (info?.kind === "pct") return `${s}${Math.round(v * 100)}%`;
+    return `${s}${v}`;
+  }
+
+  statRows(stats) {
+    return Object.entries(stats).map(([k, v]) => {
+      const info = STAT_INFO[k];
+      if (!info) return "";
+      return `<div><span>${info.label}</span><b>${this.fmt(k, v, false)}</b></div>`;
+    }).join("");
+  }
+
+  /** Only the CHANGED stats vs the worn piece, each signed and coloured up/down. */
+  deltaRows(next, cur) {
+    const keys = new Set([...Object.keys(next), ...Object.keys(cur)]);
+    return [...keys].map((k) => {
+      const info = STAT_INFO[k];
+      if (!info) return "";
+      const d = (next[k] || 0) - (cur[k] || 0);
+      if (Math.abs(d) < 1e-9) return "";
+      return `<div><span>${info.label}</span><b class="${d > 0 ? "up" : "down"}">${this.fmt(k, d, true)}</b></div>`;
+    }).join("");
+  }
+
+  buildTip() {
+    const gear = this.hooks.gearState?.();
+    if (!gear) return "";
+    const piece = gear.owned.find((p) => p.uid === this.hoverUid);
+    if (!piece) return "";
+    const equipped = gear.slots.find((sl) => sl.slot === piece.slot)?.piece;
+    const worn = equipped && equipped.uid === piece.uid;
+
+    let html = `<div class="tt-name" style="color:${piece.color}">${piece.name}</div>`;
+    html += `<div class="tt-slot">${SLOT_LABEL[piece.slot] || piece.slot}${worn ? " · equipped" : ""}</div>`;
+    html += `<div class="tt-stats">${this.statRows(piece.stats)}</div>`;
+    if (this.shift && equipped && !worn) {
+      html += `<div class="tt-cmp">vs equipped — ${equipped.name}</div>`;
+      const d = this.deltaRows(piece.stats, equipped.stats);
+      html += `<div class="tt-stats">${d || '<div class="tt-hint">identical stats</div>'}</div>`;
+    } else if (!worn) {
+      html += `<div class="tt-hint">${equipped ? "hold Shift to compare · " : ""}right-click to sell</div>`;
+    }
+    return html;
+  }
+
+  onHover(e) {
+    if (!this.open) return;
+    const cell = e.target.closest("[data-gear]");
+    if (!cell) { this.hideTip(); return; }
+    this.hoverUid = cell.dataset.gear;
+    const html = this.buildTip();
+    if (!html) { this.hideTip(); return; }
+    this.tip.innerHTML = html;
+    this.tip.style.display = "block";
+    this.tip.style.left = `${Math.min(e.clientX + 16, innerWidth - 270)}px`;
+    this.tip.style.top = `${Math.min(e.clientY + 12, innerHeight - this.tip.offsetHeight - 12)}px`;
+  }
+
+  refreshTip() {
+    if (!this.open || !this.hoverUid || this.tip.style.display === "none") return;
+    const html = this.buildTip();
+    if (html) this.tip.innerHTML = html;
+  }
+
+  hideTip() {
+    this.tip.style.display = "none";
+    this.hoverUid = null;
+  }
+
+  onSell(e) {
+    if (!this.open) return;
+    const cell = e.target.closest("[data-gear]");
+    if (!cell) return;
+    e.preventDefault();
+    const got = this.hooks.sellGear?.(cell.dataset.gear);
+    this.hideTip();
+    this.render();
+    if (got) this.flash(`Sold — +${got} points`);
+  }
+
+  /** A brief line in the footer, e.g. after a sale. */
+  flash(msg) {
+    const foot = this.el.querySelector("footer");
+    if (foot) foot.textContent = msg;
+  }
+
   // --- CHARACTER: paperdoll + stats + bags ---------------------------------------
   characterHtml() {
     const gun = this.hooks.gun?.();
@@ -195,6 +302,7 @@ export class Inventory {
     const row = (label, val) => `<div class="strow"><span>${label}</span><b>${val}</b></div>`;
     const stats = [
       row("Level", s.level ?? "—"),
+      row("Points", s.points ?? 0),
       row("Health", `${Math.round(s.hp ?? 0)} / ${Math.round(s.maxHp ?? 0)}`),
       `<div class="sthr"></div>`,
       row("Strength", `${s.str ?? 0}  <em>+${Math.round((s.globalPct ?? 0))}% dmg</em>`),
@@ -311,7 +419,9 @@ export class Inventory {
     const foot = this.tab === "spells"
       ? (this.picked ? "Now click a slot to place it"
         : "Drag or click an ability onto a slot · drag it out to unequip · Esc to resume")
-      : "Esc, ✕ or click outside to resume";
+      : this.tab === "character"
+        ? "Click a piece to equip · hold Shift to compare · right-click to sell for points"
+        : "Esc, ✕ or click outside to resume";
 
     this.el.innerHTML = `
       <div class="panel">

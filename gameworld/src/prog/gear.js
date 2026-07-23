@@ -93,6 +93,12 @@ export function rollGear(ring, rng) {
   };
 }
 
+/** What a piece sells back for — armour plus a rarity bonus, rounded. */
+export function sellValue(piece) {
+  const bonus = piece.rarity === "rare" ? 60 : piece.rarity === "uncommon" ? 25 : 8;
+  return Math.max(1, Math.round((piece.armor || 0) * 0.4 + bonus));
+}
+
 /** Turn a FIXED config piece (smith stock) into an owned instance. Vendor gear is green. */
 export function vendorPiece(cfg) {
   return {

@@ -20,7 +20,7 @@ import { Nameplates } from "./ui/nameplates.js";
 import { HealthBars } from "./ui/healthbars.js";
 import { rollRelic, applyRelic } from "./prog/relics.js";
 import { armorDR } from "./prog/stats.js";
-import { rollGear, vendorPiece } from "./prog/gear.js";
+import { rollGear, vendorPiece, sellValue } from "./prog/gear.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY } from "./world/gen.js";
@@ -380,10 +380,11 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
     owned: player.ownedGear,
   }),
   equipGear: (uid) => equipGearByUid(uid),
+  sellGear: (uid) => sellGear(uid),
   // The live character-sheet numbers. Damage buckets and Str/Agi are 0 until the gear step
   // wires them, but the sheet reads them now so it's complete the day gear rolls them.
   charStats: () => ({
-    level: player.level, hp: player.hp, maxHp: player.maxHp,
+    level: player.level, hp: player.hp, maxHp: player.maxHp, points: player.points,
     str: player.str || 0, agi: player.agi || 0, stamina: player.stamina || 0,
     armor: player.armor || 0, armorDR: armorDR(player.armor, tierAt(player.x, player.z)),
     dmgGlobal: player.dmgGlobal || 0, dmgGun: player.dmgGun || 0,
@@ -467,6 +468,19 @@ function equipGear(piece) {
   recomputeGear();
 }
 const equipGearByUid = (uid) => equipGear(player.ownedGear.find((g) => g.uid === uid));
+
+/** Sell an owned piece for points. If it was worn, its slot empties and stats re-derive. */
+function sellGear(uid) {
+  const i = player.ownedGear.findIndex((g) => g.uid === uid);
+  if (i < 0) return 0;
+  const piece = player.ownedGear[i];
+  player.ownedGear.splice(i, 1);
+  if (player.gearSlots[piece.slot]?.uid === uid) player.gearSlots[piece.slot] = null;
+  const worth = sellValue(piece);
+  player.points += worth;
+  recomputeGear();
+  return worth;
+}
 /** Smith purchase: a FIXED config piece becomes an owned instance and equips. */
 const buyArmor = (id) => { if (ARMOR[id]) equipGear(vendorPiece(ARMOR[id])); };
 /** A dropped piece goes to the BAG (not auto-worn) — you choose when to swap it in. */

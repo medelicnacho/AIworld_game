@@ -131,6 +131,21 @@
       #inv .legend h3 { margin: 10px 0 6px; }
       #inv .legend .leg { display: block; font-size: 11px; color: #93a6c0; padding: 2px 0; }
       #inv .legend .leg b { color: #cdd8ea; font-weight: 600; }
+      .geartip { position: fixed; z-index: 50; width: 250px; pointer-events: none;
+        background: #0d1220f5; border: 1px solid #2f3d55; border-radius: 8px; padding: 9px 11px;
+        color: #dfe8f5; font: 12px/1.45 ui-sans-serif, system-ui, sans-serif;
+        box-shadow: 0 10px 30px #000b; }
+      .geartip .tt-name { font-weight: 600; font-size: 13px; }
+      .geartip .tt-slot { color: #8fa3bf; font-size: 10px; letter-spacing: .08em;
+        text-transform: uppercase; margin-bottom: 6px; }
+      .geartip .tt-stats div { display: flex; justify-content: space-between; padding: 1px 0; }
+      .geartip .tt-stats span { color: #9fb0cb; }
+      .geartip .tt-stats b { color: #f0f5ff; font-weight: 600; }
+      .geartip .tt-stats b.up { color: #6fe08a; }
+      .geartip .tt-stats b.down { color: #ff7d7d; }
+      .geartip .tt-cmp { margin: 7px 0 3px; padding-top: 6px; border-top: 1px solid #263149;
+        color: #b9c6dc; font-size: 11px; }
+      .geartip .tt-hint { color: #7f8fab; font-size: 10.5px; margin-top: 5px; }
       /* On a narrow window the three columns stack instead of squeezing. */
       @media (max-width: 720px) { #inv .char { grid-template-columns: 1fr; } }
       #points { position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%);
