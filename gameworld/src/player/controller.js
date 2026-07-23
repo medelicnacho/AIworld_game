@@ -146,6 +146,11 @@ export function attachInput(canvas, hooks = {}) {
     if (e.button === 2) input.aimHeld = false;
     if (e.button === 0) input.firing = false;
   });
+  // Mouse wheel cycles owned weapons — the FPS convention, and the only free input left.
+  document.addEventListener("wheel", (e) => {
+    if (document.pointerLockElement !== canvas) return;
+    hooks.cycleWeapon?.(e.deltaY > 0 ? 1 : -1);
+  }, { passive: true });
   window.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 

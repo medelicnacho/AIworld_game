@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, GUN, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -363,6 +363,7 @@ let tradeMsg = "", tradeMsgT = 0;
 const gameCtx = {
   get grenades() { return grenades; },
   get abilities() { return abilities; },
+  get gun() { return gun; },
   fireRing,
   dashStrike,
   whirlwind,
@@ -526,6 +527,7 @@ attachInput(renderer.domElement, {
   toggleCamera: () => rig.toggle(),
   toggleMusic: () => music.toggle(),
   reload: () => gun.reload(),
+  cycleWeapon: (dir) => gun.cycle(dir),
   interact: () => {
     const v = villagers.nearest();
     if (!v) return;
@@ -679,19 +681,26 @@ function frame(now) {
   inSafe = sanctuaryOf(player.x, player.z, 0) !== null;
   const inSafeZone = inSafe;
 
-  if (input.firing && !inSafeZone) {
-    const before = gun.mag;
-    const hit = gun.tryFire(rig.blend > 0.5, gunRng, [...mobs.targets(), ...boss.targets()]);
-    if (gun.mag !== before) markCombat();     // a shot fired, hit or miss
-    if (hit?.targetId != null) {
-      if (hit.targetTag === "boss" || hit.targetTag === "bossWeak") {
-        const bx = boss.alive?.x, bz = boss.alive?.z;
-        const res = boss.hit(hit.targetTag, GUN.damage * player.dmgMult);
-        if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
-        else if (res?.weak) killFeed = "core hit ×2.5";
-      } else {
-        const res = mobs.hit(hit.targetId, GUN.damage * player.dmgMult);
-        if (res?.killed) { reward(res); grenades.refill(); }
+  {
+    // tryFire is called every frame with whether the trigger is HELD, so the gun itself can
+    // enforce semi-auto (release between shots) for the shotgun and sniper. A safe zone reads
+    // as trigger-up. One shot can strike several targets now (shotgun pellets), so damage is
+    // applied per struck target, each pellet dealing the weapon's damage through dmgMult.
+    const shot = gun.tryFire(rig.blend > 0.5, gunRng,
+      [...mobs.targets(), ...boss.targets()], input.firing && !inSafeZone);
+    if (shot?.fired) {
+      markCombat();
+      for (const t of shot.targets) {
+        const dmg = shot.damage * player.dmgMult;
+        if (t.tag === "boss" || t.tag === "bossWeak") {
+          const bx = boss.alive?.x, bz = boss.alive?.z;
+          const res = boss.hit(t.tag, dmg);
+          if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
+          else if (res?.weak) killFeed = "core hit ×2.5";
+        } else {
+          const res = mobs.hit(t.id, dmg);
+          if (res?.killed) { reward(res); grenades.refill(); }
+        }
       }
     }
   }
@@ -918,7 +927,7 @@ function frame(now) {
     `${player.armor ? `   armour ${player.armor} (-${Math.round(armorDR(player.armor, tier) * 100)}%)` : ""}` +
     `${player.haste ? `   haste +${Math.round((player.hasteFire - 1) * 100)}%` : ""}\n` +
 
-    `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +
+    `${gun.weapon.name}  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${gun.weapon.magSize}`}${gun.owned.size > 1 ? "  (wheel to switch)" : ""}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
     `${bridge.label}${speaking ? "  ·  thinking…" : ""}\n` +
     `${!paused && document.pointerLockElement !== renderer.domElement

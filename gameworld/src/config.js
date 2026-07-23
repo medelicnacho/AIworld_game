@@ -67,17 +67,49 @@ export const PLAYER = {
 
 // D6: one hitscan gun. A raycast — no ballistics, no projectile pooling. Everything here
 // is a stat a level-up card will later multiply (D9), which is why they're all named.
-export const GUN = {
-  damage: 12,
-  fireRate: 7.5,        // shots per second, hold to fire
-  magSize: 18,
-  reloadTime: 1.15,
-  range: 220,
-  recoil: 0.016,        // radians kicked up per shot
-  recoilRecover: 0.75,  // fraction of the kick that drifts back down
-  spreadHip: 0.022,     // radians of cone — the third-person/hip penalty
-  spreadAim: 0.002,     // ADS is near-exact, and that IS the reward for D4's camera pull
+// WEAPONS — a family, not a gun. Each is the same hitscan core (one ray from the crosshair)
+// with a different feel dialled entirely in data: rate, magazine, spread, range, pellets,
+// and semi-vs-auto. They are the Weapon slot of GEAR.md — you own guns and switch between
+// them (mouse wheel), and buying one from the smith equips it. Damage still rides the level
+// multiplier and the (coming) Gun-Damage stat, so a weapon's number is its IDENTITY, not its
+// power ceiling — a sniper hits like a truck at every level, an MG spits chip damage at every
+// level, and gear scales both together.
+export const WEAPONS = {
+  rifle: {
+    id: "rifle", name: "Repeater", price: 0,   // the starter; owned from the first frame
+    damage: 12, fireRate: 7.5, magSize: 18, reloadTime: 1.15, range: 220,
+    pellets: 1, auto: true, recoil: 0.016, recoilRecover: 0.75,
+    spreadHip: 0.022, spreadAim: 0.002,
+    desc: "Balanced automatic. Hold to fire.",
+  },
+  shotgun: {
+    id: "shotgun", name: "Scattergun", price: 260,
+    // A wall of pellets up close, nothing at range. One booming shot, a slow pump between.
+    damage: 11, fireRate: 1.3, magSize: 5, reloadTime: 0.65, range: 26,
+    pellets: 9, auto: false, pump: true, recoil: 0.05, recoilRecover: 0.6,
+    spreadHip: 0.14, spreadAim: 0.09,
+    desc: "9 pellets, short range, one shot. Pump between rounds. Devastating point-blank.",
+  },
+  sniper: {
+    id: "sniper", name: "Longshot", price: 320,
+    // One enormous round across the whole map. Slow, unforgiving, rewards a steady crosshair.
+    damage: 145, fireRate: 0.9, magSize: 4, reloadTime: 1.9, range: 600,
+    pellets: 1, auto: false, recoil: 0.09, recoilRecover: 0.5,
+    spreadHip: 0.03, spreadAim: 0.0002,
+    desc: "One-shot, enormous damage, effectively infinite range. Semi-auto. Aim it.",
+  },
+  mg: {
+    id: "mg", name: "Ripper", price: 300,
+    // A hose. Low per-shot, huge belt, so it answers crowds and never stops for long.
+    damage: 6, fireRate: 12, magSize: 60, reloadTime: 2.0, range: 180,
+    pellets: 1, auto: true, recoil: 0.012, recoilRecover: 0.8,
+    spreadHip: 0.05, spreadAim: 0.03,
+    desc: "Low damage, huge belt, high rate. Hoses down crowds.",
+  },
 };
+
+// The starting weapon, and a back-compat alias for a few call sites that still say GUN.
+export const GUN = WEAPONS.rifle;
 
 // D9 — endless levels, and the economy that makes distance the real progression.
 //

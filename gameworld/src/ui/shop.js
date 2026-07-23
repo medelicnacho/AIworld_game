@@ -9,7 +9,7 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, STATS } from "../config.js";
+import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, STATS, WEAPONS } from "../config.js";
 import { tierAt } from "../world/gen.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
@@ -24,6 +24,15 @@ export const GOODS = {
       apply: (game) => { game.grenades.refill(1); } },
   ],
   smith: [
+    { id: "w_shotgun", name: "Scattergun", price: WEAPONS.shotgun.price, once: true,
+      desc: WEAPONS.shotgun.desc + " Mouse-wheel to switch weapons.",
+      apply: (game) => game.gun.acquire("shotgun") },
+    { id: "w_sniper", name: "Longshot", price: WEAPONS.sniper.price, once: true, minTier: 1,
+      desc: WEAPONS.sniper.desc + " Mouse-wheel to switch weapons.",
+      apply: (game) => game.gun.acquire("sniper") },
+    { id: "w_mg", name: "Ripper", price: WEAPONS.mg.price, once: true, minTier: 1,
+      desc: WEAPONS.mg.desc + " Mouse-wheel to switch weapons.",
+      apply: (game) => game.gun.acquire("mg") },
     { id: "sharpen", name: "Sharpen Weapon", price: 140, upgrade: true,
       desc: "+8% damage, permanently. Stacks with every level you gain.",
       apply: () => { player.gearDmg += 0.08; } },

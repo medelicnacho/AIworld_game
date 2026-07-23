@@ -23,13 +23,27 @@ reinventing this. They collapse into the model below.
 
 ## 1. The stat model (all additive integers on gear)
 
-### Primary
-| stat | what it does | formula | notes |
-|---|---|---|---|
-| **Stamina** | health | `maxHP = 100 + STAM_HP × stamina` | MMO health. `STAM_HP≈8`. Big on gear, big on mobs. |
-| **Armor** | damage reduction | `DR = armor / (armor + ARMOR_K + ARMOR_PER_LVL × attackerTier)` | THE key formula. DR built-in; same armour worth less vs deeper mobs. Replaces `0.9^armor`. |
-| **Power** | gun + grenade damage | `dmg = base + POWER_COEF × power` | attack power. Flat add, WoW's AP/14. |
-| **Spell Power** | ability damage (fire ring, dash, whirlwind) | `dmg = base + SP_COEF × spellPower` | the "spells do more" stat. |
+### Primary attributes (WoW's four, re-pointed at THIS game — decided 2026-07-23)
+| attribute | what it does here | formula |
+|---|---|---|
+| **Strength** | GLOBAL damage — gun, grenade AND spells | `+STR_DMG% per point` into the global bucket |
+| **Agility** | movement SPEED and DASH distance | feeds the speed input and the dash, like Lighten/Vault do |
+| **Stamina** | health, the MMO way | `maxHP = 100 + STAM_HP × stamina` (`STAM_HP≈8`) |
+| **Armor** | damage reduction | `DR = armor / (armor + ARMOR_K + ARMOR_PER_TIER × attackerTier)` — DR built in, worth less at depth |
+
+**Every piece of gear also carries Armor**, like WoW — a chestpiece is Armor + attributes,
+boots are Armor + attributes, and total mitigation is the sum across your kit. Strength
+replaces WoW's melee "attack power": there is no melee here, so STR just means "you hit
+harder with everything."
+
+### Damage buckets (the four you asked for, additive %)
+Final damage of any hit = `base × levelMult × (1 + globalDmg + typeDmg)`:
+- **Global Damage** — every source (Strength pours into this bucket)
+- **Gun Damage** — guns only · **Spell Damage** — abilities only · **Grenade Damage** — grenade only
+
+So "Agility + damage" gear = Agility + Global (more overall damage AND speed); "spell +
+global" = Spell + Global; a gun piece rolls Gun Damage. Every piece is a bundle of these plus
+its Armor.
 
 ### Secondary (rating → % via `rating / (rating + K)`, DR baked in)
 | stat | what it does |
@@ -37,11 +51,17 @@ reinventing this. They collapse into the model below.
 | **Attack Speed** | gun fire rate |
 | **Haste** | ability cooldowns + heal channel |
 | **Reload** | reload time |
-| **Move Speed** | movement (replaces the `tanh` hack — the rating formula IS the soft cap) |
 
 Every secondary uses the same shape: `pct = rating / (rating + STAT_K)`, so the first points
 are strong, later points diminish, and it can never reach 100%. One helper, `ratingPct()`,
-serves all four — the same way `ringPressure()` serves the difficulty ramp.
+serves all — the same way `ringPressure()` serves the difficulty ramp.
+
+### Weapons — DONE (2026-07-23)
+The Weapon slot shipped ahead of the rest: `WEAPONS` in config, a generalised `gun.js` that
+runs any of them, mouse-wheel switching, and the smith selling them (`once`, so you own not
+stack). Rifle (starter) · Scattergun (9 pellets, short, pump) · Longshot (one-shot, huge
+damage, map-range, semi) · Ripper (low damage, huge belt). Guns ride `dmgMult` today; they
+move onto Gun Damage + Global in the damage step.
 
 ### The armour curve, concretely
 `DR = armor / (armor + 300 + 60 × tier)` (our tiers are smaller than WoW's 60 levels):
