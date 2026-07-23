@@ -357,7 +357,7 @@ export const MOB = {
   // time-to-kill at ~4 shots forever: outlevel the frontier and it gets easier, run ahead
   // of your level and it bites. That relationship is the difficulty design, not a number.
   hpGrowth: 1.42,
-  damagePerRing: 0.40,
+  damagePerRing: 0.50,
   speedPerRing: 0.06,
 
   // ACCELERATION on top of the flat curve above (see ringPressure() in gen.js). The base
@@ -367,8 +367,14 @@ export const MOB = {
   // "multiple bombs per regular mob" arrives around ring 5 and only worsens. An UNDER-level
   // player (run out ahead of your bed) feels it far sooner, which is the whole point of a
   // frontier. Turn these DOWN to soften the deep; they are the difficulty dial now.
-  ramp: 0.18,           // HP — the main "bullet-sponge at depth" knob
-  rampDamage: 0.08,     // gentler: tanky is a fun problem, being one-shot is not
+  //
+  // REBALANCED after play: the deep was bullet-sponge tanky AND toothless -- HP raced away
+  // while damage crawled, so a fight was long and safe, the worst combination. The two ramps
+  // are now nearly swapped. Player HP is a flat 100 (only armour makes you tankier), so mob
+  // damage has to climb hard to matter against a plated build, and HP should climb GENTLY so
+  // depth is lethal, not tedious.
+  ramp: 0.09,           // HP — halved: deep mobs die in a few shots, not a magazine
+  rampDamage: 0.18,     // damage — doubled: the deep HITS now, which is where the threat lives
   rampCrowd: 0.13,      // more bodies, sooner — reaches the population cap faster
 
   // ★elites: rarer near spawn, common in the deep. Valheim's star system, which is the
