@@ -9,7 +9,11 @@
 // never owns a cooldown — it reads whatever the item's own system reports, so there is only
 // ever one copy of the number.
 
-export const SLOTS = 4;
+// The spell bar keys, in order. More than the old four so there's room to SET more spells;
+// keys chosen to avoid the load-bearing ones (R reload, F trade). The bar and the controller
+// both read this, so adding a key here is the only change needed.
+export const SLOT_KEYS = ["1", "2", "3", "4", "5", "6", "T", "`"];
+export const SLOTS = SLOT_KEYS.length;
 
 export class Abilities {
   constructor(ctx) {

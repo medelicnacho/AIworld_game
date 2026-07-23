@@ -4,10 +4,15 @@
 // slide along a wall instead of sticking to it. It samples the world function directly, so
 // there is no collider to build, bake, or keep in sync with the mesh.
 
-import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY } from "../config.js";
+import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY, SPRINT } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
 import { wallBlocks } from "../world/sanctuary.js";
+
+// Which keyboard code maps to which spell-bar slot index. Matches abilities.SLOT_KEYS order.
+const SLOT_CODE = {
+  Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5, KeyT: 6, Backquote: 7,
+};
 
 export const input = {
   fwd: 0, right: 0, sprint: false, firing: false,
@@ -63,9 +68,10 @@ export function attachInput(canvas, hooks = {}) {
     // General abilities keep their own keys, exactly as before — they are not items.
     if (e.code === "KeyE" && !e.repeat) input.throwQueued = true;
     if (e.code === "KeyQ" && !e.repeat) input.healQueued = true;
-    // 1-4 are the item slots and nothing else.
-    if (!e.repeat && /^Digit[1-4]$/.test(e.code)) {
-      hooks.ability?.(Number(e.code.slice(5)) - 1);
+    // The spell bar: 1-6, then T and ` for slots 7-8. R and F are left alone (reload, trade).
+    if (!e.repeat) {
+      const slot = SLOT_CODE[e.code];
+      if (slot !== undefined) hooks.ability?.(slot);
     }
     if (e.code === "KeyG" && !e.repeat) hooks.bridgeTest?.();   // dev: speak a line
 
@@ -173,8 +179,10 @@ function blocked(x, y, z) {
 export function stepPlayer(dt) {
   // Derived, every step: held AND not mid-roll.
   input.aim = input.aimHeld && player.dodgeT <= 0;
+  if (player.sprintT > 0) player.sprintT -= dt;
   const speed = (input.sprint && !input.aim ? PLAYER.sprintSpeed : PLAYER.walkSpeed)
     * player.speedMult * (player.surgeT > 0 ? ABILITY.surgeSpeed : 1)
+    * (player.sprintT > 0 ? SPRINT.mult : 1)
     * (player.whirlT > 0 ? WHIRL.spinSpeed : 1);
 
   // Desired horizontal velocity in the yaw frame.

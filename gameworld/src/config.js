@@ -280,6 +280,25 @@ export const WHIRL = {
   spinSpeed: 1.5,       // and you move faster while you do it
 };
 
+// --- New spells (WoW / LoL / Overwatch flavoured), sold by the Adept -------------------
+// Timewarp: stamp your position/HP now; 5s later you SNAP back to it with all cooldowns
+// reset (Zilean's Chronoshift crossed with a Recall). A panic button and a burst enabler.
+export const TIMEWARP = { price: 340, minTier: 1, cd: 40, window: 5 };
+// Cataclysm Orb: lob a red ball that bursts and leaves a burning pool doing heavy DoT.
+// Rank 2 the pool SLOWS, rank 3 it ROOTS.
+export const ORB = {
+  price: 240, minTier: 0, cd: 11, speed: 27, up: 5, range: 66,
+  burstRadius: 6, burstDamage: 130,
+  poolRadius: 5.5, poolDps: 78, poolLife: 5, poolTick: 0.3,
+  slowMul: 0.5, slowT: 1.2, rootT: 1.1,
+};
+// Frost Nova: instant ring around you — damage + a hard slow. Rank 2 roots instead.
+export const NOVA = { price: 175, minTier: 0, cd: 9, radius: 11, damage: 95, slowMul: 0.5, slowT: 3, rootT: 1.6 };
+// Chain Lightning: arcs from the nearest foe to the next, damage falling each jump.
+export const CHAIN = { price: 210, minTier: 1, cd: 8, range: 34, jumps: 5, jumpRange: 15, damage: 130, falloff: 0.8 };
+// Sprint: a burst of movement speed on demand (a movement spell, the first of several).
+export const SPRINT = { price: 150, minTier: 0, cd: 11, dur: 4, mult: 1.7 };
+
 // Boss relics: a bundle of shop upgrades, dropped on the ground to be walked over.
 export const RELIC = {
   minStats: 2,

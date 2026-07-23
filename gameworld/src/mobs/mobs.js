@@ -246,6 +246,7 @@ export class Mobs {
       windT: 0, rushT: 0, recoverT: 0, rushX: 0, rushZ: 0,
       kx: 0, kz: 0, kT: 0,
       castT: 0, castCd: 1.5 + this.rng() * MOB.castCd,
+      slowT: 0, slowMul: 1, rootT: 0,     // crowd control from player spells
       breedCd: this.breedDelay(),
       y: 0,
       affixes: [],
@@ -444,6 +445,19 @@ export class Mobs {
     f.mesh.visible = true;
   }
 
+  /**
+   * Crowd-control every mob within `radius` of a point — a player spell's slow and/or root.
+   * slowMul < 1 for a slow (0.5 = half speed); rootT > 0 pins them in place. Longest wins,
+   * so a re-application never shortens what's already on them.
+   */
+  chill(x, z, radius, { slowT = 0, slowMul = 1, rootT = 0 } = {}) {
+    for (const e of this.entities()) {
+      if (Math.hypot(e.x - x, e.z - z) > radius) continue;
+      if (slowT > e.slowT) { e.slowT = slowT; e.slowMul = slowMul; }
+      if (rootT > e.rootT) e.rootT = rootT;
+    }
+  }
+
   /** Splitting: the kill is not the end. */
   spawnSplit(parent, n) {
     for (let i = 0; i < n; i++) {
@@ -551,6 +565,8 @@ export class Mobs {
 
       if (e.hurtT > 0) e.hurtT -= dt;
       if (e.atkCd > 0) e.atkCd -= dt;
+      if (e.slowT > 0) e.slowT -= dt;
+      if (e.rootT > 0) e.rootT -= dt;
       if (e.flies) e.wobble += dt;       // the hover bob, independent of any wandering
       if (e.affixes.length) runAffix(e, "onTick", dt, this.fx);
 
@@ -769,7 +785,7 @@ export class Mobs {
         }
       }
 
-      if (e.castT > 0) { vx = 0; vz = 0; }    // rooted mid-cast
+      if (e.castT > 0 || e.rootT > 0) { vx = 0; vz = 0; }    // rooted mid-cast, or CC'd by a spell
 
       const coh = MOB.cohesionForce * (e.swarm ? MOB.swarmCohesion : 1);
       vx += sepX * MOB.sepForce + aliX * MOB.alignForce + cohX * coh;
@@ -778,7 +794,7 @@ export class Mobs {
       // Normalise so the forces set DIRECTION, not pace. Idling is a stroll; hunting isn't.
       const m = Math.hypot(vx, vz);
       if (m > 1e-4) {
-        const pace = e.aggro ? e.speed : e.speed * 0.42;
+        const pace = (e.aggro ? e.speed : e.speed * 0.42) * (e.slowT > 0 ? e.slowMul : 1);
         vx = (vx / m) * pace;
         vz = (vz / m) * pace;
       }

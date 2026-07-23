@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -23,7 +23,7 @@ import { armorDR } from "./prog/stats.js";
 import { rollGear, vendorPiece, sellValue } from "./prog/gear.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
-import { ringAt, tierAt, tierStart, groundY } from "./world/gen.js";
+import { ringAt, tierAt, tierStart, groundY, solidAt } from "./world/gen.js";
 import { Sanctuaries, sanctuaryOf, sanctuariesNear, boundaryAt, homeOfTier } from "./world/sanctuary.js";
 import { attachInput, input, stepPlayer } from "./player/controller.js";
 import { CameraRig } from "./player/camera.js";
@@ -32,7 +32,7 @@ import { Music } from "./audio/music.js";
 import { sfx } from "./audio/sfx.js";
 import { Grenades } from "./player/grenade.js";
 import { Heal } from "./player/heal.js";
-import { Abilities, SLOTS } from "./player/abilities.js";
+import { Abilities, SLOTS, SLOT_KEYS } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
 import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, levelForTier } from "./prog/xp.js";
@@ -264,6 +264,238 @@ function whirlSlam() {
   whirlTick = 0;
 }
 
+// ============================ NEW SPELLS ============================
+// Ground POOLS: tick spell-damage to mobs inside and optionally slow/root them. Pooled meshes
+// like meteors and impacts — never allocated per cast.
+const POOL_MAX = 8;
+const spellPools = [];
+let poolI = 0;
+const poolMeshes = (() => {
+  const geo = new THREE.CircleGeometry(1, 28);
+  geo.rotateX(-Math.PI / 2);
+  return Array.from({ length: POOL_MAX }, () => {
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+      color: 0xd21e1e, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+    }));
+    m.visible = false;
+    scene.add(m);
+    return m;
+  });
+})();
+
+function dropPool(x, z, { r, dps, life, tick = 0.3, slowMul = 1, slowT = 0, rootT = 0, color = 0xd21e1e }) {
+  const mesh = poolMeshes[poolI = (poolI + 1) % poolMeshes.length];
+  const old = spellPools.findIndex((p) => p.mesh === mesh);
+  if (old >= 0) spellPools.splice(old, 1);
+  mesh.material.color.setHex(color);
+  mesh.position.set(x, groundY(x, z) + 0.06, z);
+  mesh.scale.setScalar(r);
+  mesh.visible = true;
+  spellPools.push({ x, z, r, dps, t: life, tick, tk: 0, slowMul, slowT, rootT, mesh });
+}
+
+function updatePools(dt) {
+  for (let i = spellPools.length - 1; i >= 0; i--) {
+    const p = spellPools[i];
+    p.t -= dt;
+    p.mesh.material.opacity = Math.min(1, p.t / 0.5) * 0.45 * (0.7 + 0.3 * Math.sin(performance.now() * 0.008));
+    p.tk -= dt;
+    if (p.tk <= 0) {
+      p.tk = p.tick;
+      for (const e of [...world.entities.values()]) {
+        if (e.kind !== "mob") continue;
+        if (Math.hypot(e.x - p.x, e.z - p.z) > p.r) continue;
+        const res = mobs.hit(e.id, p.dps * p.tick * player.dmgMult * (1 + (player.dmgSpell || 0)));
+        if (res?.killed) { reward(res); grenades.refill(); }
+      }
+      if (p.slowT > 0 || p.rootT > 0) mobs.chill(p.x, p.z, p.r, { slowT: p.slowT, slowMul: p.slowMul, rootT: p.rootT });
+    }
+    if (p.t <= 0) { p.mesh.visible = false; spellPools.splice(i, 1); }
+  }
+}
+
+// Cataclysm Orb: a red ball that arcs out, bursts, and leaves a DoT pool (slows @r2, roots @r3).
+const orbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.6, 14, 14), new THREE.MeshBasicMaterial({ color: 0xff2a1a }));
+orbMesh.visible = false;
+scene.add(orbMesh);
+const orbLight = new THREE.PointLight(0xff3a1a, 0, 22);
+scene.add(orbLight);
+let orb = null;
+
+function cataclysmOrb(rank = 1) {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  orb = {
+    x: player.x, y: player.y + 1.4, z: player.z,
+    vx: dir.x * ORB.speed, vy: dir.y * ORB.speed + ORB.up, vz: dir.z * ORB.speed, rank, dist: 0,
+  };
+  orbMesh.visible = true;
+  orbMesh.position.set(orb.x, orb.y, orb.z);
+  sfx.whoosh();
+  markCombat();
+}
+
+function updateOrb(dt) {
+  if (!orb) return;
+  orb.vy += GRENADE.gravity * dt;
+  const nx = orb.x + orb.vx * dt, ny = orb.y + orb.vy * dt, nz = orb.z + orb.vz * dt;
+  orb.dist += Math.hypot(nx - orb.x, nz - orb.z);
+  orbMesh.rotation.x += dt * 9; orbMesh.rotation.y += dt * 7;
+  if (solidAt(nx, ny, nz) || ny <= groundY(nx, nz) || orb.dist > ORB.range) {
+    const bx = orb.x, bz = orb.z;
+    blast(bx, groundY(bx, bz) + 1, bz, ORB.burstRadius, ORB.burstDamage, 9, false, false, false, "spell");
+    const opts = { r: ORB.poolRadius, dps: ORB.poolDps, life: ORB.poolLife, tick: ORB.poolTick };
+    if (orb.rank >= 2) { opts.slowMul = ORB.slowMul; opts.slowT = ORB.slowT; }
+    if (orb.rank >= 3) opts.rootT = ORB.rootT;
+    dropPool(bx, bz, opts);
+    sfx.explosion(bx, bz, 1.35);
+    orb = null; orbMesh.visible = false; orbLight.intensity = 0;
+    return;
+  }
+  orb.x = nx; orb.y = ny; orb.z = nz;
+  orbMesh.position.set(nx, ny, nz);
+  orbLight.position.set(nx, ny, nz);
+  orbLight.intensity = 14;
+}
+
+// Frost Nova: instant ring, damage + a hard slow (rank 2 roots instead).
+const novaMesh = (() => {
+  const g = new THREE.RingGeometry(0.6, 1.0, 40);
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color: 0x8fdcff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+  }));
+  m.visible = false; scene.add(m); return m;
+})();
+let novaFx = 0;
+
+function frostNova(rank = 1) {
+  blast(player.x, player.y + 1, player.z, NOVA.radius, NOVA.damage, 6, false, false, false, "spell");
+  mobs.chill(player.x, player.z, NOVA.radius, {
+    slowT: NOVA.slowT, slowMul: NOVA.slowMul, rootT: rank >= 2 ? NOVA.rootT : 0,
+  });
+  novaMesh.position.set(player.x, player.y + 0.3, player.z);
+  novaMesh.visible = true;
+  novaFx = 0.4;
+  sfx.explosion(player.x, player.z, 0.7);
+  markCombat();
+}
+
+// Chain Lightning: arcs from the nearest foe to the next, damage falling each jump.
+const BOLT_MAX = 8;
+let boltT = 0;
+const bolts = Array.from({ length: BOLT_MAX }, () => {
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+    new THREE.LineBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0 }),
+  );
+  line.frustumCulled = false;
+  scene.add(line);
+  return line;
+});
+
+function chainLightning() {
+  const list = [...world.entities.values()].filter((e) => e.kind === "mob");
+  let cur = null, best = CHAIN.range;
+  for (const e of list) {
+    const d = Math.hypot(e.x - player.x, e.z - player.z);
+    if (d < best) { best = d; cur = e; }
+  }
+  if (!cur) return false;   // nothing in range: don't spend the cooldown
+  const seen = new Set();
+  let dmg = CHAIN.damage, fx = player.x, fy = player.y + 1.2, fz = player.z, bi = 0;
+  for (let j = 0; j < CHAIN.jumps && cur; j++) {
+    seen.add(cur.id);
+    const b = bolts[bi++ % bolts.length];
+    const pos = b.geometry.attributes.position;
+    pos.setXYZ(0, fx, fy, fz); pos.setXYZ(1, cur.x, cur.y + 0.6, cur.z); pos.needsUpdate = true;
+    b.material.opacity = 1;
+    const res = mobs.hit(cur.id, dmg * player.dmgMult * (1 + (player.dmgSpell || 0)));
+    if (res?.killed) { reward(res); grenades.refill(); }
+    fx = cur.x; fy = cur.y + 0.6; fz = cur.z;
+    dmg *= CHAIN.falloff;
+    let next = null, nd = CHAIN.jumpRange;
+    for (const e of list) {
+      if (seen.has(e.id)) continue;
+      const d = Math.hypot(e.x - cur.x, e.z - cur.z);
+      if (d < nd) { nd = d; next = e; }
+    }
+    cur = next;
+  }
+  boltT = 0.12;
+  sfx.gunshot();
+  markCombat();
+  return true;
+}
+
+// Sprint: a burst of movement speed (a movement spell; the controller reads player.sprintT).
+function sprint() { player.sprintT = SPRINT.dur; sfx.whoosh(); }
+
+// Timewarp: stamp position + HP now; 5s later (or on re-press) SNAP back with cooldowns reset.
+const twMarker = (() => {
+  const g = new THREE.RingGeometry(0.5, 0.85, 24);
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color: 0xcf9bff, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false,
+  }));
+  m.visible = false; scene.add(m); return m;
+})();
+let twState = null, twCd = 0;
+
+function doRewind() {
+  const s = twState;
+  player.x = s.x; player.y = s.y + 0.2; player.z = s.z;
+  player.vx = player.vy = player.vz = 0;
+  player.hp = s.hp;
+  player.iframes = Math.max(player.iframes, 0.6);
+  for (const st of abilities.state.values()) {
+    if (st.def?.id === "timewarp") continue;    // resets everything BUT itself
+    st.cd = 0;
+    st.ch = st.def?.maxCharges || 1;
+  }
+  heal.cooldown = 0;
+  grenades.cooldown = 0;
+  twState = null;
+  twMarker.visible = false;
+  killFeed = "◷ rewound — cooldowns reset";
+  sfx.healDone();
+}
+
+function timewarp() {
+  if (twState) { doRewind(); return; }          // press again while active → rewind NOW
+  if (twCd > 0) return false;
+  twState = { x: player.x, y: player.y, z: player.z, hp: player.hp, t: TIMEWARP.window };
+  twCd = TIMEWARP.cd;
+  twMarker.position.set(player.x, groundY(player.x, player.z) + 0.08, player.z);
+  twMarker.visible = true;
+  sfx.charge(player.x, player.z, TIMEWARP.window);
+  markCombat();
+}
+const timewarpReady = () => twCd <= 0 || twState !== null;
+const timewarpCd = () => Math.max(0, twCd);
+
+function updateSpells(dt) {
+  updatePools(dt);
+  updateOrb(dt);
+  if (twCd > 0) twCd -= dt;
+  if (twState) {
+    twState.t -= dt;
+    twMarker.rotation.y += dt * 2.5;
+    if (twState.t <= 0) doRewind();
+  }
+  if (novaFx > 0) {
+    novaFx -= dt;
+    const f = 1 - Math.max(0, novaFx) / 0.4;
+    novaMesh.scale.setScalar(1 + f * NOVA.radius);
+    novaMesh.material.opacity = (1 - f) * 0.8;
+    if (novaFx <= 0) novaMesh.visible = false;
+  }
+  if (boltT > 0) {
+    boltT -= dt;
+    for (const b of bolts) b.material.opacity = Math.max(0, boltT / 0.12);
+  }
+}
+
 // Boss relics lying on the ground. One mesh, one relic at a time — bosses are rare enough
 // that two drops never coexist, and a pool would be ceremony for a maximum of one.
 const relicMesh = (() => {
@@ -379,7 +611,7 @@ function updateGearDrops(dt) {
 }
 
 const barEl = document.getElementById("bar");
-barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => slotHtml(i + 1)).join("")
+barEl.innerHTML = Array.from({ length: SLOTS }, (_, i) => slotHtml(SLOT_KEYS[i])).join("")
   + `<div class="sep"></div>`
   + GENERAL.map((g) => slotHtml(g.key)).join("");
 const allSlots = [...barEl.querySelectorAll(".slot")];
@@ -453,6 +685,13 @@ const gameCtx = {
   fireRing,
   dashStrike,
   whirlwind,
+  cataclysmOrb,
+  frostNova,
+  chainLightning,
+  sprint,
+  timewarp,
+  timewarpReady,
+  timewarpCd,
   applyStats: () => applyLevelStats(),   // gear changes re-derive the same way levels do
   equipArmor: (id) => buyArmor(id),      // smith buys a fixed piece by config id
   sellGear: (uid) => sellGear(uid),      // sell one bag piece at a vendor
@@ -961,7 +1200,7 @@ function frame(now) {
   };
   barSlots.forEach((el, i) => {
     const a = abilities.slots[i];
-    el.querySelector(".k").textContent = a?.key || String(i + 1);
+    el.querySelector(".k").textContent = SLOT_KEYS[i];
     paint(el, a, abilities.cooldownOf(i), abilities.readyOf(i), abilities.chargesOf(i));
   });
   genSlots.forEach((el, i) => {
@@ -1028,6 +1267,7 @@ function frame(now) {
 
   updateRelic(dt);
   updateGearDrops(dt);
+  updateSpells(dt);
   minimap.draw(dt, mobs, boss, folk);
 
   const vendor = shop.open ? null : villagers.nearest();

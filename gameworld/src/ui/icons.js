@@ -39,4 +39,28 @@ export const ICONS = {
   flask: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M9.5 2h5v2h-1v5.2l5 8.4A2.6 2.6 0 0 1 16.2 22H7.8a2.6 2.6 0 0 1-2.3-4.4l5-8.4V4h-1z"
       fill="#e0568a" stroke="#ffd0e0" stroke-width="1.1" stroke-linejoin="round"/></svg>`,
+
+  // Timewarp — a clock face.
+  clock: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="#cf9bff" stroke-width="2"/>
+    <path d="M12 7v5l3.5 2.2" fill="none" stroke="#cf9bff" stroke-width="2" stroke-linecap="round"/></svg>`,
+
+  // Cataclysm Orb — a filled sphere with a spark.
+  orb: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="13" r="7" fill="#ff3a22" stroke="#ffce5e" stroke-width="1.4"/>
+    <path d="M12 2v3M18 6l-2 2M6 6l2 2" stroke="#ffce5e" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+
+  // Frost Nova — a snowflake.
+  frost: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <g fill="none" stroke="#8fdcff" stroke-width="2" stroke-linecap="round">
+      <path d="M12 2v20M3.3 7l17.4 10M20.7 7L3.3 17"/></g></svg>`,
+
+  // Chain Lightning — a bolt.
+  bolt: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M13 2 4 14h6l-1 8 9-13h-6z" fill="#bfe6ff" stroke="#eaf6ff" stroke-width="1"/></svg>`,
+
+  // Sprint — a running boot / motion lines.
+  boots: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 4v9l6 3 5 1a2 2 0 0 1 2 2v1H6a3 3 0 0 1-3-3V4z" fill="#7dffb5" stroke="#d6ffe8" stroke-width="1"/>
+    <path d="M2 8h3M1 12h4" stroke="#7dffb5" stroke-width="1.6" stroke-linecap="round"/></svg>`,
 };

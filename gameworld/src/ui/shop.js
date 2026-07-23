@@ -9,7 +9,7 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, WEAPONS, ARMOR, STAT_INFO } from "../config.js";
+import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, WEAPONS, ARMOR, STAT_INFO, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "../config.js";
 import { tierAt } from "../world/gen.js";
 import { sellValue } from "../prog/gear.js";
 import { sfx } from "../audio/sfx.js";
@@ -127,6 +127,62 @@ export const GOODS = {
         desc: "Leap, slam, then spin through whatever is left.",
         cd: WHIRL.cd,
         use: () => game.whirlwind(),
+      }) },
+    { id: "orb", name: "Cataclysm Orb", price: ORB.price, once: true,
+      desc: `Lob a burning orb: ${ORB.burstDamage} on impact, then a pool doing heavy `
+        + `damage over ${ORB.poolLife}s. ${ORB.cd}s cooldown.`,
+      apply: (game) => game.abilities.acquire({
+        id: "orb", name: "Cataclysm Orb", icon: "orb",
+        desc: "A burning pool that eats anything standing in it.",
+        cd: ORB.cd, use: () => game.cataclysmOrb(1),
+      }) },
+    { id: "orb2", name: "Cataclysm Orb II", price: Math.round(ORB.price * 1.4), once: true, minTier: 1,
+      desc: "The pool now SLOWS anything caught in it. Replaces Cataclysm Orb.",
+      apply: (game) => game.abilities.acquire({
+        id: "orb2", name: "Cataclysm Orb II", icon: "orb", replaces: "orb",
+        desc: "Burning pool that slows.", cd: ORB.cd, use: () => game.cataclysmOrb(2),
+      }) },
+    { id: "orb3", name: "Cataclysm Orb III", price: Math.round(ORB.price * 2), once: true, minTier: 3,
+      desc: "The pool ROOTS anything caught in it. Replaces Cataclysm Orb II.",
+      apply: (game) => game.abilities.acquire({
+        id: "orb3", name: "Cataclysm Orb III", icon: "orb", replaces: "orb2",
+        desc: "Burning pool that roots.", cd: ORB.cd, use: () => game.cataclysmOrb(3),
+      }) },
+    { id: "nova", name: "Frost Nova", price: NOVA.price, once: true,
+      desc: `A ring of frost: ${NOVA.damage} damage and a hard slow to everything within `
+        + `${NOVA.radius}m. ${NOVA.cd}s cooldown.`,
+      apply: (game) => game.abilities.acquire({
+        id: "nova", name: "Frost Nova", icon: "frost",
+        desc: "Damages and slows everything around you.", cd: NOVA.cd, use: () => game.frostNova(1),
+      }) },
+    { id: "nova2", name: "Frost Nova II", price: Math.round(NOVA.price * 1.5), once: true, minTier: 2,
+      desc: "The nova now ROOTS instead of slowing. Replaces Frost Nova.",
+      apply: (game) => game.abilities.acquire({
+        id: "nova2", name: "Frost Nova II", icon: "frost", replaces: "nova",
+        desc: "Damages and roots everything around you.", cd: NOVA.cd, use: () => game.frostNova(2),
+      }) },
+    { id: "chain", name: "Chain Lightning", price: CHAIN.price, once: true, minTier: 1,
+      desc: `A bolt that leaps between up to ${CHAIN.jumps} enemies, ${CHAIN.damage} damage `
+        + `falling each jump. ${CHAIN.cd}s cooldown.`,
+      apply: (game) => game.abilities.acquire({
+        id: "chain", name: "Chain Lightning", icon: "bolt",
+        desc: "Arcs from foe to foe.", cd: CHAIN.cd, use: () => game.chainLightning(),
+      }) },
+    { id: "sprint", name: "Sprint", price: SPRINT.price, once: true,
+      desc: `Burst to ${Math.round((SPRINT.mult - 1) * 100)}% faster for ${SPRINT.dur}s. `
+        + `${SPRINT.cd}s cooldown.`,
+      apply: (game) => game.abilities.acquire({
+        id: "sprint", name: "Sprint", icon: "boots",
+        desc: "A burst of movement speed.", cd: SPRINT.cd, use: () => game.sprint(),
+      }) },
+    { id: "timewarp", name: "Timewarp", price: TIMEWARP.price, once: true, minTier: 1,
+      desc: `Mark this spot and your health. After ${TIMEWARP.window}s (or press again) you `
+        + `SNAP back to it with every cooldown reset. ${TIMEWARP.cd}s cooldown.`,
+      apply: (game) => game.abilities.acquire({
+        id: "timewarp", name: "Timewarp", icon: "clock",
+        desc: "Rewind to where and how you were; all cooldowns reset.",
+        ready: () => game.timewarpReady(), cooldown: () => game.timewarpCd(),
+        use: () => game.timewarp(),
       }) },
   ],
   keeper: [],
