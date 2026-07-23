@@ -515,10 +515,11 @@ function sellAllCommon() {
   }
   return total;
 }
-/** Smith purchase: a FIXED config piece becomes an owned instance and equips. */
-const buyArmor = (id) => { if (ARMOR[id]) equipGear(vendorPiece(ARMOR[id])); };
-/** A dropped piece goes to the BAG (not auto-worn) — you choose when to swap it in. */
+/** A piece goes to the BAG (not auto-worn) — you choose when to equip it. */
 const bagGear = (piece) => { if (piece) player.ownedGear.push(piece); };
+/** Smith purchase: a FIXED config piece drops into your BAG, same as a find. You then equip
+ *  it from the sheet — so a buy shows up in your bags everywhere, not silently worn. */
+const buyArmor = (id) => { if (ARMOR[id]) { bagGear(vendorPiece(ARMOR[id])); sfx.pickup(); } };
 
 const shop = new Shop(document.getElementById("shop"), gameCtx);
 

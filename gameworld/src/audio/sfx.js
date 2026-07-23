@@ -478,6 +478,26 @@ export class Sfx {
   }
 
   /** Grenade throw. */
+  /** Selling — a bright two-note coin chime, the little "cha-ching" of a sale. */
+  sell() {
+    if (!this.on || !this.budget(0.7, 160)) return;
+    const t = this.t;
+    const { input } = this.place();
+    const notes = [880, 1320];
+    for (let i = 0; i < notes.length; i++) {
+      const ct = t + i * 0.05;
+      const o = this.ctx.createOscillator();
+      o.type = "triangle";
+      o.frequency.value = notes[i];
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, ct);
+      g.gain.exponentialRampToValueAtTime(0.17, ct + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, ct + 0.18);
+      o.connect(g); g.connect(input);
+      o.start(ct); o.stop(ct + 0.2);
+    }
+  }
+
   /** Picking a drop off the ground — a light rising blip, quick and clean. */
   pickup() {
     if (!this.on || !this.budget(0.5, 120)) return;

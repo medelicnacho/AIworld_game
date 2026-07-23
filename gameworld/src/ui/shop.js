@@ -12,6 +12,7 @@ import { player } from "../state.js";
 import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, WEAPONS, ARMOR, STAT_INFO } from "../config.js";
 import { tierAt } from "../world/gen.js";
 import { sellValue } from "../prog/gear.js";
+import { sfx } from "../audio/sfx.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
 
@@ -160,12 +161,14 @@ export class Shop {
       const sellId = e.target?.closest?.("[data-sell]")?.dataset?.sell;
       if (sellId) {
         const got = this.game.sellGear?.(sellId);
+        if (got) sfx.sell();
         this.flash = got ? `sold — +${got} pts` : "";
         this.render();
         return;
       }
       if (e.target?.closest?.("[data-sellgray]")) {
         const got = this.game.sellAllCommon?.() || 0;
+        if (got) sfx.sell();
         this.flash = got ? `sold all gray — +${got} pts` : "no gray to sell";
         this.render();
         return;
