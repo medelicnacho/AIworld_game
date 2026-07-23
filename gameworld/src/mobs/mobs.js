@@ -538,6 +538,20 @@ export class Mobs {
   }
 
   update(dt, onPlayerHit) {
+    // Sweep anything you've walked away from FIRST. The nearby() loop below only sees mobs
+    // within despawn range, so its `dist > despawn` cleanup never fires for mobs abandoned in
+    // a ring you've left — they'd persist frozen far behind you and, because the alive budget
+    // counts EVERY mob, eat the whole spawn allowance. That is why the outer rings were empty:
+    // ring-0 stragglers were still holding the budget. Despawn far mobs, and drop the pack
+    // homes with them so packs.size reflects only what's actually around you.
+    for (const e of [...this.entities()]) {
+      if (Math.hypot(e.x - player.x, e.z - player.z) > MOB.despawn) this.despawn(e.id);
+    }
+    for (const [id, p] of this.packs) {
+      if (this.packCount(id) === 0
+          && Math.hypot(p.x - player.x, p.z - player.z) > MOB.despawn) this.packs.delete(id);
+    }
+
     let alive = 0;
     for (const _ of this.entities()) alive++;   // eslint-disable-line no-unused-vars
 
