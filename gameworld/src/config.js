@@ -693,10 +693,12 @@ export const BOSS = {
   contactCd: 1.4,
   weakMultiplier: 2.5,    // the glowing core: aim is rewarded, spraying is not
   aggroRange: 90,
-  spawnDist: [45, 70],
+  // Out in the ring, not on top of you. Past aggroRange (90) so a boss appears at a distance
+  // — you spot it on the minimap and GO to it, rather than it materialising in your face.
+  spawnDist: [110, 165],
   spawnRing: 1,           // no bosses in the Commons — it stays the safe ground
   retry: 12,              // seconds between spawn attempts once you're eligible
-  despawn: 190,
+  despawn: 250,           // wider than spawnDist, so a boss you're walking toward won't vanish
 
   // Meteor volleys.
   // The boss alternates volley -> beam -> volley. They ask opposite questions: meteors
