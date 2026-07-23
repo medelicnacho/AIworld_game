@@ -328,7 +328,11 @@ export const FOLK = {
 // substrate — the emergent layer arrives at M3 and lands on settlements, not on things you
 // kill in three seconds.
 export const MOB = {
-  hp: 48,                 // ~4 shots at level 1, instead of dying to a sneeze
+  hp: 85,                 // ~7 shots at level 1: a short fight, not a one-shot swarm. A step
+                          // toward MMO-style health (GEAR.md G5); TTK RATIO at depth is set
+                          // by the ramp, so raising the base only lengthens the EARLY fights,
+                          // where your damage is still flat -- exactly the "less mobs, each
+                          // takes a little longer" the Commons needed.
   damage: 8,
   speed: 3.1,
   // They live their own lives until you give them a reason. Notice range is SHORT, and the
@@ -464,10 +468,14 @@ export const MOB = {
   // The tier-0 BASE is deliberately calm — the Commons is where you learn the game, and it
   // read as a swarm. The crowd ramp (rampCrowd) climbs off this base fast, so ring 1 is
   // already busier and the deep still fills to the cap; only the first level is quieter.
-  maxAlive: 78,
-  maxAlivePerTier: 30,    // tier 1: ~108 · tier 3: ~191 · tier 6+: capped
+  // Tier 0 was BOTH the most crowded AND the hardest, which is backwards for a learning zone.
+  // The count drops hard at the base and the ramp steepens to make it up, so the Commons is
+  // a handful of mobs you can read while the deep stays a horde. (GEAR.md G5/G6 take this
+  // further into the MMO direction: fewer, meatier mobs.)
+  maxAlive: 44,
+  maxAlivePerTier: 33,    // tier 1: ~77 · tier 3: ~169 · tier 6+: capped
   maxAliveCap: 380,
-  maxPacks: 8,
+  maxPacks: 6,
   maxPacksPerTier: 5,
   maxPacksCap: 34,
   packSize: [9, 18],      // a camp is a crowd, not a squad
