@@ -531,7 +531,8 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
   // exists. GEAR.md G1: mitigation is the WoW armour curve, and it reads the attacker's tier
   // (proxied by where you are standing, since what hits you is native to your ring) — the
   // same armour is worth less the deeper you go, which is why it can't be grinded shallow.
-  player.hp -= amount * (1 - armorDR(player.armor, tierAt(player.x, player.z)));
+  player.hp -= amount * (1 - armorDR(player.armor, tierAt(player.x, player.z)))
+    * (1 - (player.graceMitigation || 0));       // early-game grace: fades out by ~level 8
   hurtT = 0.35;
   markCombat();
   if (HEAL.breakOnDamage) heal.interrupt("hit");

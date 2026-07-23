@@ -10,7 +10,7 @@
 // Which is the intended pressure: to keep levelling you must walk further out, where mobs
 // are worth more AND more of them are elites. Distance is the progression system.
 
-import { XP, PLAYER, HASTE, DODGE, STATS } from "../config.js";
+import { XP, PLAYER, HASTE, DODGE, STATS, GRACE } from "../config.js";
 import { player } from "../state.js";
 import { maxHpFor, ratingPct } from "./stats.js";
 
@@ -61,6 +61,13 @@ export function applyLevelStats() {
   // sites (they can't be uniform here). gearDmg is 0 now that Sharpen is gone, kept for safety.
   player.dmgMult = player.levelMult
     * (1 + (player.gearDmg || 0) + STATS.strDmg * (player.str || 0) + (player.dmgGlobal || 0));
+
+  // Early-game grace: large at level 1, linear to nothing by GRACE.levels. It makes a fresh,
+  // gearless character hit hard and take less, so levels 1-3 are easy and the difficulty ramps
+  // up as you level and gear rather than all at once. graceMitigation is read in damagePlayer.
+  const grace = Math.max(0, 1 - (player.level - 1) / GRACE.levels);
+  player.dmgMult *= 1 + grace * GRACE.dmgBonus;
+  player.graceMitigation = grace * GRACE.mitigation;
   // Speed used to be a raw exponential with no ceiling, so a high-level geared build ran 3-5x
   // base and only got faster -- unreadable, and it made the world feel small. Now the raw
   // intent (levels x gear) is the INPUT to a diminishing-returns curve: tanh is ~linear for

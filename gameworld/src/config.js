@@ -164,6 +164,17 @@ export const STAT_INFO = {
   rReload: { label: "Reload", kind: "rate", note: "faster reloads" },
 };
 
+// Early-game GRACE. Levels 1-3 should be EASY: a fresh player has no gear and the whole point
+// of the first hour is to get some. This bonus is large at level 1 and fades to nothing by
+// `levels`, so a gearless newbie hits hard and shrugs off hits, and the challenge RAMPS UP as
+// you level and kit out instead of landing all at once at the door. The "more powerful at low
+// level" dial — turn it up to make the start kinder, down to make it bite sooner.
+export const GRACE = {
+  levels: 8,          // fully gone at this level
+  dmgBonus: 0.9,      // +90% damage at level 1, fading linearly to 0
+  mitigation: 0.45,   // -45% damage taken at level 1, fading to 0
+};
+
 // D9 — endless levels, and the economy that makes distance the real progression.
 //
 // The curve is the design. Level cost grows as level^1.55 while a trash mob's value is
@@ -438,11 +449,11 @@ export const FOLK = {
 // substrate — the emergent layer arrives at M3 and lands on settlements, not on things you
 // kill in three seconds.
 export const MOB = {
-  hp: 85,                 // ~7 shots at level 1: a short fight, not a one-shot swarm. A step
-                          // toward MMO-style health (GEAR.md G5); TTK RATIO at depth is set
-                          // by the ramp, so raising the base only lengthens the EARLY fights,
-                          // where your damage is still flat -- exactly the "less mobs, each
-                          // takes a little longer" the Commons needed.
+  // A touch lower than before, since the first level read as a little hard in general — but
+  // the real "levels 1-3 too hard" fix is the early-game GRACE bonus on the PLAYER (see
+  // config GRACE and applyLevelStats), which makes a fresh, gearless character strong and
+  // fades out by ~level 8, so the game ramps up as you level and gear rather than at the door.
+  hp: 76,
   damage: 8,
   speed: 3.1,
   // They live their own lives until you give them a reason. Notice range is SHORT, and the

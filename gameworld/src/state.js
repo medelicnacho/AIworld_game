@@ -51,7 +51,7 @@ export const player = {
   ownedGear: [],
   armor: 0, stamina: 0, str: 0, agi: 0,
   dmgGlobal: 0, dmgGun: 0, dmgSpell: 0, dmgGrenade: 0,
-  rHaste: 0, rAtkSpeed: 0, rReload: 0,
+  rHaste: 0, rAtkSpeed: 0, rReload: 0, graceMitigation: 0,
   haste: 0, hasteFire: 1, hasteCd: 1, hasteCast: 1, gearSpeed: 0, gearReload: 0,
   dashRank: 0, dashMult: 1, upgrades: {},
 };
