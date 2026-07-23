@@ -705,7 +705,7 @@ const gameCtx = {
 function recomputeGear() {
   const sum = {
     armor: 0, stamina: 0, str: 0, agi: 0,
-    dmgGlobal: 0, dmgGun: 0, dmgSpell: 0, dmgGrenade: 0,
+    dmgGlobal: 0, dmgGun: 0, dmgSpell: 0, dmgGrenade: 0, moveSpeed: 0,
     rHaste: 0, rAtkSpeed: 0, rReload: 0,
   };
   for (const slot of ARMOR_SLOT_ORDER) {

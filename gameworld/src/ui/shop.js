@@ -52,9 +52,6 @@ export const GOODS = {
       desc: WEAPONS.mg.desc + " Mouse-wheel to switch weapons.",
       apply: (game) => game.gun.acquire("mg") },
     ...ARMOR_GOODS,
-    { id: "lighten", name: "Lighten Armour", price: 110, upgrade: true,
-      desc: "+4% movement speed, permanently.",
-      apply: () => { player.gearSpeed += 0.04; } },
     { id: "vault", name: "Vault Treads", price: 120, upgrade: true,
       desc: "Your double-tap dodge goes farther and faster. Stacks with diminishing "
         + "returns — and everything that raises your speed lengthens it too.",

@@ -27,9 +27,9 @@ const SLOT_NOUN = { helm: "Helm", shoulders: "Guards", vest: "Vest", pants: "Leg
 
 // Stats a DROP can roll on top of armour, and their base magnitude at ring 0. dmg buckets are
 // fractions (a +% multiplier); the rest are flat integers. Everything scales up with ring.
-const ROLL_STATS = ["stamina", "str", "agi", "dmgGlobal", "dmgGun", "dmgSpell", "dmgGrenade", "rHaste", "rAtkSpeed", "rReload"];
+const ROLL_STATS = ["stamina", "str", "agi", "moveSpeed", "dmgGlobal", "dmgGun", "dmgSpell", "dmgGrenade", "rHaste", "rAtkSpeed", "rReload"];
 const STAT_BASE = {
-  stamina: 6, str: 3, agi: 3,
+  stamina: 6, str: 3, agi: 3, moveSpeed: 0.03,
   dmgGlobal: 0.02, dmgGun: 0.03, dmgSpell: 0.03, dmgGrenade: 0.03,
   rHaste: 20, rAtkSpeed: 20, rReload: 20,
 };
@@ -39,7 +39,7 @@ const SUFFIX = {
   stamina: "of the Bear", str: "of the Tiger", agi: "of the Monkey",
   dmgGlobal: "of Fury", dmgGun: "of the Marksman", dmgSpell: "of the Magus",
   dmgGrenade: "of the Demolisher", rHaste: "of Alacrity", rAtkSpeed: "of the Swift",
-  rReload: "of the Quartermaster",
+  rReload: "of the Quartermaster", moveSpeed: "of the Cheetah",
 };
 const BALANCED_SUFFIX = "of the Wilds";     // when no single stat dominates
 const COMMON_PREFIX = ["Worn", "Crude", "Plain", "Rough"];
@@ -85,7 +85,7 @@ export function rollGear(ring, rng) {
   for (let i = 0; i < rarity.nStats && pool.length; i++) {
     const key = pool.splice(Math.floor(rng() * pool.length), 1)[0];
     const mag = STAT_BASE[key] * ringScale * rarMult * (0.7 + rng() * 0.6);
-    stats[key] = key.startsWith("dmg") ? +mag.toFixed(3) : Math.max(1, Math.round(mag));
+    stats[key] = (key.startsWith("dmg") || key === "moveSpeed") ? +mag.toFixed(3) : Math.max(1, Math.round(mag));
     rolled.push(key);
   }
 

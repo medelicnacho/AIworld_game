@@ -84,7 +84,7 @@ export function applyLevelStats() {
   // of +speedSoftCap. You keep gaining forever, each gain worth less than the last, and you
   // can never outrun the game. (The dash reads speedMult too, so it tames in step.)
   // Agility feeds the speed input alongside Lighten (STATS.agiSpeed per point).
-  const speedGear = (player.gearSpeed || 0) + STATS.agiSpeed * (player.agi || 0);
+  const speedGear = (player.gearSpeed || 0) + STATS.agiSpeed * (player.agi || 0) + (player.moveSpeed || 0);
   const rawSpeedBonus = Math.pow(XP.speedGrowth, n) * (1 + speedGear) - 1;
   player.speedMult = 1 + XP.speedSoftCap * Math.tanh(rawSpeedBonus / XP.speedSoftCap);
   player.jumpMult = Math.pow(XP.jumpGrowth, n);

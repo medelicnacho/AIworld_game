@@ -134,7 +134,7 @@ const ARMOR_SLOT_STATS = {
   shoulders: (t) => ({ armor: t.a, str: t.attr, dmgGun: t.dmg }),
   vest: (t) => ({ armor: Math.round(t.a * 1.3), stamina: t.stam, dmgGlobal: t.dmg }),
   pants: (t) => ({ armor: t.a, agi: t.attr, dmgGrenade: t.dmg }),
-  boots: (t) => ({ armor: Math.round(t.a * 0.75), agi: t.attr, rAtkSpeed: t.rate }),
+  boots: (t) => ({ armor: Math.round(t.a * 0.75), agi: t.attr, moveSpeed: t.dmg + 0.02 }),
 };
 export const ARMOR = {};
 for (const slot of ARMOR_SLOT_ORDER) {
@@ -162,6 +162,7 @@ export const STAT_INFO = {
   rHaste: { label: "Haste", kind: "rate", note: "shorter ability cooldowns" },
   rAtkSpeed: { label: "Attack Speed", kind: "rate", note: "faster gun fire rate" },
   rReload: { label: "Reload", kind: "rate", note: "faster reloads" },
+  moveSpeed: { label: "Move Speed", kind: "pct", note: "faster movement" },
 };
 
 // Early-game GRACE. Levels 1-3 should be EASY: a fresh player has no gear and the whole point
