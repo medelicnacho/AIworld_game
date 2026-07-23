@@ -478,6 +478,91 @@ export class Sfx {
   }
 
   /** Grenade throw. */
+  /** Shotgun: a deep, wide BOOM — noise swept down through a lowpass with a fat sub thump. */
+  shotgunBlast() {
+    if (!this.on || !this.budget()) return;
+    const t = this.t, dur = 0.3;
+    const { input } = this.place();
+    const src = this.noise();
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(3200, t);
+    lp.frequency.exponentialRampToValueAtTime(120, t + dur);
+    const dist = this.distortion(30);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.95, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(lp); lp.connect(dist); dist.connect(g); g.connect(input);
+    src.start(t); src.stop(t + dur + 0.05);
+
+    const sub = this.ctx.createOscillator();
+    sub.type = "sine";
+    sub.frequency.setValueAtTime(115, t);
+    sub.frequency.exponentialRampToValueAtTime(42, t + 0.2);
+    const sg = this.ctx.createGain();
+    sg.gain.setValueAtTime(0.85, t);
+    sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    sub.connect(sg); sg.connect(input);
+    sub.start(t); sub.stop(t + 0.25);
+  }
+
+  /** Sniper: a sharp CRACK over a rolling low boom — the loudest, most deliberate shot. */
+  sniperCrack() {
+    if (!this.on || !this.budget()) return;
+    const t = this.t;
+    const { input } = this.place();
+    // The crack: a brief burst of high, distorted noise.
+    const crackSrc = this.noise();
+    const hp = this.ctx.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 1700;
+    const dist = this.distortion(55);
+    const cg = this.ctx.createGain();
+    cg.gain.setValueAtTime(1.0, t);
+    cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    crackSrc.connect(hp); hp.connect(dist); dist.connect(cg); cg.connect(input);
+    crackSrc.start(t); crackSrc.stop(t + 0.11);
+    // The boom that rolls out behind it.
+    const boomSrc = this.noise();
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(1400, t);
+    lp.frequency.exponentialRampToValueAtTime(90, t + 0.5);
+    const bg = this.ctx.createGain();
+    bg.gain.setValueAtTime(0.7, t);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    boomSrc.connect(lp); lp.connect(bg); bg.connect(input);
+    boomSrc.start(t); boomSrc.stop(t + 0.55);
+    const sub = this.ctx.createOscillator();
+    sub.type = "sine";
+    sub.frequency.setValueAtTime(85, t);
+    sub.frequency.exponentialRampToValueAtTime(35, t + 0.3);
+    const sg = this.ctx.createGain();
+    sg.gain.setValueAtTime(0.7, t);
+    sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.33);
+    sub.connect(sg); sg.connect(input);
+    sub.start(t); sub.stop(t + 0.36);
+  }
+
+  /** The pump/bolt rack — two crisp mechanical clicks. The other half of "bam ka-chunk". */
+  rack() {
+    if (!this.on || !this.budget(0.5, 200)) return;
+    const t = this.t;
+    const { input } = this.place();
+    for (let i = 0; i < 2; i++) {
+      const ct = t + i * 0.11;
+      const src = this.noise();
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 2100 + i * 700;
+      bp.Q.value = 3.5;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.32, ct);
+      g.gain.exponentialRampToValueAtTime(0.0001, ct + 0.05);
+      src.connect(bp); bp.connect(g); g.connect(input);
+      src.start(ct); src.stop(ct + 0.06);
+    }
+  }
+
   /**
    * Hit confirmation — the single cheapest "feels good" multiplier a shooter has, and the
    * one this game was missing entirely. A short filtered-noise TICK with a tiny pitched

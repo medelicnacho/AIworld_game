@@ -52,6 +52,7 @@ export class Gun {
     this.recoil = 0;          // pitch kick still owed back
     this.shots = 0;
     this.triggerReady = true; // semi-autos must release between shots; this is the latch
+    this.pumpT = 0;           // countdown to the pump/bolt rack sound after a pump-weapon shot
 
     // A pool of tracers, so a shotgun can draw all nine pellet lines at once.
     this.tracers = [];
@@ -175,7 +176,13 @@ export class Gun {
 
     this.flash.position.set(mx, my, mz);
     this.flash.intensity = w.pellets > 1 ? 8 : 5;
-    sfx.gunshot();
+    // Each weapon has its own voice: the shotgun booms, the sniper cracks, the rest report.
+    if (w.sound === "shotgun") sfx.shotgunBlast();
+    else if (w.sound === "sniper") sfx.sniperCrack();
+    else sfx.gunshot();
+    // Pump/bolt weapons rack a beat after the shot — the satisfying "ka-chunk" that follows
+    // the bang. Scheduled in update() so it lands late rather than on top of the report.
+    if (w.pump) this.pumpT = 0.2;
 
     player.pitch += w.recoil;
     this.recoil += w.recoil * w.recoilRecover;
@@ -204,6 +211,12 @@ export class Gun {
 
   update(dt) {
     if (this.cooldown > 0) this.cooldown -= dt;
+
+    // The delayed pump/bolt rack: fires once when the timer crosses zero.
+    if (this.pumpT > 0) {
+      this.pumpT -= dt;
+      if (this.pumpT <= 0) sfx.rack();
+    }
 
     if (this.reloading > 0) {
       this.reloading -= dt;

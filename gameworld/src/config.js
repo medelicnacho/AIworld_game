@@ -79,31 +79,31 @@ export const WEAPONS = {
     id: "rifle", name: "Repeater", price: 0,   // the starter; owned from the first frame
     damage: 12, fireRate: 7.5, magSize: 18, reloadTime: 1.15, range: 220,
     pellets: 1, auto: true, recoil: 0.016, recoilRecover: 0.75,
-    spreadHip: 0.022, spreadAim: 0.002,
+    spreadHip: 0.022, spreadAim: 0.002, sound: "rifle",
     desc: "Balanced automatic. Hold to fire.",
   },
   shotgun: {
     id: "shotgun", name: "Scattergun", price: 260,
-    // A wall of pellets up close, nothing at range. One booming shot, a slow pump between.
-    damage: 11, fireRate: 1.3, magSize: 5, reloadTime: 0.65, range: 26,
+    // A wall of pellets that now carries a real distance. One booming shot, a pump between.
+    damage: 11, fireRate: 1.3, magSize: 5, reloadTime: 0.65, range: 90,
     pellets: 9, auto: false, pump: true, recoil: 0.05, recoilRecover: 0.6,
-    spreadHip: 0.14, spreadAim: 0.09,
-    desc: "9 pellets, short range, one shot. Pump between rounds. Devastating point-blank.",
+    spreadHip: 0.14, spreadAim: 0.09, sound: "shotgun",
+    desc: "9 pellets, long reach now, one booming shot with a pump between rounds.",
   },
   sniper: {
-    id: "sniper", name: "Longshot", price: 320,
-    // One enormous round across the whole map. Slow, unforgiving, rewards a steady crosshair.
-    damage: 145, fireRate: 0.9, magSize: 4, reloadTime: 1.9, range: 600,
-    pellets: 1, auto: false, recoil: 0.09, recoilRecover: 0.5,
-    spreadHip: 0.03, spreadAim: 0.0002,
-    desc: "One-shot, enormous damage, effectively infinite range. Semi-auto. Aim it.",
+    id: "sniper", name: "Longshot", price: 300,
+    // One enormous round across the whole map, then a bolt cycle. bam — ka-chunk — bam.
+    damage: 165, fireRate: 1.1, magSize: 1, reloadTime: 1.05, range: 600,
+    pellets: 1, auto: false, pump: true, recoil: 0.09, recoilRecover: 0.5,
+    spreadHip: 0.03, spreadAim: 0.0002, sound: "sniper",
+    desc: "One huge round per reload — bam, bolt, bam. Enormous damage, map-long range.",
   },
   mg: {
     id: "mg", name: "Ripper", price: 300,
     // A hose. Low per-shot, huge belt, so it answers crowds and never stops for long.
     damage: 6, fireRate: 12, magSize: 60, reloadTime: 2.0, range: 180,
     pellets: 1, auto: true, recoil: 0.012, recoilRecover: 0.8,
-    spreadHip: 0.05, spreadAim: 0.03,
+    spreadHip: 0.05, spreadAim: 0.03, sound: "mg",
     desc: "Low damage, huge belt, high rate. Hoses down crowds.",
   },
 };
@@ -582,6 +582,12 @@ export const BOSS = {
   // fraction itself tightens with depth — so the deep bosses are the hardest to burst.
   maxHitFraction: 0.03,     // ring 1: no single hit may exceed 3% of max HP (~34-hit floor)
   hitCapTighten: 0.06,      // and that shrinks: fraction / (1 + this * ring)
+
+  // EVADE. Run past aggroRange and the boss disengages: it drops every telegraph and heals
+  // back to full, so you can't chip it down and stroll away between fights. Same idea as a
+  // WoW boss resetting when you leash it out. regenFrac is fraction of MAX HP per second, so
+  // a full reset takes ~1/regenFrac seconds regardless of the boss's tier.
+  regenFrac: 0.12,          // ~8s from near-death back to full once you've left
   // And it hits harder as you go out. A longer fight against fixed damage is an EASIER
   // fight; the deep should not be safer just because it takes longer.
   damagePerTier: 0.18,

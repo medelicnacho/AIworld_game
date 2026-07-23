@@ -288,6 +288,17 @@ export class Boss {
         b.contactCd = BOSS.contactCd;
         onPlayerHit?.(BOSS.contactDamage * b.dmg, b.x, b.z);
       }
+    } else {
+      // You ran past its reach: it EVADES. Every telegraph drops and it heals back to full,
+      // so a boss can't be whittled down over several hit-and-run passes. Fully restored, it
+      // resets to phase 1 — the next person to engage it gets a fresh fight, not a husk.
+      b.charging = false;
+      b.beamWarm = 0;
+      b.beamT = 0;
+      if (b.hp < b.maxHp) {
+        b.hp = Math.min(b.maxHp, b.hp + b.maxHp * BOSS.regenFrac * dt);
+        if (b.hp >= b.maxHp) { b.phase = 1; b.nextIsBeam = false; }
+      }
     }
 
     this.group.position.set(b.x, b.y, b.z);
