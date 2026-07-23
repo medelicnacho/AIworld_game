@@ -12,7 +12,37 @@
         font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
         color: #cfd6e4; text-shadow: 0 1px 2px #000a;
       }
-      #stats { position: absolute; top: 10px; left: 12px; white-space: pre; opacity: .85; }
+      /* The dev/debug dump — demoted to a small, dim top-left block now that the real HUD
+         (health, ammo, abilities) carries the important state Overwatch-style. */
+      #stats { position: absolute; top: 8px; left: 10px; white-space: pre; opacity: .4;
+        font-size: 10px; line-height: 1.35; max-width: 44vw; }
+      /* --- Overwatch-style HUD: big health bottom-left, big ammo bottom-right --------- */
+      #health { position: absolute; left: 34px; bottom: 30px; width: 300px;
+        font: ui-sans-serif, system-ui, sans-serif; text-shadow: 0 2px 6px #000c; }
+      #health .hp-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
+      #health .hp-num { font-size: 40px; font-weight: 800; color: #eaf6ff; line-height: .9; }
+      #health .hp-max { font-size: 16px; font-weight: 600; color: #9fb2cc; }
+      #health .hp-arm { margin-left: auto; font-size: 13px; font-weight: 700; color: #8fd6ff;
+        letter-spacing: .04em; }
+      #health .hp-track { height: 15px; background: #0d1420cc; border: 2px solid #ffffff2e;
+        border-radius: 3px; overflow: hidden;
+        /* segment ticks, the Overwatch look */
+        background-image: repeating-linear-gradient(90deg, transparent 0 30px, #0008 30px 32px);
+        background-color: #0d1420cc; }
+      #health .hp-fill { height: 100%; background: linear-gradient(#f4fbff, #cfe6ff);
+        transition: width .12s linear; box-shadow: 0 0 10px #bfe0ff88; }
+      #health.low .hp-fill { background: linear-gradient(#ff9a8a, #ff5a4a); box-shadow: 0 0 12px #ff5a4aaa; }
+      #health.low .hp-num { color: #ff8a7a; }
+      #ammo { position: absolute; right: 34px; bottom: 28px; text-align: right;
+        font: ui-sans-serif, system-ui, sans-serif; text-shadow: 0 2px 6px #000c; }
+      #ammo .am-name { font-size: 12px; font-weight: 700; letter-spacing: .1em;
+        text-transform: uppercase; color: #9fb2cc; margin-bottom: 2px; }
+      #ammo .am-row { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
+      #ammo .am-cur { font-size: 52px; font-weight: 800; color: #eaf6ff; line-height: .85; }
+      #ammo .am-cur.low { color: #ffb454; }
+      #ammo .am-max { font-size: 20px; font-weight: 600; color: #9fb2cc; }
+      #ammo .am-reload { font-size: 30px; font-weight: 800; color: #ffb454; letter-spacing: .04em; }
+      #ammo .am-stow { font-size: 22px; font-weight: 700; color: #7dffb5; letter-spacing: .04em; }
       #crosshair {
         position: absolute; left: 50%; top: 50%; width: 3px; height: 3px;
         margin: -1.5px 0 0 -1.5px; background: #eef; border-radius: 50%;
@@ -238,6 +268,8 @@
          panel must not reappear in that window. */
       body.running #click { display: none; }
       body.running #crosshair { opacity: .9; }
+      #health, #ammo { opacity: 0; transition: opacity .2s; }
+      body.running #health, body.running #ammo { opacity: 1; }
     </style>
   </head>
   <body>
@@ -247,11 +279,13 @@
       <div id="hurt"></div>
       <div id="subtitle"></div>
       <div id="points"></div>
+      <div id="health"></div>
+      <div id="ammo"></div>
       <div id="bar"></div>
       <div id="plates"></div>
       <div id="hpbars"></div>
       <canvas id="minimap" width="180" height="180"></canvas>
-      <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; G speak &nbsp; F trade &nbsp; C potion &nbsp; E firebomb &nbsp; Q heal &nbsp; C potion &nbsp; 1-4 items</div>
+      <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; G speak &nbsp; F trade &nbsp; C potion &nbsp; E firebomb &nbsp; Q heal &nbsp; C potion &nbsp; 1-6 T ` spells &nbsp; wheel switch weapon</div>
     </div>
     <!-- Outside #hud on purpose: the HUD is pointer-events:none so it never eats clicks,
          and the shop is the one overlay that must receive them. -->

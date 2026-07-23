@@ -1056,6 +1056,8 @@ function nearestGate() {
 }
 
 const hud = document.getElementById("stats");
+const healthEl = document.getElementById("health");
+const ammoEl = document.getElementById("ammo");
 let acc = 0, last = performance.now(), fps = 60;
 
 function frame(now) {
@@ -1351,6 +1353,24 @@ function frame(now) {
     `  ${player.dodgeT > 0 ? "ROLL" : "    "}  ${player.onGround ? "grnd" : "air "}\n` +
     `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ` +
     `jumps ${"◆".repeat(player.jumpsLeft)}${"◇".repeat(Math.max(0, player.maxJumps - player.jumpsLeft))}`;
+
+  // Overwatch-style HUD: big health bottom-left, big ammo bottom-right.
+  const hpFrac = player.maxHp > 0 ? player.hp / player.maxHp : 0;
+  const dr = player.armor ? Math.round(armorDR(player.armor, tier) * 100) : 0;
+  healthEl.className = hpFrac < 0.35 ? "low" : "";
+  healthEl.innerHTML =
+    `<div class="hp-top"><span class="hp-num">${Math.max(0, Math.round(player.hp))}</span>`
+    + `<span class="hp-max">/ ${Math.round(player.maxHp)}</span>`
+    + `${dr ? `<span class="hp-arm">◆ ${dr}% ARMOR</span>` : ""}</div>`
+    + `<div class="hp-track"><div class="hp-fill" style="width:${Math.max(0, Math.min(100, hpFrac * 100))}%"></div></div>`;
+
+  const magMax = gun.weapon.magSize;
+  const lowAmmo = gun.mag <= Math.ceil(magMax * 0.25);
+  ammoEl.innerHTML =
+    `<div class="am-name">${gun.weapon.name}${gun.owned.size > 1 ? " ⟳" : ""}</div>`
+    + `<div class="am-row">${inSafeZone ? `<span class="am-stow">STOWED</span>`
+      : gun.reloading > 0 ? `<span class="am-reload">RELOAD</span>`
+        : `<span class="am-cur ${lowAmmo ? "low" : ""}">${gun.mag}</span><span class="am-max">/ ${magMax}</span>`}</div>`;
 
   renderer.render(scene, camera);
 }
