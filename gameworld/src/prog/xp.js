@@ -56,7 +56,14 @@ export function applyLevelStats() {
   const n = player.level - 1;
   // Gear multiplies on top of levels, so the smith stays worth visiting at any level.
   player.dmgMult = Math.pow(XP.damageGrowth, n) * (1 + (player.gearDmg || 0));
-  player.speedMult = Math.pow(XP.speedGrowth, n) * (1 + (player.gearSpeed || 0));
+  // Speed used to be a raw exponential with no ceiling, so a high-level geared build ran 3-5x
+  // base and only got faster -- unreadable, and it made the world feel small. Now the raw
+  // intent (levels x gear) is the INPUT to a diminishing-returns curve: tanh is ~linear for
+  // the first ~20 levels, so early game is unchanged, then bends and approaches a soft ceiling
+  // of +speedSoftCap. You keep gaining forever, each gain worth less than the last, and you
+  // can never outrun the game. (The dash reads speedMult too, so it tames in step.)
+  const rawSpeedBonus = Math.pow(XP.speedGrowth, n) * (1 + (player.gearSpeed || 0)) - 1;
+  player.speedMult = 1 + XP.speedSoftCap * Math.tanh(rawSpeedBonus / XP.speedSoftCap);
   player.jumpMult = Math.pow(XP.jumpGrowth, n);
   player.maxJumps = PLAYER.jumps + Math.floor(player.level / XP.jumpsPerLevels);
   // Armour is the one stat that reduces rather than adds, so it lives here too — derived,

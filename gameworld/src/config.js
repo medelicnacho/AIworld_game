@@ -102,7 +102,11 @@ export const XP = {
   // as at level 4 and survival stays a question of reading telegraphs rather than of having
   // a bigger bar. What you gain is the ability to be somewhere else.
   hpPerLevel: 0,
-  speedGrowth: 1.02,      // L10 ×1.22 · L20 ×1.49 · L35 ×2.00
+  speedGrowth: 1.02,      // raw per-level; fed through a tanh soft cap (see applyLevelStats)
+  // The most speed levels + gear can ever add, as a fraction of base. tanh approaches but
+  // never quite reaches it, so effective speed tops out near ×(1 + this). 1.2 = ~2.2× base
+  // at the extreme, vs the old uncapped 3-5×. This is the "you go too fast" dial.
+  speedSoftCap: 1.2,
   jumpGrowth: 1.015,      // L20 ×1.35 launch = ~1.8× the height (h scales with v²)
   jumpsPerLevels: 10,     // +1 air jump at 10, 20, 30, …
   // COMPOUNDING, not additive. Mob HP grows 55% per ring and levelling is what carries you
