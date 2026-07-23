@@ -202,6 +202,17 @@ export const XP = {
   xpBreak1: 10,
   xpBreak2: 20,
 
+  // WoW's GREY-MOB mechanic: once you outlevel a ring, its kills stop being worth your time,
+  // so easy back-zones can't be farmed for xp — you're pushed outward. Each ring greys out
+  // (0 xp) at greyBase + greyPerTier*ring, with a steep drop over the last greyBand levels.
+  //   tier 0: full ≤ L9 · L10 ~42% · L11 ~9% · L12 ZERO   (exactly the "big drop then nothing")
+  //   tier 1: full ≤ L14 · greys at L17 · tier 2: greys at L22 · …
+  greyBase: 12,        // level at which the FIRST ring (tier 0) gives no xp
+  greyPerTier: 5,      // each ring's grey level is this much higher
+  greyBand: 3,         // levels over which xp falls from full to zero
+  greyExp: 2.2,        // >1 makes the drop punchy rather than linear
+  bossXpFloor: 0.2,    // a boss never greys BELOW this — it's still a fight, just not farmable
+
   // Interim level rewards. D9's real answer is a 1-of-3 card pick — this keeps levelling
   // FELT until that UI exists, and is meant to be replaced by it, not kept.
   // Levels buy MOBILITY, not bulk. Max HP never moves, so a meteor is as lethal at level 40

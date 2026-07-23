@@ -872,7 +872,7 @@ function reward(res) {
   if (guards.inDeadZone()) { killFeed = "no reward near the gate guards"; return; }
   player.points += Math.round((LOOT.base + LOOT.perTier * res.ring)
     * (res.elite ? LOOT.eliteMult : 1));
-  const xp = killValue(res.ring, res.elite);
+  const xp = killValue(res.ring, res.elite, player.level);
   const lv = award(xp);
   // Naming what you killed is half of learning to read them.
   const what = res.affixes ? `★ ${res.affixes}` : res.elite ? "★ elite" : "kill";
@@ -889,7 +889,7 @@ function reward(res) {
 
 function rewardBoss(ring, x, z) {
   player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult);
-  const xp = bossValue(ring);
+  const xp = bossValue(ring, player.level);
   const lv = award(xp);
   killFeed = `◆ BOSS DOWN ◆  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) levelUp();

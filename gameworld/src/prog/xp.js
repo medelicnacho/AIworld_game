@@ -28,13 +28,29 @@ export function xpToNext(level) {
   return Math.floor(atB2 * Math.pow(level / b2, p3));
 }
 
-/** What one kill is worth, given where it died and whether it was starred. */
-export function killValue(ring, elite) {
-  return Math.round(XP.mobBase * (1 + XP.perRing * ring) * (elite ? XP.eliteMult : 1));
+/**
+ * The grey-mob multiplier (WoW's model): 1.0 while a ring is at or above your level, falling
+ * to 0 once you've outlevelled it. So a back-zone stops paying and the frontier is the only
+ * place worth killing. See config XP.grey* for the exact bands.
+ */
+export function xpLevelMult(ring, level) {
+  const grey = XP.greyBase + XP.greyPerTier * ring;
+  const full = grey - XP.greyBand;
+  if (level <= full) return 1;
+  if (level >= grey) return 0;
+  return Math.pow((grey - level) / (grey - full), XP.greyExp);
 }
 
-export function bossValue(ring) {
-  return Math.round(XP.bossBase * (1 + XP.bossPerRing * ring));
+/** What one kill is worth: base for its ring, cut by the grey falloff for YOUR level. */
+export function killValue(ring, elite, level = 1) {
+  const base = XP.mobBase * (1 + XP.perRing * ring) * (elite ? XP.eliteMult : 1);
+  return Math.round(base * xpLevelMult(ring, level));
+}
+
+/** Bosses grey too, but never below a floor — a fight always pays something. */
+export function bossValue(ring, level = 1) {
+  const mult = Math.max(XP.bossXpFloor, xpLevelMult(ring, level));
+  return Math.round(XP.bossBase * (1 + XP.bossPerRing * ring) * mult);
 }
 
 /**

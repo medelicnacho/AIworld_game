@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyLevelStats, xpToNext, respawnTierFor } from "./xp.js";
+import { applyLevelStats, xpToNext, respawnTierFor, xpLevelMult } from "./xp.js";
 import { player } from "../state.js";
 import { GRACE, XP, STATS } from "../config.js";
 
@@ -45,6 +45,19 @@ test("xpToNext: three-phase curve — always climbing, continuous, steepening", 
   assert.ok(stepLate > stepEarly * 5, "a grind-phase level must cost far more xp than an early one");
   // And the phases are ordered: reaching 20 costs more total than reaching 10, a lot more.
   assert.ok(xpToNext(20) > xpToNext(10) * 3, "phase 3 entry dwarfs phase 2 entry");
+});
+
+test("xpLevelMult: grey falloff — full while on-level, a big drop, then zero", () => {
+  // Tier 0: full through L9, a big drop at L10, near-nothing at L11, ZERO at L12+.
+  assert.equal(xpLevelMult(0, 9), 1, "full while the ring is your level");
+  const l10 = xpLevelMult(0, 10);
+  assert.ok(l10 > 0.25 && l10 < 0.6, `L10 is a big drop, not a trickle (was ${l10})`);
+  assert.ok(xpLevelMult(0, 11) < l10, "keeps falling");
+  assert.equal(xpLevelMult(0, 12), 0, "grey — zero xp from the first zone at L12");
+  assert.equal(xpLevelMult(0, 40), 0, "still zero far past grey");
+  // Deeper rings grey out proportionally later — tier 1 still pays at L12 where tier 0 doesn't.
+  assert.ok(xpLevelMult(1, 12) > 0.9, "a level-12 player still earns full in tier 1");
+  assert.equal(xpLevelMult(1, 17), 0, "tier 1 greys at 17, five levels past tier 0");
 });
 
 test("respawnTierFor: floored, never negative, non-decreasing", () => {
