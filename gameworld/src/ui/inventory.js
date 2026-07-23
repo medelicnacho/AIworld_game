@@ -45,7 +45,7 @@ export class Inventory {
     this.el.addEventListener("click", (e) => this.onClick(e));
     this.el.addEventListener("mousemove", (e) => this.onHover(e));
     this.el.addEventListener("mouseleave", () => this.hideTip());
-    this.el.addEventListener("contextmenu", (e) => this.onSell(e));   // right-click sells
+    this.el.addEventListener("contextmenu", (e) => this.onDrop2(e));  // right-click drops it
     // Shift toggles the comparison while the cursor sits still on a piece.
     window.addEventListener("keydown", (e) => { if (e.key === "Shift" && !this.shift) { this.shift = true; this.refreshTip(); } });
     window.addEventListener("keyup", (e) => { if (e.key === "Shift") { this.shift = false; this.refreshTip(); } });
@@ -233,7 +233,7 @@ export class Inventory {
       const d = this.deltaRows(piece.stats, equipped.stats);
       html += `<div class="tt-stats">${d || '<div class="tt-hint">identical stats</div>'}</div>`;
     } else if (!worn) {
-      html += `<div class="tt-hint">${equipped ? "hold Shift to compare · " : ""}right-click to sell</div>`;
+      html += `<div class="tt-hint">${equipped ? "hold Shift to compare · " : ""}right-click to drop</div>`;
     }
     return html;
   }
@@ -262,15 +262,15 @@ export class Inventory {
     this.hoverUid = null;
   }
 
-  onSell(e) {
+  onDrop2(e) {
     if (!this.open) return;
     const cell = e.target.closest("[data-gear]");
     if (!cell) return;
     e.preventDefault();
-    const got = this.hooks.sellGear?.(cell.dataset.gear);
+    const ok = this.hooks.dropGear?.(cell.dataset.gear);
     this.hideTip();
     this.render();
-    if (got) this.flash(`Sold — +${got} points`);
+    if (ok) this.flash("Dropped it in front of you");
   }
 
   /** A brief line in the footer, e.g. after a sale. */
@@ -420,7 +420,7 @@ export class Inventory {
       ? (this.picked ? "Now click a slot to place it"
         : "Drag or click an ability onto a slot · drag it out to unequip · Esc to resume")
       : this.tab === "character"
-        ? "Click a piece to equip · hold Shift to compare · right-click to sell for points"
+        ? "Click a piece to equip · hold Shift to compare · right-click to drop · sell at a vendor"
         : "Esc, ✕ or click outside to resume";
 
     this.el.innerHTML = `

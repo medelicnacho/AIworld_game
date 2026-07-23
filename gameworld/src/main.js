@@ -331,8 +331,8 @@ const gearDropMeshes = (() => {
   return arr;
 })();
 
-function dropGear(x, z, ring) {
-  const piece = rollGear(ring, shakeRng);
+/** Put a specific piece on the ground as a pickup. */
+function placeGearDrop(piece, x, z) {
   const mesh = gearDropMeshes[gearDropI = (gearDropI + 1) % gearDropMeshes.length];
   // Recycling a mesh drops whatever old item was still riding it — a fair trade at 16 slots.
   const old = gearDrops.findIndex((d) => d.mesh === mesh);
@@ -342,6 +342,22 @@ function dropGear(x, z, ring) {
   mesh.position.set(x, y, z);
   mesh.visible = true;
   gearDrops.push({ piece, x, y, z, t: RELIC.life, mesh });
+}
+
+const dropGear = (x, z, ring) => placeGearDrop(rollGear(ring, shakeRng), x, z);
+
+/** Drop an OWNED piece out of the bag onto the ground a few steps ahead of you. */
+function dropOwnedGear(uid) {
+  const i = player.ownedGear.findIndex((g) => g.uid === uid);
+  if (i < 0) return false;
+  const piece = player.ownedGear[i];
+  player.ownedGear.splice(i, 1);
+  // A forward vector from the player's facing (same basis controller.js uses), so the item
+  // lands in front — far enough not to be re-grabbed the instant you start walking.
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  placeGearDrop(piece, player.x + fx * 3.5, player.z + fz * 3.5);
+  sfx.whoosh();
+  return true;
 }
 
 function updateGearDrops(dt) {
@@ -380,7 +396,7 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
     owned: player.ownedGear,
   }),
   equipGear: (uid) => equipGearByUid(uid),
-  sellGear: (uid) => sellGear(uid),
+  dropGear: (uid) => dropOwnedGear(uid),   // right-click in the sheet drops it in front of you
   // The live character-sheet numbers. Damage buckets and Str/Agi are 0 until the gear step
   // wires them, but the sheet reads them now so it's complete the day gear rolls them.
   charStats: () => ({
@@ -669,7 +685,17 @@ function respawn() {
       : "");
 }
 
-spawnPlayer();
+// Start INSIDE the spawn town, not on the bare plain outside it — the first thing you see is
+// the place you'll come back to, and you're safe while you find your feet.
+function spawnInTown() {
+  const home = homeOfTier(0);
+  if (!home) { spawnPlayer(); return; }
+  player.x = home.x;
+  player.z = home.z;
+  player.y = groundY(home.x, home.z) + 0.5;
+  player.vx = player.vy = player.vz = 0;
+}
+spawnInTown();
 attachInput(renderer.domElement, {
   toggleCamera: () => rig.toggle(),
   toggleMusic: () => music.toggle(),
