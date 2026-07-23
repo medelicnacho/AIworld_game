@@ -322,6 +322,19 @@ const genSlots = allSlots.slice(SLOTS);
 const pointsEl = document.getElementById("points");
 const inventory = new Inventory(document.getElementById("inv"), abilities, {
   onClose: () => resumeFromShop(),
+  gun: () => gun,
+  equipWeapon: (id) => gun.equip(id),
+  // The live character-sheet numbers. Damage buckets and Str/Agi are 0 until the gear step
+  // wires them, but the sheet reads them now so it's complete the day gear rolls them.
+  charStats: () => ({
+    level: player.level, hp: player.hp, maxHp: player.maxHp,
+    str: player.str || 0, agi: player.agi || 0, stamina: player.stamina || 0,
+    armor: player.armor || 0, armorDR: armorDR(player.armor, tierAt(player.x, player.z)),
+    dmgGlobal: player.dmgGlobal || 0, dmgGun: player.dmgGun || 0,
+    dmgSpell: player.dmgSpell || 0, dmgGrenade: player.dmgGrenade || 0,
+    globalPct: (player.dmgGlobal || 0) * 100,
+    speedMult: player.speedMult, dashMult: player.dashMult,
+  }),
   state: () => ({ level: player.level, points: player.points }),
   addPoints: (n) => { player.points += n; },
   setLevel: (n) => {

@@ -1,25 +1,34 @@
-// The inventory: everything you own, and the four bar slots you can drag it into.
+// The character sheet — and the pause screen.
 //
-// It IS the pause screen. Escape releases pointer lock, which pauses the game, and rather
-// than showing a bare "click to resume" panel that does nothing, the paused moment is where
-// you rearrange your kit. One screen, one purpose, no extra key to learn.
+// Escape releases pointer lock, which pauses the game; rather than a bare "click to resume"
+// panel, the paused moment is your WoW-style character screen. Three tabs:
+//   Character — your paperdoll (equipped gear), live stats, and your bags of items
+//   Spells    — the abilities you own and the four-slot bar you drag them onto
+//   Talents   — the spec tree (a placeholder until it is built)
 //
-// Drag to equip, drag between slots to swap, drag out to unequip. Click also works for
-// everything drag does — drag-and-drop is unreliable on trackpads and impossible with one
-// hand on the keyboard, and an interface with only one input path excludes people for no
+// Drag and click both work for everything: drag-and-drop is unreliable on trackpads and
+// impossible one-handed, and an interface with only one input path excludes people for no
 // reason.
 
 import { SLOTS } from "../player/abilities.js";
 import { ICONS } from "./icons.js";
+import { WEAPONS } from "../config.js";
+
+const TABS = [
+  { id: "character", name: "Character" },
+  { id: "spells", name: "Spells" },
+  { id: "talents", name: "Talents" },
+];
 
 export class Inventory {
   constructor(el, abilities, hooks = {}) {
     this.el = el;
     this.abilities = abilities;
-    this.hooks = hooks;      // { onClose, grantAll, setLevel, addPoints }
+    this.hooks = hooks;      // { onClose, gun, charStats, equipWeapon, grantAll, setLevel, ... }
     this.open = false;
     this.admin = false;
-    this.picked = null;      // {from: "bag"|"slot", index}
+    this.tab = "character";
+    this.picked = null;      // {from: "bag"|"slot", index} — Spells tab only
 
     this.el.addEventListener("click", (e) => this.onClick(e));
     // Escape must leave. The lock was already released to open this, so no lockchange will
@@ -52,7 +61,7 @@ export class Inventory {
     document.body.classList.remove("inv");
   }
 
-  /** Where a drag or click started: a bag entry, or one of the bar slots. */
+  /** Where a drag or click started: a bag entry, or one of the bar slots (Spells tab). */
   static origin(target) {
     const slot = target.closest("[data-slot]");
     if (slot) return { from: "slot", index: Number(slot.dataset.slot) };
@@ -62,11 +71,11 @@ export class Inventory {
   }
 
   onDragStart(e) {
+    if (this.tab !== "spells") return;
     const o = Inventory.origin(e.target);
     if (!o) return;
     this.picked = o;
-    // Firefox refuses to start a drag unless some data is set.
-    e.dataTransfer?.setData("text/plain", `${o.from}:${o.index}`);
+    e.dataTransfer?.setData("text/plain", `${o.from}:${o.index}`);   // Firefox needs data set
   }
 
   onDrop(e) {
@@ -89,6 +98,13 @@ export class Inventory {
     if (e.target === this.el) { this.close(); return; }
     if (e.target.closest("[data-close]")) { this.close(); return; }
 
+    const tab = e.target.closest("[data-tab]");
+    if (tab) { this.tab = tab.dataset.tab; this.picked = null; this.render(); return; }
+
+    // Character tab: click an owned weapon to equip it into the Weapon slot.
+    const wep = e.target.closest("[data-weapon]");
+    if (wep) { this.hooks.equipWeapon?.(wep.dataset.weapon); this.render(); return; }
+
     if (e.target.closest("[data-admin]")) { this.admin = !this.admin; this.render(); return; }
     if (e.target.closest("[data-grant]")) { this.hooks.grantAll?.(); this.render(); return; }
     const one = e.target.closest("[data-give]");
@@ -110,6 +126,9 @@ export class Inventory {
       this.render();
       return;
     }
+
+    // Spells tab: click to pick up / put down an ability.
+    if (this.tab !== "spells") return;
     const o = Inventory.origin(e.target);
     if (!o) return;
     if (!this.picked) {
@@ -139,13 +158,99 @@ export class Inventory {
     }
   }
 
+  cell(def, attr, i, extra = "") {
+    return `
+      <div class="cell ${def ? "" : "blank"} ${extra}" ${attr}="${i}" ${def ? 'draggable="true"' : ""}
+           title="${def ? `${def.name} — ${def.desc || ""}` : "empty"}">
+        <span class="ic">${def ? (ICONS[def.icon] || "") : ""}</span>
+        <span class="nm">${def ? def.name : ""}</span>
+      </div>`;
+  }
+
+  // --- CHARACTER: paperdoll + stats + bags ---------------------------------------
+  characterHtml() {
+    const gun = this.hooks.gun?.();
+    const s = this.hooks.charStats?.() || {};
+
+    // Equipment paperdoll. Weapon is live; the rest are placeholders waiting on the gear
+    // system (GEAR.md G2), shown so the sheet reads as the real thing from day one.
+    const slots = [
+      { name: "Weapon", val: gun?.weapon?.name || "—", live: !!gun },
+      { name: "Armor", val: "—" },
+      { name: "Trinket", val: "—" },
+      { name: "Boots", val: "—" },
+    ];
+    const doll = slots.map((sl) => `
+      <div class="gslot ${sl.live ? "" : "empty"}">
+        <span class="lbl">${sl.name}</span>
+        <span class="val">${sl.val}</span>
+      </div>`).join("");
+
+    const row = (label, val) => `<div class="strow"><span>${label}</span><b>${val}</b></div>`;
+    const stats = [
+      row("Level", s.level ?? "—"),
+      row("Health", `${Math.round(s.hp ?? 0)} / ${Math.round(s.maxHp ?? 0)}`),
+      `<div class="sthr"></div>`,
+      row("Strength", `${s.str ?? 0}  <em>+${Math.round((s.globalPct ?? 0))}% dmg</em>`),
+      row("Agility", `${s.agi ?? 0}  <em>speed & dash</em>`),
+      row("Stamina", `${s.stamina ?? 0}`),
+      row("Armor", `${s.armor ?? 0}  <em>-${Math.round((s.armorDR ?? 0) * 100)}%</em>`),
+      `<div class="sthr"></div>`,
+      row("Global dmg", `+${Math.round((s.dmgGlobal ?? 0) * 100)}%`),
+      row("Gun dmg", `+${Math.round((s.dmgGun ?? 0) * 100)}%`),
+      row("Spell dmg", `+${Math.round((s.dmgSpell ?? 0) * 100)}%`),
+      row("Grenade dmg", `+${Math.round((s.dmgGrenade ?? 0) * 100)}%`),
+      `<div class="sthr"></div>`,
+      row("Move speed", `×${(s.speedMult ?? 1).toFixed(2)}`),
+      row("Dash", `×${(s.dashMult ?? 1).toFixed(2)}`),
+    ].join("");
+
+    // Bags. Weapons you own live here as items you can equip; found gear will join them once
+    // the gear system lands.
+    const weps = gun
+      ? [...gun.owned].map((id) => {
+        const w = WEAPONS[id];
+        return `<div class="cell ${gun.weapon.id === id ? "eq" : ""}" data-weapon="${id}"
+                     title="${w.name} — ${w.desc}"><span class="nm">${w.name}</span></div>`;
+      }).join("")
+      : "";
+
+    return `
+      <div class="char">
+        <div class="paperdoll">${doll}</div>
+        <div class="statcol">${stats}</div>
+      </div>
+      <h3>Bags — weapons (click to equip · wheel switches in game)</h3>
+      <div class="bag">${weps || `<p class="none">Empty. Gear you find or buy appears here.</p>`}</div>`;
+  }
+
+  // --- SPELLS: the ability bag + bar (the old inventory, now a tab) ---------------
+  spellsHtml() {
+    const a = this.abilities;
+    const equippedIds = new Set(a.slots.filter(Boolean).map((s) => s.id));
+    const bag = a.owned.length
+      ? a.owned.map((d, i) => this.cell(d, "data-bag", i, equippedIds.has(d.id) ? "eq" : "")).join("")
+      : `<p class="none">Nothing yet. Adepts in the towns sell abilities.</p>`;
+    const bar = Array.from({ length: SLOTS }, (_, i) =>
+      this.cell(a.slots[i], "data-slot", i,
+        this.picked?.from === "slot" && this.picked.index === i ? "held" : "")).join("");
+    return `
+      <div class="bag">${bag}</div>
+      <h3>Ability bar (1–4)</h3>
+      <div class="bar">${bar}</div>`;
+  }
+
+  talentsHtml() {
+    return `<div class="talents">
+      <p class="none">Spec tree coming soon — spend points as you level to branch your build.</p>
+    </div>`;
+  }
+
   /** A testing panel: set level, hand yourself points, grant every ability at once. */
   adminHtml() {
     if (!this.admin) return "";
     const p = this.hooks.state?.() || {};
     const owned = new Set(this.abilities.owned.map((o) => o.id));
-    // Every ability the game sells, tier gates ignored — the point of a test panel is to
-    // reach any state quickly, including ones a real run would take an hour to get to.
     const list = (this.hooks.catalog?.() || []).map((g) => `
       <button class="give ${owned.has(g.grants) ? "has" : ""}" data-give="${g.id}">
         ${g.name}${owned.has(g.grants) ? " ✓" : ""}
@@ -173,38 +278,27 @@ export class Inventory {
 
   render() {
     if (!this.open) return;
-    const a = this.abilities;
-    const equippedIds = new Set(a.slots.filter(Boolean).map((s) => s.id));
-
-    const cell = (def, attr, i, extra = "") => `
-      <div class="cell ${def ? "" : "blank"} ${extra}" ${attr}="${i}" ${def ? 'draggable="true"' : ""}
-           title="${def ? `${def.name} — ${def.desc || ""}` : "empty"}">
-        <span class="ic">${def ? (ICONS[def.icon] || "") : ""}</span>
-        <span class="nm">${def ? def.name : ""}</span>
-      </div>`;
-
-    const bag = a.owned.length
-      ? a.owned.map((d, i) => cell(d, "data-bag", i, equippedIds.has(d.id) ? "eq" : "")).join("")
-      : `<p class="none">Nothing yet. Adepts in the towns sell abilities.</p>`;
-
-    const bar = Array.from({ length: SLOTS }, (_, i) =>
-      cell(a.slots[i], "data-slot", i, this.picked?.from === "slot" && this.picked.index === i ? "held" : "")).join("");
+    const tabs = TABS.map((t) =>
+      `<button class="tab ${this.tab === t.id ? "on" : ""}" data-tab="${t.id}">${t.name}</button>`).join("");
+    const body = this.tab === "character" ? this.characterHtml()
+      : this.tab === "spells" ? this.spellsHtml()
+        : this.talentsHtml();
+    const foot = this.tab === "spells"
+      ? (this.picked ? "Now click a slot to place it"
+        : "Drag or click an ability onto a slot · drag it out to unequip · Esc to resume")
+      : "Esc, ✕ or click outside to resume";
 
     this.el.innerHTML = `
       <div class="panel">
         <header>
-          <h2>Inventory</h2>
+          <h2>Character</h2>
           <button class="adm ${this.admin ? "on" : ""}" data-admin>admin</button>
           <button class="x" data-close>✕</button>
         </header>
-        <div class="bag">${bag}</div>
-        <h3>Ability bar</h3>
-        <div class="bar">${bar}</div>
+        <nav class="tabs">${tabs}</nav>
+        <div class="tabbody">${body}</div>
         ${this.adminHtml()}
-        <footer>${this.picked
-          ? "Now click a slot to place it"
-          : "Drag or click an ability onto a slot · drag it out to unequip · "
-            + "Esc, ✕ or click outside to resume"}</footer>
+        <footer>${foot}</footer>
       </div>`;
   }
 }

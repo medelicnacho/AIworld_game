@@ -45,6 +45,9 @@ export const player = {
   // GEAR.md G1: `armor` is now armour POINTS (see stats.js armorDR), not a stack count; its
   // mitigation is resolved at the damage choke point by attacker tier. `stamina` -> max HP.
   points: 0, potions: 0, potionCd: 0, gearDmg: 0, armor: 0, stamina: 0,
+  // GEAR.md attributes & damage buckets — 0 until gear rolls them; the character sheet and
+  // the (coming) damage step read them from here so nothing has to be added twice later.
+  str: 0, agi: 0, dmgGlobal: 0, dmgGun: 0, dmgSpell: 0, dmgGrenade: 0,
   haste: 0, hasteFire: 1, hasteCd: 1, hasteCast: 1, gearSpeed: 0, gearReload: 0,
   dashRank: 0, dashMult: 1, upgrades: {},
 };
