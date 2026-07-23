@@ -14,9 +14,18 @@ import { XP, PLAYER, HASTE, DODGE, STATS, GRACE } from "../config.js";
 import { player } from "../state.js";
 import { maxHpFor, ratingPct } from "./stats.js";
 
-/** XP needed to go from `level` to `level + 1`. */
+/**
+ * XP to go from `level` to `level + 1`, on the three-phase curve. Each phase is a power curve
+ * anchored to where the previous one ended, so the whole thing is CONTINUOUS but the growth
+ * rate steps up at each break: fast to break1, a climb to break2, a grind beyond.
+ */
 export function xpToNext(level) {
-  return Math.floor(XP.curveBase * Math.pow(level, XP.curveExp));
+  const { xpBase: a, xpEarlyExp: p1, xpMidExp: p2, xpLateExp: p3, xpBreak1: b1, xpBreak2: b2 } = XP;
+  const atB1 = a * Math.pow(b1, p1);              // cost at the phase-1→2 seam
+  const atB2 = atB1 * Math.pow(b2 / b1, p2);      // cost at the phase-2→3 seam
+  if (level < b1) return Math.floor(a * Math.pow(level, p1));
+  if (level < b2) return Math.floor(atB1 * Math.pow(level / b1, p2));
+  return Math.floor(atB2 * Math.pow(level / b2, p3));
 }
 
 /** What one kill is worth, given where it died and whether it was starred. */

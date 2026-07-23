@@ -189,8 +189,17 @@ export const XP = {
   bossBase: 900,
   bossPerRing: 0.8,
 
-  curveBase: 50,
-  curveExp: 1.55,      // L1→2: 50 xp · L5: 572 · L10: 1774 · L20: 5200
+  // A THREE-PHASE level curve, continuous at the breakpoints (each phase starts where the
+  // last ended, just steeper). Levels 1–10 fly by (a couple of kills each); 10–20 is a real
+  // climb; 20+ is grind country where trash barely moves the bar and the fast xp comes from
+  // bosses, dungeons and quests. See xpToNext().
+  //   L1→2 ~28 · L5 ~160 · L10 ~350 · L15 ~790 · L20 ~1400 · L30 ~4600 · L50 ~19800
+  xpBase: 28,
+  xpEarlyExp: 1.1,     // phase 1 (below break1): near-linear, fast
+  xpMidExp: 2.0,       // phase 2 (break1..break2): the climb
+  xpLateExp: 2.9,      // phase 3 (break2+): the grind
+  xpBreak1: 10,
+  xpBreak2: 20,
 
   // Interim level rewards. D9's real answer is a 1-of-3 card pick — this keeps levelling
   // FELT until that UI exists, and is meant to be replaced by it, not kept.

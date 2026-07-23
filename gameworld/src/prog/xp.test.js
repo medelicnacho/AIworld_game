@@ -24,15 +24,27 @@ function derive(level, gear = {}) {
 
 const finite = (x, name) => assert.ok(Number.isFinite(x), `${name} must be finite, was ${x}`);
 
-test("xpToNext: floor(curveBase * level^curveExp), and always climbing", () => {
-  assert.equal(xpToNext(1), Math.floor(XP.curveBase));
+test("xpToNext: three-phase curve — always climbing, continuous, steepening", () => {
+  // Fast early: L1→2 is cheap.
+  assert.equal(xpToNext(1), Math.floor(XP.xpBase));
+  // Monotonic across the whole range.
   let prev = 0;
   for (let l = 1; l <= 100; l++) {
     const x = xpToNext(l);
-    assert.equal(x, Math.floor(XP.curveBase * Math.pow(l, XP.curveExp)));
     assert.ok(x > prev, `cost must rise at level ${l}`);
     prev = x;
   }
+  // Continuous at the seams: no jump-discontinuity as a phase changes.
+  const jump = (l) => xpToNext(l) / xpToNext(l - 1);
+  assert.ok(jump(XP.xpBreak1) < 1.6, "no cliff at break1");
+  assert.ok(jump(XP.xpBreak2) < 1.6, "no cliff at break2");
+  // Steepening (convexity): the ABSOLUTE xp added per level is far larger in the grind phase
+  // than in the early phase — one level at 30 costs many early levels' worth.
+  const stepEarly = xpToNext(5) - xpToNext(4);
+  const stepLate = xpToNext(30) - xpToNext(29);
+  assert.ok(stepLate > stepEarly * 5, "a grind-phase level must cost far more xp than an early one");
+  // And the phases are ordered: reaching 20 costs more total than reaching 10, a lot more.
+  assert.ok(xpToNext(20) > xpToNext(10) * 3, "phase 3 entry dwarfs phase 2 entry");
 });
 
 test("respawnTierFor: floored, never negative, non-decreasing", () => {
