@@ -185,7 +185,12 @@ export const GRACE = {
 // fight. Both stay worth killing; only their ROLE changes.
 export const XP = {
   mobBase: 12,
-  perRing: 0.9,        // a ring-3 mob is worth 12 × (1 + 2.7) = 44
+  // How much a kill is worth per ring out. Tuned so an ON-LEVEL regular mob is worth about
+  // what a same-level WoW Classic mob is: at level 20 you're in tier 3, so 12 × (1 + 1.3×3)
+  // = ~59 xp against a ~9,600 level ≈ 0.6% per kill (Classic's ~145 / ~24,000 ≈ 0.6%). So
+  // regular mobs stay worth killing at every depth, not just elites and bosses. Tier 0 is
+  // unaffected (ring 0 → ×1), so the one-kill opening level is untouched.
+  perRing: 1.3,
   eliteMult: 7,
   bossBase: 900,
   bossPerRing: 0.8,
