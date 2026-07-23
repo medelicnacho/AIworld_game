@@ -69,8 +69,10 @@ export function gearName(slot, stats, rolled, rng) {
  * common case; deeper rings roll bigger numbers and, slightly, better rarity.
  */
 export function rollGear(ring, rng) {
-  const r = rng() + ring * 0.015;           // depth nudges the rarity table, gently
-  const rarity = r < 0.60 ? RARITY.common : r < 0.88 ? RARITY.uncommon : RARITY.rare;
+  // Gray is the constant common drop; green and blue are genuine finds. ~86% / ~11% / ~3% at
+  // the surface, with depth nudging a little toward the good stuff.
+  const r = rng() + ring * 0.01;
+  const rarity = r < 0.86 ? RARITY.common : r < 0.97 ? RARITY.uncommon : RARITY.rare;
   const slot = ARMOR_SLOT_ORDER[Math.floor(rng() * ARMOR_SLOT_ORDER.length)];
   const rarMult = rarity.key === "rare" ? 1.5 : rarity.key === "uncommon" ? 1.18 : 1.0;
   const ringScale = 1 + ring * 0.5;

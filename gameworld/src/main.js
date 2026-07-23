@@ -1032,6 +1032,11 @@ function frame(now) {
       ` ${Math.max(0, Math.round(boss.alive.hp))}  ${boss.alive.phase === 2 ? "· ENRAGED ·" : ""}\n`
     : "";
   const broken = brokenAffixes();
+  // The HP bar is a FIXED length that fills by FRACTION of max HP, so gaining max health from
+  // Stamina makes the NUMBER climb, not the bar grow ever longer across the screen.
+  const HPBAR = 12;
+  const hpN = player.maxHp > 0
+    ? Math.max(0, Math.min(HPBAR, Math.round(player.hp / player.maxHp * HPBAR))) : 0;
   hud.textContent =
     (broken.length ? `⚠ affix disabled: ${broken.join(", ")} — see console\n` : "") +
     bossLine + bossStatus +
@@ -1043,8 +1048,8 @@ function frame(now) {
     `LVL ${player.level}  dmg ×${player.dmgMult.toFixed(2)}  spd ×${player.speedMult.toFixed(2)}  jmp ×${player.jumpMult.toFixed(2)}\n` +
     `    ${"▮".repeat(Math.round(levelProgress() * 12))}` +
     `${"▯".repeat(12 - Math.round(levelProgress() * 12))} ${player.xp}/${xpToNext(player.level)}xp\n` +
-    `hp   ${"█".repeat(Math.max(0, Math.round(player.hp / 10)))}${"░".repeat(Math.max(0, 10 - Math.round(player.hp / 10)))} ` +
-    `${Math.max(0, Math.round(player.hp))}` +
+    `hp   ${"█".repeat(hpN)}${"░".repeat(HPBAR - hpN)} ` +
+    `${Math.max(0, Math.round(player.hp))}/${Math.round(player.maxHp)}` +
     `${player.hp < player.maxHp
       ? hunted ? "  (hunted)"
         : combatT > 0 ? `  (${combatT.toFixed(0)}s)`
