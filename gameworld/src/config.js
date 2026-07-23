@@ -247,6 +247,32 @@ export const GRENADE = {
 };
 
 // Villagers, and the little economy that gives a sanctuary a point. Gold comes off the
+// GEAR.md G1 — the additive stat model (see src/prog/stats.js for the formulas). Every value
+// here is a raw number that goes ON gear; the diminishing returns are in the formulas, so
+// these can grow without ever needing a clamp.
+export const STATS = {
+  // Health from Stamina. Base is the old flat 100; stamina on gear (G2) grows it from there.
+  baseHp: 100,
+  stamHp: 8,
+  // Armour curve: DR = armor / (armor + armorK + armorPerTier*attackerTier). Tuned so the
+  // old shop feel roughly ports -- 1 Heavy Plating (+45) ~13% at tier 0, 5 ~43%, 10 ~60%,
+  // close to the old 0.9^n at low-mid stacks but SANE at high stacks and weaker at depth.
+  armorK: 300,
+  armorPerTier: 60,
+  armorDRCap: 0.85,       // a rail, not a target; the formula approaches but rarely nears it
+  platingArmor: 45,       // what one Heavy Plating purchase now grants, as armour POINTS
+  // Secondary-rating denominators (rating -> % via rating/(rating+K)). Placeholders until
+  // G2 gear rolls these stats; kept here so the spine is complete and one place tunes them.
+  hasteK: 100,
+  attackSpeedK: 100,
+  reloadK: 100,
+  moveSpeedK: 220,
+  // Primary damage coefficients (flat add before the level multiplier), wired in the G1
+  // damage step. Present now so the model is whole and documented.
+  powerCoef: 0.9,         // gun/grenade damage per Power point
+  spellCoef: 1.4,         // ability damage per Spell Power point
+};
+
 // frontier; it is only worth anything where someone will take it.
 export const VILLAGE = {
   perSanctuary: 14,

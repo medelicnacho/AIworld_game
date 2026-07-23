@@ -19,6 +19,7 @@ import { Inventory } from "./ui/inventory.js";
 import { Nameplates } from "./ui/nameplates.js";
 import { HealthBars } from "./ui/healthbars.js";
 import { rollRelic, applyRelic } from "./prog/relics.js";
+import { armorDR } from "./prog/stats.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY } from "./world/gen.js";
@@ -403,8 +404,10 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
   if (sanctuaryOf(player.x, player.z, 0)) return;
   // Armour applies HERE, at the one place damage enters the player — so it covers mob hits,
   // meteors, the beam, burning ground and your own grenades without any of them knowing it
-  // exists. That is what the choke point was for.
-  player.hp -= amount * player.dmgTakenMult;
+  // exists. GEAR.md G1: mitigation is the WoW armour curve, and it reads the attacker's tier
+  // (proxied by where you are standing, since what hits you is native to your ring) — the
+  // same armour is worth less the deeper you go, which is why it can't be grinded shallow.
+  player.hp -= amount * (1 - armorDR(player.armor, tierAt(player.x, player.z)));
   hurtT = 0.35;
   markCombat();
   if (HEAL.breakOnDamage) heal.interrupt("hit");
@@ -912,7 +915,7 @@ function frame(now) {
       ? `${"▰".repeat(Math.round(heal.progress * 10))}${"▱".repeat(10 - Math.round(heal.progress * 10))} HOLD STILL\n`
       : ""}` +
     `${player.gearDmg ? `   dmg +${Math.round(player.gearDmg * 100)}%` : ""}` +
-    `${player.armor ? `   armour -${Math.round((1 - player.dmgTakenMult) * 100)}%` : ""}` +
+    `${player.armor ? `   armour ${player.armor} (-${Math.round(armorDR(player.armor, tier) * 100)}%)` : ""}` +
     `${player.haste ? `   haste +${Math.round((player.hasteFire - 1) * 100)}%` : ""}\n` +
 
     `gun  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${GUN.magSize}`}` +

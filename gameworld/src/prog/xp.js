@@ -10,8 +10,9 @@
 // Which is the intended pressure: to keep levelling you must walk further out, where mobs
 // are worth more AND more of them are elites. Distance is the progression system.
 
-import { XP, PLAYER, VILLAGE, HASTE, DODGE } from "../config.js";
+import { XP, PLAYER, HASTE, DODGE } from "../config.js";
 import { player } from "../state.js";
+import { maxHpFor } from "./stats.js";
 
 /** XP needed to go from `level` to `level + 1`. */
 export function xpToNext(level) {
@@ -66,9 +67,16 @@ export function applyLevelStats() {
   player.speedMult = 1 + XP.speedSoftCap * Math.tanh(rawSpeedBonus / XP.speedSoftCap);
   player.jumpMult = Math.pow(XP.jumpGrowth, n);
   player.maxJumps = PLAYER.jumps + Math.floor(player.level / XP.jumpsPerLevels);
-  // Armour is the one stat that reduces rather than adds, so it lives here too — derived,
-  // never accumulated, and therefore impossible to drift out of step on death.
-  player.dmgTakenMult = Math.pow(VILLAGE.armorMult, player.armor || 0);
+  // GEAR.md G1: max HP is now Stamina-driven (MMO health). Bare stamina is 0, so this is the
+  // old flat 100 until gear rolls Stamina in G2 — a foundation laid without a behaviour
+  // change. Armour is no longer a precomputed multiplier: its mitigation depends on the
+  // ATTACKER's tier, so it is resolved at the damage choke point instead (see damagePlayer).
+  const before = player.maxHp;
+  player.maxHp = maxHpFor(player.stamina);
+  // If gear just raised your ceiling, ride the gain up rather than leaving a gap under a
+  // fuller bar; never top you off from a mere re-derive (level-up does that deliberately).
+  if (player.maxHp > before) player.hp += player.maxHp - before;
+  player.hp = Math.min(player.hp, player.maxHp);
 
   // NO CEILINGS. Stacking without limit is the point of a stat game, so nothing is clamped
   // here — the safety lives at the USE SITES instead, where a value can actually do damage:

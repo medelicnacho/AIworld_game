@@ -89,6 +89,34 @@ Then two genuinely new rigs when the pool feels thin:
 - **The Warden** (for cities later): humanoid, sword arcs telegraphed as ground sectors —
   a melee boss, which the roster completely lacks.
 
+## 3b. World bosses — roaming and persistent, not spawned-on-demand (requested 2026-07-23)
+
+A real redesign of how bosses exist, and its own build. Today there is ONE boss, conjured
+near you when you're eligible and despawned after. The ask: bosses ROAM the world, each ring
+holds SEVERAL, they respawn SLOWLY, and deeper/bigger rings hold MORE — so clearing a ring's
+bosses means the ring is genuinely clear until they come back, and hunting them is a thing
+you go and do rather than a thing that spawns at you.
+
+Approach (the honest cost is in the multi-boss rewrite):
+- **From `this.alive` to a LIST.** `boss.js` currently assumes a single boss; the meteor and
+  beam pools are shared for that one. Multiple simultaneous bosses need either per-boss pools
+  (memory) or a shared pool the near boss draws from (cheaper, and only the nearest boss or
+  two are ever really fighting you at once).
+- **Persistent, seeded homes.** Each ring seeds N boss "territories" from the world seed (like
+  settlements), N growing with the ring — bigger rings, more bosses. A boss exists at its
+  territory whether or not you're there; only bosses within the sim radius get full AI and a
+  mesh (stream like mobs/sanctuaries), the rest are just "alive/dead + respawn timer" state.
+- **Roaming.** A live boss wanders its territory (slow, the existing speed) instead of homing
+  on you until you enter its aggro range — then the current fight rig takes over.
+- **Slow respawn.** Kill one and its territory goes dormant for a long timer (minutes), so a
+  cleared ring stays cleared for a while. A "bosses: 3/5 alive in this ring" read makes the
+  clearing legible.
+- **Ties into GEAR.md:** a roaming boss you can find on purpose is the natural source of the
+  guaranteed high-ilvl drop, and "go kill the three bosses of ring 4" becomes real content.
+
+Gate: you can walk a ring, find and kill its bosses one by one, see the ring empty of them,
+and come back later to find some respawned — with no boss ever conjured out of thin air at you.
+
 ## 4. Town NPC ideas (for when the substrate lands)
 
 - **Bounty keeper** — names a specific elite pack ("the Burning star west of town"),
