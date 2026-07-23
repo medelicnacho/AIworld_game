@@ -43,6 +43,14 @@
       #ammo .am-max { font-size: 20px; font-weight: 600; color: #9fb2cc; }
       #ammo .am-reload { font-size: 30px; font-weight: 800; color: #ffb454; letter-spacing: .04em; }
       #ammo .am-stow { font-size: 22px; font-weight: 700; color: #7dffb5; letter-spacing: .04em; }
+      #health .hp-lvl { font-size: 12px; font-weight: 800; letter-spacing: .16em; color: #ffe08a;
+        margin-bottom: 3px; }
+      /* XP bar — a thin gold line along the very bottom edge, with the level and progress. */
+      #xp { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; background: #0a0f18cc; }
+      #xp .xp-fill { height: 100%; background: linear-gradient(90deg, #ffcf4e, #ffe9a8);
+        box-shadow: 0 0 10px #ffd45eaa; transition: width .25s linear; }
+      #xp .xp-txt { position: absolute; right: 12px; bottom: 10px; font-size: 10px; font-weight: 700;
+        letter-spacing: .12em; color: #ffe9a8cc; text-shadow: 0 2px 5px #000c; }
       #crosshair {
         position: absolute; left: 50%; top: 50%; width: 3px; height: 3px;
         margin: -1.5px 0 0 -1.5px; background: #eef; border-radius: 50%;
@@ -268,8 +276,8 @@
          panel must not reappear in that window. */
       body.running #click { display: none; }
       body.running #crosshair { opacity: .9; }
-      #health, #ammo { opacity: 0; transition: opacity .2s; }
-      body.running #health, body.running #ammo { opacity: 1; }
+      #health, #ammo, #xp { opacity: 0; transition: opacity .2s; }
+      body.running #health, body.running #ammo, body.running #xp { opacity: 1; }
     </style>
   </head>
   <body>
@@ -281,6 +289,7 @@
       <div id="points"></div>
       <div id="health"></div>
       <div id="ammo"></div>
+      <div id="xp"></div>
       <div id="bar"></div>
       <div id="plates"></div>
       <div id="hpbars"></div>

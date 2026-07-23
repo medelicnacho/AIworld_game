@@ -498,6 +498,37 @@ export class Sfx {
     }
   }
 
+  /** Level up — a triumphant rising arpeggio with a shimmer on top. The "do-da-ba-da". */
+  levelUp() {
+    if (!this.on || !this.budget(1.2, 400)) return;
+    const t = this.t;
+    const { input } = this.place();
+    const notes = [523, 659, 784, 1047, 1319];   // C E G C E — ascending, bright
+    for (let i = 0; i < notes.length; i++) {
+      const ct = t + i * 0.075;
+      const o = this.ctx.createOscillator();
+      o.type = "triangle";
+      o.frequency.value = notes[i];
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, ct);
+      g.gain.exponentialRampToValueAtTime(0.19, ct + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, ct + 0.38);
+      o.connect(g); g.connect(input);
+      o.start(ct); o.stop(ct + 0.42);
+    }
+    // A high sine sparkle riding over the top note for the "shiny" feel.
+    const shimmer = this.ctx.createOscillator();
+    shimmer.type = "sine";
+    shimmer.frequency.setValueAtTime(2093, t + 0.3);
+    shimmer.frequency.exponentialRampToValueAtTime(3136, t + 0.55);
+    const sg = this.ctx.createGain();
+    sg.gain.setValueAtTime(0.0001, t + 0.3);
+    sg.gain.exponentialRampToValueAtTime(0.1, t + 0.34);
+    sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.62);
+    shimmer.connect(sg); sg.connect(input);
+    shimmer.start(t + 0.3); shimmer.stop(t + 0.65);
+  }
+
   /** Picking a drop off the ground — a light rising blip, quick and clean. */
   pickup() {
     if (!this.on || !this.budget(0.5, 120)) return;

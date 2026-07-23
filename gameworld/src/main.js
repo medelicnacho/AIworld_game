@@ -496,6 +496,59 @@ function updateSpells(dt) {
   }
 }
 
+// Level-up flourish: a WoW-style golden BEAM up through the character with an expanding ring
+// at the feet, and the rising jingle. Purely cosmetic, triggered from award() level gains.
+const levelBeam = (() => {
+  const g = new THREE.CylinderGeometry(1.0, 1.4, 9, 22, 1, true);
+  g.translate(0, 4.5, 0);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color: 0xffe08a, transparent: true, opacity: 0, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  m.visible = false; scene.add(m); return m;
+})();
+const levelRing = (() => {
+  const g = new THREE.RingGeometry(0.6, 1.0, 36);
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color: 0xffe8a0, transparent: true, opacity: 0, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  m.visible = false; scene.add(m); return m;
+})();
+const levelLight = new THREE.PointLight(0xffe08a, 0, 30);
+scene.add(levelLight);
+let levelFx = 0;
+const LEVEL_FX = 1.2;
+
+function levelUp() {
+  levelFx = LEVEL_FX;
+  levelBeam.visible = true;
+  levelRing.visible = true;
+  sfx.levelUp();
+}
+
+function updateLevelFx(dt) {
+  if (levelFx <= 0) return;
+  levelFx -= dt;
+  const t = 1 - Math.max(0, levelFx) / LEVEL_FX;     // 0 → 1 over the flourish
+  const beamGlow = Math.sin(Math.min(1, t) * Math.PI);  // fade in then out
+  levelBeam.position.set(player.x, player.y - 0.5 + t * 1.5, player.z);
+  levelBeam.scale.set(1 - t * 0.4, 1, 1 - t * 0.4);
+  levelBeam.material.opacity = beamGlow * 0.85;
+  levelBeam.rotation.y += dt * 3;
+  levelRing.position.set(player.x, player.y + 0.06, player.z);
+  levelRing.scale.setScalar(1 + t * 5);
+  levelRing.material.opacity = (1 - t) * 0.9;
+  levelLight.position.set(player.x, player.y + 1.5, player.z);
+  levelLight.intensity = beamGlow * 22;
+  if (levelFx <= 0) {
+    levelBeam.visible = false;
+    levelRing.visible = false;
+    levelLight.intensity = 0;
+  }
+}
+
 // Boss relics lying on the ground. One mesh, one relic at a time — bosses are rare enough
 // that two drops never coexist, and a pool would be ceremony for a maximum of one.
 const relicMesh = (() => {
@@ -824,7 +877,7 @@ function reward(res) {
   // Naming what you killed is half of learning to read them.
   const what = res.affixes ? `★ ${res.affixes}` : res.elite ? "★ elite" : "kill";
   killFeed = `${what}  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
-  if (lv) sfx.healDone();
+  if (lv) levelUp();
 
   // Gear drops: frequent, and a lot more from elites. A piece lands a couple of steps away
   // so you walk over it. rollGear scales the numbers and rolls the rarity by ring.
@@ -839,7 +892,7 @@ function rewardBoss(ring, x, z) {
   const xp = bossValue(ring);
   const lv = award(xp);
   killFeed = `◆ BOSS DOWN ◆  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
-  if (lv) sfx.healDone();
+  if (lv) levelUp();
   // The relic falls where the boss did — you have to walk into the arena to take it, which
   // is a last small decision if anything else is still alive.
   if (x !== undefined) dropRelic(x, z, ring);
@@ -1058,6 +1111,7 @@ function nearestGate() {
 const hud = document.getElementById("stats");
 const healthEl = document.getElementById("health");
 const ammoEl = document.getElementById("ammo");
+const xpEl = document.getElementById("xp");
 let acc = 0, last = performance.now(), fps = 60;
 
 function frame(now) {
@@ -1270,6 +1324,7 @@ function frame(now) {
   updateRelic(dt);
   updateGearDrops(dt);
   updateSpells(dt);
+  updateLevelFx(dt);
   minimap.draw(dt, mobs, boss, folk);
 
   const vendor = shop.open ? null : villagers.nearest();
@@ -1359,7 +1414,8 @@ function frame(now) {
   const dr = player.armor ? Math.round(armorDR(player.armor, tier) * 100) : 0;
   healthEl.className = hpFrac < 0.35 ? "low" : "";
   healthEl.innerHTML =
-    `<div class="hp-top"><span class="hp-num">${Math.max(0, Math.round(player.hp))}</span>`
+    `<div class="hp-lvl">LVL ${player.level}</div>`
+    + `<div class="hp-top"><span class="hp-num">${Math.max(0, Math.round(player.hp))}</span>`
     + `<span class="hp-max">/ ${Math.round(player.maxHp)}</span>`
     + `${dr ? `<span class="hp-arm">◆ ${dr}% ARMOR</span>` : ""}</div>`
     + `<div class="hp-track"><div class="hp-fill" style="width:${Math.max(0, Math.min(100, hpFrac * 100))}%"></div></div>`;
@@ -1371,6 +1427,10 @@ function frame(now) {
     + `<div class="am-row">${inSafeZone ? `<span class="am-stow">STOWED</span>`
       : gun.reloading > 0 ? `<span class="am-reload">RELOAD</span>`
         : `<span class="am-cur ${lowAmmo ? "low" : ""}">${gun.mag}</span><span class="am-max">/ ${magMax}</span>`}</div>`;
+
+  const xpPct = Math.round(levelProgress() * 100);
+  xpEl.innerHTML = `<div class="xp-fill" style="width:${xpPct}%"></div>`
+    + `<div class="xp-txt">LVL ${player.level} · ${player.xp}/${xpToNext(player.level)} XP</div>`;
 
   renderer.render(scene, camera);
 }
