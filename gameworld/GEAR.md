@@ -96,6 +96,13 @@ arbitrary.
   piece with ilvl, reqLevel, and rolled stats (the affix-style roller we already wrote in
   `relics.js` becomes the stat roller). A drop you can't use yet reads "requires L{n}" and
   waits, which is itself a reason to keep leveling.
+- **Regular mobs drop gear too, rarely** — a small per-kill chance (order of ~1–2%, higher
+  for elites, scaled by ring) to drop a piece of that ring's ilvl band. This is the MMO
+  trickle that makes *any* kill worth a glance at the ground, without competing with bosses:
+  boss drops are guaranteed and roll higher, mob drops are a rare bonus that mostly rolls
+  common/low but occasionally surprises. Same roller, lower ilvl and worse rarity odds. It
+  respects the guard dead-zone and the anti-farm rules exactly like points do — a guard kill
+  or a kill you didn't earn drops nothing.
 
 ## 5. MMO health, both sides
 
