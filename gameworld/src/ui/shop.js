@@ -11,7 +11,7 @@
 import { player } from "../state.js";
 import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, WEAPONS, ARMOR, STAT_INFO, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "../config.js";
 import { tierAt } from "../world/gen.js";
-import { sellValue } from "../prog/gear.js";
+import { sellValue, sortBag } from "../prog/gear.js";
 import { sfx } from "../audio/sfx.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
@@ -402,7 +402,9 @@ export class Shop {
 
     // The SELL side: your bags. Click a piece to sell it for points; one button dumps all the
     // grey clutter at once. Worn pieces aren't here (the bag holds only what you aren't using).
-    const bag = player.ownedGear || [];
+    // The SAME order as the character sheet — this is the same bag, and two views of one
+    // thing that disagree about what is best is worse than either ordering on its own.
+    const bag = sortBag(player.ownedGear);
     const grayCount = bag.filter((p) => p.rarity === "common").length;
     const sellRows = bag.length ? bag.map((p) => `
       <button class="sellitem" data-sell="${p.uid}" style="border-color:${p.color}"

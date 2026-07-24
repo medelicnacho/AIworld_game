@@ -33,8 +33,35 @@ export const RARITY = {
   epic: { key: "epic", label: "Epic", color: "#a335ee", glow: 0x7a1fd0, nStats: 6 },
 };
 
-/** Worst to best. Used to floor a roll at a guaranteed minimum (boss drops). */
-const LADDER = ["common", "uncommon", "rare", "epic"];
+/** Worst to best. THE one place the ladder's order is written down. */
+export const LADDER = ["common", "uncommon", "rare", "epic"];
+
+/** How good a rarity is, as a number. Unknown rarities sort to the bottom, not the top. */
+export const rarityRank = (key) => LADDER.indexOf(key);
+
+/**
+ * Bag order: best at the top, worst at the bottom.
+ *
+ * DERIVED from LADDER rather than from a hand-written table. It used to be a literal map of
+ * rarity to score, which meant adding `epic` silently scored it zero — below grey — and every
+ * purple you owned sank to the bottom of the bag. Knowledge that already exists in one place
+ * must never be copied into a second, because the copy will not be updated and nothing will
+ * say so.
+ *
+ * Rarity first, then TIER, then armour: rarity is how many stats a piece has and tier is how
+ * big they are, so a deep blue genuinely beats a shallow one and belongs above it.
+ *
+ * Every key here is IMMUTABLE for the life of a piece. That is deliberate — equipping
+ * something reorders the underlying list, and if the display order depended on anything that
+ * changed, the item you just clicked would jump somewhere else under your cursor.
+ */
+export function sortBag(pieces) {
+  return [...(pieces || [])].sort((a, b) =>
+    rarityRank(b.rarity) - rarityRank(a.rarity)
+    || (b.tier || 0) - (a.tier || 0)
+    || (b.armor || 0) - (a.armor || 0)
+    || String(a.uid).localeCompare(String(b.uid)));
+}
 
 const SLOT_NOUN = { helm: "Helm", shoulders: "Guards", vest: "Vest", pants: "Legs", boots: "Boots" };
 

@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rollGear, sellValue, vendorPiece, RARITY } from "./gear.js";
+import { rollGear, sellValue, vendorPiece, RARITY, rarityRank, sortBag } from "./gear.js";
 import { ARMOR, ARMOR_SLOT_ORDER, DROP } from "../config.js";
 import { mulberry32 } from "../rng.js";
 
@@ -88,6 +88,43 @@ test("rollGear: deeper rings roll bigger armour on average", () => {
     return s / n;
   };
   assert.ok(avg(8) > avg(1), "ring 8 armour should out-average ring 1");
+});
+
+test("sortBag: EVERY rarity has a rank — no rarity may sort to the bottom by omission", () => {
+  // The bug this exists to prevent: the bag sorted on a hand-written rarity->score table, so
+  // adding `epic` scored it zero, below grey, and every purple sank to the bottom of the bag.
+  // Checking the whole RARITY set means the next rarity added cannot repeat it.
+  for (const key of Object.keys(RARITY)) {
+    assert.ok(rarityRank(key) >= 0, `rarity "${key}" is missing from the ladder`);
+  }
+  assert.equal(rarityRank("epic"), Math.max(...Object.keys(RARITY).map(rarityRank)),
+    "epic must be the top of the ladder");
+});
+
+test("sortBag: best at the top, worst at the bottom", () => {
+  const mk = (rarity, tier, armor, uid) => ({ rarity, tier, armor, uid });
+  const out = sortBag([
+    mk("common", 9, 500, "a"),      // a deep grey still loses to any colour
+    mk("epic", 0, 10, "b"),         // a shallow purple still wins
+    mk("rare", 5, 100, "c"),
+    mk("rare", 2, 400, "d"),        // same colour, shallower: below its deeper twin
+    mk("uncommon", 8, 300, "e"),
+  ]);
+  assert.deepEqual(out.map((p) => p.uid), ["b", "c", "d", "e", "a"]);
+});
+
+test("sortBag: order depends only on things that never change about a piece", () => {
+  // Equipping reorders the underlying list. If the display order read anything mutable, the
+  // piece you just clicked would jump out from under your cursor.
+  const bag = [
+    { rarity: "rare", tier: 3, armor: 90, uid: "x" },
+    { rarity: "rare", tier: 3, armor: 90, uid: "y" },
+    { rarity: "epic", tier: 1, armor: 10, uid: "z" },
+  ];
+  const first = sortBag(bag).map((p) => p.uid);
+  const shuffled = [bag[2], bag[0], bag[1]];
+  assert.deepEqual(sortBag(shuffled).map((p) => p.uid), first,
+    "the same bag in a different order must display identically");
 });
 
 test("sellValue: always at least 1, and rarer sells for more", () => {

@@ -161,6 +161,11 @@
          ground — so the thing you walked across a ring for still looks like it when stowed. */
       #inv .cell.epic { box-shadow: 0 0 9px rgba(163,53,238,0.55), inset 0 0 12px rgba(122,31,208,0.25); }
       #shop .sellitem .tr { font-size: 9px; color: #8fa3bf; margin-left: auto; padding: 0 6px; }
+      /* Worn pieces are hoverable now, so they need to look it. */
+      #inv .gslot[data-gear] { cursor: help; }
+      #inv .gslot[data-gear]:hover { border-color: #6d7f9e; background: #2b3548; }
+      #inv .gslot .tier { font-size: 9px; color: #8fa3bf; margin-left: 6px; }
+      #inv .gslot.epic { box-shadow: 0 0 8px rgba(163,53,238,0.45); }
       #inv .none { padding: 14px; color: #93a6c0; margin: 0; }
       #inv .adm { background: #26314a; border: 1px solid #3d4d6b; color: #9fb4d4;
         border-radius: 5px; padding: 3px 9px; margin-right: 8px; cursor: pointer;

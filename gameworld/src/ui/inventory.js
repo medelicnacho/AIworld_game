@@ -14,6 +14,7 @@ import { SLOTS } from "../player/abilities.js";
 import { ICONS } from "./icons.js";
 import { WEAPONS, STAT_INFO, ADMIN_CODE } from "../config.js";
 import { statLine } from "./shop.js";
+import { sortBag } from "../prog/gear.js";
 
 const SLOT_LABEL = { helm: "Helm", shoulders: "Shoulders", vest: "Vest", pants: "Legs", boots: "Boots" };
 
@@ -250,7 +251,11 @@ export class Inventory {
   buildTip() {
     const gear = this.hooks.gearState?.();
     if (!gear) return "";
-    const piece = gear.owned.find((p) => p.uid === this.hoverUid);
+    // Look in the bag AND in what you are wearing. The bag deliberately holds only what you
+    // are NOT using, so a worn piece was invisible to this and hovering your own kit did
+    // nothing at all.
+    const piece = gear.owned.find((p) => p.uid === this.hoverUid)
+      || gear.slots.map((sl) => sl.piece).find((p) => p && p.uid === this.hoverUid);
     if (!piece) return "";
     const equipped = gear.slots.find((sl) => sl.slot === piece.slot)?.piece;
     const worn = equipped && equipped.uid === piece.uid;
@@ -259,11 +264,15 @@ export class Inventory {
     html += `<div class="tt-slot">${SLOT_LABEL[piece.slot] || piece.slot}`
       + ` · tier ${piece.tier ?? 0}${worn ? " · equipped" : ""}</div>`;
     html += `<div class="tt-stats">${this.statRows(piece.stats)}</div>`;
-    if (this.shift && equipped && !worn) {
+    // A worn piece gets the stats and nothing else. There is nothing to compare it against
+    // (it IS the comparison), and nothing to do with it from here — so any extra line would
+    // be a prompt to press a key that does nothing.
+    if (worn) return html;
+    if (this.shift && equipped) {
       html += `<div class="tt-cmp">vs equipped — ${equipped.name}</div>`;
       const d = this.deltaRows(piece.stats, equipped.stats);
       html += `<div class="tt-stats">${d || '<div class="tt-hint">identical stats</div>'}</div>`;
-    } else if (!worn) {
+    } else {
       html += `<div class="tt-hint">${equipped ? "hold Shift to compare · " : ""}right-click to drop</div>`;
     }
     return html;
@@ -295,7 +304,10 @@ export class Inventory {
 
   onDrop2(e) {
     if (!this.open) return;
-    const cell = e.target.closest("[data-gear]");
+    // Only from the BAG. The paperdoll now carries data-gear as well so its rows can be
+    // hovered for stats, but right-clicking what you are wearing should not throw it on the
+    // floor — unequip it first, deliberately, and then decide.
+    const cell = e.target.closest(".bag [data-gear]");
     if (!cell) return;
     e.preventDefault();
     const ok = this.hooks.dropGear?.(cell.dataset.gear);
@@ -322,11 +334,16 @@ export class Inventory {
       <div class="gslot ${gun ? "" : "empty"}">
         <span class="lbl">Weapon</span><span class="val">${gun?.weapon?.name || "—"}</span>
       </div>`;
+    // The worn pieces carry data-gear too, so hovering one shows the same stat card the bag
+    // gives you. Reading what you are WEARING should never be harder than reading what you
+    // are carrying — and until now the only way to check your own kit was to remember it.
     for (const { slot, piece } of gear.slots) {
       doll += `
-        <div class="gslot ${piece ? "" : "empty"}">
+        <div class="gslot ${piece ? "" : "empty"} ${piece?.rarity === "epic" ? "epic" : ""}"
+             ${piece ? `data-gear="${piece.uid}"` : ""}>
           <span class="lbl">${SLOT_LABEL[slot] || slot}</span>
           <span class="val" style="${piece ? `color:${piece.color}` : ""}">${piece ? piece.name : "—"}</span>
+          ${piece ? `<span class="tier">T${piece.tier ?? 0}</span>` : ""}
         </div>`;
     }
 
@@ -360,15 +377,9 @@ export class Inventory {
       }).join("")
       : "";
     const worn = new Set(gear.slots.map((x) => x.piece?.uid).filter(Boolean));
-    // Sort the bag by RARITY — rarest at the top, greys at the bottom — using only fields that
-    // never change (rarity, armour, uid). Ordering on immutable keys is what stops a piece from
-    // jumping when you click it: equipping reorders gear.owned, but the DISPLAY order is fixed,
-    // so the clicked piece stays exactly where it was.
-    const rank = { rare: 3, uncommon: 2, common: 1 };
-    const sorted = [...(gear.owned || [])].sort((a, b) =>
-      (rank[b.rarity] || 0) - (rank[a.rarity] || 0)
-      || (b.armor || 0) - (a.armor || 0)
-      || String(a.uid).localeCompare(String(b.uid)));
+    // Best at the top, worst at the bottom. The ordering itself lives in gear.js so that the
+    // shop's bag and this one can never disagree about which piece is better.
+    const sorted = sortBag(gear.owned);
     // The TIER badge. Rarity (the colour) says how many stats a piece carries; tier says how
     // big they are, and they move independently — a blue out of the Commons and a blue out of
     // the Deep look identical without this while one has several times the numbers. Two pieces
