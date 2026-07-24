@@ -213,6 +213,13 @@ export function lockedFor(factionId, rep) {
   return FACTION_GEAR.filter((p) => p.faction === factionId && p.repTier === t + 1);
 }
 
+/**
+ * Which weapon each faction teaches. Sold at the BOTTOM rung, not gated behind the climb —
+ * the weapon is the faction's identity, the thing that changes how you fight, and it should
+ * land the day you join rather than three hours later. The price is the gate.
+ */
+export const FACTION_WEAPON = { iron: "cleaver", vale: "lobber", ash: "lance" };
+
 // --- player state --------------------------------------------------------------------
 
 /** The faction you belong to, or null. */

@@ -37,6 +37,8 @@ export const player = {
   jumpsLeft: 2,
   sprinting: false,
   dodgeT: 0, dodgeCd: 0, iframes: 0, dodgeX: 0, dodgeZ: 0,
+  // The cleaver's right-click spin. Transient combat state, never saved.
+  spinT: 0, spinCd: 0,
   dashT: 0, dashX: 0, dashZ: 0,
   leapT: 0, leapX: 0, leapZ: 0, leapPending: false, whirlT: 0,
   hp: 100, maxHp: 100,

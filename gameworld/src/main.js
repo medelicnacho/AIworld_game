@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -272,6 +272,68 @@ function whirlSlam() {
   player.whirlT = WHIRL.spinTime;
   whirlTick = 0;
 }
+
+// THE CLEAVER'S SPIN (WEAPONS.md). Not a purchased spell — it comes WITH the weapon, which
+// is why it lives here beside the abilities rather than in the shop's tables.
+//
+// Untouchable only for the opening window. The full-length version was safe three seconds in
+// every four and, with haste, permanently — which deletes every telegraph in the game. A
+// window you have to TIME is a skill, and it is the same skill everything else here teaches:
+// read the thing coming at you and answer it.
+const spinRingFx = (() => {
+  const g = new THREE.RingGeometry(SPIN.radius * 0.5, SPIN.radius, 44);
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color: 0xcfd9ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+  }));
+  m.visible = false;
+  scene.add(m);
+  return m;
+})();
+let spinTick = 0;
+
+function trySpin() {
+  if (player.spinT > 0 || player.spinCd > 0) return;
+  player.spinT = SPIN.time;
+  // Haste shortens it, the floor stops haste breaking it — the same rail as everywhere else.
+  player.spinCd = Math.max(SPIN.cdFloor, SPIN.cd * (player.hasteCd || 1));
+  player.iframes = Math.max(player.iframes, SPIN.iframes);
+  spinTick = 0;
+  // ONE shove, on the opening beat — room to fight in, not a permanent force field.
+  for (const e of [...world.entities.values()]) {
+    if (e.kind !== "mob") continue;
+    if (Math.hypot(e.x - player.x, e.z - player.z) > SPIN.radius) continue;
+    mobs.push(e, player.x, player.z, SPIN.knock);
+  }
+  sfx.whoosh();
+  markCombat();
+}
+
+function updateSpin(dt) {
+  if (player.spinCd > 0) player.spinCd -= dt;
+  if (player.spinT > 0) {
+    player.spinT -= dt;
+    spinTick -= dt;
+    if (spinTick <= 0) {
+      spinTick = SPIN.tick;
+      // Flat to the rim, like Whirlwind: the ring you see is the ring that hits. Through the
+      // GUN bucket — this is the weapon working, not a spell.
+      blast(player.x, player.y + 1, player.z, SPIN.radius, SPIN.damage, 4, false, true, false, "gun");
+    }
+    spinRingFx.visible = true;
+    spinRingFx.position.set(player.x, player.y + 0.35, player.z);
+    spinRingFx.rotation.y -= dt * 22;
+    // The bright phase IS the untouchable window, so the timing you must learn is drawn.
+    const guarded = SPIN.time - player.spinT < SPIN.iframes;
+    spinRingFx.material.opacity = guarded ? 0.8 : 0.28 + 0.12 * Math.sin(performance.now() * 0.025);
+  } else if (spinRingFx.visible) {
+    spinRingFx.visible = false;
+  }
+}
+
+// State for the weapon routing in the frame loop.
+let prevRmb = false, wasOverheated = false, lanceVoice = null, beamFlushT = 0;
+const beamAcc = new Map();
 
 // ============================ NEW SPELLS ============================
 // Ground POOLS: tick spell-damage to mobs inside and optionally slow/root them. Pooled meshes
@@ -988,7 +1050,8 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
   // The damage BUCKET for this source (grenade blasts vs spell/ability blasts). It scales the
   // ENEMY damage only — your own self-damage below stays on the base so it can't grow with
   // your gear and blow you up.
-  const bucket = 1 + (kind === "spell" ? (player.dmgSpell || 0) : (player.dmgGrenade || 0));
+  const bucket = 1 + (kind === "spell" ? (player.dmgSpell || 0)
+    : kind === "gun" ? (player.dmgGun || 0) : (player.dmgGrenade || 0));
 
   for (const e of [...world.entities.values()]) {
     if (e.kind !== "mob") continue;
@@ -1295,7 +1358,9 @@ function frame(now) {
   sanctuaries.update(dt, player.x, player.z);
   // The camera must settle BEFORE the gun reads it — firing off last frame's camera is a
   // subtle, maddening "my shots trail my aim" bug when you're turning fast.
-  rig.update(dt, input.aim);
+  // The cleaver never pulls to first person: RMB is its SPIN, and there is nothing for ADS
+  // to buy on a weapon with no spread. The other two aim exactly like guns.
+  rig.update(dt, input.aim && gun.weapon.mode !== "melee");
 
   // Weapons stow inside the walls. Gated HERE rather than inside gun.js, for the same
   // reason the damage rule lives in damagePlayer: systems don't learn each other's names,
@@ -1303,29 +1368,91 @@ function frame(now) {
   inSafe = sanctuaryOf(player.x, player.z, 0) !== null;
   const inSafeZone = inSafe;
 
+  // RMB on the cleaver is the spin, edge-triggered like every other press-to-act input —
+  // holding the button must not queue a second spin the instant the first cooldown ends.
+  {
+    const rmbPressed = input.aimHeld && !prevRmb;
+    prevRmb = input.aimHeld;
+    if (rmbPressed && gun.weapon.mode === "melee") {
+      if (inSafeZone) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; }
+      else trySpin();
+    }
+  }
+
+  /** One damage number for anything the player's weapon touched, through the GUN bucket. */
+  const applyWeaponHit = (t, dmg, knock = 0) => {
+    if (t.tag === "boss" || t.tag === "bossWeak") {
+      const bx = boss.alive?.x, bz = boss.alive?.z;
+      const res = boss.hit(t.tag, dmg);
+      if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
+      else if (res?.weak) killFeed = "core hit ×2.5";
+      return;
+    }
+    const res = mobs.hit(t.id, dmg);
+    if (res?.killed) { reward(res); grenades.refill(); }
+    else if (knock > 0) {
+      // Survivors of a swing get thrown — the shove is half of what a cleaver IS.
+      const e = world.entities.get(t.id);
+      if (e) mobs.push(e, player.x, player.z, knock);
+    }
+  };
+
   {
     // tryFire is called every frame with whether the trigger is HELD, so the gun itself can
     // enforce semi-auto (release between shots) for the shotgun and sniper. A safe zone reads
     // as trigger-up. One shot can strike several targets now (shotgun pellets), so damage is
     // applied per struck target, each pellet dealing the weapon's damage through dmgMult.
     const shot = gun.tryFire(rig.blend > 0.5, gunRng,
-      [...mobs.targets(), ...boss.targets()], input.firing && !inSafeZone);
-    if (shot?.fired) {
+      [...mobs.targets(), ...boss.targets()], input.firing && !inSafeZone, dt);
+
+    if (shot?.beam) {
+      // THE BEAM does not deal its damage here. It burns for tiny amounts sixty times a
+      // second, and pushing each sliver through the normal hit path would fire the confirm
+      // sound and a floating number PER FRAME per target — a scream and a blizzard. So it
+      // pours into an accumulator that is emptied a few times a second: same damage, one
+      // legible number, one tick of feedback.
       markCombat();
+      if (!lanceVoice) lanceVoice = sfx.lanceHum();
       for (const t of shot.targets) {
-        const dmg = shot.damage * player.dmgMult * (1 + (player.dmgGun || 0));
-        if (t.tag === "boss" || t.tag === "bossWeak") {
-          const bx = boss.alive?.x, bz = boss.alive?.z;
-          const res = boss.hit(t.tag, dmg);
-          if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
-          else if (res?.weak) killFeed = "core hit ×2.5";
-        } else {
-          const res = mobs.hit(t.id, dmg);
-          if (res?.killed) { reward(res); grenades.refill(); }
+        const k = t.tag || t.id;
+        const acc = beamAcc.get(k) || { t, dmg: 0 };
+        acc.dmg += shot.damage;
+        beamAcc.set(k, acc);
+      }
+    } else {
+      if (lanceVoice) { lanceVoice.stop(); lanceVoice = null; }
+      if (shot?.fired) {
+        markCombat();
+        for (const t of shot.targets) {
+          const dmg = shot.damage * player.dmgMult * (1 + (player.dmgGun || 0));
+          applyWeaponHit(t, dmg, shot.melee ? shot.knock : 0);
         }
       }
     }
+    // The redline is a moment, not a state — it gets one clunk, on the transition.
+    if (gun.overheated > 0 && !wasOverheated) sfx.overheat();
+    wasOverheated = gun.overheated > 0;
   }
+
+  // Empty the beam's accumulator on a slow clock: damage arrives in readable bites.
+  beamFlushT -= dt;
+  if (beamFlushT <= 0 && beamAcc.size) {
+    beamFlushT = 0.18;
+    for (const { t, dmg } of beamAcc.values()) {
+      applyWeaponHit(t, dmg * player.dmgMult * (1 + (player.dmgGun || 0)));
+    }
+    beamAcc.clear();
+  }
+
+  // The lobber's shells in flight. Bursts route through the same blast() as everything else
+  // — main decides what an explosion touches — but through the GUN damage bucket, and they
+  // never hurt the one who fired them (WEAPONS.md: the cost is leading the shot, not fear).
+  gun.updateShells(dt, (sx, sy, sz) => {
+    blast(sx, sy, sz, WEAPONS.lobber.blastRadius, WEAPONS.lobber.blastDamage,
+          8, false, false, false, "gun");
+    sfx.explosion(sx, sz, 0.9);
+    markCombat();
+  });
   if (input.throwQueued) {
     input.throwQueued = false;
     if (inSafeZone) {
@@ -1498,6 +1625,7 @@ function frame(now) {
 
   updateGearDrops(dt);
   updateSpells(dt);
+  updateSpin(dt);
   updateLevelFx(dt);
   minimap.draw(dt, mobs, boss, folk, villagers);
 
@@ -1525,7 +1653,7 @@ function frame(now) {
 
   // Socket 2 in practice: the render layer READS sim state and owns none of it.
   body.position.set(player.x, player.y + 0.62, player.z);
-  body.rotation.y = player.whirlT > 0 ? (body.rotation.y + dt * 22) : player.yaw;
+  body.rotation.y = (player.whirlT > 0 || player.spinT > 0) ? (body.rotation.y + dt * 22) : player.yaw;
   body.visible = rig.blend < 0.85;      // hide your own head in first person
 
   const ring = ringAt(player.x, player.z);
@@ -1585,7 +1713,10 @@ function frame(now) {
     `${player.armor ? `   armour ${player.armor} (-${Math.round(armorDR(player.armor, tier) * 100)}%)` : ""}` +
     `${player.haste ? `   haste +${Math.round((player.hasteFire - 1) * 100)}%` : ""}\n` +
 
-    `${gun.weapon.name}  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…" : `${gun.mag}/${gun.weapon.magSize}`}${gun.owned.size > 1 ? "  (wheel to switch)" : ""}` +
+    `${gun.weapon.name}  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…"
+    : gun.weapon.mode === "beam" ? `heat ${Math.round(gun.heat * 100)}%${gun.overheated > 0 ? " OVERHEAT" : ""}`
+    : gun.weapon.mode === "melee" ? (player.spinCd > 0 ? `spin ${player.spinCd.toFixed(1)}s` : "spin ready")
+    : `${gun.mag}/${gun.weapon.magSize}`}${gun.owned.size > 1 ? "  (wheel to switch)" : ""}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
     `${bridge.label}${speaking ? "  ·  thinking…" : ""}\n` +
     `${!paused && document.pointerLockElement !== renderer.domElement
@@ -1607,13 +1738,36 @@ function frame(now) {
     + `${dr ? `<span class="hp-arm">◆ ${dr}% ARMOR</span>` : ""}</div>`
     + `<div class="hp-track"><div class="hp-fill" style="width:${Math.max(0, Math.min(100, hpFrac * 100))}%"></div></div>`;
 
-  const magMax = gun.weapon.magSize;
-  const lowAmmo = gun.mag <= Math.ceil(magMax * 0.25);
-  ammoEl.innerHTML =
-    `<div class="am-name">${gun.weapon.name}${gun.owned.size > 1 ? " ⟳" : ""}</div>`
-    + `<div class="am-row">${inSafeZone ? `<span class="am-stow">STOWED</span>`
-      : gun.reloading > 0 ? `<span class="am-reload">RELOAD</span>`
-        : `<span class="am-cur ${lowAmmo ? "low" : ""}">${gun.mag}</span><span class="am-max">/ ${magMax}</span>`}</div>`;
+  // The weapon panel now answers a second question. LMB state was always here (ammo /
+  // reload / stowed); the faction weapons put something real on RMB too, and a cooldown you
+  // cannot see is a cooldown you do not use — so the right-click's state sits beside the
+  // ammo, in the one corner your eyes already visit for weapon truth.
+  {
+    const w = gun.weapon;
+    const magMax = w.magSize;
+    const lowAmmo = gun.mag <= Math.ceil(magMax * 0.25);
+    let left;
+    if (inSafeZone) left = `<span class="am-stow">STOWED</span>`;
+    else if (w.mode === "melee") left = `<span class="am-cur">∞</span>`;
+    else if (w.mode === "beam") {
+      // Heat is the lance's ammunition, so it lives where ammunition lives.
+      const pct = Math.round(gun.heat * 100);
+      left = gun.overheated > 0
+        ? `<span class="am-reload">OVERHEAT</span>`
+        : `<span class="am-cur ${pct > 70 ? "low" : ""}">${pct}%</span><span class="am-max"> heat</span>`;
+    } else if (gun.reloading > 0) left = `<span class="am-reload">RELOAD</span>`;
+    else left = `<span class="am-cur ${lowAmmo ? "low" : ""}">${gun.mag}</span><span class="am-max">/ ${magMax}</span>`;
+
+    let rc = "";
+    if (w.mode === "melee" && !inSafeZone) {
+      rc = player.spinT > 0 ? `<span class="am-rc on">SPINNING</span>`
+        : player.spinCd > 0 ? `<span class="am-rc">RMB ${player.spinCd.toFixed(1)}s</span>`
+          : `<span class="am-rc up">RMB SPIN</span>`;
+    }
+    ammoEl.innerHTML =
+      `<div class="am-name">${w.name}${gun.owned.size > 1 ? " ⟳" : ""}</div>`
+      + `<div class="am-row">${left}${rc}</div>`;
+  }
 
   const xpPct = Math.round(levelProgress() * 100);
   xpEl.innerHTML = `<div class="xp-fill" style="width:${xpPct}%"></div>`

@@ -116,6 +116,85 @@ export const WEAPONS = {
   },
 };
 
+// FACTION WEAPONS. See WEAPONS.md for the reasoning; this is only the numbers.
+//
+// The four starting guns are all one verb — point, click, a number happens — differing by
+// rate and damage, which are adjectives. These three ask different QUESTIONS: the cleaver
+// asks about range and commitment, the lobber about prediction, the lance about lines. That
+// is what makes joining a faction change how you FIGHT rather than what you are called.
+//
+// `mode` is what the gun does with a trigger pull. Everything without one is hitscan, exactly
+// as before, so the original four are untouched by any of this.
+Object.assign(WEAPONS, {
+  cleaver: {
+    id: "cleaver", name: "Iron Cleaver", price: 900, faction: "iron", mode: "melee",
+    // A cone, not a ray. Reach is short and the arc is wide: you are not aiming so much as
+    // deciding to be here.
+    damage: 88, fireRate: 1.9, range: 4.4, coneDeg: 100, knock: 12,
+    magSize: 0, reloadTime: 0, pellets: 1, auto: true, recoil: 0.004, recoilRecover: 0.7,
+    spreadHip: 0, spreadAim: 0, sound: "cleave",
+    desc: "A wide swing in front of you that throws things back. Right-click to spin: "
+      + "untouchable for a heartbeat, then damage all around you.",
+  },
+  lobber: {
+    id: "lobber", name: "Vale Lobber", price: 900, faction: "vale", mode: "projectile",
+    // One at a time, like a sidearm. The ball travels, so hitting something moving is a
+    // question of where it will BE.
+    damage: 0,                     // all of it lands as splash; see blastDamage
+    fireRate: 2.1, magSize: 6, reloadTime: 1.25, range: 120,
+    pellets: 1, auto: false, recoil: 0.03, recoilRecover: 0.6,
+    spreadHip: 0.055, spreadAim: 0.006, sound: "lob",
+    speed: 46, drop: -7,           // barely arcs: flat enough to aim, slow enough to lead
+    blastRadius: 4.6, blastDamage: 118,
+    // IT DOES NOT HURT YOU. The opposite of the grenade rule, on purpose — an explosive fired
+    // like a sidearm would kill you constantly up close, punishing the exact thing the speed
+    // faction is FOR. The cost lives in the travel time and the tight radius instead.
+    selfDamage: false,
+    desc: "Lobs an exploding shell. It never hurts you — the difficulty is leading the shot.",
+  },
+  lance: {
+    id: "lance", name: "Ash Lance", price: 900, faction: "ash", mode: "beam",
+    // Sustained, and it PIERCES: it does not stop at the first thing it touches.
+    damage: 0,
+    dps: 132, aimMult: 1.55, range: 78, beamRadius: 0.9,
+    fireRate: 0, magSize: 0, reloadTime: 0, pellets: 1, auto: true,
+    recoil: 0, recoilRecover: 1, spreadHip: 0, spreadAim: 0, sound: "beam",
+    // OVERHEAT, because a piercing sustained beam with no cost is the best crowd answer in
+    // the game and nobody would ever use anything else. This turns "hold the button" into
+    // "manage the beam", which is a skill rather than a dominance.
+    heatUp: 0.30,                  // fraction of the bar per second while firing (~3.3s)
+    heatDown: 0.42,                // and per second while off it
+    overheatLock: 1.6,             // forced cool-down once it redlines
+    desc: "A burning ray that goes THROUGH what it hits. Stronger while aiming. "
+      + "Hold it too long and it overheats.",
+  },
+});
+
+// The right-click on the cleaver. A spin — not a block, because an active move that makes
+// space fits melee far better than standing still, and because it makes the defensive faction
+// the one that is best at READING incoming damage rather than the one that cannot be hurt.
+export const SPIN = {
+  time: 2.5,
+  // UNTOUCHABLE ONLY AT THE START. Three seconds of invulnerability on a four second cooldown
+  // is safe three quarters of the time, and with haste it finishes while you are still
+  // spinning — permanently immune, which deletes every telegraph in the game. Everything else
+  // here runs at about a quarter uptime (dodge 0.2s per 0.7s, Whirlwind 3.6s per 13s), so the
+  // safe part is a WINDOW you have to time, and missing it costs you the move.
+  iframes: 0.6,
+  cd: 5,
+  cdFloor: 2.5,          // haste has no ceiling; this is the rail, as everywhere else
+  radius: 6.6,
+  tick: 0.25,
+  // Per tick, and deliberately the WEAKEST sustained damage in the kit: under the cleaver's
+  // swings (so spinning on cooldown is a loss against one target) and under Whirlwind (a
+  // purchased spell on a long cooldown must stay the heavier hitter, or a free weapon
+  // attack outclasses something you paid for). It wins only when surrounded — which is
+  // exactly when you want it for the shove and the guarded window anyway.
+  damage: 18,
+  knock: 9,              // one shove on the opening beat, not a permanent force field
+  speed: 1.25,           // you move a little faster while spinning
+};
+
 // The starting weapon, and a back-compat alias for a few call sites that still say GUN.
 export const GUN = WEAPONS.rifle;
 

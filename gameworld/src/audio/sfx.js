@@ -877,6 +877,146 @@ export class Sfx {
     }
   }
 
+  // --- the faction weapons -----------------------------------------------------------
+  // All three are YOUR weapon, so like the gunshot they are non-positional and mixed low —
+  // a sound you make hundreds of times an hour must inform without fatiguing.
+
+  /**
+   * The cleaver swing. Air first, and — only when something was actually in the arc — a
+   * meaty thunk on top. The miss and the hit MUST sound different: melee has no tracer and
+   * no impact mark, so the ear is the only place a whiff can be told from a connect.
+   */
+  cleave(hit = false) {
+    if (!this.on || !this.budget(0.5, 120)) return;
+    const t = this.t;
+    // The air: noise swept downward through a bandpass — a heavy thing moving fast.
+    const air = this.noise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.setValueAtTime(2400, t);
+    bp.frequency.exponentialRampToValueAtTime(500, t + 0.16);
+    bp.Q.value = 1.1;
+    const ag = this.ctx.createGain();
+    ag.gain.setValueAtTime(0.28, t);
+    ag.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    air.connect(bp); bp.connect(ag); ag.connect(this.master);
+    air.start(t); air.stop(t + 0.2);
+
+    if (!hit) return;
+    // The connect: a low body-blow, pitched down fast through soft clip.
+    const o = this.ctx.createOscillator();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(180, t + 0.03);
+    o.frequency.exponentialRampToValueAtTime(55, t + 0.14);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.5, t + 0.03);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    const warm = this.distortion(18);
+    o.connect(warm); warm.connect(og); og.connect(this.master);
+    o.start(t + 0.03); o.stop(t + 0.18);
+  }
+
+  /** The lobber's report: a hollow THOOMP, the mortar-tube cousin of a gunshot. */
+  lob() {
+    if (!this.on || !this.budget(0.5, 150)) return;
+    const t = this.t;
+    const o = this.ctx.createOscillator();
+    o.type = "sine";
+    o.frequency.setValueAtTime(210, t);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.12);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.5, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(og); og.connect(this.master);
+    o.start(t); o.stop(t + 0.18);
+    // A breath of air out of the barrel, so it reads as launched rather than as a beep.
+    const puff = this.noise();
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 900;
+    const pg = this.ctx.createGain();
+    pg.gain.setValueAtTime(0.18, t);
+    pg.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    puff.connect(lp); lp.connect(pg); pg.connect(this.master);
+    puff.start(t); puff.stop(t + 0.12);
+  }
+
+  /**
+   * The lance while it burns — a sustained sizzle with a stop handle, like the heal channel
+   * and the boss beam. Continuous because the THREAT is continuous: the sound stopping is
+   * how you know the trigger slipped or the heat cut you off, without looking at a bar.
+   */
+  lanceHum() {
+    if (!this.on) return null;
+    const t = this.t;
+    const out = this.ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.16, t + 0.08);
+    out.connect(this.master);
+
+    const parts = [];
+    // Two close tones beating against each other: energy held, not released.
+    for (const [f, g] of [[164, 0.5], [166.5, 0.35]]) {
+      const o = this.ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = f;
+      const og = this.ctx.createGain();
+      og.gain.value = g;
+      const warm = this.distortion(10);
+      o.connect(warm); warm.connect(og); og.connect(out);
+      o.start(t);
+      parts.push(o);
+    }
+    // Frying air on top — the sizzle that says heat rather than engine.
+    const air = this.noise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 3400;
+    bp.Q.value = 0.8;
+    const ag = this.ctx.createGain();
+    ag.gain.value = 0.3;
+    air.connect(bp); bp.connect(ag); ag.connect(out);
+    air.start(t);
+    parts.push(air);
+
+    let done = false;
+    return {
+      stop: () => {
+        if (done) return;
+        done = true;
+        const n = this.t;
+        out.gain.cancelScheduledValues(n);
+        out.gain.setValueAtTime(Math.max(0.0001, out.gain.value), n);
+        out.gain.exponentialRampToValueAtTime(0.0001, n + 0.08);
+        for (const o of parts) { try { o.stop(n + 0.1); } catch { /* already stopped */ } }
+      },
+    };
+  }
+
+  /** The lance redlining: a dead CLUNK and a hiss of escaping heat. Failure must be audible. */
+  overheat() {
+    if (!this.on) return;
+    const t = this.t;
+    const o = this.ctx.createOscillator();
+    o.type = "square";
+    o.frequency.setValueAtTime(140, t);
+    o.frequency.exponentialRampToValueAtTime(60, t + 0.08);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.4, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    o.connect(og); og.connect(this.master);
+    o.start(t); o.stop(t + 0.12);
+    const hiss = this.noise();
+    const hp = this.ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 2600;
+    const hg = this.ctx.createGain();
+    hg.gain.setValueAtTime(0.22, t + 0.05);
+    hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+    hiss.connect(hp); hp.connect(hg); hg.connect(this.master);
+    hiss.start(t + 0.05); hiss.stop(t + 0.7);
+  }
+
   /**
    * Hit confirmation — the single cheapest "feels good" multiplier a shooter has, and the
    * one this game was missing entirely. A short filtered-noise TICK with a tiny pitched

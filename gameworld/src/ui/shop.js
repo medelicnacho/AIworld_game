@@ -12,7 +12,7 @@ import { player } from "../state.js";
 import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, WEAPONS, ARMOR, STAT_INFO, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "../config.js";
 import { tierAt } from "../world/gen.js";
 import { sellValue, sortBag } from "../prog/gear.js";
-import { factionById, repProgress, stockFor, lockedFor, REP_TIERS, repForTurnIn, join, JOIN_LEVEL }
+import { factionById, repProgress, stockFor, lockedFor, REP_TIERS, repForTurnIn, join, JOIN_LEVEL, FACTION_WEAPON }
   from "../prog/factions.js";
 import { sfx } from "../audio/sfx.js";
 
@@ -231,6 +231,20 @@ export class Shop {
       }
       const facId = e.target?.closest?.("[data-buyfac]")?.dataset?.buyfac;
       if (facId) { this.buyFaction(facId); return; }
+      const wepId = e.target?.closest?.("[data-buyweapon]")?.dataset?.buyweapon;
+      if (wepId) {
+        const wd = WEAPONS[wepId];
+        if (wd && player.points >= wd.price && !this.game.gun.owned.has(wepId)) {
+          player.points -= wd.price;
+          this.game.gun.acquire(wepId);       // buys AND equips, like the smith's guns
+          sfx.levelUp();
+          this.flash = `${wd.name} — yours`;
+        } else if (wd) {
+          this.flash = "not enough points";
+        }
+        this.render();
+        return;
+      }
       const turnUid = e.target?.closest?.("[data-turnin]")?.dataset?.turnin;
       if (turnUid) {
         const got = this.game.turnIn?.(turnUid) || 0;
@@ -462,6 +476,22 @@ export class Shop {
         <span class="pr">${buyable ? p.price : REP_TIERS[p.repTier].name}</span>
       </button>`;
 
+    // THE WEAPON, first in the list. It is what the faction IS — the piece of kit that
+    // changes how you fight rather than what your numbers say — so it leads the stock.
+    const wid = FACTION_WEAPON[fid];
+    const wdef = WEAPONS[wid];
+    const wOwned = this.game.gun?.owned?.has(wid);
+    const weaponRow = wdef ? (wOwned
+      ? `<button class="item poor" disabled>
+           <span class="nm">${wdef.name} <em>owned</em></span>
+           <span class="ds">${wdef.desc}</span>
+         </button>`
+      : `<button class="item${player.points >= wdef.price ? "" : " poor"}" data-buyweapon="${wid}">
+           <span class="nm" style="color:${f.color}">${wdef.name}</span>
+           <span class="ds">${wdef.desc}</span>
+           <span class="pr">${wdef.price}</span>
+         </button>`) : "";
+
     return `
       <div class="qm">
         <div class="repbar">
@@ -469,7 +499,7 @@ export class Shop {
           <span class="reptrack">${"█".repeat(bar)}${"░".repeat(24 - bar)}</span>
           <span class="repnum">${pr.need ? `${rep} / ${pr.need} → ${pr.nextName}` : `${rep} · highest`}</span>
         </div>
-        <div class="items">${stock.map((p) => row(p, true)).join("")}</div>
+        <div class="items">${weaponRow}${stock.map((p) => row(p, true)).join("")}</div>
         ${locked.length ? `<h3>Earned at ${REP_TIERS[locked[0].repTier].name}</h3>
           <div class="items">${locked.map((p) => row(p, false)).join("")}</div>` : ""}
       </div>`;

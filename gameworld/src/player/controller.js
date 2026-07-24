@@ -4,7 +4,7 @@
 // slide along a wall instead of sticking to it. It samples the world function directly, so
 // there is no collider to build, bake, or keep in sync with the mesh.
 
-import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY, SPRINT } from "../config.js";
+import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY, SPRINT, SPIN } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
 import { wallBlocks } from "../world/sanctuary.js";
@@ -241,7 +241,8 @@ export function stepPlayer(dt) {
   const speed = (input.sprint && !input.aim ? PLAYER.sprintSpeed : PLAYER.walkSpeed)
     * player.speedMult * (player.surgeT > 0 ? ABILITY.surgeSpeed : 1)
     * (player.sprintT > 0 ? SPRINT.mult : 1)
-    * (player.whirlT > 0 ? WHIRL.spinSpeed : 1);
+    * (player.whirlT > 0 ? WHIRL.spinSpeed : 1)
+    * (player.spinT > 0 ? SPIN.speed : 1);
 
   // Desired horizontal velocity in the yaw frame.
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
