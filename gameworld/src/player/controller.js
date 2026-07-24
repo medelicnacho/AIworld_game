@@ -31,6 +31,12 @@ export const input = {
 const LOOK_KEY = "gw.look";
 export const LOOK_MIN = 0.0015, LOOK_MAX = 0.05;
 
+// Pixels of mouse travel a SINGLE event may claim before we treat it as garbage rather than
+// as a person. Mouse reports arrive at 125Hz or faster, so even a violent flick is tens of
+// pixels per event; hundreds means the browser is reporting a cursor warp, not a hand.
+const MAX_LOOK_STEP = 260;
+let swallowNextMove = false;
+
 /**
  * Set and remember look sensitivity. Exported so the pause screen can offer it as a VISIBLE
  * control: a setting that exists only as an undocumented keybind is a setting nobody but the
@@ -138,6 +144,10 @@ export function attachInput(canvas, hooks = {}) {
   });
   document.addEventListener("pointerlockchange", () => {
     const locked = document.pointerLockElement === canvas;
+    // The next mouse report is the cursor being warped, not the player moving. See the
+    // mousemove handler — this is set on BOTH directions, since releasing the mouse puts the
+    // cursor back where it came from and reports that as movement too.
+    swallowNextMove = true;
     document.body.classList.toggle("locked", locked);
     // Escape is reserved by the browser for releasing pointer lock, so a keydown never
     // reliably arrives — losing the lock IS the pause signal, and it also covers
@@ -159,8 +169,26 @@ export function attachInput(canvas, hooks = {}) {
     // Escape closes a vendor: Chrome refuses to re-lock for ~1.25s, and a game that runs
     // but will not turn its head reads as "still paused" even though it isn't.
     if (document.pointerLockElement !== canvas && !hooks.lookUnlocked?.()) return;
-    player.yaw -= e.movementX * CAMERA.sensitivity;
-    player.pitch -= e.movementY * CAMERA.sensitivity;
+
+    // THROW AWAY THE FIRST EVENT AFTER A LOCK CHANGE, AND ANY IMPOSSIBLE ONE.
+    //
+    // Taking the mouse hides the cursor and warps it to the middle of the screen, and
+    // browsers report that warp as a MOVEMENT — one event carrying the entire distance from
+    // wherever the cursor happened to be. Now that the game starts before the capture is
+    // granted, look is live when that arrives, so a single bogus jump used to slam the view
+    // to the ceiling and leave it pinned there. Firefox is the worst for it; Chrome does it
+    // too, just less often.
+    //
+    // Two guards, because either alone leaks: skip the first report after any lock change,
+    // and refuse any single event too large for a hand to have produced. A real flick is
+    // tens of pixels per event at these rates, never hundreds — so this cannot cost anyone a
+    // fast turn, and it cannot be defeated by a warp that happens a frame later than expected.
+    if (swallowNextMove) { swallowNextMove = false; return; }
+    const dx = e.movementX || 0, dy = e.movementY || 0;
+    if (Math.abs(dx) > MAX_LOOK_STEP || Math.abs(dy) > MAX_LOOK_STEP) return;
+
+    player.yaw -= dx * CAMERA.sensitivity;
+    player.pitch -= dy * CAMERA.sensitivity;
     player.pitch = Math.max(CAMERA.minPitch, Math.min(CAMERA.maxPitch, player.pitch));
   });
 

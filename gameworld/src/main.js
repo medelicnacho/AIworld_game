@@ -1525,7 +1525,12 @@ function frame(now) {
     `${RINGS[ring].name}  (tier ${tier})   ${Math.round(fromSpawn)}m out` +
     `   next ring ${Math.max(0, Math.ceil(toNextRing))}m\n` +
     `xyz  ${player.x.toFixed(1)} ${player.y.toFixed(1)} ${player.z.toFixed(1)}\n` +
-    `cam  ${rig.mode}   look ${CAMERA.sensitivity.toFixed(4)}  [ / ]\n` +
+    // Pitch is on the debug HUD because "the view is stuck pointing up" was impossible to
+    // diagnose without it — nothing in the game reported where you were looking, so the one
+    // number that would have named the bug in seconds could only be guessed at from
+    // screenshots. A state you cannot observe is a state you cannot debug.
+    `cam  ${rig.mode}   look ${CAMERA.sensitivity.toFixed(4)}  [ / ]   ` +
+    `pitch ${(player.pitch * 180 / Math.PI).toFixed(0)}°\n` +
     `LVL ${player.level}  dmg ×${player.dmgMult.toFixed(2)}  spd ×${player.speedMult.toFixed(2)}  jmp ×${player.jumpMult.toFixed(2)}\n` +
     `    ${"▮".repeat(Math.round(levelProgress() * 12))}` +
     `${"▯".repeat(12 - Math.round(levelProgress() * 12))} ${player.xp}/${xpToNext(player.level)}xp\n` +
