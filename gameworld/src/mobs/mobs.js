@@ -60,6 +60,14 @@ export class Mobs {
     this._flip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
     this.COL_MOB = new THREE.Color(0x8d4d63);
     this.COL_ELITE = new THREE.Color(0xe8c14a);
+    // Faction body colours — the tell for which side a plain mob is on, so two armies read as
+    // two armies. Faction 0 keeps the default mob hue; the rest are distinct.
+    this.factionCols = [
+      new THREE.Color(0x8d4d63),   // 0: the default rose
+      new THREE.Color(0x3f6fd1),   // 1: blue
+      new THREE.Color(0x4fae5a),   // 2: green
+      new THREE.Color(0xcf7a2a),   // 3: amber (if factions > 3)
+    ];
     this.COL_CASTER = new THREE.Color(0xd11f1f);   // red: airborne ranged
     this.COL_GROUNDCASTER = new THREE.Color(0x8a3fd1);   // violet: ranged, but grounded
     this.COL_CHARGING = new THREE.Color(0xff8a3c);  // hot while winding up — the telegraph
@@ -144,7 +152,9 @@ export class Mobs {
     if (e.caster) return this.COL_GROUNDCASTER;
     if (e.charger) return this.COL_CHARGER;
     if (e.swarm) return this.COL_SWARM;
-    return e.elite ? this.COL_ELITE : this.COL_MOB;
+    if (e.elite) return this.COL_ELITE;
+    // Plain mobs wear their FACTION colour — the bulk of a camp, so the war reads at a glance.
+    return this.factionCols[(e.faction || 0) % this.factionCols.length];
   }
 
   /** Write every live mob into the instance buffer. One pass, one draw call. */
@@ -224,12 +234,12 @@ export class Mobs {
     return lo + this.rng() * (hi - lo);
   }
 
-  spawnOne(x, z, packId, homeX, homeZ, forceAffixes = null) {
+  spawnOne(x, z, packId, homeX, homeZ, forceAffixes = null, faction = 0) {
     const s = this.rollStats(x, z);
     const e = addEntity({
       kind: "mob", x, z,
       ...s,
-      pack: packId, homeX, homeZ,
+      pack: packId, homeX, homeZ, faction,
       aggro: false, aggroT: 0,
       atkCd: this.rng() * MOB.attackCd,
       lungeT: 0, hurtT: 0,
@@ -286,9 +296,10 @@ export class Mobs {
     const id = this.nextPack++;
     this.packs.set(id, { x: hx, z: hz });
     const count = kind === "swarm" ? 18 : n;
+    const faction = Math.floor(this.rng() * MOB.factions);
     for (let i = 0; i < count; i++) {
       const ang = this.rng() * Math.PI * 2;
-      const e = this.spawnOne(hx + Math.cos(ang) * 5, hz + Math.sin(ang) * 5, id, hx, hz, []);
+      const e = this.spawnOne(hx + Math.cos(ang) * 5, hz + Math.sin(ang) * 5, id, hx, hz, [], faction);
       if (kind === "swarm") this.makeSwarm(e);
       if (kind === "charger") { e.charger = true; e.caster = false; e.flies = false; }
     }
@@ -306,7 +317,7 @@ export class Mobs {
     for (let i = 0; i < n; i++) {
       const ang = this.rng() * Math.PI * 2;
       const e = this.spawnOne(hx + Math.cos(ang) * 4, hz + Math.sin(ang) * 4,
-                              id, hx, hz, affixIds);
+                              id, hx, hz, affixIds, Math.floor(this.rng() * MOB.factions));
       e.elite = true;                    // affixes ride on stars, so force the tell too
     }
     return true;
@@ -328,13 +339,43 @@ export class Mobs {
     const isSwarm = this.rng() < MOB.swarmPackChance;
     const [lo, hi] = isSwarm ? MOB.swarmSize : MOB.packSize;
     const n = lo + Math.floor(this.rng() * (hi - lo + 1));
+    // The whole camp shares one faction — a camp is a side in the war.
+    const faction = Math.floor(this.rng() * MOB.factions);
     for (let i = 0; i < n; i++) {
       const ang = this.rng() * Math.PI * 2;
       const r = this.rng() * MOB.homeWander * (isSwarm ? 0.5 : 1);
-      const e = this.spawnOne(hx + Math.cos(ang) * r, hz + Math.sin(ang) * r, id, hx, hz);
+      const e = this.spawnOne(hx + Math.cos(ang) * r, hz + Math.sin(ang) * r, id, hx, hz, null, faction);
       if (isSwarm) this.makeSwarm(e);
     }
     return id;
+  }
+
+  /**
+   * Nearest LIVE mob of a different faction within range — the enemy this creature will
+   * brawl. Bucketed query, so it only touches what's actually nearby.
+   */
+  enemyMobNear(e, range) {
+    if (!MOB.factionWar) return null;
+    let best = null, bd = range;
+    for (const o of nearby(e.x, e.z, range)) {
+      if (o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction) continue;
+      const d = Math.hypot(o.x - e.x, o.z - e.z);
+      if (d < bd) { bd = d; best = o; }
+    }
+    return best;
+  }
+
+  /** Damage from ANOTHER mob (the war). No player reward; the victim fights back and, if it
+   *  dies, still runs its death affix — a burst star killed in the melee still explodes. */
+  hitMob(target, amount) {
+    target.hp -= amount;
+    target.hurtT = HURT_FLASH;
+    target.aggro = true;
+    target.aggroT = MOB.loseInterest;
+    if (target.hp <= 0) {
+      runAffix(target, "onDeath", this.fx);
+      this.despawn(target.id);
+    }
   }
 
   despawn(id) {
@@ -465,7 +506,7 @@ export class Mobs {
       // forceAffixes = [] means "roll nothing": a spawnling that could itself split would
       // be an infinite fight, and one that could roll a star would lie about its size.
       const e = this.spawnOne(parent.x + Math.cos(a) * 1.5, parent.z + Math.sin(a) * 1.5,
-                              parent.pack, parent.homeX, parent.homeZ, []);
+                              parent.pack, parent.homeX, parent.homeZ, [], parent.faction);
       e.elite = false;
       e.caster = false;
       e.flies = false;
@@ -613,7 +654,15 @@ export class Mobs {
       // whole reason the detachment exists: it can only take pressure off you by being the
       // better thing to hit. It also holds while you are INSIDE the walls — which is what
       // makes a town read as a place under siege rather than a place with a fence.
-      const foe = guardNear(e.x, e.z);
+      // The target that OVERRIDES you: a gate guard, or — the war — the nearest enemy-faction
+      // mob. You still win priority when you're the closest threat and have been noticed, so
+      // walking into a melee pulls them onto you; otherwise the two camps fight each other.
+      const guard = guardNear(e.x, e.z);
+      let warFoe = guard ? null : this.enemyMobNear(e, MOB.warRange);
+      if (warFoe && !playerSafe && dist < MOB.noticeRange
+          && dist < Math.hypot(warFoe.x - e.x, warFoe.z - e.z)) warFoe = null;
+      const foe = guard || warFoe;
+      const foeMob = foe && foe === warFoe ? warFoe : null;   // is the override an enemy MOB?
       if (foe) { e.aggro = true; e.aggroT = MOB.loseInterest; }
 
       if (e.aggro) {
@@ -736,20 +785,27 @@ export class Mobs {
           vz += ux * e.bias * 0.6;
         }
       } else if (e.aggro) {
-        e.bold = near.length + 1 >= MOB.packCourage;
+        // Against an enemy mob a creature COMMITS — it closes and brawls rather than circling.
+        e.bold = foeMob ? true : near.length + 1 >= MOB.packCourage;
 
         // Steer to a SLOT on a ring around you rather than at your feet: a pack fans out
         // and surrounds. Timid ones hold further back and circle instead of closing.
-        // Everything below aims at `foe` when a guard has taunted this one, and at you
-        // otherwise — one piece of pack logic serving both, so a pack surrounds a guard
-        // exactly the way it surrounds you.
+        // Everything below aims at `foe` when a guard or enemy mob has taken priority, and at
+        // you otherwise — one piece of pack logic serving all three.
         const aX = foe ? foe.x : player.x, aZ = foe ? foe.z : player.z;
         const adx = aX - e.x, adz = aZ - e.z;
         const adist = Math.hypot(adx, adz) || 1;
         const aux = adx / adist, auz = adz / adist;
 
         const ang = Math.atan2(-adz, -adx) + e.slot + (e.bold ? 0 : e.bias * 0.35);
-        const standoff = e.bold ? MOB.ringRadius : MOB.timidStandoff;
+        // Close to attack range on an enemy mob (a brawl), surround at ring range on you/guard.
+        const standoff = foeMob ? MOB.attackRange : (e.bold ? MOB.ringRadius : MOB.timidStandoff);
+
+        // The brawl: trade blows with the enemy mob when in reach. No lunge — that's for you.
+        if (foeMob && adist <= MOB.attackRange * 1.5 && e.atkCd <= 0) {
+          e.atkCd = MOB.attackCd;
+          this.hitMob(foeMob, e.damage * MOB.factionDamage);
+        }
         const tx = aX + Math.cos(ang) * standoff;
         const tz = aZ + Math.sin(ang) * standoff;
         const rd = Math.hypot(tx - e.x, tz - e.z) || 1;
@@ -841,7 +897,7 @@ export class Mobs {
     for (const parent of babies) {
       const ang = this.rng() * Math.PI * 2;
       this.spawnOne(parent.x + Math.cos(ang) * 1.6, parent.z + Math.sin(ang) * 1.6,
-                    parent.pack, parent.homeX, parent.homeZ);
+                    parent.pack, parent.homeX, parent.homeZ, null, parent.faction);
       this.born++;
     }
 

@@ -615,6 +615,16 @@ export const MOB = {
   chargeDamage: 2.3,      // multiplier on its own damage
   chargeKnock: 15,
 
+  // --- FACTIONS AT WAR: the cheap emergent win ------------------------------------
+  // Every camp belongs to a faction (a colour). Enemy factions fight EACH OTHER, not just
+  // you — so you can crest a hill onto two armies already colliding and rob the winner. It
+  // reuses the aggro/steering/pack brain wholesale: a mob simply treats a near enemy-faction
+  // mob as a target the way it treats you, and brawls it in melee.
+  factions: 3,           // how many warring colours exist
+  factionWar: true,      // toggle the whole behaviour
+  warRange: 17,          // a mob engages an enemy-faction mob within this
+  factionDamage: 0.65,   // mob-vs-mob hits for this fraction of their damage-to-you
+
   // --- steering: emergent movement, no substrate required -------------------------
   // The brain decides INTENT (close, hold, lunge); these decide HOW the body gets there.
   // Same seam as PLAN §4 — a mob brain and a soul brain will drive the same locomotion.
