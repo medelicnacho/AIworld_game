@@ -133,7 +133,12 @@ Object.assign(WEAPONS, {
     // further, so a 4.4 swing meant trading hits with everything you fought. The extra reach
     // gives the cleaver a band where it strikes FIRST, which is what makes closing in feel
     // like a plan instead of a toll. The drawn arc follows this number automatically.
-    damage: 88, fireRate: 1.9, range: 6.0, coneDeg: 100, knock: 12,
+    // The swing is wide SIDEWAYS and aimed VERTICALLY. coneDeg is the fixed left-right arc;
+    // coneVertDeg is the height band, and that band FOLLOWS YOUR PITCH — look up and you are
+    // cutting high, look down and you are cutting low. One rigid cone tilted by the camera
+    // did the opposite of what a swing should: looking down at things crowding you made the
+    // cone point INTO the ground and miss them.
+    damage: 88, fireRate: 1.9, range: 6.0, coneDeg: 100, coneVertDeg: 90, knock: 12,
     magSize: 0, reloadTime: 0, pellets: 1, auto: true, recoil: 0.004, recoilRecover: 0.7,
     spreadHip: 0, spreadAim: 0, sound: "cleave",
     desc: "A wide swing in front of you that throws things back. Right-click to spin: "

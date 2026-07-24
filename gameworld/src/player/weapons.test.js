@@ -9,6 +9,7 @@ import * as THREE from "three";
 import { WEAPONS, SPIN, WHIRL } from "../config.js";
 import { FACTIONS, FACTION_WEAPON } from "../prog/factions.js";
 import { Gun } from "./gun.js";
+import { player } from "../state.js";
 
 // The Gun is pure state until something renders it, so it runs headless — which means the
 // carry rules can be tested as rules instead of hoped-for behaviours.
@@ -121,6 +122,34 @@ test("LOADOUT: a restored loadout keeps only what is actually owned", () => {
   g.acquire("cleaver");
   g.setLoadout(["cleaver", "lance", "nonsense"]);     // lance never bought
   assert.deepEqual(g.loadout, ["cleaver"], "unowned and unknown weapons are dropped");
+});
+
+test("SWING: the height you cut at follows where you look", () => {
+  // The request, verbatim: "the hit box should change when you are looking up or down".
+  // Sideways the swing stays a fixed wide arc — that is a swing's nature — but the vertical
+  // band it covers is centred on your pitch.
+  const g = mkGun();
+  g.owned.add("cleaver");
+  g.loadout = ["cleaver"];
+  g.equip("cleaver");
+  player.x = 0; player.y = 0; player.z = 0;
+
+  const level = { x: 0, y: 0, z: -1 };                       // looking straight ahead
+  const up50 = { x: 0, y: Math.sin(0.87), z: -Math.cos(0.87) };   // looking well up
+
+  const ahead = { id: 1, x: 0, y: 1.1, z: -4, r: 0.5 };      // chest height, in front
+  const high = { id: 2, x: 0, y: 5.6, z: -3, r: 0.5 };       // up a ledge, ~56° above
+  const feet = { id: 3, x: 0, y: 0, z: -3, r: 0.5 };         // at your feet
+  const behind = { id: 4, x: 0, y: 1.1, z: 4, r: 0.5 };      // behind you
+
+  const ids = (fwd, targets) => g.swing(fwd, targets).map((t) => t.id);
+
+  assert.deepEqual(ids(level, [ahead, high, behind]), [1],
+    "looking level: you hit what is ahead, not the ledge above, never behind");
+  assert.deepEqual(ids(up50, [ahead, high, feet]), [2],
+    "looking up: the cut moves up — the ledge is in reach, and your feet are not");
+  assert.ok(ids(level, [feet]).includes(3),
+    "looking level still catches things at your feet — the band is generous, not a razor");
 });
 
 test("LANCE: heat makes it a weapon you manage, not a hose", () => {

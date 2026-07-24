@@ -176,11 +176,20 @@ export class Gun {
    */
   swing(fwd, targets) {
     const w = this.weapon;
-    const cos = Math.cos((w.coneDeg * 0.5) * Math.PI / 180);
+    const cosH = Math.cos((w.coneDeg * 0.5) * Math.PI / 180);
+    const vertHalf = ((w.coneVertDeg ?? 90) * 0.5) * Math.PI / 180;
+    // The two axes of a swing are DIFFERENT questions, so they are tested separately.
+    // Sideways: a fixed arc around where you face — a swing is wide, that is its nature.
+    // Vertically: a band CENTRED ON YOUR PITCH, so looking up cuts high and looking down
+    // cuts low. The first version used one rigid cone tilted whole by the camera, which did
+    // the opposite of aiming: looking down at things crowding your feet pointed the cone
+    // into the ground and whiffed straight through them.
+    const fh = Math.hypot(fwd.x, fwd.z) || 1e-6;
+    const fx = fwd.x / fh, fz = fwd.z / fh;      // facing, flattened
+    const aimEl = Math.atan2(fwd.y, fh);         // how far up or down you are looking
     // Reach is measured from the PLAYER, not the camera. In third person the camera floats
     // ~4 units behind you, so a camera-origin cone would end roughly where your own body
-    // begins — every swing whiffing at things plainly in front of you. Direction still comes
-    // from the camera, so the arc always faces where you are looking.
+    // begins — every swing whiffing at things plainly in front of you.
     const ox = player.x, oy = player.y + 1.1, oz = player.z;
     const struck = [];
     const seen = new Set();
@@ -192,7 +201,11 @@ export class Gun {
       // Point-blank grace only for something genuinely ON you — bodies touch at about 0.9,
       // so this is overlap, not proximity. Any looser and the swing quietly clips things
       // standing behind your shoulder, which reads as the cone not being where it is drawn.
-      if (d > 1.0 && (dx * fwd.x + dy * fwd.y + dz * fwd.z) / (d || 1) < cos) continue;
+      if (d > 1.0) {
+        const dh = Math.hypot(dx, dz);
+        if (dh > 1e-6 && (dx * fx + dz * fz) / dh < cosH) continue;      // outside the arc
+        if (Math.abs(Math.atan2(dy, dh) - aimEl) > vertHalf) continue;   // outside the band
+      }
       seen.add(s.id);
       struck.push({ id: s.id, tag: s.tag });
     }
@@ -503,10 +516,14 @@ export class Gun {
       this.swingFx -= dt;
       const f = Math.max(0, this.swingFx / 0.18);
       this.swingArc.visible = true;
-      this.swingArc.position.set(player.x, player.y + 0.9, player.z);
-      // The same rotation the body mesh gets. The arc and the character can only ever face
-      // the same way, because they are the same number.
-      this.swingArc.rotation.y = player.yaw;
+      // Anchored at the same height the hit test measures from, and TILTED WITH YOUR AIM —
+      // yaw and pitch together, in the same rotation recipe the camera uses. The hit cone
+      // always followed the camera up and down; the drawn arc used to lie flat on the
+      // ground, which taught the eye that the swing could not reach up a slope or down at
+      // the small ones when it could all along. The picture and the test now share both
+      // numbers, so they cannot disagree on either axis.
+      this.swingArc.position.set(player.x, player.y + 1.1, player.z);
+      this.swingArc.rotation.set(player.pitch, player.yaw, 0, "YXZ");
       this.swingArc.material.opacity = f * 0.5;
       this.swingArc.scale.setScalar(1 + (1 - f) * 0.15);
       if (this.swingFx <= 0) this.swingArc.visible = false;
