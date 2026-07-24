@@ -329,7 +329,16 @@ export class Inventory {
       }).join("")
       : "";
     const worn = new Set(gear.slots.map((x) => x.piece?.uid).filter(Boolean));
-    const pieces = (gear.owned || []).map((p) =>
+    // Sort the bag by RARITY — rarest at the top, greys at the bottom — using only fields that
+    // never change (rarity, armour, uid). Ordering on immutable keys is what stops a piece from
+    // jumping when you click it: equipping reorders gear.owned, but the DISPLAY order is fixed,
+    // so the clicked piece stays exactly where it was.
+    const rank = { rare: 3, uncommon: 2, common: 1 };
+    const sorted = [...(gear.owned || [])].sort((a, b) =>
+      (rank[b.rarity] || 0) - (rank[a.rarity] || 0)
+      || (b.armor || 0) - (a.armor || 0)
+      || String(a.uid).localeCompare(String(b.uid)));
+    const pieces = sorted.map((p) =>
       `<div class="cell ${worn.has(p.uid) ? "eq" : ""}" data-gear="${p.uid}"
             style="border-color:${p.color}"
             title="${p.name} — ${statLine(p.stats)}"><span class="nm"
