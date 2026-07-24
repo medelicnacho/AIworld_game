@@ -513,9 +513,11 @@ export class Inventory {
           <button class="x" data-close>✕</button>
         </header>
         <nav class="tabs">${tabs}</nav>
-        <div class="tabbody">${body}</div>
-        ${this.adminGateHtml()}
-        ${this.adminHtml()}
+        <div class="scroll">
+          <div class="tabbody">${body}</div>
+          ${this.adminGateHtml()}
+          ${this.adminHtml()}
+        </div>
         <footer>${foot}</footer>
       </div>`;
   }

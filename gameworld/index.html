@@ -186,14 +186,29 @@
       #inv .admin button { background: #37425c; border: 1px solid #55668a;
         color: #dfe8f5; border-radius: 5px; padding: 4px 10px; cursor: pointer; font: inherit; }
       #inv footer { padding: 9px 14px; background: #161d2b; color: #8fa3bf; font-size: 12px; }
-      #inv .panel { width: min(940px, 95vw); }
+      /* The panel had no height limit at all — it simply grew with its contents, so opening
+         the testing tools pushed the footer (and the bottom row of buttons) off the bottom of
+         the screen with no way to reach them. Cap it to the viewport and let the MIDDLE
+         scroll: the header, the tabs and the footer stay put, which is what makes a long
+         panel navigable instead of merely tall. This also fixes the character sheet on a
+         short laptop screen, where the stat legend was already running off the edge. */
+      #inv .panel { width: min(940px, 95vw); max-height: 88vh;
+        display: flex; flex-direction: column; }
+      #inv .scroll { overflow-y: auto; overflow-x: hidden; min-height: 0; flex: 1 1 auto; }
+      #inv header, #inv .tabs, #inv footer { flex: 0 0 auto; }
+      /* Thin, dark scrollbar so it reads as part of the panel rather than the browser. */
+      #inv .scroll::-webkit-scrollbar { width: 9px; }
+      #inv .scroll::-webkit-scrollbar-thumb { background: #33405a; border-radius: 5px; }
+      #inv .scroll::-webkit-scrollbar-track { background: #0e131d; }
       #inv .tabs { display: flex; gap: 2px; padding: 0 10px; background: #1a2233;
         border-bottom: 1px solid #2f3d55; }
       #inv .tab { background: none; border: 0; color: #8fa3bf; cursor: pointer; font: inherit;
         font-size: 12px; letter-spacing: .05em; padding: 9px 16px; border-bottom: 2px solid transparent; }
       #inv .tab:hover { color: #cdd8ea; }
       #inv .tab.on { color: #ffe6a8; border-bottom-color: #ffce5e; }
-      #inv .tabbody { min-height: 260px; }
+      /* Lower than it was: this only exists to stop the panel jumping about as you switch
+         tabs, and 260 was reserving empty space that pushed everything below it down. */
+      #inv .tabbody { min-height: 190px; }
       /* Three co-visible columns: equipped gear, live stats, bags — so a swap and its stat
          change are on screen together. */
       #inv .char { display: grid; grid-template-columns: 1.1fr 1fr 1.3fr; gap: 14px; padding: 14px;

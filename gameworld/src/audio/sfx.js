@@ -19,6 +19,9 @@ export class Sfx {
     this.master = null;
     this.noiseBuf = null;
     this.muted = false;
+    // Seeded (D14), like every other random number in the game — used to rough up the
+    // crackle so repeated pops never land in an identical pattern.
+    this.rng = mulberry32(0xC4AC1E);
   }
 
   /** Must be called from a user gesture — browsers refuse audio before one. */
@@ -123,6 +126,45 @@ export class Sfx {
       return g;
     };
     return { input: dist, set };
+  }
+
+  /**
+   * CRACKLE — a run of short, sharp noise pops rather than a continuous hiss.
+   *
+   * The difference matters more than it sounds. Sustained filtered noise is a *whoosh*, and a
+   * whoosh under a rising tone is what makes a wind-up read as a wasp: irritating, thin, and
+   * tiring after the tenth time you hear it. Crackle is transient — fire catching, gravel
+   * under weight, ice going — and the ear reads transients as MATERIAL rather than as noise,
+   * which is most of what makes a sound feel physical instead of synthesised.
+   *
+   * When `accelerate` is on, the gaps shrink toward the end. That is not decoration: it puts
+   * the timing INSIDE the texture, so you can hear how long you have from the rate alone and
+   * the cue never needs a rising pitch to do that job.
+   *
+   * One noise source with an automated gain, not one source per pop — a couple of dozen
+   * buffer sources per charge would be real cost for a sound that happens constantly.
+   */
+  crackle(t, dur, dest, { n = 20, peak = 0.5, freq = 700, q = 0.7, decay = 0.045, accelerate = true } = {}) {
+    const src = this.noise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = freq;
+    bp.Q.value = q;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    for (let i = 0; i < n; i++) {
+      // Clustered toward the END when accelerating, evenly spread when not.
+      const f = i / n;
+      const at = t + dur * (accelerate ? 1 - (1 - f) ** 1.8 : f);
+      // Uneven heights, or twenty identical pops read as a machine rather than as a thing.
+      const amp = peak * (0.45 + this.rng() * 0.55);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.linearRampToValueAtTime(amp, at + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+    }
+    src.connect(bp); bp.connect(g); g.connect(dest);
+    src.start(t); src.stop(t + dur + decay + 0.05);
+    return src;
   }
 
   /** Soft-clip curve — what makes a roar sound like a throat instead of a sine. */
@@ -314,34 +356,41 @@ export class Sfx {
     out.gain.setValueAtTime(0.0001, t);
     out.gain.exponentialRampToValueAtTime(gain * 0.85, t + dur * 0.95);
     out.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.06);
-    out.connect(input);
+    // THE LOAD: everything rolls off the top as it coils, so the sound gets thicker and
+    // closer rather than merely louder. A wind-up that only gains volume feels like someone
+    // turning a knob; one that darkens feels like something gathering itself.
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(2600, t);
+    lp.frequency.exponentialRampToValueAtTime(900, t + dur);
+    out.connect(lp);
+    lp.connect(input);
 
-    // The growl: a rev, climbing as power is wound up behind it.
-    for (const [f0, f1, g] of [[52, 104, 0.34], [78, 157, 0.15]]) {
+    // The WEIGHT: sub sines, barely climbing. Sines, not sawtooths, and no real distortion —
+    // a rising distorted saw is a wasp, and a wasp you hear a hundred times an hour is the
+    // fastest way to make someone turn the sound off. Depth comes from being LOW, not from
+    // being harsh. The climb is small on purpose: it should feel like a spring loading, not
+    // like an engine revving.
+    for (const [f0, f1, g, type] of [[36, 52, 0.5, "sine"], [54, 78, 0.22, "triangle"]]) {
       const o = this.ctx.createOscillator();
-      o.type = "sawtooth";
+      o.type = type;
       o.frequency.setValueAtTime(f0, t);
       o.frequency.exponentialRampToValueAtTime(f1, t + dur);
       const og = this.ctx.createGain();
       og.gain.value = g;
-      const dist = this.distortion(55);
-      o.connect(dist); dist.connect(og); og.connect(out);
-      o.start(t); o.stop(t + dur + 0.1);
+      // A whisper of saturation for warmth and a little body — nowhere near enough to rasp.
+      const warm = this.distortion(6);
+      o.connect(warm); warm.connect(og); og.connect(out);
+      o.start(t); o.stop(t + dur + 0.12);
     }
 
-    // Grit underneath — feet planting and scraping. It sweeps DOWN while the growl climbs,
-    // so the two pull apart and the whole thing reads as something coiling rather than
-    // simply getting louder.
-    const scrape = this.noise();
-    const bp = this.ctx.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.setValueAtTime(1700, t);
-    bp.frequency.exponentialRampToValueAtTime(430, t + dur);
-    bp.Q.value = 1.4;
-    const sg = this.ctx.createGain();
-    sg.gain.value = 0.28;
-    scrape.connect(bp); bp.connect(sg); sg.connect(out);
-    scrape.start(t); scrape.stop(t + dur + 0.1);
+    // The CRACKLE, accelerating into the release. This carries the timing now, so the pitch
+    // does not have to — you hear the rate tighten and you know it is about to go. Low and
+    // dry rather than bright: hooves splitting the ground, not static.
+    this.crackle(t, dur, out, { n: 22, peak: 0.55, freq: 430, q: 0.6, decay: 0.05 });
+    // A second, sparser layer an octave up, so it has some grain to it and does not read as
+    // one repeated click.
+    this.crackle(t, dur, out, { n: 11, peak: 0.24, freq: 1150, q: 1.1, decay: 0.03 });
   }
 
   /**
@@ -375,26 +424,33 @@ export class Sfx {
     out.connect(trk.input);
 
     const parts = [];
-    // Mass in motion — two very low saws beating against each other through a hard clip.
-    for (const [f, g] of [[41, 0.42], [61.5, 0.2]]) {
+    // MASS. Two sub tones a fifth apart, detuned just enough to beat slowly against each
+    // other — that slow throb is what a big thing moving sounds like, and it is doing the
+    // work the old distorted saws were trying to do by being loud.
+    for (const [f, g, type] of [[31, 0.55, "sine"], [46.5, 0.26, "triangle"], [47.4, 0.16, "triangle"]]) {
       const o = this.ctx.createOscillator();
-      o.type = "sawtooth";
+      o.type = type;
       o.frequency.value = f;
       const og = this.ctx.createGain();
       og.gain.value = g;
-      const dist = this.distortion(38);
-      o.connect(dist); dist.connect(og); og.connect(out);
+      const warm = this.distortion(9);
+      o.connect(warm); warm.connect(og); og.connect(out);
       o.start(t);
       parts.push(o);
     }
-    // Air being shoved out of the way, so it reads as something travelling rather than as
-    // an engine idling in place.
+    // GRAVEL. A steady run of low pops for the whole run — ground breaking up under
+    // something heavy. Not accelerating: the charge is committed, so nothing about it is
+    // counting down any more, and a cue that keeps building would be lying about that.
+    parts.push(this.crackle(t, maxDur, out,
+      { n: Math.round(maxDur * 34), peak: 0.34, freq: 330, q: 0.5, decay: 0.035, accelerate: false }));
+    // A little air under it so it travels rather than idling in place — well below the crackle
+    // so it never becomes hiss.
     const air = this.noise();
     const lp = this.ctx.createBiquadFilter();
     lp.type = "lowpass";
-    lp.frequency.value = 900;
+    lp.frequency.value = 420;
     const ag = this.ctx.createGain();
-    ag.gain.value = 0.3;
+    ag.gain.value = 0.34;
     air.connect(lp); lp.connect(ag); ag.connect(out);
     air.start(t);
     parts.push(air);
