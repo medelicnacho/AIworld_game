@@ -1022,22 +1022,23 @@ export class Mobs {
       b.t -= dt;
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
 
-      if (b.war) {
-        // A war shot: strikes the first enemy-faction mob it touches. No player reward.
-        let hit = null;
-        for (const o of nearby(b.x, b.z, MOB.ballRadius + MOB.radius)) {
-          if (o.kind !== "mob" || o.hp <= 0 || o.faction === b.faction) continue;
-          if (Math.hypot(o.x - b.x, (o.y + 0.6) - b.y, o.z - b.z) < MOB.ballRadius + MOB.radius) { hit = o; break; }
-        }
-        if (hit) {
-          this.hitMob(hit, b.dmg);
-          sfx.explosion(b.x, b.z, 0.4);
-          b.active = false; b.mesh.visible = false;
-          continue;
-        }
-      } else if (Math.hypot(player.x - b.x, (player.y + 0.9) - b.y, player.z - b.z)
-          < MOB.ballRadius + PLAYER.radius && player.iframes <= 0) {
+      // A fireball hits whatever it touches that ISN'T on its shooter's side: YOU (always —
+      // walk into a firefight and you eat the stray shots), or any enemy-faction mob. So a war
+      // shot can catch you in the crossfire, and a shot aimed at you can hit a mob in the path.
+      if (player.iframes <= 0
+          && Math.hypot(player.x - b.x, (player.y + 0.9) - b.y, player.z - b.z) < MOB.ballRadius + PLAYER.radius) {
         onPlayerHit?.({ damage: b.dmg, x: b.x, z: b.z });
+        sfx.explosion(b.x, b.z, 0.4);
+        b.active = false; b.mesh.visible = false;
+        continue;
+      }
+      let hitMobTarget = null;
+      for (const o of nearby(b.x, b.z, MOB.ballRadius + MOB.radius)) {
+        if (o.kind !== "mob" || o.hp <= 0 || o.faction === b.faction) continue;
+        if (Math.hypot(o.x - b.x, (o.y + 0.6) - b.y, o.z - b.z) < MOB.ballRadius + MOB.radius) { hitMobTarget = o; break; }
+      }
+      if (hitMobTarget) {
+        this.hitMob(hitMobTarget, b.dmg);
         sfx.explosion(b.x, b.z, 0.4);
         b.active = false; b.mesh.visible = false;
         continue;
