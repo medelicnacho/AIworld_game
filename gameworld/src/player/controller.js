@@ -149,7 +149,11 @@ export function attachInput(canvas, hooks = {}) {
     // the click-to-play screen forever with nothing explaining why. Pointer lock is an
     // enhancement — it makes looking around feel right — and an enhancement must never be
     // the thing standing between someone and the game.
-    hooks.startPlaying?.();
+    // If the start is REFUSED — a panel is open, or the difficulty has not been chosen yet —
+    // do not grab the mouse either. Taking the lock unpauses through onLock, which would sail
+    // straight past the very guard startPlaying just enforced. A refused start is a refused
+    // click, whole.
+    if (hooks.startPlaying?.() === false) return;
     canvas.requestPointerLock();
   });
   document.addEventListener("pointerlockchange", () => {

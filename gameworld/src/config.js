@@ -2,6 +2,33 @@
 
 export const WORLD_SEED = 1337;
 
+// DIFFICULTY. Chosen once on the start screen and remembered in the save. HARD is the whole
+// game as designed — the frontier that bites, the level lost on death, telegraphs that are
+// always lethal. EASY exists for someone who has never held a mouse-look shooter: it turns
+// every dial toward mercy at ONE place each, so the game stays the same game, just softer.
+//
+//   incoming    every point of damage you take, at the one choke point (damagePlayer). The
+//               single biggest lever, and it covers mobs, meteors, the beam, burning ground
+//               and your own grenades without any of them knowing it exists.
+//   playerDmg   everything you deal, folded into dmgMult where levels and gear already live.
+//   deathLoss   the level lost on death, as a multiplier: 0 means death costs you nothing but
+//               the walk back, which is the right training-wheels setting.
+//   grace       scales the early-game GRACE bonus, so easy stays kind well past level 8.
+export const DIFFICULTY = {
+  hard: {
+    id: "hard", label: "Hard",
+    blurb: "The frontier as it was built. Death costs a level. Every telegraph is lethal.",
+    incoming: 1.0, playerDmg: 1.0, deathLoss: 1.0, grace: 1.0,
+  },
+  easy: {
+    id: "easy", label: "Easy",
+    blurb: "For a first shooter. You take a third of the damage, hit harder, and keep your "
+      + "level when you fall.",
+    incoming: 0.34, playerDmg: 1.6, deathLoss: 0, grace: 2.2,
+  },
+};
+export const DEFAULT_DIFFICULTY = "hard";
+
 // The admin/testing panel is behind this code. It is a SPEED BUMP, not a lock — the code
 // ships inside the game and anyone determined can read it out. That is fine, because the
 // thing it is defending against is not an attacker, it is a curious playtester: the first

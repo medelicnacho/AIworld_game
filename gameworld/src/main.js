@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -39,6 +39,7 @@ import { Bridge } from "./net/bridge.js";
 import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, xpLevelMult } from "./prog/xp.js";
 import { save as saveGame, load as loadSave, restore as restoreSave, hasSave, wipe as wipeSave } from "./prog/save.js";
 import { mulberry32 } from "./rng.js";
+import { setDifficulty, diff } from "./prog/difficulty.js";
 
 const FIXED_DT = 1 / 60;
 const MAX_CATCHUP = 0.25;    // never simulate more than this in one frame after a stall
@@ -592,11 +593,20 @@ scene.add(levelLight);
 let levelFx = 0;
 const LEVEL_FX = 1.2;
 
+const levelBannerEl = document.getElementById("levelbanner");
 function levelUp() {
   levelFx = LEVEL_FX;
   levelBeam.visible = true;
   levelRing.visible = true;
   sfx.levelUp();
+  // The WORD, big and bright, to go with the golden beam. Retrigger by yanking the class off
+  // and forcing a reflow before adding it back — CSS will not replay an animation on an
+  // element that already has the class, so a level-up while the last banner is still fading
+  // would otherwise show nothing.
+  levelBannerEl.textContent = `LEVEL ${player.level} REACHED`;
+  levelBannerEl.classList.remove("show");
+  void levelBannerEl.offsetWidth;
+  levelBannerEl.classList.add("show");
   saveSoon();       // the thing you are least willing to re-earn
 }
 
@@ -982,7 +992,10 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
   // exists. GEAR.md G1: mitigation is the WoW armour curve, and it reads the attacker's tier
   // (proxied by where you are standing, since what hits you is native to your ring) — the
   // same armour is worth less the deeper you go, which is why it can't be grinded shallow.
-  player.hp -= amount * (1 - armorDR(player.armor, tierAt(player.x, player.z)))
+  // Difficulty rides in HERE, at the same one choke point armour uses, so Easy softens mob
+  // hits, meteors, the beam, burning ground and your own grenades all at once — none of them
+  // needing to know a difficulty setting exists.
+  player.hp -= amount * diff().incoming * (1 - armorDR(player.armor, tierAt(player.x, player.z)))
     * (1 - (player.graceMitigation || 0));       // early-game grace: fades out by ~level 8
   hurtT = 0.35;
   markCombat();
@@ -1170,11 +1183,15 @@ const persist = () => { if (!resetting) saveGame(saveCtx); };
 const saveSoon = () => { saveT = 1.5; };
 const saveNow = () => { saveT = 0; persist(); };
 
+// A brand-new game needs a difficulty chosen before the first hit lands; a returning one
+// already carries the choice in its save and must never be asked again.
+let newGame = true;
 if (hasSave()) {
   const data = loadSave();
   try {
-    restoreSave(data, saveCtx);
+    restoreSave(data, saveCtx);   // this also restores the saved difficulty
     killFeed = "welcome back";
+    newGame = false;
   } catch (err) {
     // A save that will not load must never be a wall. Better a fresh character than a game
     // that cannot be started at all — one costs a session, the other costs the player.
@@ -1182,6 +1199,39 @@ if (hasSave()) {
     wipeSave();
     spawnInTown();
   }
+}
+
+// THE DIFFICULTY PICKER. Held in front of a fresh start until a card is chosen — nothing
+// begins, no first click starts play, until you have picked. A returning player skips it
+// entirely (their save decided), and Start Over wipes the save and reloads, so a new run
+// lands here again and can pick afresh.
+const diffEl = document.getElementById("difficulty");
+let choosing = false;
+function showDifficultyPicker() {
+  choosing = true;
+  clickEl.style.display = "none";
+  diffEl.style.display = "grid";
+  diffEl.innerHTML = `
+    <h1>WAR NACHO</h1>
+    <div class="sub">Choose how hard the frontier bites. This is set for the whole run.</div>
+    <div class="modes">
+      ${Object.values(DIFFICULTY).map((d) => `
+        <button class="mode ${d.id}" data-diff="${d.id}">
+          <span class="nm">${d.label}</span>
+          <span class="bl">${d.blurb}</span>
+        </button>`).join("")}
+    </div>
+    <div class="hint">You can start a fresh run and pick again from the character sheet.</div>`;
+  diffEl.querySelectorAll("[data-diff]").forEach((b) => {
+    b.addEventListener("click", () => {
+      setDifficulty(b.dataset.diff);
+      applyLevelStats();          // fold the chosen difficulty into damage/grace right away
+      choosing = false;
+      diffEl.style.display = "none";
+      clickEl.style.display = "";
+      saveNow();                  // remember the choice from the very first frame
+    });
+  });
 }
 // The browser can close without warning. This is the last chance to commit, and it has to be
 // cheap and synchronous — 'hidden' fires on tab-switch and phone-lock too, which are exactly
@@ -1236,17 +1286,20 @@ attachInput(renderer.domElement, {
   // Clicking the world starts the game, lock or no lock. tryLock() keeps chasing the mouse
   // capture separately; not getting it costs you comfortable looking, not the ability to play.
   startPlaying: () => {
-    if (dead || shop.open || inventory.open) return;
+    // Return false to REFUSE — the click handler then also skips grabbing the mouse, so the
+    // lock cannot unpause us behind a picker or a panel.
+    if (dead || shop.open || inventory.open || choosing) return false;   // pick a difficulty first
     music.start();
     sfx.unlock();
     if (paused) { lockTries = 0; setPaused(false); }
+    return true;
   },
   // Escape as a KEY. Only fires when no panel claimed it first (they take it in capture).
   // If the mouse is captured, stay out of the way — the browser is about to release it and
   // the unlock path below will pause; acting here too would double-handle one press. If it
   // is NOT captured, this is the only pause there is.
   escapeKey: () => {
-    if (dead || shop.open || inventory.open || paused) return;
+    if (dead || shop.open || inventory.open || paused || choosing) return;
     if (document.pointerLockElement) return;
     setPaused(true);
   },
@@ -1808,3 +1861,6 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
+
+// A fresh run must choose its difficulty before anything can start.
+if (newGame) showDifficultyPicker();

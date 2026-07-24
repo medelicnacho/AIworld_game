@@ -13,6 +13,7 @@
 import { XP, PLAYER, HASTE, DODGE, STATS, GRACE } from "../config.js";
 import { player } from "../state.js";
 import { maxHpFor, ratingPct } from "./stats.js";
+import { diff } from "./difficulty.js";
 
 /**
  * XP to go from `level` to `level + 1`, on the three-phase curve. Each phase is a power curve
@@ -85,12 +86,14 @@ export function applyLevelStats() {
   // Global-Damage gear. The gun/spell/grenade BUCKETS are per-source and applied at the use
   // sites (they can't be uniform here). gearDmg is 0 now that Sharpen is gone, kept for safety.
   player.dmgMult = player.levelMult
-    * (1 + (player.gearDmg || 0) + STATS.strDmg * (player.str || 0) + (player.dmgGlobal || 0));
+    * (1 + (player.gearDmg || 0) + STATS.strDmg * (player.str || 0) + (player.dmgGlobal || 0))
+    * diff().playerDmg;          // Easy hits harder — the second half of "softer, same game"
 
   // Early-game grace: large at level 1, linear to nothing by GRACE.levels. It makes a fresh,
   // gearless character hit hard and take less, so levels 1-3 are easy and the difficulty ramps
   // up as you level and gear rather than all at once. graceMitigation is read in damagePlayer.
-  const grace = Math.max(0, 1 - (player.level - 1) / GRACE.levels);
+  // Easy STRETCHES grace (config DIFFICULTY.grace), so the kind early window lasts far longer.
+  const grace = Math.max(0, 1 - (player.level - 1) / (GRACE.levels * diff().grace));
   player.dmgMult *= 1 + grace * GRACE.dmgBonus;
   player.graceMitigation = grace * GRACE.mitigation;
   // Speed used to be a raw exponential with no ceiling, so a high-level geared build ran 3-5x
@@ -182,6 +185,10 @@ export function levelForTier(t) {
  * @returns {boolean} whether a level was actually lost (the death screen says so if it was)
  */
 export function loseLevel() {
+  // On Easy, death costs nothing but the walk back — no level, no lost bar. Training wheels:
+  // the whole point is that a beginner can throw themselves at the frontier and learn it
+  // without the stake that makes Hard, Hard.
+  if (diff().deathLoss <= 0) return false;
   if (player.level <= 1) { player.xp = 0; return false; }   // level 1 is the floor
   player.level--;
   applyLevelStats();

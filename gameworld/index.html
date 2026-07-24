@@ -380,6 +380,39 @@
          live again while the browser still refuses the mouse for a moment, and the pause
          panel must not reappear in that window. */
       body.running #click { display: none; }
+      /* The difficulty picker — shown only on a fresh start (no save), so returning players
+         keep the difficulty their save remembers and are never asked twice. */
+      #difficulty { max-width: 640px; }
+      #difficulty h1 { font-size: 26px; letter-spacing: .12em; color: #dfe8f5; margin: 0 0 6px; }
+      #difficulty .sub { color: #8fa3bf; font-size: 12px; margin-bottom: 22px; }
+      #difficulty .modes { display: flex; gap: 16px; justify-content: center; }
+      #difficulty .mode { flex: 1 1 0; max-width: 280px; cursor: pointer; text-align: left;
+        background: #141b28; border: 1px solid #2a3548; border-radius: 10px; padding: 18px;
+        color: #cdd8ea; font: inherit; letter-spacing: normal; transition: border-color .15s, background .15s; }
+      #difficulty .mode:hover { border-color: #55668a; background: #1a2333; }
+      #difficulty .mode .nm { font-size: 18px; letter-spacing: .06em; display: block; margin-bottom: 8px; }
+      #difficulty .mode .bl { font-size: 12px; line-height: 1.55; color: #9fb0c8; }
+      #difficulty .mode.hard .nm { color: #ff8a6a; }
+      #difficulty .mode.easy .nm { color: #7fe0a0; }
+      #difficulty .hint { margin-top: 18px; color: #6f819b; font-size: 11px; }
+      /* LEVEL-UP BANNER — big, bright, and gone in a moment. The golden beam already fires
+         at your feet; this is the WORD to go with it, so a level-up is felt as an event and
+         not just a bar resetting. Purely cosmetic, driven from JS on the frame it happens. */
+      #levelbanner {
+        position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%) scale(0.7);
+        font-size: 52px; font-weight: 800; letter-spacing: .06em; text-align: center;
+        color: #ffe08a; text-shadow: 0 0 24px rgba(255,206,94,0.9), 0 3px 10px #000a;
+        opacity: 0; pointer-events: none; white-space: nowrap;
+        -webkit-text-stroke: 1px #7a5a12;
+      }
+      #levelbanner.show { animation: levelpop 1.9s cubic-bezier(.2,.9,.2,1) forwards; }
+      @keyframes levelpop {
+        0%   { opacity: 0; transform: translate(-50%,-50%) scale(0.6); }
+        14%  { opacity: 1; transform: translate(-50%,-50%) scale(1.12); }
+        24%  { transform: translate(-50%,-50%) scale(1.0); }
+        75%  { opacity: 1; transform: translate(-50%,-52%) scale(1.0); }
+        100% { opacity: 0; transform: translate(-50%,-58%) scale(1.0); }
+      }
       body.running #crosshair { opacity: .9; }
       #health, #ammo, #xp { opacity: 0; transition: opacity .2s; }
       body.running #health, body.running #ammo, body.running #xp { opacity: 1; }
@@ -402,11 +435,13 @@
       <div id="ammo"></div>
       <div id="xp"></div>
       <div id="alert"></div>
+      <div id="levelbanner"></div>
       <div id="bar"></div>
       <div id="plates"></div>
       <div id="hpbars"></div>
       <div id="dmg"></div>
       <canvas id="minimap" width="180" height="180"></canvas>
+      <div id="difficulty" style="display:none"></div>
       <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; G speak &nbsp; F trade &nbsp; C potion &nbsp; E firebomb &nbsp; Q heal &nbsp; C potion &nbsp; 1-6 T Tab spells &nbsp; wheel switch weapon</div>
     </div>
     <!-- Outside #hud on purpose: the HUD is pointer-events:none so it never eats clicks,

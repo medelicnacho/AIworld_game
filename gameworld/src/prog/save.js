@@ -26,6 +26,7 @@ import { player } from "../state.js";
 import { GOODS } from "../ui/shop.js";
 import { bumpUid } from "./gear.js";
 import { applyLevelStats } from "./xp.js";
+import { setDifficulty, difficultyId } from "./difficulty.js";
 
 const KEY = "gw.save";
 const VERSION = 1;
@@ -45,6 +46,7 @@ export function snapshot(ctx) {
     // undo the longest commitment in the game.
     faction: player.faction || null,
     rep: player.rep || 0,
+    difficulty: difficultyId(),
     x: player.x, y: player.y, z: player.z,
     yaw: player.yaw, pitch: player.pitch,
     // Stacking upgrade counters. These live on the player rather than in the gear sum, so
@@ -80,6 +82,7 @@ export function restore(data, ctx) {
   player.potions = Math.max(0, data.potions | 0);
   player.faction = data.faction || null;
   player.rep = Math.max(0, data.rep | 0);
+  setDifficulty(data.difficulty || "hard");
   player.x = data.x; player.y = data.y; player.z = data.z;
   player.yaw = data.yaw || 0; player.pitch = data.pitch || 0;
   player.haste = data.haste || 0;
