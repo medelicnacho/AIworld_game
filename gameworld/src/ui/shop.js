@@ -516,7 +516,7 @@ export class Shop {
            <span class="ds">${wdef.desc}</span>
          </button>`
       : `<button class="item${player.points >= wdef.price ? "" : " poor"}" data-buyweapon="${wid}">
-           <span class="nm" style="color:${f.color}">${wdef.name}</span>
+           <span class="nm legendary" style="color:${wdef.color || f.color}">★ ${wdef.name}</span>
            <span class="ds">${wdef.desc}</span>
            <span class="pr">${wdef.price}</span>
          </button>`) : "";

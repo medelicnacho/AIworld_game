@@ -76,29 +76,34 @@ export class Villagers {
     const want = Math.round(VILLAGE.perSanctuary * (s.r / 46));
     while (roles.length < want) roles.push("keeper");
 
-    // QUARTERMASTERS STAND STILL, and stand APART. Everyone else strolls a slow circuit,
-    // which is right for people who live here and wrong for someone at a desk: a recruiter
-    // you have to chase is a recruiter you give up on. Fixed posts also make them findable —
-    // you learn where the Ash desk is and it is still there next time.
+    // QUARTERMASTERS STAND STILL, and stand TOGETHER. Everyone else strolls a slow circuit,
+    // which is right for people who live here and wrong for someone at a desk: a recruiter you
+    // have to chase is a recruiter you give up on.
     //
-    // They are spread on evenly-divided bearings so three of them in one city never end up
-    // standing on each other, which is the thing that would make the choice look like one
-    // muddled clump instead of three quarters.
+    // The three quarters line up SIDE BY SIDE in one place — a recruiting row — rather than
+    // being scattered around the walls. Choosing a side is meant to be one moment where you
+    // weigh three options against each other, and you cannot weigh what you have to walk a
+    // town to find one at a time. A short row on a fixed radius and heading, close enough to
+    // stand shoulder to shoulder but spaced so they never overlap: findable, comparable, and
+    // the same spot every time.
+    const qmRoles = roles.filter((k) => QM.includes(k));
+    const qmCount = qmRoles.length;
+    const QM_RAD = Math.max(6, Math.min(15, s.rMin - 12));
+    const QM_HEADING = 0.6;          // which way the row sits from the centre — fixed, so it
+                                     // is in the same place in every town you ever enter
+    const QM_SPACING = 3.6 / QM_RAD; // ~3.6 world units apart, as an angle at this radius
     let qmSeen = 0;
-    const qmCount = roles.filter((k) => QM.includes(k)).length;
     for (const key of roles) {
       const ri = ROLES.findIndex((r) => r.key === key);
       const isQm = QM.includes(key);
       const ang = isQm
-        ? (qmSeen / Math.max(1, qmCount)) * Math.PI * 2 + 0.4
+        ? QM_HEADING + (qmSeen - (qmCount - 1) / 2) * QM_SPACING
         : rng() * Math.PI * 2;
       if (isQm) qmSeen++;
       folk.push({
         role: ROLES[ri], ri, s,
         ang,
-        // Posted a comfortable way in from the wall — far enough to be inside the town proper,
-        // near enough that you meet them on the way through rather than having to hunt.
-        rad: isQm ? Math.max(6, Math.min(16, s.rMin - 12)) : 4 + rng() * Math.max(4, s.rMin - 9),
+        rad: isQm ? QM_RAD : 4 + rng() * Math.max(4, s.rMin - 9),
         spd: isQm ? 0 : (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.05),
         bob: isQm ? 0 : rng() * Math.PI * 2,
         still: isQm,

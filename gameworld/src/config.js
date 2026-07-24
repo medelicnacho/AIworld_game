@@ -145,20 +145,28 @@ Object.assign(WEAPONS, {
       + "untouchable for a heartbeat, then damage all around you.",
   },
   lobber: {
-    id: "lobber", name: "Vale Lobber", price: 900, faction: "vale", mode: "projectile",
-    // One at a time, like a sidearm. The ball travels, so hitting something moving is a
-    // question of where it will BE.
+    id: "lobber", name: "Vale Cannon", price: 900, faction: "vale", mode: "projectile",
+    // A CANNON now: one heavy shell at a time that bursts into a WIDE circle. Where the lance
+    // clears a crowd along a line, this clears one in a ring — the speed faction's answer to
+    // being surrounded, thrown from range.
     damage: 0,                     // all of it lands as splash; see blastDamage
-    fireRate: 2.1, magSize: 6, reloadTime: 1.25, range: 120,
-    pellets: 1, auto: false, recoil: 0.03, recoilRecover: 0.6,
-    spreadHip: 0.055, spreadAim: 0.006, sound: "lob",
-    speed: 46, drop: -7,           // barely arcs: flat enough to aim, slow enough to lead
-    blastRadius: 4.6, blastDamage: 118,
+    fireRate: 1.7, magSize: 5, reloadTime: 1.4, range: 130,
+    pellets: 1, auto: false, recoil: 0.045, recoilRecover: 0.55,
+    spreadHip: 0.05, spreadAim: 0.005, sound: "lob",
+    // SLOW on purpose. With no self-damage and a huge blast, travel time is the ONLY skill
+    // the weapon asks for — you must read where the crowd is going and place the shell there.
+    // Keep it slow enough to lead; make it fast and the whole weapon becomes point-and-delete.
+    // `drop` is a gentle downward curve as it flies: a heavy shell should sag, and the small
+    // arc is another thing to read into the lead. A touch of upward launch (upBias) makes it
+    // lob rather than merely sag, so the curve reads as an arc.
+    speed: 34, drop: -12, upBias: 0.06,
+    blastRadius: 10.5, blastDamage: 130,
     // IT DOES NOT HURT YOU. The opposite of the grenade rule, on purpose — an explosive fired
     // like a sidearm would kill you constantly up close, punishing the exact thing the speed
-    // faction is FOR. The cost lives in the travel time and the tight radius instead.
+    // faction is FOR. The cost is leading a slow shell, not fearing your own boom.
     selfDamage: false,
-    desc: "Lobs an exploding shell. It never hurts you — the difficulty is leading the shot.",
+    desc: "Lobs a heavy shell that bursts in a WIDE circle. It never hurts you — the "
+      + "difficulty is leading the shot into the crowd.",
   },
   lance: {
     id: "lance", name: "Ash Lance", price: 900, faction: "ash", mode: "beam",
@@ -177,6 +185,16 @@ Object.assign(WEAPONS, {
       + "Hold it too long and it overheats.",
   },
 });
+
+// Faction weapons are LEGENDARY — orange, the top of any colour ladder, and unmistakable
+// beside grey/green/blue loot and even gold faction armour. They are the rarest thing a
+// player wields, earned by joining and paying dear, and locked to the faction that made
+// them. The colour is set here in one place so every panel that shows a weapon agrees.
+export const WEAPON_LEGENDARY_COLOR = "#ff8a1e";
+for (const id of ["cleaver", "lobber", "lance"]) {
+  WEAPONS[id].rarity = "legendary";
+  WEAPONS[id].color = WEAPON_LEGENDARY_COLOR;
+}
 
 // The right-click on the cleaver. A spin — not a block, because an active move that makes
 // space fits melee far better than standing still, and because it makes the defensive faction

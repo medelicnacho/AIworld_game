@@ -90,10 +90,11 @@ complete kit; cone plus spin alone is a player who dies on the way in.
 
 ---
 
-## Vale — the lobber
+## Vale — the cannon
 
-A big red ball, fired **one at a time like a pistol** — bam, bam, bam. Explodes on impact for
-splash damage. Aiming tightens the accuracy.
+A big glowing shell, fired **one at a time** — bam, bam, bam — that bursts into a **wide
+circle**. Where the lance clears a crowd along a *line*, this clears one in a *ring*: the
+speed faction's answer to being surrounded, thrown from range. It arcs downward as it flies.
 
 **It does NOT hurt you.**
 
@@ -103,10 +104,15 @@ constantly at close range — and it would punish the exact thing the speed fact
 being close, moving, taking risks. A weapon that fights its own faction's identity is a bad
 weapon.
 
-**So the cost has to live somewhere else.** Not danger — *difficulty*. A small blast radius
-and real travel time, so hitting a moving target is about **prediction** rather than about
-bravery. If it ends up feeling like a strictly better grenade, that is the dial to turn: make
-the ball slower and the splash tighter, never make it hurt you.
+**So the cost lives entirely in the LEAD.** With no self-damage and a huge blast, travel time
+is the only skill the weapon asks for — the shell is deliberately slow, and it curves as it
+goes, so landing it on a moving crowd is about reading where they will be. Make it fast and
+the whole thing collapses into point-and-delete; the slow speed is load-bearing, not flavour.
+
+> **Design note (changed from the original small-radius plan):** the author chose a big AOE
+> cannon on purpose. That makes it the strongest crowd-clear in the game — a fine identity for
+> the speed faction — and the balance lever is the shell's *speed*, never its self-damage. If
+> it ever feels oppressive, slow the shell further; do not make it hurt you.
 
 ---
 

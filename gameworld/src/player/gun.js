@@ -116,18 +116,45 @@ export class Gun {
     })();
 
     // THE SHELLS. Pooled like every other projectile in the game — allocating a mesh per shot
-    // is the GC sawtooth that ruins frame time exactly when you are firing a lot.
+    // is the GC sawtooth that ruins frame time exactly when you are firing a lot. Big and
+    // glowing: a cannon shell should read as a heavy thing in the air, not a pea.
     this.shells = [];
-    const shellGeo = new THREE.SphereGeometry(0.3, 12, 12);
-    const shellMat = new THREE.MeshBasicMaterial({ color: 0xff3a2a });
+    const shellGeo = new THREE.IcosahedronGeometry(0.55, 0);
+    const shellMat = new THREE.MeshBasicMaterial({ color: 0xff7a1e });
     for (let i = 0; i < 8; i++) {
       const mesh = new THREE.Mesh(shellGeo, shellMat);
       mesh.visible = false;
       scene.add(mesh);
       this.shells.push({ mesh, active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0 });
     }
-    this.shellLight = new THREE.PointLight(0xff4a2a, 0, 16);
+    this.shellLight = new THREE.PointLight(0xff8a2e, 0, 20);
     scene.add(this.shellLight);
+
+    // THE BURST. The cannon had no explosion visual at all — only a sound and invisible
+    // damage — so a huge blast landed with nothing to see. A pool of shells can put a couple
+    // of bursts up at once, so these are pooled too: an expanding ring on the ground and a
+    // bright shell of light, both scaled to the actual blast radius so what you SEE is the
+    // area that was hit.
+    this.bursts = [];
+    const ringGeo = new THREE.RingGeometry(0.35, 1, 40);
+    ringGeo.rotateX(-Math.PI / 2);
+    const flashGeo = new THREE.IcosahedronGeometry(1, 2);
+    for (let i = 0; i < 6; i++) {
+      const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+        color: 0xffb046, transparent: true, opacity: 0, side: THREE.DoubleSide,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+      }));
+      const flash = new THREE.Mesh(flashGeo, new THREE.MeshBasicMaterial({
+        color: 0xff8a2e, transparent: true, opacity: 0, depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }));
+      ring.visible = false; flash.visible = false;
+      scene.add(ring); scene.add(flash);
+      this.bursts.push({ ring, flash, t: 0, r: 1, x: 0, y: 0, z: 0 });
+    }
+    this.burstLight = new THREE.PointLight(0xffa040, 0, 40);
+    scene.add(this.burstLight);
+    this.burstI = 0;
 
     // THE BEAM. A one-pixel line reads as a debug overlay, not a weapon — WebGL cannot
     // widen lines, so thickness has to be geometry. Two coaxial shafts: a hot core inside a
@@ -165,6 +192,16 @@ export class Gun {
 
   /** Weapons with no magazine (the cleaver, the lance) never reload and never run dry. */
   get usesAmmo() { return (this.weapon.magSize || 0) > 0; }
+
+  /**
+   * A faction weapon is DEAD in the hands of anyone not sworn to that faction. You can own it
+   * and carry it forever — leaving a faction does not confiscate its kit — but it will not
+   * fire unless you wear the colours. The weapon IS the allegiance; wielding one you have
+   * renounced would make the choice mean nothing.
+   */
+  lockedFor(faction) {
+    return !!this.weapon.faction && this.weapon.faction !== faction;
+  }
 
   /**
    * MELEE — a cone in front of you, not a ray.
@@ -363,7 +400,10 @@ export class Gun {
       if (slot) {
         slot.active = true;
         slot.x = player.x + dir.x * 0.7; slot.y = player.y + 1.35; slot.z = player.z + dir.z * 0.7;
-        slot.vx = dir.x * w.speed; slot.vy = dir.y * w.speed; slot.vz = dir.z * w.speed;
+        slot.vx = dir.x * w.speed; slot.vz = dir.z * w.speed;
+        // A small upward launch on top of the aim so the shell ARCS rather than sagging — it
+        // rises a touch, then the drop curves it back down as it travels.
+        slot.vy = dir.y * w.speed + w.speed * (w.upBias || 0);
         slot.t = 4;
         slot.mesh.visible = true;
         slot.mesh.position.set(slot.x, slot.y, slot.z);
@@ -443,15 +483,27 @@ export class Gun {
    * explosion touches, exactly as it does for grenades — this file still knows nothing about
    * what a mob is.
    */
+  /** Kick off a burst flash at the impact, sized to the blast radius it represents. */
+  spawnBurst(x, y, z, radius) {
+    const b = this.bursts[this.burstI = (this.burstI + 1) % this.bursts.length];
+    Object.assign(b, { t: 0.45, r: radius, x, y, z });
+    b.ring.position.set(x, groundY(x, z) + 0.1, z);
+    b.flash.position.set(x, y, z);
+    b.ring.visible = true;
+    b.flash.visible = true;
+  }
+
   updateShells(dt, onBurst) {
     const w = WEAPONS.lobber;
     let lit = null;
     for (const s of this.shells) {
       if (!s.active) continue;
       s.t -= dt;
-      s.vy += w.drop * dt;                 // barely arcs: flat enough to aim, slow enough to lead
+      s.vy += w.drop * dt;                 // arcs a little: flat enough to aim, slow enough to lead
+      s.mesh.rotation.x += dt * 7; s.mesh.rotation.y += dt * 5;
       const nx = s.x + s.vx * dt, ny = s.y + s.vy * dt, nz = s.z + s.vz * dt;
       if (s.t <= 0 || solidAt(nx, ny, nz) || ny <= groundY(nx, nz)) {
+        this.spawnBurst(s.x, s.y, s.z, w.blastRadius);
         onBurst?.(s.x, s.y, s.z);
         s.active = false;
         s.mesh.visible = false;
@@ -461,8 +513,25 @@ export class Gun {
       s.mesh.position.set(nx, ny, nz);
       lit = s;
     }
-    if (lit) { this.shellLight.position.set(lit.x, lit.y, lit.z); this.shellLight.intensity = 9; }
+    if (lit) { this.shellLight.position.set(lit.x, lit.y, lit.z); this.shellLight.intensity = 12; }
     else this.shellLight.intensity = 0;
+
+    // The bursts: the ring races out to the full blast radius while the light-shell flares
+    // and fades, so the animation genuinely fills the area the damage covered.
+    let litBurst = null;
+    for (const b of this.bursts) {
+      if (b.t <= 0) continue;
+      b.t -= dt;
+      const f = 1 - Math.max(0, b.t) / 0.45;       // 0 -> 1
+      b.ring.scale.setScalar(0.4 + f * b.r);
+      b.ring.material.opacity = (1 - f) * 0.85;
+      b.flash.scale.setScalar(b.r * (0.35 + f * 0.5));
+      b.flash.material.opacity = (1 - f) * 0.7;
+      if (b.t <= 0) { b.ring.visible = false; b.flash.visible = false; }
+      else litBurst = b;
+    }
+    if (litBurst) { this.burstLight.position.set(litBurst.x, litBurst.y + 1, litBurst.z); this.burstLight.intensity = 26 * (litBurst.t / 0.45); }
+    else this.burstLight.intensity = 0;
   }
 
   /** Heat only exists for the lance. Everything else ignores it entirely. */

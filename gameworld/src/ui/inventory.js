@@ -388,8 +388,11 @@ export class Inventory {
         const active = gun.weapon.id === id;
         const carried = gun.loadout?.includes(id);
         const state = active ? "in hand" : carried ? "carried" : "click to carry (swaps what you hold)";
-        return `<div class="cell ${active ? "eq" : carried ? "held" : ""}" data-weapon="${id}"
-                     title="${w.name} — ${w.desc} · ${state}"><span class="nm">${w.name}</span></div>`;
+        const leg = w.rarity === "legendary";
+        return `<div class="cell ${active ? "eq" : carried ? "held" : ""} ${leg ? "legendary" : ""}"
+                     data-weapon="${id}" ${leg ? `style="border-color:${w.color}"` : ""}
+                     title="${w.name} — ${w.desc} · ${state}"><span class="nm"
+                     style="${leg ? `color:${w.color}` : ""}">${w.name}</span></div>`;
       }).join("")
       : "";
     const worn = new Set(gear.slots.map((x) => x.piece?.uid).filter(Boolean));

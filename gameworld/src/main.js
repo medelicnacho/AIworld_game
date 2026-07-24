@@ -1394,6 +1394,7 @@ function frame(now) {
     prevRmb = input.aimHeld;
     if (rmbPressed && gun.weapon.mode === "melee") {
       if (inSafeZone) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; }
+      else if (gun.lockedFor(player.faction)) { tradeMsg = `swear to ${gun.weapon.faction} to wield this`; tradeMsgT = 2; }
       else trySpin();
     }
   }
@@ -1422,7 +1423,8 @@ function frame(now) {
     // as trigger-up. One shot can strike several targets now (shotgun pellets), so damage is
     // applied per struck target, each pellet dealing the weapon's damage through dmgMult.
     const shot = gun.tryFire(rig.blend > 0.5, gunRng,
-      [...mobs.targets(), ...boss.targets()], input.firing && !inSafeZone, dt);
+      [...mobs.targets(), ...boss.targets()],
+      input.firing && !inSafeZone && !gun.lockedFor(player.faction), dt);
 
     if (shot?.beam) {
       // THE BEAM does not deal its damage here. It burns for tiny amounts sixty times a
@@ -1766,7 +1768,8 @@ function frame(now) {
     const magMax = w.magSize;
     const lowAmmo = gun.mag <= Math.ceil(magMax * 0.25);
     let left;
-    if (inSafeZone) left = `<span class="am-stow">STOWED</span>`;
+    if (gun.lockedFor(player.faction)) left = `<span class="am-reload">NOT ${w.faction.toUpperCase()}</span>`;
+    else if (inSafeZone) left = `<span class="am-stow">STOWED</span>`;
     else if (w.mode === "melee") left = `<span class="am-cur">∞</span>`;
     else if (w.mode === "beam") {
       // Heat is the lance's ammunition, so it lives where ammunition lives.
@@ -1784,7 +1787,7 @@ function frame(now) {
           : `<span class="am-rc up">RMB SPIN</span>`;
     }
     ammoEl.innerHTML =
-      `<div class="am-name">${w.name}${gun.loadout.length > 1 ? " ⟳" : ""}</div>`
+      `<div class="am-name" style="${w.color ? `color:${w.color}` : ""}">${w.name}${gun.loadout.length > 1 ? " ⟳" : ""}</div>`
       + `<div class="am-row">${left}${rc}</div>`;
   }
 

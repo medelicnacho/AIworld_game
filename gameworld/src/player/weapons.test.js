@@ -70,13 +70,18 @@ test("SPIN: sustained damage loses to swinging, and to Whirlwind", () => {
     `spin ${spinPerSec}/s must stay under Whirlwind's ${whirlPerSec}/s`);
 });
 
-test("LOBBER: never hurts you — the cost is leading the shot, not fear", () => {
+test("CANNON: a big blast that never hurts you — so the cost is LEADING a slow shell", () => {
   const w = WEAPONS.lobber;
   assert.equal(w.selfDamage, false, "an explosive fired like a sidearm must not punish being close");
-  assert.ok(w.speed > 0 && w.blastRadius > 0 && w.blastDamage > 0);
-  // The safety valve on "strictly better grenade": the splash must stay TIGHTER than a
-  // grenade's, because difficulty is the only cost this weapon has left.
-  assert.ok(w.blastRadius < 6.5, "the lobber's splash must stay tighter than a grenade's");
+  assert.ok(w.blastRadius > 8, "it is a WIDE-circle crowd weapon now, by design");
+  // With self-damage off and a huge blast, travel time is the ONLY skill the weapon has left.
+  // The shell must stay slow enough to demand a lead — fast enough and it is point-and-delete,
+  // which is the exact failure the slow speed exists to prevent. (A rifle round is ~220/s of
+  // range; this must be a fraction of that so you visibly out-run your own shell.)
+  assert.ok(w.speed > 0 && w.speed < 60,
+    `the shell must be leadable, not hitscan-fast (speed ${w.speed})`);
+  assert.ok(w.drop < 0, "it curves downward as it flies — the arc is another read into the lead");
+  assert.ok(w.blastDamage > 0);
 });
 
 test("LOADOUT: you carry two, and buying a third swaps the one in your HANDS", () => {
@@ -150,6 +155,29 @@ test("SWING: the height you cut at follows where you look", () => {
     "looking up: the cut moves up — the ledge is in reach, and your feet are not");
   assert.ok(ids(level, [feet]).includes(3),
     "looking level still catches things at your feet — the band is generous, not a razor");
+});
+
+test("ALIGNMENT: a faction weapon is dead in the hands of the wrong faction", () => {
+  const g = mkGun();
+  g.owned.add("cleaver");
+  g.loadout = ["cleaver"];
+  g.equip("cleaver");
+  assert.equal(g.lockedFor("iron"), false, "the faction that made it can wield it");
+  assert.equal(g.lockedFor("vale"), true, "a rival cannot");
+  assert.equal(g.lockedFor(null), true, "and neither can the unaligned");
+  // A plain gun belongs to nobody and is never locked.
+  g.owned.add("rifle"); g.loadout = ["rifle"]; g.equip("rifle");
+  assert.equal(g.lockedFor(null), false, "the ordinary guns answer to no faction");
+});
+
+test("legendary weapons are orange, and only the faction three are", () => {
+  for (const wid of ["cleaver", "lobber", "lance"]) {
+    assert.equal(WEAPONS[wid].rarity, "legendary", `${wid} must read as legendary`);
+    assert.ok(/^#/.test(WEAPONS[wid].color), `${wid} needs a colour`);
+  }
+  for (const wid of ["rifle", "shotgun", "sniper", "mg"]) {
+    assert.notEqual(WEAPONS[wid].rarity, "legendary", `${wid} is an ordinary gun`);
+  }
 });
 
 test("LANCE: heat makes it a weapon you manage, not a hose", () => {
