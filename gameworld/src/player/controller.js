@@ -73,11 +73,10 @@ export function attachInput(canvas, hooks = {}) {
     if (e.code === "KeyE" && !e.repeat) input.throwQueued = true;
     if (e.code === "KeyQ" && !e.repeat) input.healQueued = true;
     // The spell bar: 1-6, then T and Tab for slots 7-8. R and F are left alone (reload, trade).
-    // Cast only on the PLAIN key — no Shift/Ctrl/Alt/Meta — so Shift+Tab and Ctrl+Tab never
-    // fire a spell. (Shift+Tab's focus-shift is swallowed above; Ctrl+Tab is a browser-level
-    // shortcut a web page cannot block, so nothing can stop it switching tabs — just don't
-    // hold Ctrl while you cast.)
-    if (!e.repeat && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    // SHIFT IS ALLOWED — it's sprint, so you must be able to cast while running (Shift+Tab
+    // still casts, and its focus-shift is already swallowed above). Only Ctrl/Alt/Meta block a
+    // cast, because those are browser-shortcut modifiers (Ctrl+1 switches tabs, etc.).
+    if (!e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) {
       const slot = SLOT_CODE[e.code];
       if (slot !== undefined) hooks.ability?.(slot);
     }
