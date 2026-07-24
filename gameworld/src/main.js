@@ -1211,6 +1211,8 @@ function showDifficultyPicker() {
   choosing = true;
   clickEl.style.display = "none";
   diffEl.style.display = "grid";
+  let selected = null;
+
   diffEl.innerHTML = `
     <h1>WAR NACHO</h1>
     <div class="sub">Choose how hard the frontier bites. This is set for the whole run.</div>
@@ -1221,16 +1223,39 @@ function showDifficultyPicker() {
           <span class="bl">${d.blurb}</span>
         </button>`).join("")}
     </div>
+    <button class="startbtn hidden" data-start>▶  CLICK TO START  ◀</button>
     <div class="hint">You can start a fresh run and pick again from the character sheet.</div>`;
+
+  const modes = diffEl.querySelector(".modes");
+  const startBtn = diffEl.querySelector("[data-start]");
+
+  // FIRST click a card: it lights up green and the choice is locked in — but the game does
+  // NOT begin yet, so you can change your mind, and so starting is always a deliberate second
+  // click rather than something that fires the instant you touch a card.
   diffEl.querySelectorAll("[data-diff]").forEach((b) => {
     b.addEventListener("click", () => {
-      setDifficulty(b.dataset.diff);
-      applyLevelStats();          // fold the chosen difficulty into damage/grace right away
-      choosing = false;
-      diffEl.style.display = "none";
-      clickEl.style.display = "";
-      saveNow();                  // remember the choice from the very first frame
+      selected = b.dataset.diff;
+      setDifficulty(selected);
+      applyLevelStats();          // the choice is live from the moment it is made
+      diffEl.querySelectorAll(".mode").forEach((m) => m.classList.toggle("sel", m === b));
+      modes.classList.add("chosen");
+      startBtn.classList.remove("hidden");
     });
+  });
+
+  // THEN click START. This is the user gesture that both begins the game and — because it is
+  // a real click — is allowed to grab the mouse. Doing it here rather than waiting for a
+  // separate world-click means one clear "start" button, exactly what was asked for.
+  startBtn.addEventListener("click", () => {
+    if (!selected) return;
+    choosing = false;
+    diffEl.style.display = "none";
+    clickEl.style.display = "";
+    saveNow();                    // remember the choice from the very first frame
+    music.start();
+    sfx.unlock();
+    if (paused) { lockTries = 0; setPaused(false); }
+    renderer.domElement.requestPointerLock?.();   // this click is a fresh user gesture
   });
 }
 // The browser can close without warning. This is the last chance to commit, and it has to be
