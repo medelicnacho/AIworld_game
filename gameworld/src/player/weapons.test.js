@@ -5,8 +5,14 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import * as THREE from "three";
 import { WEAPONS, SPIN, WHIRL } from "../config.js";
 import { FACTIONS, FACTION_WEAPON } from "../prog/factions.js";
+import { Gun } from "./gun.js";
+
+// The Gun is pure state until something renders it, so it runs headless — which means the
+// carry rules can be tested as rules instead of hoped-for behaviours.
+const mkGun = () => new Gun(new THREE.Scene(), new THREE.PerspectiveCamera());
 
 test("every faction teaches exactly one weapon, and each asks a different question", () => {
   const modes = new Set();
@@ -70,6 +76,51 @@ test("LOBBER: never hurts you — the cost is leading the shot, not fear", () =>
   // The safety valve on "strictly better grenade": the splash must stay TIGHTER than a
   // grenade's, because difficulty is the only cost this weapon has left.
   assert.ok(w.blastRadius < 6.5, "the lobber's splash must stay tighter than a grenade's");
+});
+
+test("LOADOUT: you carry two, and buying a third swaps the one in your HANDS", () => {
+  const g = mkGun();
+  assert.deepEqual(g.loadout, ["rifle"], "you start carrying only the starter");
+  g.acquire("shotgun");
+  assert.deepEqual([...g.loadout].sort(), ["rifle", "shotgun"], "the second purchase fills the free hand");
+  assert.equal(g.weapon.id, "shotgun", "and a new weapon lands in your hands");
+  // Buying a third replaces what you are HOLDING — the holstered weapon is the one you
+  // deliberately kept, and it must never be silently discarded.
+  g.acquire("sniper");
+  assert.ok(g.loadout.includes("sniper"));
+  assert.ok(g.loadout.includes("rifle"), "the holstered rifle survives the purchase");
+  assert.ok(!g.loadout.includes("shotgun"), "the shotgun you were holding is what got swapped out");
+  assert.ok(g.owned.has("shotgun"), "...but it is still OWNED — it went to the bag, not the bin");
+});
+
+test("LOADOUT: the wheel is a toggle between the two carried, never a carousel", () => {
+  const g = mkGun();
+  g.acquire("shotgun");
+  g.acquire("sniper");     // owns three, carries rifle + sniper
+  const first = g.weapon.id;
+  g.cycle();
+  const second = g.weapon.id;
+  assert.notEqual(first, second, "the wheel must change hands");
+  g.cycle();
+  assert.equal(g.weapon.id, first, "two flicks of the wheel must bring the first weapon back");
+  assert.ok(!["rifle", "sniper"].includes("shotgun"), "the bagged weapon never appears in the cycle");
+});
+
+test("LOADOUT: equip refuses weapons that are not carried; carry() is the door", () => {
+  const g = mkGun();
+  g.acquire("shotgun");
+  g.acquire("sniper");     // shotgun now bagged
+  g.equip("shotgun");
+  assert.notEqual(g.weapon.id, "shotgun", "a bagged weapon cannot be equipped directly");
+  g.carry("shotgun");
+  assert.equal(g.weapon.id, "shotgun", "carrying it first is what brings it to hand");
+});
+
+test("LOADOUT: a restored loadout keeps only what is actually owned", () => {
+  const g = mkGun();
+  g.acquire("cleaver");
+  g.setLoadout(["cleaver", "lance", "nonsense"]);     // lance never bought
+  assert.deepEqual(g.loadout, ["cleaver"], "unowned and unknown weapons are dropped");
 });
 
 test("LANCE: heat makes it a weapon you manage, not a hose", () => {

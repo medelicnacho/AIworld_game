@@ -379,11 +379,17 @@ export class Inventory {
 
     // Bags: your weapons and every gear piece you own. A piece's border is its rarity colour;
     // its tooltip is its full stat list. Click to equip (into its slot, replacing what's there).
+    // Weapons: you CARRY two of everything you own. Green is in your hands, gold is on your
+    // back, plain is in the bag — clicking any of them takes it in hand, swapping out
+    // whatever you were holding. The one on your back is never silently discarded.
     const weps = gun
       ? [...gun.owned].map((id) => {
         const w = WEAPONS[id];
-        return `<div class="cell ${gun.weapon.id === id ? "eq" : ""}" data-weapon="${id}"
-                     title="${w.name} — ${w.desc}"><span class="nm">${w.name}</span></div>`;
+        const active = gun.weapon.id === id;
+        const carried = gun.loadout?.includes(id);
+        const state = active ? "in hand" : carried ? "carried" : "click to carry (swaps what you hold)";
+        return `<div class="cell ${active ? "eq" : carried ? "held" : ""}" data-weapon="${id}"
+                     title="${w.name} — ${w.desc} · ${state}"><span class="nm">${w.name}</span></div>`;
       }).join("")
       : "";
     const worn = new Set(gear.slots.map((x) => x.piece?.uid).filter(Boolean));

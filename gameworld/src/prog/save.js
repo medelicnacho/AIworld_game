@@ -61,6 +61,7 @@ export function snapshot(ctx) {
     abilities: abilities.owned.map((a) => a.id),
     bar: abilities.slots.map((s) => (s ? s.id : null)),
     guns: [...gun.owned],
+    loadout: [...gun.loadout],
     gun: gun.weapon.id,
   };
 }
@@ -117,7 +118,10 @@ export function restore(data, ctx) {
   abilities.slots.length = ctx.slots;
 
   for (const id of data.guns || []) gun.acquire(id);
-  if (data.gun) gun.equip(data.gun);
+  // The two you CARRIED, not just the pile you owned. Older saves have no loadout; derive
+  // one from what was in hand so nobody loads into empty arms.
+  gun.setLoadout(data.loadout || [data.gun, ...(data.guns || [])]);
+  if (data.gun) gun.carry(data.gun);
 
   recomputeGear();          // sums the worn set, then derives every level/gear stat
   applyLevelStats();

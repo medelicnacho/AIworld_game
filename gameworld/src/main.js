@@ -772,7 +772,7 @@ const pointsEl = document.getElementById("points");
 const inventory = new Inventory(document.getElementById("inv"), abilities, {
   onClose: () => resumeFromShop(),
   gun: () => gun,
-  equipWeapon: (id) => gun.equip(id),
+  equipWeapon: (id) => gun.carry(id),
   // Gear: the five worn slots, and every piece you own (for the bag).
   gearState: () => ({
     slots: ARMOR_SLOT_ORDER.map((slot) => ({ slot, piece: player.gearSlots[slot] })),
@@ -1716,7 +1716,7 @@ function frame(now) {
     `${gun.weapon.name}  ${inSafeZone ? "stowed (safe zone)" : gun.reloading > 0 ? "reloading…"
     : gun.weapon.mode === "beam" ? `heat ${Math.round(gun.heat * 100)}%${gun.overheated > 0 ? " OVERHEAT" : ""}`
     : gun.weapon.mode === "melee" ? (player.spinCd > 0 ? `spin ${player.spinCd.toFixed(1)}s` : "spin ready")
-    : `${gun.mag}/${gun.weapon.magSize}`}${gun.owned.size > 1 ? "  (wheel to switch)" : ""}` +
+    : `${gun.mag}/${gun.weapon.magSize}`}${gun.loadout.length > 1 ? "  (wheel to swap)" : ""}` +
     `   ${player.iframes > 0 ? "· I-FRAMES ·" : player.dodgeCd > 0 ? "dodge cd" : "dodge ready"}\n` +
     `${bridge.label}${speaking ? "  ·  thinking…" : ""}\n` +
     `${!paused && document.pointerLockElement !== renderer.domElement
@@ -1765,7 +1765,7 @@ function frame(now) {
           : `<span class="am-rc up">RMB SPIN</span>`;
     }
     ammoEl.innerHTML =
-      `<div class="am-name">${w.name}${gun.owned.size > 1 ? " ⟳" : ""}</div>`
+      `<div class="am-name">${w.name}${gun.loadout.length > 1 ? " ⟳" : ""}</div>`
       + `<div class="am-row">${left}${rc}</div>`;
   }
 

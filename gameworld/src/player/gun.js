@@ -46,7 +46,13 @@ export class Gun {
     this.scene = scene;
     this.camera = camera;
     this.weapon = WEAPONS.rifle;         // the starter
-    this.owned = new Set(["rifle"]);     // guns you can switch between
+    this.owned = new Set(["rifle"]);     // every weapon you have ever bought
+    // THE LOADOUT: the two you actually CARRY. Owning five weapons and wheeling through all
+    // of them made the wheel a roulette — mid-fight you spun past three wrong answers to
+    // reach the right one, and no purchase ever cost you anything. Two carried weapons makes
+    // the wheel a fast TOGGLE between tools you chose, and makes "which two" a real decision
+    // — the same opportunity-cost rule the factions run on. The rest wait in the bag.
+    this.loadout = ["rifle"];
     this.mag = this.weapon.magSize;
     this.cooldown = 0;
     this.reloading = 0;
@@ -123,17 +129,32 @@ export class Gun {
     this.shellLight = new THREE.PointLight(0xff4a2a, 0, 16);
     scene.add(this.shellLight);
 
-    // THE BEAM. One line from the muzzle to wherever it stops, plus heat.
+    // THE BEAM. A one-pixel line reads as a debug overlay, not a weapon — WebGL cannot
+    // widen lines, so thickness has to be geometry. Two coaxial shafts: a hot core inside a
+    // translucent sheath that breathes while it burns. Authored along Y with unit height, so
+    // drawing it is position at the midpoint, scale to the length, rotate Y onto the ray.
     this.beamOn = false;
     this.beamEnd = new THREE.Vector3();
     this.heat = 0;
     this.overheated = 0;
-    this.beamLine = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
-      new THREE.LineBasicMaterial({ color: 0xff7a3a, transparent: true, opacity: 0 }),
-    );
-    this.beamLine.frustumCulled = false;
-    scene.add(this.beamLine);
+    const shaft = (radius, color, opacity) => {
+      const m = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius, 1, 10, 1, true),
+        new THREE.MeshBasicMaterial({
+          color, transparent: true, opacity: 0, depthWrite: false,
+          blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        }),
+      );
+      m.visible = false;
+      m.userData.maxOpacity = opacity;
+      scene.add(m);
+      return m;
+    };
+    this.beamCore = shaft(0.11, 0xffd9a8, 0.95);
+    this.beamGlow = shaft(0.32, 0xff5a1e, 0.4);
+    this._beamDir = new THREE.Vector3();
+    this._beamQuat = new THREE.Quaternion();
+    this._up = new THREE.Vector3(0, 1, 0);
     this.beamLight = new THREE.PointLight(0xff6a2a, 0, 18);
     scene.add(this.beamLight);
   }
@@ -205,16 +226,36 @@ export class Gun {
     return out.sort((a, b2) => a.t - b2.t);
   }
 
-  /** Own a weapon (from a purchase) and switch to it. */
+  /** Own a weapon (from a purchase), take it in hand. */
   acquire(id) {
     if (!WEAPONS[id]) return;
     this.owned.add(id);
+    this.carry(id);
+  }
+
+  /**
+   * Take an owned weapon into your hands. If both carry slots are full, it replaces the one
+   * you are HOLDING — swapping what is in your hands is the intuitive read, and it means the
+   * holstered weapon (the one you deliberately kept) is never silently discarded.
+   */
+  carry(id) {
+    if (!this.owned.has(id) || !WEAPONS[id]) return;
+    if (!this.loadout.includes(id)) {
+      if (this.loadout.length < 2) this.loadout.push(id);
+      else this.loadout[Math.max(0, this.loadout.indexOf(this.weapon.id))] = id;
+    }
     this.equip(id);
   }
 
-  /** Switch to an owned weapon, resetting the magazine and any in-progress reload. */
+  /** Restore a saved loadout, keeping only weapons actually owned. */
+  setLoadout(ids) {
+    const clean = [...new Set(ids)].filter((x) => this.owned.has(x) && WEAPONS[x]).slice(0, 2);
+    if (clean.length) this.loadout = clean;
+  }
+
+  /** Switch to a CARRIED weapon, resetting the magazine and any in-progress reload. */
   equip(id) {
-    if (!this.owned.has(id) || !WEAPONS[id]) return;
+    if (!this.loadout.includes(id) || !WEAPONS[id]) return;
     this.weapon = WEAPONS[id];
     this.mag = this.weapon.magSize;
     this.reloading = 0;
@@ -225,12 +266,11 @@ export class Gun {
     this.beamOn = false;
   }
 
-  /** Mouse-wheel cycling through owned weapons, in WEAPONS declaration order. */
-  cycle(dir = 1) {
-    const order = Object.keys(WEAPONS).filter((id) => this.owned.has(id));
-    if (order.length < 2) return;
-    const i = order.indexOf(this.weapon.id);
-    this.equip(order[(i + dir + order.length) % order.length]);
+  /** The wheel swaps hands: with two carried weapons it is a toggle, not a carousel. */
+  cycle() {
+    if (this.loadout.length < 2) return;
+    const other = this.loadout.find((id) => id !== this.weapon.id);
+    if (other) this.equip(other);
   }
 
   reload() {
@@ -436,17 +476,26 @@ export class Gun {
 
     // The beam is drawn only while it is actually burning; the swing arc fades out fast.
     if (this.beamOn && this.weapon.mode === "beam") {
-      const p = this.beamLine.geometry.attributes.position;
-      const o = this.camera.position;
-      p.setXYZ(0, player.x, player.y + 1.35, player.z);
-      p.setXYZ(1, this.beamEnd.x, this.beamEnd.y, this.beamEnd.z);
-      p.needsUpdate = true;
-      this.beamLine.material.opacity = 0.75 + 0.25 * Math.sin(performance.now() * 0.04);
+      const mx = player.x, my = player.y + 1.35, mz = player.z;
+      this._beamDir.set(this.beamEnd.x - mx, this.beamEnd.y - my, this.beamEnd.z - mz);
+      const len = Math.max(0.01, this._beamDir.length());
+      this._beamDir.normalize();
+      this._beamQuat.setFromUnitVectors(this._up, this._beamDir);
+      // The sheath breathes and the core flickers — a beam that holds one width reads as a
+      // frozen frame rather than as energy passing through the air.
+      const pulse = 1 + 0.22 * Math.sin(performance.now() * 0.02);
+      for (const [m, sc] of [[this.beamCore, 1], [this.beamGlow, pulse]]) {
+        m.visible = true;
+        m.position.set((mx + this.beamEnd.x) / 2, (my + this.beamEnd.y) / 2, (mz + this.beamEnd.z) / 2);
+        m.quaternion.copy(this._beamQuat);
+        m.scale.set(sc, len, sc);
+        m.material.opacity = m.userData.maxOpacity * (0.85 + 0.15 * Math.sin(performance.now() * 0.045));
+      }
       this.beamLight.position.copy(this.beamEnd);
-      this.beamLight.intensity = 14;
-      void o;
-    } else if (this.beamLine.material.opacity > 0) {
-      this.beamLine.material.opacity = 0;
+      this.beamLight.intensity = 16;
+    } else if (this.beamCore.visible) {
+      this.beamCore.visible = false;
+      this.beamGlow.visible = false;
       this.beamLight.intensity = 0;
     }
 
