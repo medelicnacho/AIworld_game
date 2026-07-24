@@ -1,23 +1,23 @@
-// Layered soundtrack: two channels that both stream the whole time, and only their VOLUMES
-// change as you cross the city gate — so neither restarts from the top when you step in or out.
+// Layered soundtrack. Every track is its own looping <audio> element that streams the whole
+// time; crossing the city gate only changes VOLUMES, so nothing ever restarts from the top.
 //
-//   EVERYWHERE      — a PLAYLIST of the action tracks (war 1, war 2, radio) played one after
-//                     another and looped forever. This bed is ALWAYS audible, outside AND in
-//                     town, so the war/radio songs never go silent and radio gets its turn.
-//   INSIDE the city — the chill town track is LAYERED on top of that bed, so town = action
-//                     bed + chillax, and stepping outside just drops the chillax layer.
+//   EVERYWHERE      — war 1, war 2 and radio all play AT THE SAME TIME, each on its own loop.
+//                     No playlist, no hand-off: the three are simply layered together and never
+//                     stop, so radio is always in the mix instead of waiting its turn.
+//   INSIDE the city — the chill town track fades in ON TOP of those three; stepping outside just
+//                     drops that one layer and leaves the war/radio bed rolling.
 //
-// (To change which songs go where, edit WORLD_PLAYLIST / TOWN_TRACK below.)
+// (To change the mix, edit WORLD_TRACKS / TOWN_TRACK below.)
 
-const WORLD_PLAYLIST = [
+const WORLD_TRACKS = [
   "/audio/warsound.mp3",   // war 1
   "/audio/warsound2.mp3",  // war 2
   "/audio/radio.mp3",      // radio
 ];
 const TOWN_TRACK = "/audio/chillax.mp3";   // the city track we had
 
-const VOLUME = 0.3;        // background, under the sound effects
-const CROSS_MS = 1100;     // gate crossings
+const VOLUME = 0.24;       // per track, kept low so three layers don't clip
+const CROSS_MS = 1100;     // gate-crossing fade
 
 export class Music {
   constructor(volume = VOLUME) {
@@ -25,32 +25,27 @@ export class Music {
     this.muted = false;
     this.started = false;
     this.where = "world";
-    this.idx = 0;
 
-    // The frontier channel is a playlist: advance on end, wrap forever.
-    this.world = new Audio(WORLD_PLAYLIST[0]);
-    this.world.volume = 0;
-    this.world.addEventListener("ended", () => this.advanceWorld());
-    this.world.addEventListener("error", () => { if (this.started) this.advanceWorld(); });
-
-    // The city channel is a single looping track.
-    this.town = new Audio(TOWN_TRACK);
-    this.town.loop = true;
-    this.town.volume = 0;
+    // Three action tracks, each an independent forever-loop. Same simple shape as the town
+    // track that already works — no src swapping, no 'ended' handoff to go wrong.
+    this.world = WORLD_TRACKS.map((src) => this.makeLoop(src));
+    this.town = this.makeLoop(TOWN_TRACK);
   }
 
-  advanceWorld() {
-    this.idx = (this.idx + 1) % WORLD_PLAYLIST.length;
-    this.world.src = WORLD_PLAYLIST[this.idx];
-    this.world.load();
-    if (this.started && !this.muted) this.world.play().catch(() => {});
+  makeLoop(src) {
+    const el = new Audio(src);
+    el.loop = true;
+    el.volume = 0;
+    return el;
   }
 
-  /** Make sure both channels are STREAMING when they should be. Volume decides what's heard;
-   *  playing both keeps their positions warm and lets the world playlist keep advancing. */
+  els() { return [...this.world, this.town]; }
+
+  /** Make sure every channel is STREAMING. Volume decides what's heard; playing them all keeps
+   *  the layers in the mix. */
   ensurePlaying() {
     if (!this.started || this.muted) return;
-    for (const el of [this.world, this.town]) {
+    for (const el of this.els()) {
       if (el.paused) el.play().catch((e) => console.warn("[music] play blocked:", e?.name || e));
     }
   }
@@ -68,27 +63,27 @@ export class Music {
     this.applyVolumes();
   }
 
-  /** Fade each channel toward the volume its place deserves right now. The action bed is on
+  /** Fade each channel toward the volume its place deserves. The three war/radio tracks are on
    *  everywhere; the town track is layered on top only when you're inside the city. */
   applyVolumes(ms = CROSS_MS) {
     const live = this.started && !this.muted;
-    this.fade(this.world, live ? this.volume : 0, ms);
+    for (const el of this.world) this.fade(el, live ? this.volume : 0, ms);
     this.fade(this.town, live && this.where === "town" ? this.volume : 0, ms);
   }
 
   setPaused(paused) {
     if (!this.started) return;
-    if (paused) { this.world.pause(); this.town.pause(); }
+    if (paused) { for (const el of this.els()) el.pause(); }
     else { this.ensurePlaying(); this.applyVolumes(0); }
   }
 
   /** Explicit pause/resume for the death screen. */
-  pause() { this.world.pause(); this.town.pause(); }
+  pause() { for (const el of this.els()) el.pause(); }
   resume() { this.ensurePlaying(); this.applyVolumes(0); }
 
   toggle() {
     this.muted = !this.muted;
-    if (this.muted) { this.world.pause(); this.town.pause(); }
+    if (this.muted) { for (const el of this.els()) el.pause(); }
     else { this.started = true; this.ensurePlaying(); this.applyVolumes(0); }
     return !this.muted;
   }
