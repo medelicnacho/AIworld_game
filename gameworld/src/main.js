@@ -71,6 +71,13 @@ scene.add(body);
 const streamer = new ChunkStreamer(scene);
 const rig = new CameraRig(camera);
 const music = new Music();
+// Bulletproof audio start: a browser may refuse to start media from the pointer-lock handler
+// (it isn't always a "user activation" context), so ALSO kick the soundtrack from the first
+// raw clicks/keys, and retry on every gesture until playback actually sticks. start()/resume()
+// are idempotent, so hammering them is safe.
+const kickAudio = () => { music.start(); music.resume(); };
+addEventListener("pointerdown", kickAudio);
+addEventListener("keydown", kickAudio);
 const gun = new Gun(scene, camera);
 const gunRng = mulberry32(0xBADA55);    // D14: even bullet spread is seeded
 // Affix hooks reach the world through this, rather than mobs.js importing main's

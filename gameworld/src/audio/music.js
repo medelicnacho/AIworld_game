@@ -38,7 +38,9 @@ export class Music {
   play() {
     if (!this.started || this.muted) return;
     this.el.volume = this.volume;         // set DIRECTLY, never via a promise that may abort
-    if (this.el.paused) this.el.play().catch(() => {});
+    if (this.el.paused) {
+      this.el.play().catch((e) => console.warn("[music] play blocked:", e?.name || e));
+    }
   }
 
   /** Call from a user gesture (pointer lock). Safe to call repeatedly. */
