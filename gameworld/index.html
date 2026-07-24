@@ -60,9 +60,15 @@
       }
       #minimap {
         position: absolute; top: 12px; right: 12px;
+        /* Sized from JS to fit the window (see ui/minimap.js resize) — these are only the
+           fallback before the first sizing pass. */
         width: 180px; height: 180px;
         filter: drop-shadow(0 2px 6px #0008);
+        transition: opacity .18s ease;
       }
+      /* Out of the way while a panel owns the screen. The map is the busiest thing on the
+         HUD and it is pure noise behind a price list or a character sheet. */
+      body.shopping #minimap, body.inv #minimap { opacity: .12; }
       #subtitle {
         position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%);
         max-width: 60%; text-align: center; opacity: 0;

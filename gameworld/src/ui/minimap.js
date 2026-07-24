@@ -15,23 +15,52 @@ import { heightAt, ringAt, tierStart } from "../world/gen.js";
 import { sanctuariesNear, boundaryAt, gateArc } from "../world/sanctuary.js";
 import { Villagers } from "../town/villagers.js";
 
-const RANGE = 130;        // world units from centre to rim
-const TERRAIN_RES = 72;   // offscreen resolution of the baked terrain
+const RANGE = 130;        // world units from centre to rim — UNCHANGED as the map grows, so
+                          // a bigger map means a CLOSER look rather than a wider one. With a
+                          // pack on top of you the question is "how many and where", and that
+                          // needs the dots pulled apart, not more ground squeezed in.
+const TERRAIN_RES = 108;  // offscreen resolution of the baked terrain (was 72 — a bigger map
+                          // stretches this further, and 72 was already visibly blocky)
 const REBAKE_DIST = 6;    // re-bake once you've moved this far
 const REBAKE_TIME = 0.6;
+
+// The map sizes itself to the window rather than being a fixed number of pixels, because a
+// fixed size is wrong on both ends: 180 was cramped on a desktop and 280 would swallow a
+// laptop screen. Bounded at both ends so it can never become a postage stamp or a wall.
+const MAP_MIN = 200, MAP_MAX = 360, MAP_FRAC = 0.28;
 
 export class Minimap {
   constructor(canvas) {
     this.c = canvas;
     this.ctx = canvas.getContext("2d");
-    this.size = canvas.width;
-    this.r = this.size / 2;
 
     this.terrain = document.createElement("canvas");
     this.terrain.width = this.terrain.height = TERRAIN_RES;
     this.tctx = this.terrain.getContext("2d");
     this.bakedAt = null;
     this.bakeTimer = 0;
+    this.resize();
+  }
+
+  /**
+   * Fit to the window. The canvas keeps TWO sizes: the CSS size everything is drawn in, and a
+   * backing store scaled by the display's pixel density — without that second one the town
+   * labels turn to mush on a high-DPI screen, which is exactly the readability this change
+   * exists to deliver.
+   */
+  resize() {
+    const size = Math.round(Math.max(MAP_MIN, Math.min(MAP_MAX, innerHeight * MAP_FRAC)));
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    this.size = size;
+    this.r = size / 2;
+    this.c.style.width = `${size}px`;
+    this.c.style.height = `${size}px`;
+    this.c.width = Math.round(size * dpr);
+    this.c.height = Math.round(size * dpr);
+    // Draw in CSS pixels; the transform handles the density. Reset first, or resizing twice
+    // would compound the scale.
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.bakedAt = null;      // the terrain is stretched to a new size; redraw it
   }
 
   /** World offset -> map-space (mx = right, my = forward). */
@@ -112,15 +141,92 @@ export class Minimap {
     }
   }
 
+  /**
+   * The nearest settlement that will actually serve you.
+   *
+   * Today that is simply the closest one, because every town trades with everybody. When
+   * factions land this is the ONE place that has to learn the difference — your own towns and
+   * the neutral city yes, a rival's town no — and the arrow keeps meaning exactly what it
+   * means now: that way to spend your points.
+   */
+  nearestTradePost() {
+    let best = null, bd = 1e9;
+    for (const s of sanctuariesNear(player.x, player.z, 900)) {
+      const d = Math.hypot(s.x - player.x, s.z - player.z);
+      if (d < bd) { bd = d; best = s; }
+    }
+    return best;
+  }
+
+  /**
+   * One compass marker: a diamond where the place is if it fits on the map, otherwise an
+   * arrow pinned to the rim with the distance beside it. `placed` collects the label boxes so
+   * two markers pointing the same way cannot print their words on top of each other — the
+   * second keeps its arrow and drops its text, which still says "something is that way".
+   */
+  compass(ctx, R, scale, m, fill, edge, label, placed) {
+    const d = Math.hypot(m.mx, m.my);
+    const near = d <= RANGE - 10;
+    const k = near ? 1 : (RANGE - 12) / (d || 1);
+    const x = R + m.mx * scale * k, y = R - m.my * scale * k;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineJoin = "round";
+    if (near) {
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = fill;
+      ctx.fillRect(-4, -4, 8, 8);
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(-4, -4, 8, 8);
+    } else {
+      ctx.rotate(Math.atan2(m.mx, m.my));
+      ctx.beginPath();
+      ctx.moveTo(0, -8);
+      ctx.lineTo(6.5, 6);
+      ctx.lineTo(-6.5, 6);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // The word, upright regardless of which way the arrow points — text that rotates with a
+    // compass is a puzzle, not a label.
+    const text = `${label} ${Math.round(d)}m`;
+    ctx.font = "9px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    const w = ctx.measureText(text).width;
+    const ly = y + (y < R ? 17 : -12);
+    const box = { x0: x - w / 2 - 2, x1: x + w / 2 + 2, y0: ly - 9, y1: ly + 3 };
+    if (placed.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0)) return;
+    placed.push(box);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "rgba(8,12,18,0.85)";
+    ctx.strokeText(text, x, ly);
+    ctx.fillStyle = fill;
+    ctx.fillText(text, x, ly);
+  }
+
   draw(dt, mobs, boss, folk, villagers) {
     const ctx = this.ctx, R = this.r;
 
+    // THE THROTTLE ACTUALLY THROTTLES NOW. It used to read "moved OR the timer expired",
+    // which let movement bypass the very limit the timer existed to impose — so sprinting
+    // re-baked the whole heightfield several times a second, a steady stutter that looked
+    // like a framerate problem. Re-baking is the single most expensive thing this file does
+    // and it just got more expensive with the bigger map, so the gate has to hold: move far
+    // enough AND wait long enough.
     this.bakeTimer -= dt;
     const moved = !this.bakedAt
       || Math.hypot(player.x - this.bakedAt.x, player.z - this.bakedAt.z) > REBAKE_DIST;
-    if (moved || this.bakeTimer <= 0) {
+    if (moved && this.bakeTimer <= 0) {
       this.bakeTimer = REBAKE_TIME;
-      if (moved) this.bakeTerrain();
+      this.bakeTerrain();
     }
 
     ctx.clearRect(0, 0, this.size, this.size);
@@ -210,7 +316,7 @@ export class Minimap {
       const m = this.toMap(e.x - player.x, e.z - player.z);
       if (Math.hypot(m.mx, m.my) > RANGE) continue;
       ctx.beginPath();
-      ctx.arc(R + m.mx * scale, R - m.my * scale, e.elite ? 3.4 : 2.2, 0, Math.PI * 2);
+      ctx.arc(R + m.mx * scale, R - m.my * scale, e.elite ? 3.8 : 2.6, 0, Math.PI * 2);
       ctx.fillStyle = e.elite ? "#ffd24a" : "#ff6b6b";
       ctx.fill();
     }
@@ -221,7 +327,7 @@ export class Minimap {
         const m = this.toMap(e.x - player.x, e.z - player.z);
         if (Math.hypot(m.mx, m.my) > RANGE) continue;
         ctx.beginPath();
-        ctx.arc(R + m.mx * scale, R - m.my * scale, 2, 0, Math.PI * 2);
+        ctx.arc(R + m.mx * scale, R - m.my * scale, 2.4, 0, Math.PI * 2);
         ctx.fillStyle = "#5fe08a";
         ctx.fill();
       }
@@ -236,42 +342,28 @@ export class Minimap {
       const d = Math.hypot(m.mx, m.my) || 1;
       const cl = Math.min(1, (RANGE - 6) / d);
       ctx.beginPath();
-      ctx.arc(R + m.mx * scale * cl, R - m.my * scale * cl, 5, 0, Math.PI * 2);
+      ctx.arc(R + m.mx * scale * cl, R - m.my * scale * cl, 6, 0, Math.PI * 2);
       ctx.fillStyle = "#ff2d2d";
       ctx.fill();
       ctx.strokeStyle = "#ffffffcc";
       ctx.stroke();
     }
 
-    // SPAWN: a marker in range, an arrow on the rim out of range.
-    const od = Math.hypot(origin.mx, origin.my);
-    const inRange = od <= RANGE - 8;
-    const ox = R + origin.mx * scale * (inRange ? 1 : (RANGE - 10) / od);
-    const oy = R - origin.my * scale * (inRange ? 1 : (RANGE - 10) / od);
-    ctx.save();
-    ctx.translate(ox, oy);
-    if (inRange) {
-      ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = "#7fffd0";
-      ctx.fillRect(-3.5, -3.5, 7, 7);
-      ctx.strokeStyle = "#04372b";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(-3.5, -3.5, 7, 7);
-    } else {
-      // Point the arrow along the direction to spawn.
-      ctx.rotate(Math.atan2(origin.mx, origin.my));
-      ctx.beginPath();
-      ctx.moveTo(0, -7);
-      ctx.lineTo(5.5, 5);
-      ctx.lineTo(-5.5, 5);
-      ctx.closePath();
-      ctx.fillStyle = "#7fffd0";
-      ctx.fill();
-      ctx.strokeStyle = "#04372b";
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
+    // THE COMPASSES. Blue points at somewhere that will trade with you; grey points home.
+    //
+    // Only things you would actually TRAVEL to earn a place on the rim — the boss above, and
+    // these two. That is a rule worth holding: four arrows stop being something you glance at
+    // and become something you decode, and the whole point of this map is the glance.
+    const placed = [];
+    const nearestTown = this.nearestTradePost();
+    if (nearestTown) {
+      const t = this.toMap(nearestTown.x - player.x, nearestTown.z - player.z);
+      this.compass(ctx, R, scale, t, "#4ea8ff", "#08243f", "town", placed);
     }
-    ctx.restore();
+    // Spawn is not really a destination any more, but which way is SHALLOW is worth knowing
+    // when you are hurt and deep, so it keeps an arrow — in grey, so blue reads as the one
+    // you are probably heading for.
+    this.compass(ctx, R, scale, origin, "#c3ccd9", "#23282f", "spawn", placed);
 
     ctx.restore();   // un-clip
 
