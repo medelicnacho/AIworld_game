@@ -15,6 +15,7 @@ import { groundY, ringAt, tierAt, ringPressure } from "../world/gen.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 import { sfx } from "../audio/sfx.js";
+import { allyColor, FACTION_COLORS } from "../prog/factions.js";
 
 const METEOR_POOL = 28;
 
@@ -88,9 +89,16 @@ export class Boss {
     // Accelerates with depth like the trash, but on a gentler ramp — see BOSS.ramp.
     const hp = BOSS.hp * Math.pow(BOSS.hpGrowth, ringPressure(ring, BOSS.ramp));
 
+    // A boss belongs to one of the three warring colours — black, blue or green — and NEVER
+    // to your own army: a boss is always something you can fight, so it never wears your
+    // ally's colour. Killing it is the big lump of standing (see main rewardBoss).
+    const avoid = allyColor();
+    let faction = Math.floor(this.rng() * 3);
+    if (faction === avoid) faction = (faction + 1) % 3;
+
     this.alive = {
       x, y: groundY(x, z), z,
-      ring, hp, maxHp: hp,
+      ring, faction, hp, maxHp: hp,
       // One multiplier, applied wherever this boss deals damage.
       dmg: 1 + BOSS.damagePerTier * ring,
       volleyCd: 2.6,
@@ -103,9 +111,13 @@ export class Boss {
     };
     sfx.roar(x, z, true);          // it announces itself
 
-    // The rig: a bulk, a head, and a glowing core that is the whole reason to aim.
+    // The rig: a bulk, a head, and a glowing core that is the whole reason to aim. Its bulk
+    // wears its faction's colour — a big black, blue or green silhouette — lightened enough
+    // that even the black one reads as a shape against the terrain, and pushed a little
+    // meaner (darker, more saturated) the deeper it spawns.
     const g = new THREE.Group();
-    const tint = new THREE.Color().setHSL(0.02 + ring * 0.07, 0.45, 0.34);
+    const tint = new THREE.Color(FACTION_COLORS[faction])
+      .offsetHSL(0, 0.06 * ring, faction === 0 ? 0.12 - ring * 0.008 : -ring * 0.02);
     const body = new THREE.Mesh(
       new THREE.ConeGeometry(1.1, 2.6, 6),
       new THREE.MeshLambertMaterial({ color: tint }),

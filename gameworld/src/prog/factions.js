@@ -33,20 +33,27 @@ import { player } from "../state.js";
  * `focus` is what their gear pulls your build toward, and it is the reason the choice matters
  * beyond flavour: three routes to a different character, and you can only walk one at a time.
  */
+// The three warring mob colours ARE the three factions' field armies. Joining a faction puts
+// you on ONE colour's side:
+//   ally   — that colour's camps are yours. You cannot attack them; they fight for you.
+//   enemy  — a different colour, the one that pays reputation when you cut it down.
+//   (the third colour is nobody's business of yours — neutral, still hostile, no rep.)
+// It is a rock-paper-scissors: Ash hunts Iron's black, Vale hunts Ash's blue, Iron hunts
+// Vale's green — so no two factions share an ally OR an enemy.
 export const FACTIONS = [
   {
-    id: "ash", name: "Ash", enemy: 0, focus: "damage",
-    color: "#e8804a",
+    id: "ash", name: "Ash", ally: 1, enemy: 0, focus: "damage",
+    color: "#5b9dff",   // blue
     blurb: "Hits harder than it can take. Strength, and every kind of damage.",
   },
   {
-    id: "vale", name: "Vale", enemy: 1, focus: "speed",
-    color: "#5fd6b4",
+    id: "vale", name: "Vale", ally: 2, enemy: 1, focus: "speed",
+    color: "#5fd66a",   // green
     blurb: "Never where the blow lands. Agility, movement, shorter cooldowns.",
   },
   {
-    id: "iron", name: "Iron", enemy: 2, focus: "survival",
-    color: "#8fa8d8",
+    id: "iron", name: "Iron", ally: 0, enemy: 2, focus: "survival",
+    color: "#aab0be",   // iron/black — a legible steel for text; its mobs are truly black
     blurb: "Outlasts what should have killed it. Armour and Stamina.",
   },
 ];
@@ -74,22 +81,28 @@ export const REP_TIERS = [
   { name: "Sworn", at: 40000 },
 ];
 
-// What a kill of your enemy's colour is worth. Scales with depth and stars like everything
-// else in the world, so the frontier pays for reputation the same way it pays for xp.
+// WHERE REPUTATION COMES FROM. Deliberately NOT from cutting down ordinary camps — the
+// frontier is full of them and that would make standing a grind you do by accident. It comes
+// from things you CHOOSE and things that are hard:
+//   - handing gear to your quartermaster (your bag of unworn drops becomes progress),
+//   - killing a BOSS (rare, and a real fight),
+//   - quests (a board, when it is built).
 export const REP = {
-  perKill: 10,
   perRing: 0.3,
-  eliteMult: 4,
   // Handing in gear you will never wear. This exists because your bag fills with pieces that
   // convert into points you do not need — the pile is dead weight the moment your kit is
   // good. Turning it into progress means a drop is never wasted, even when it is worse than
   // what you have on.
   turnIn: { common: 8, uncommon: 30, rare: 110, epic: 400, faction: 0 },
+  // A boss is the big lump of standing between turn-in trickles — scaled by depth like
+  // everything else, so a deep boss is worth far more than a shallow one.
+  bossBase: 800,
+  bossPerRing: 0.6,
 };
 
-/** How much reputation one kill is worth, given where it died and whether it was a star. */
-export function repForKill(ring, elite) {
-  return Math.round(REP.perKill * (1 + REP.perRing * ring) * (elite ? REP.eliteMult : 1));
+/** Reputation for a boss kill, by the ring it fell in. The main non-quest source of standing. */
+export function repForBoss(ring) {
+  return Math.round(REP.bossBase * (1 + REP.bossPerRing * ring));
 }
 
 /** Which rung you are on: an index into REP_TIERS. */
@@ -231,6 +244,30 @@ export function isMyEnemy(mobFaction) {
   return !!f && f.enemy === mobFaction;
 }
 
+/** The mob colour that fights on YOUR side, or -1 if unaligned. */
+export function allyColor() {
+  const f = myFaction();
+  return f ? f.ally : -1;
+}
+
+/**
+ * True when this colour is YOUR army — the camps you cannot attack and that will not attack
+ * you. Checked at every place the player could deal damage, so a stray grenade or a beam
+ * sweeping across a friendly camp does nothing. `mobFaction` may be undefined (a mob with no
+ * side); that is never an ally.
+ */
+export function isMyAlly(mobFaction) {
+  const f = myFaction();
+  return !!f && mobFaction !== undefined && f.ally === mobFaction;
+}
+
+/** The colour of the three that names a faction, for tinting mobs and bosses to their side. */
+export const FACTION_COLORS = {
+  0: 0x26262c,   // black — Iron
+  1: 0x3f6fd1,   // blue  — Ash
+  2: 0x4fae5a,   // green — Vale
+};
+
 /**
  * Join. Switching is allowed and costs you every point of reputation you earned — you keep
  * all your gear, because taking someone's kit back off them is a punishment out of proportion
@@ -245,12 +282,15 @@ export function join(factionId) {
   return true;
 }
 
-/** Award reputation for a kill, if it was the right colour. Returns what was earned. */
-export function awardRep(mobFaction, ring, elite) {
-  if (!isMyEnemy(mobFaction)) return 0;
-  const n = repForKill(ring, elite);
-  player.rep = (player.rep || 0) + n;
-  return n;
+/**
+ * Add reputation to the faction you belong to. The one door standing gains through, so every
+ * source — a turn-in, a boss, a quest — passes through here and an unaligned player can never
+ * bank anything. Returns what was added.
+ */
+export function gainRep(amount) {
+  if (!player.faction || amount <= 0) return 0;
+  player.rep = (player.rep || 0) + amount;
+  return amount;
 }
 
 /** Hand a piece over. Better gear is worth more; faction gear cannot be recycled. */

@@ -5,8 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  FACTIONS, REP_TIERS, JOIN_LEVEL, factionById, repForKill, tierOf, repProgress,
-  FACTION_GEAR, stockFor, lockedFor, join, awardRep, isMyEnemy, servesYou, repForTurnIn, isHostileSanctuary,
+  FACTIONS, REP_TIERS, JOIN_LEVEL, factionById, repForBoss, gainRep, tierOf, repProgress,
+  FACTION_GEAR, stockFor, lockedFor, join, isMyAlly, allyColor, servesYou, repForTurnIn, isHostileSanctuary,
 } from "./factions.js";
 import { RARITY } from "./gear.js";
 import { player } from "../state.js";
@@ -47,30 +47,43 @@ test("switching sides costs every point of reputation, and no gear", () => {
   assert.equal(player.ownedGear.length, bagBefore, "but nobody takes your kit off you");
 });
 
-test("only your enemy's colour pays — this is the whole choice", () => {
+test("ally / enemy / neutral — each faction sits on ONE colour, opposes one, ignores one", () => {
+  // The war is rock-paper-scissors: no two factions share an ally or an enemy, and a
+  // faction's ally is never also its enemy.
+  const allies = FACTIONS.map((f) => f.ally);
+  const enemies = FACTIONS.map((f) => f.enemy);
+  assert.equal(new Set(allies).size, 3, "each faction has its own colour");
+  assert.equal(new Set(enemies).size, 3, "each faction hunts its own colour");
+  for (const f of FACTIONS) assert.notEqual(f.ally, f.enemy, "you cannot hunt your own army");
+});
+
+test("your own colour is an ally — you cannot harm it, nobody else's is friendly", () => {
   fresh();
   join("ash");
   const ash = factionById("ash");
-  assert.ok(isMyEnemy(ash.enemy));
-  const paid = awardRep(ash.enemy, 3, false);
-  assert.ok(paid > 0, "your enemy pays");
-  const before = player.rep;
-  for (const f of FACTIONS) {
-    if (f.enemy === ash.enemy) continue;
-    assert.equal(awardRep(f.enemy, 8, true), 0, "everyone else pays nothing, however deep");
-  }
-  assert.equal(player.rep, before, "and nothing was quietly added anyway");
-});
-
-test("an unaligned player earns nothing from anyone", () => {
+  assert.equal(isMyAlly(ash.ally), true, "your colour fights for you");
+  assert.equal(isMyAlly(ash.enemy), false, "your enemy is not your friend");
+  assert.equal(allyColor(), ash.ally, "the ally colour is your faction's");
+  // Unaligned: nothing is your ally.
   fresh();
-  for (const f of FACTIONS) assert.equal(awardRep(f.enemy, 5, true), 0);
-  assert.equal(player.rep, 0);
+  assert.equal(isMyAlly(0), false);
+  assert.equal(isMyAlly(1), false);
+  assert.equal(allyColor(), -1, "no faction, no army");
 });
 
-test("kills pay more the deeper they die, and much more for a star", () => {
-  assert.ok(repForKill(5, false) > repForKill(0, false), "depth pays");
-  assert.ok(repForKill(0, true) > repForKill(0, false) * 2, "a star pays a lot more");
+test("reputation comes from BOSSES and TURN-INS, never from ordinary kills", () => {
+  fresh();
+  join("ash");
+  // A boss pays, and pays more the deeper it fell.
+  assert.ok(repForBoss(5) > repForBoss(0), "a deep boss is worth more standing");
+  assert.ok(repForBoss(0) > 0, "any boss pays something");
+  // gainRep is the one door: it credits the faction you are in, and refuses the unaligned.
+  player.rep = 0;
+  assert.equal(gainRep(500), 500);
+  assert.equal(player.rep, 500);
+  fresh();
+  assert.equal(gainRep(500), 0, "an unaligned player banks nothing");
+  assert.equal(player.rep, 0);
 });
 
 test("the ladder climbs, starts at zero, and never goes backwards", () => {

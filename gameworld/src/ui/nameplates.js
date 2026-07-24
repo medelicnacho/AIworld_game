@@ -46,7 +46,13 @@ export class Nameplates {
       d.style.left = `${(this.v.x * 0.5 + 0.5) * w}px`;
       d.style.top = `${(-this.v.y * 0.5 + 0.5) * h}px`;
       d.style.opacity = String(Math.max(0.25, 1 - dist / RANGE));
-      const html = `${it.label}${it.sub ? `<span>${it.sub}</span>` : ""}`;
+      // An ally plate is styled green with a dot — a different KIND of marker from a trader's
+      // name, so "do not shoot" reads at a glance rather than being read as a word.
+      const cls = it.ally ? "plate ally" : "plate";
+      if (d.className !== cls) d.className = cls;
+      const html = it.ally
+        ? `<span class="dot"></span>${it.label}`
+        : `${it.label}${it.sub ? `<span>${it.sub}</span>` : ""}`;
       if (d.dataset.html !== html) { d.innerHTML = html; d.dataset.html = html; }
     }
     for (let i = n; i < MAX; i++) {

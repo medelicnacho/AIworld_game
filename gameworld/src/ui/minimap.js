@@ -15,6 +15,7 @@ import { heightAt, ringAt, tierStart } from "../world/gen.js";
 import { sanctuariesNear, boundaryAt, gateArc } from "../world/sanctuary.js";
 import { servesYou } from "../prog/factions.js";
 import { Villagers } from "../town/villagers.js";
+import { isMyAlly } from "../prog/factions.js";
 
 const RANGE = 130;        // world units from centre to rim — UNCHANGED as the map grows, so
                           // a bigger map means a CLOSER look rather than a wider one. With a
@@ -317,13 +318,14 @@ export class Minimap {
       ctx.stroke();
     }
 
-    // Mobs.
+    // Mobs — red for a threat, GOLD for an elite, GREEN for your own army (an ally).
     for (const e of mobs.entities()) {
       const m = this.toMap(e.x - player.x, e.z - player.z);
       if (Math.hypot(m.mx, m.my) > RANGE) continue;
+      const ally = isMyAlly(e.faction);
       ctx.beginPath();
       ctx.arc(R + m.mx * scale, R - m.my * scale, e.elite ? 3.8 : 2.6, 0, Math.PI * 2);
-      ctx.fillStyle = e.elite ? "#ffd24a" : "#ff6b6b";
+      ctx.fillStyle = ally ? "#5fe08a" : e.elite ? "#ffd24a" : "#ff6b6b";
       ctx.fill();
     }
 

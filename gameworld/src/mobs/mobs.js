@@ -21,6 +21,7 @@ import { sanctuaryOf } from "../world/sanctuary.js";
 import { guardNear } from "../town/guards.js";
 import { mulberry32 } from "../rng.js";
 import { AFFIXES, rollAffixes, runAffix, affixHidden, affixLabel } from "./affixes.js";
+import { isMyAlly } from "../prog/factions.js";
 
 const HURT_FLASH = 0.12;
 
@@ -72,12 +73,13 @@ export class Mobs {
     this._flip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
     this.COL_MOB = new THREE.Color(0x8d4d63);
     this.COL_ELITE = new THREE.Color(0xe8c14a);
-    // Faction body colours — the tell for which side a plain mob is on, so two armies read as
-    // two armies. Faction 0 keeps the default mob hue; the rest are distinct.
+    // Faction body colours — the tell for which side a camp is on, so the three armies read
+    // as three armies. Black / blue / green, matching the three player factions (Iron / Ash /
+    // Vale): the colour you see is the side you would be helping or hunting.
     this.factionCols = [
-      new THREE.Color(0x8d4d63),   // 0: the default rose
-      new THREE.Color(0x3f6fd1),   // 1: blue
-      new THREE.Color(0x4fae5a),   // 2: green
+      new THREE.Color(0x26262c),   // 0: black — Iron
+      new THREE.Color(0x3f6fd1),   // 1: blue  — Ash
+      new THREE.Color(0x4fae5a),   // 2: green — Vale
       new THREE.Color(0xcf7a2a),   // 3: amber (if factions > 3)
     ];
     this.COL_CASTER = new THREE.Color(0xd11f1f);   // red: airborne ranged
@@ -465,6 +467,7 @@ export class Mobs {
     const out = [];
     for (const e of this.entities()) {
       if (affixHidden(e)) continue;      // Phasing and anything like it
+      if (isMyAlly(e.faction)) continue; // your own army: your shots pass right through them
       const sc = (e.elite ? MOB.eliteScale : 1) * (e.scale || 1);
       if (e.flies) {
         // Flyers hang POINT-DOWN, so their body occupies the space BELOW the entity origin
@@ -598,6 +601,10 @@ export class Mobs {
   hit(id, amount, weak = false) {
     const e = world.entities.get(id);
     if (!e) return null;
+    // Your own army cannot be harmed BY you — one guard at the one place all player damage
+    // lands (gun, blast, spell, beam all funnel here), so nothing needs to know about allies
+    // except this line. It fights alongside you; friendly fire would just be a betrayal button.
+    if (isMyAlly(e.faction)) return null;
     e.hp -= amount;
     e.hurtT = HURT_FLASH;
     e.aggro = true;
@@ -771,13 +778,20 @@ export class Mobs {
       const foeMob = foe && foe === warFoe ? warFoe : null;   // is the override an enemy MOB?
       if (foe) { e.aggro = true; e.aggroT = MOB.loseInterest; }
 
+      // YOUR OWN ARMY does not fight you. It still wars with enemy camps (foeMob above), but
+      // the player is invisible to it as a target: with no enemy in reach it simply stands
+      // down and goes about its business, and it never notices YOU. One flag; every
+      // player-directed attack below is already gated on aggro or on `!foe`.
+      const alliedToPlayer = isMyAlly(e.faction);
+      if (alliedToPlayer && !foe) e.aggro = false;
+
       if (e.aggro) {
         e.aggroT -= dt;
         if (dist < MOB.noticeRange) e.aggroT = MOB.loseInterest;   // contact refreshes it
         // The leash is on HOME, not on you. Run far enough and they turn back — they have
         // somewhere to be, and it isn't wherever you happen to be standing.
         if (homeD > MOB.leashRange || e.aggroT <= 0) e.aggro = false;
-      } else if (dist < MOB.noticeRange) {
+      } else if (!alliedToPlayer && dist < MOB.noticeRange) {
         e.aggro = true;
         e.aggroT = MOB.loseInterest;
         this.alert(e);

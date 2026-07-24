@@ -20,7 +20,7 @@ import { HealthBars } from "./ui/healthbars.js";
 import { DamageText } from "./ui/damagetext.js";
 import { armorDR } from "./prog/stats.js";
 import { rollGear, vendorPiece, sellValue, RARITY } from "./prog/gear.js";
-import { awardRep, repForTurnIn, myFaction, repProgress } from "./prog/factions.js";
+import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly } from "./prog/factions.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY, solidAt } from "./world/gen.js";
@@ -1016,13 +1016,12 @@ function reward(res) {
     * (res.elite ? LOOT.eliteMult : 1));
   const xp = killValue(res.ring, res.elite, player.level);
   const lv = award(xp);
-  // Standing, but only for the colour your faction is sworn against. Two thirds of what you
-  // meet pays nothing, which is exactly what makes the choice change how you play — you start
-  // reading a camp's colour before you decide whether it is worth the fight.
-  const rep = awardRep(res.faction, res.ring, res.elite);
+  // Ordinary kills pay NO reputation — standing comes from turn-ins, bosses and quests, not
+  // from the endless frontier, so it stays something you choose rather than something you
+  // accumulate by walking through camps.
   // Naming what you killed is half of learning to read them.
   const what = res.affixes ? `★ ${res.affixes}` : res.elite ? "★ elite" : "kill";
-  killFeed = `${what}  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
+  killFeed = `${what}  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) levelUp();
 
   // Gear drops: frequent, and a lot more from elites. A piece lands a couple of steps away
@@ -1037,7 +1036,10 @@ function rewardBoss(ring, x, z) {
   player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult);
   const xp = bossValue(ring, player.level);
   const lv = award(xp);
-  killFeed = `◆ BOSS DOWN ◆  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
+  // A boss is the big lump of standing. This is where reputation actually comes from, along
+  // with turn-ins and (later) quests — never from the trash you clear on the way to it.
+  const rep = gainRep(repForBoss(ring));
+  killFeed = `◆ BOSS DOWN ◆  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) levelUp();
   // The relic falls where the boss did — you have to walk into the arena to take it, which
   // is a last small decision if anything else is still alive.
@@ -1662,9 +1664,27 @@ function frame(now) {
   mobs.hitEvents.length = 0;
   boss.hitEvents.length = 0;
   dmgText.draw(dt);
-  plates.draw(villagers.list
-    .filter((v) => Villagers.sells(v))
-    .map((v) => ({ x: v.x, y: v.y + 2.05, z: v.z, label: v.role.name, sub: "F to trade" })));
+  // Trader nameplates, plus a green ALLY marker over the nearest of your own army — only the
+  // closest handful, so a friendly horde does not become a wall of labels. The gun already
+  // ignores them; this is the second half, telling you at a glance which ones NOT to shoot.
+  const allyPlates = [];
+  if (player.faction) {
+    const near = [];
+    for (const e of mobs.entities()) {
+      if (!isMyAlly(e.faction)) continue;
+      const d = (e.x - player.x) ** 2 + (e.z - player.z) ** 2;
+      if (d < 34 * 34) near.push({ e, d });
+    }
+    near.sort((a, b) => a.d - b.d);
+    for (const { e } of near.slice(0, 10)) {
+      allyPlates.push({ x: e.x, y: e.y + 1.9, z: e.z, label: "ALLY", ally: true });
+    }
+  }
+  plates.draw([
+    ...villagers.list.filter((v) => Villagers.sells(v))
+      .map((v) => ({ x: v.x, y: v.y + 2.05, z: v.z, label: v.role.name, sub: "F to trade" })),
+    ...allyPlates,
+  ]);
 
   // A boss wanders in on a timer once you're past the Commons. The countdown only runs
   // while you're ELIGIBLE — burning attempts in the safe zone is what made this look broken.
