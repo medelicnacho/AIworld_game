@@ -1137,6 +1137,14 @@ attachInput(renderer.domElement, {
     const ring = RINGS[ringAt(player.x, player.z)].name;
     speakLine(`You walk beside a traveller in ${ring}, ${Math.round(Math.hypot(player.x, player.z))} metres from where they began. Murmur one short thought about this place.`);
   },
+  // Clicking the world starts the game, lock or no lock. tryLock() keeps chasing the mouse
+  // capture separately; not getting it costs you comfortable looking, not the ability to play.
+  startPlaying: () => {
+    if (dead || shop.open || inventory.open) return;
+    music.start();
+    sfx.unlock();
+    if (paused) { lockTries = 0; setPaused(false); }
+  },
   onLock: () => { music.start(); sfx.unlock(); setPaused(false); },
   onUnlock: () => {
     // Belt and braces for the same collision: ignore an unlock that lands in the moment
@@ -1188,8 +1196,14 @@ function resumeFromShop() {
 }
 
 document.addEventListener("pointerlockerror", () => {
-  // Denied — almost always the post-Escape cooldown. Wait it out and ask again.
-  if (paused || lockTries++ > 4) return;
+  // Denied. Usually the post-Escape cooldown; in Firefox it also happens on a perfectly
+  // ordinary first click, because it gates pointer lock far more tightly than Chrome does.
+  //
+  // This used to bail out when `paused` — which was exactly the state of the FIRST click, so
+  // the one moment it most needed to retry was the one moment it refused to. Keep asking
+  // either way; the game is already running by now, so a failure here costs mouse capture,
+  // not the session.
+  if (lockTries++ > 4) return;
   setTimeout(tryLock, 400 + lockTries * 400);
 });
 

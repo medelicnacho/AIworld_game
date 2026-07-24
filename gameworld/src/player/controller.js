@@ -127,7 +127,15 @@ export function attachInput(canvas, hooks = {}) {
   window.addEventListener("blur", release);
   document.addEventListener("visibilitychange", () => { if (document.hidden) release(); });
 
-  canvas.addEventListener("click", () => canvas.requestPointerLock());
+  canvas.addEventListener("click", () => {
+    // START FIRST, capture the mouse second. These used to be the same act: the game only
+    // ever unpaused on a SUCCESSFUL lock, so a browser that refused one left the player on
+    // the click-to-play screen forever with nothing explaining why. Pointer lock is an
+    // enhancement — it makes looking around feel right — and an enhancement must never be
+    // the thing standing between someone and the game.
+    hooks.startPlaying?.();
+    canvas.requestPointerLock();
+  });
   document.addEventListener("pointerlockchange", () => {
     const locked = document.pointerLockElement === canvas;
     document.body.classList.toggle("locked", locked);
@@ -157,8 +165,12 @@ export function attachInput(canvas, hooks = {}) {
   });
 
   // D4: hold RMB to aim (camera blends toward first person), hold LMB to fire.
+  //
+  // Gated on the same condition as LOOK, not on pointer lock alone. Where a browser refuses
+  // to capture the mouse, the game now runs anyway — and a game you can walk and turn in but
+  // cannot shoot in is not a degraded experience, it is a broken one.
   document.addEventListener("mousedown", (e) => {
-    if (document.pointerLockElement !== canvas) return;
+    if (document.pointerLockElement !== canvas && !hooks.lookUnlocked?.()) return;
     // Keep the right button from triggering any browser/OS focus behaviour at all — the
     // blur it can provoke is what started this whole class of bug.
     if (e.button === 2) e.preventDefault();
@@ -171,7 +183,7 @@ export function attachInput(canvas, hooks = {}) {
   });
   // Mouse wheel cycles owned weapons — the FPS convention, and the only free input left.
   document.addEventListener("wheel", (e) => {
-    if (document.pointerLockElement !== canvas) return;
+    if (document.pointerLockElement !== canvas && !hooks.lookUnlocked?.()) return;
     hooks.cycleWeapon?.(e.deltaY > 0 ? 1 : -1);
   }, { passive: true });
   window.addEventListener("contextmenu", (e) => e.preventDefault());

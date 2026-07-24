@@ -886,12 +886,19 @@ export const CAMERA = {
   maxPitch: Math.PI / 2 - 0.05,
   // Radians of turn per pixel of mouse travel. Tune live in-game with [ and ] — feel is
   // not a thing to guess at in a config file. This value is just the starting point.
-  // Radians of turn per pixel of mouse travel — and the DEFAULT matters far more than it
-  // looks, because the saved value lives per-site. Tuning it while developing on localhost
-  // does nothing for anyone playing the build you hand out: they all get this number and,
-  // until now, no visible way to discover it could be changed. 0.004 was about half what a
-  // browser shooter usually wants, which read as "vertical look is broken" rather than as
-  // "too slow" — yaw turns forever so sluggish still looks like it works, while pitch is
-  // clamped at straight up and down, so at half speed it feels frozen.
-  sensitivity: 0.009,
+  // Radians of turn per pixel of mouse travel.
+  //
+  // BACK TO 0.004 after trying 0.009. The report that drove it up ("vertical does not work,
+  // everything is too slow") turned out to be a BROWSER problem, not a speed problem — the
+  // game was being played in Firefox, where mouse look misbehaves. Raising the default
+  // treated a symptom that was never really about this number, and on Chrome it made the
+  // game unplayably fast.
+  //
+  // Worth remembering as a general thing: when a report is "X feels wrong", changing the
+  // number that controls X is the obvious move and often the wrong one. The number was fine.
+  //
+  // Note the saved value lives PER SITE, so tuning this while developing on localhost does
+  // nothing for anyone playing the build you hand out — they all get this default. That is
+  // what the slider on the pause screen is for.
+  sensitivity: 0.004,
 };
