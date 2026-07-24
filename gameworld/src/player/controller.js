@@ -11,7 +11,7 @@ import { wallBlocks } from "../world/sanctuary.js";
 
 // Which keyboard code maps to which spell-bar slot index. Matches abilities.SLOT_KEYS order.
 const SLOT_CODE = {
-  Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5, KeyT: 6, Backquote: 7,
+  Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5, KeyT: 6, Tab: 7,
 };
 
 export const input = {
@@ -50,6 +50,10 @@ export function attachInput(canvas, hooks = {}) {
   };
 
   window.addEventListener("keydown", (e) => {
+    // Tab is a spell slot AND the browser's focus key — swallow its default so it can never
+    // shift focus off the canvas, drop pointer lock, and pause you mid-fight. (Skip it when a
+    // text field is focused, e.g. the admin panel, so Tab-between-fields still works there.)
+    if (e.code === "Tab" && !/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) e.preventDefault();
     if (e.code === "F5") { e.preventDefault(); hooks.toggleCamera?.(); return; }
     if (e.code === "KeyM") { hooks.toggleMusic?.(); return; }
     // Live look-speed tuning: 20% per press, clamped to a sane band.
@@ -68,8 +72,12 @@ export function attachInput(canvas, hooks = {}) {
     // General abilities keep their own keys, exactly as before — they are not items.
     if (e.code === "KeyE" && !e.repeat) input.throwQueued = true;
     if (e.code === "KeyQ" && !e.repeat) input.healQueued = true;
-    // The spell bar: 1-6, then T and ` for slots 7-8. R and F are left alone (reload, trade).
-    if (!e.repeat) {
+    // The spell bar: 1-6, then T and Tab for slots 7-8. R and F are left alone (reload, trade).
+    // Cast only on the PLAIN key — no Shift/Ctrl/Alt/Meta — so Shift+Tab and Ctrl+Tab never
+    // fire a spell. (Shift+Tab's focus-shift is swallowed above; Ctrl+Tab is a browser-level
+    // shortcut a web page cannot block, so nothing can stop it switching tabs — just don't
+    // hold Ctrl while you cast.)
+    if (!e.repeat && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
       const slot = SLOT_CODE[e.code];
       if (slot !== undefined) hooks.ability?.(slot);
     }
