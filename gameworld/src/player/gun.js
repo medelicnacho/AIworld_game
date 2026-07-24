@@ -88,9 +88,18 @@ export class Gun {
     // THE SWING. An arc drawn in front of you rather than a tracer, because a melee hit has
     // no travel to show — what needs showing is the SHAPE of what you just hit, so the cone
     // you see is the cone that connected.
+    //
+    // The geometry is AUTHORED FACING THE WAY THE CHARACTER FACES (−Z at yaw 0, same as the
+    // body and the camera), so drawing it is `rotation.y = player.yaw` — the identical
+    // rotation the body mesh uses, which makes disagreement impossible. The first version
+    // was authored along +X and then rotated by a NEGATED yaw: ninety degrees off AND
+    // turning the wrong way as you turned, so the arc wandered behind and beside you —
+    // a drawn hitbox that lies is worse than none at all.
     this.swingFx = 0;
     this.swingArc = (() => {
-      const g = new THREE.RingGeometry(0.8, 4.4, 26, 1, -Math.PI * 0.28, Math.PI * 0.56);
+      const w = WEAPONS.cleaver;
+      const half = (w.coneDeg * Math.PI / 180) / 2;      // the drawn arc IS the config cone
+      const g = new THREE.RingGeometry(0.8, w.range, 26, 1, Math.PI / 2 - half, half * 2);
       g.rotateX(-Math.PI / 2);
       const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
         color: 0xdfe8ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
@@ -159,9 +168,10 @@ export class Gun {
       const dx = s.x - ox, dy = s.y - oy, dz = s.z - oz;
       const d = Math.hypot(dx, dy, dz);
       if (d > w.range + s.r) continue;
-      // Generous at point-blank: something standing ON you is inside the arc by definition,
-      // and failing to hit it would read as the swing being broken.
-      if (d > 1.2 && (dx * fwd.x + dy * fwd.y + dz * fwd.z) / (d || 1) < cos) continue;
+      // Point-blank grace only for something genuinely ON you — bodies touch at about 0.9,
+      // so this is overlap, not proximity. Any looser and the swing quietly clips things
+      // standing behind your shoulder, which reads as the cone not being where it is drawn.
+      if (d > 1.0 && (dx * fwd.x + dy * fwd.y + dz * fwd.z) / (d || 1) < cos) continue;
       seen.add(s.id);
       struck.push({ id: s.id, tag: s.tag });
     }
@@ -445,7 +455,9 @@ export class Gun {
       const f = Math.max(0, this.swingFx / 0.18);
       this.swingArc.visible = true;
       this.swingArc.position.set(player.x, player.y + 0.9, player.z);
-      this.swingArc.rotation.y = -player.yaw + Math.PI;
+      // The same rotation the body mesh gets. The arc and the character can only ever face
+      // the same way, because they are the same number.
+      this.swingArc.rotation.y = player.yaw;
       this.swingArc.material.opacity = f * 0.5;
       this.swingArc.scale.setScalar(1 + (1 - f) * 0.15);
       if (this.swingFx <= 0) this.swingArc.visible = false;
