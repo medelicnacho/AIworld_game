@@ -90,7 +90,10 @@ export class Heal {
 
   complete() {
     const before = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + HEAL.amount);
+    // A fraction of max HP, scaled by Spell Power — a caster build heals more, and it keeps
+    // pace with a growing pool instead of being a flat number that stops mattering.
+    const amount = HEAL.fraction * player.maxHp * (1 + (player.dmgSpell || 0));
+    player.hp = Math.min(player.maxHp, player.hp + amount);
     this.castT = 0;
     this.cooldown = HEAL.cooldown;
     this.ring.visible = false;

@@ -280,6 +280,12 @@
       body.running #crosshair { opacity: .9; }
       #health, #ammo, #xp { opacity: 0; transition: opacity .2s; }
       body.running #health, body.running #ammo, body.running #xp { opacity: 1; }
+      /* "Move outward" nudge — shows when your zone has greyed out (little/no xp). */
+      #alert { position: absolute; left: 50%; top: 74px; transform: translateX(-50%);
+        opacity: 0; transition: opacity .3s; pointer-events: none; text-align: center;
+        font: 700 15px/1.4 ui-sans-serif, system-ui, sans-serif; color: #ffe08a;
+        text-shadow: 0 2px 8px #000d; letter-spacing: .03em; }
+      #alert.show { opacity: 1; }
     </style>
   </head>
   <body>
@@ -292,6 +298,7 @@
       <div id="health"></div>
       <div id="ammo"></div>
       <div id="xp"></div>
+      <div id="alert"></div>
       <div id="bar"></div>
       <div id="plates"></div>
       <div id="hpbars"></div>

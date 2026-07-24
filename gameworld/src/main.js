@@ -35,7 +35,7 @@ import { Heal } from "./player/heal.js";
 import { Abilities, SLOTS, SLOT_KEYS } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
-import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, levelForTier } from "./prog/xp.js";
+import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, levelForTier, xpLevelMult } from "./prog/xp.js";
 import { mulberry32 } from "./rng.js";
 
 const FIXED_DT = 1 / 60;
@@ -1015,8 +1015,11 @@ attachInput(renderer.domElement, {
     if (player.hp >= player.maxHp) { tradeMsg = "already whole"; tradeMsgT = 2; return; }
     player.potions--;
     player.potionCd = VILLAGE.potionCd;
-    player.hp = Math.min(player.maxHp, player.hp + VILLAGE.potionHeal);
-    tradeMsg = `potion  +${VILLAGE.potionHeal}`;
+    // A fraction of max HP that steps up every 10 levels — see VILLAGE.potionFrac*.
+    const frac = VILLAGE.potionFracBase + Math.floor(player.level / 10) * VILLAGE.potionFracPer10;
+    const heal = Math.round(player.maxHp * frac);
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+    tradeMsg = `potion  +${heal}`;
     tradeMsgT = 2;
     sfx.healDone();
   },
@@ -1112,6 +1115,7 @@ const hud = document.getElementById("stats");
 const healthEl = document.getElementById("health");
 const ammoEl = document.getElementById("ammo");
 const xpEl = document.getElementById("xp");
+const alertEl = document.getElementById("alert");
 let acc = 0, last = performance.now(), fps = 60;
 
 function frame(now) {
@@ -1316,9 +1320,13 @@ function frame(now) {
   if (combatT > 0) combatT -= dt;
   hunted = mobs.anyHunting() || (boss.active
     && Math.hypot(boss.alive.x - player.x, boss.alive.z - player.z) < BOSS.aggroRange);
-  if (combatT <= 0 && !hunted && player.hp < player.maxHp) {
-    player.hp = Math.min(player.maxHp,
-      player.hp + REGEN.rate * (inSafe ? REGEN.safeMult : 1) * dt);
+  if (player.hp < player.maxHp) {
+    if (inSafe) {
+      // A town mends you fast, ignoring the combat delay — walk in hurt, walk out whole.
+      player.hp = Math.min(player.maxHp, player.hp + player.maxHp * REGEN.safeFrac * dt);
+    } else if (combatT <= 0 && !hunted) {
+      player.hp = Math.min(player.maxHp, player.hp + REGEN.rate * dt);
+    }
   }
 
   updateRelic(dt);
@@ -1431,6 +1439,16 @@ function frame(now) {
   const xpPct = Math.round(levelProgress() * 100);
   xpEl.innerHTML = `<div class="xp-fill" style="width:${xpPct}%"></div>`
     + `<div class="xp-txt">LVL ${player.level} · ${player.xp}/${xpToNext(player.level)} XP</div>`;
+
+  // Nudge outward once the ground you're on has greyed for your level (kills barely pay).
+  const greyMult = xpLevelMult(tier, player.level);
+  const greying = !inSafeZone && greyMult < 0.6;
+  alertEl.classList.toggle("show", greying);
+  if (greying) {
+    alertEl.textContent = greyMult <= 0
+      ? "➤ These lands hold no more for you — travel to the next ring for XP"
+      : "➤ Your XP here is fading — push to the next ring";
+  }
 
   renderer.render(scene, camera);
 }

@@ -243,10 +243,10 @@ export const XP = {
 // potion mid-fight — it is what saves you the walk back to town after a scrappy win.
 export const REGEN = {
   delay: 6,          // seconds of NOT fighting before it starts
-  rate: 3.2,         // hp per second
-  // Same rate everywhere. A town's value is that nothing can reach you while it happens —
-  // not a faster number. Raise this if a refuge should also mend quicker.
-  safeMult: 1.0,
+  rate: 3.2,         // hp per second in the field
+  // A town MENDS you: it ignores the combat delay and heals a fraction of your max HP per
+  // second, so you're back to full in a few seconds regardless of how big your pool is.
+  safeFrac: 0.28,    // ~3.5s to full inside the walls
 };
 
 // Q — the heal. A 1.5s channel that ROOTS you, breaks if you move, and breaks if you're
@@ -254,8 +254,11 @@ export const REGEN = {
 // whole design: it turns the boss's volley gaps into the window you're hunting for.
 export const HEAL = {
   castTime: 1.5,
-  amount: 45,
-  cooldown: 12,
+  // Heals a FRACTION of your max HP (so it stays relevant as your pool grows) boosted by
+  // Spell Power, so a caster build mends more. No cooldown any more — the 1.5s root that
+  // breaks on a hit is the whole cost.
+  fraction: 0.55,
+  cooldown: 0,
   breakOnDamage: true,
 };
 
@@ -425,8 +428,13 @@ export const VILLAGE = {
   // has diminishing returns by construction and can never reach immunity. Additive
   // reduction would hit 100% at the twelfth purchase and break the game quietly.
   armorMult: 0.90,
-  potionHeal: 60,
-  potionCd: 40,          // long: a potion is an emergency, not a rotation
+  // Potions heal a FRACTION of your max HP, stepping up every 10 levels, so they stay a real
+  // emergency button at any level instead of a flat 60 that does nothing once your pool is big.
+  //   L0-9 40% · L10-19 50% · L20-29 60% · L30-39 70% · …
+  potionFracBase: 0.4,
+  potionFracPer10: 0.1,
+  potionCap: 5,          // hold at most this many at once
+  potionCd: 18,          // an emergency, not a rotation — but usable more than once a fight now
 };
 
 // Gate guards: a standing detachment outside every gate, permanently in a scrap with

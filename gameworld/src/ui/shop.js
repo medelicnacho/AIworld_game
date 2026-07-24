@@ -35,8 +35,9 @@ const ARMOR_GOODS = Object.values(ARMOR).map((a) => ({
 export const GOODS = {
   herbalist: [
     { id: "potion", name: "Healing Potion", price: 25, repeat: true,
-      desc: `Instantly restores ${VILLAGE.potionHeal} health. Press C to drink.`,
-      apply: () => { player.potions++; } },
+      desc: `Restores a big share of your health (more every 10 levels). Press C. `
+        + `Hold up to ${VILLAGE.potionCap}.`,
+      apply: () => { player.potions = Math.min(VILLAGE.potionCap, player.potions + 1); } },
     { id: "grenade", name: "Firebomb", price: 45, repeat: true,
       desc: "Refills one grenade charge.",
       apply: (game) => { game.grenades.refill(1); } },
