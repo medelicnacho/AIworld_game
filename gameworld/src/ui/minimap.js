@@ -218,7 +218,7 @@ export class Minimap {
     ctx.fillText(text, x, ly);
   }
 
-  draw(dt, mobs, boss, folk, villagers) {
+  draw(dt, mobs, boss, villagers) {
     const ctx = this.ctx, R = this.r;
 
     // THE THROTTLE ACTUALLY THROTTLES NOW. It used to read "moved OR the timer expired",
@@ -327,17 +327,6 @@ export class Minimap {
       ctx.fill();
     }
 
-    // The green folk.
-    if (folk) {
-      for (const e of folk.entities()) {
-        const m = this.toMap(e.x - player.x, e.z - player.z);
-        if (Math.hypot(m.mx, m.my) > RANGE) continue;
-        ctx.beginPath();
-        ctx.arc(R + m.mx * scale, R - m.my * scale, 2.4, 0, Math.PI * 2);
-        ctx.fillStyle = "#5fe08a";
-        ctx.fill();
-      }
-    }
 
     // Traders, on top of the dots so a label is never buried under a mob marker.
     this.drawVendors(ctx, villagers, R, scale);

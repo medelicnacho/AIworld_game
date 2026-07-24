@@ -660,36 +660,11 @@ export const DROP = {
   life: 240,                 // seconds a drop waits before fading
 };
 
-// The green folk — nomad bands. SCOPE, on purpose: movement, bunching and breeding ONLY.
-// No speech, no memory, no bonds. This is the BODY layer that the substrate brain will
-// drive later; until then nothing here pretends to be a mind.
-export const FOLK = {
-  maxAlive: 60,
-  maxBands: 5,
-  bandSize: [4, 8],
-  bandCap: 12,
-  splitAt: 11,            // outgrow this and the band divides and wanders apart
-  maturity: 25,           // seconds before a newborn can itself breed
-  breedEvery: [40, 95],
-  spawnMin: 40,
-  spawnMax: 120,
-  spawnInterval: 3.0,
-  despawn: 190,
-
-  speed: 2.1,
-  travel: 1.5,            // pull toward the band's destination
-  roam: 220,              // how far a band will pick its next destination
-  retarget: [45, 110],    // seconds before choosing somewhere new
-  refugeBias: 0.45,       // ...and how often that somewhere is a sanctuary
-  wary: 22,               // hostiles inside this push them away
-  flee: 3.2,
-  neighborRadius: 11,
-  separation: 2.2,
-  sepForce: 3.0,
-  alignForce: 0.9,
-  cohesionForce: 0.8,     // stronger than the mobs': a band travels tight
-  maxClimb: 1.15,
-};
+// REMOVED: the green folk — the roaming nomad bands you could not attack. They were the BODY
+// layer a soul brain was meant to drive later, but as unattackable green dots wandering the
+// frontier they only distracted from the things you CAN fight. When the substrate arrives it
+// will drive the settlement villagers (who already have a home and a purpose), not aimless
+// wanderers. src/mobs/folk.js is deleted with them.
 
 // D7: mobs are SOULLESS. Stats roll from the ring they spawn in; no memory, no bonds, no
 // substrate — the emergent layer arrives at M3 and lands on settlements, not on things you

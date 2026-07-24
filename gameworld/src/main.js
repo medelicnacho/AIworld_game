@@ -10,7 +10,6 @@ import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, D
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
-import { Folk } from "./mobs/folk.js";
 import { Villagers } from "./town/villagers.js";
 import { Guards } from "./town/guards.js";
 import { Shop, GOODS, statLine } from "./ui/shop.js";
@@ -839,7 +838,6 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
 });
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
-const folk = new Folk(scene);
 const villagers = new Villagers(scene);
 const guards = new Guards(scene);
 const plates = new Nameplates(document.getElementById("plates"), camera);
@@ -1651,7 +1649,6 @@ function frame(now) {
 
   gun.update(dt);
   mobs.update(dt, hurtPlayer);
-  folk.update(dt);
   villagers.update(dt);
   // Guard kills award nothing at all -- guards.update handles their kills internally and
   // never pays. The reward() dead-zone check remains, but only for YOUR OWN kills made while
@@ -1726,7 +1723,7 @@ function frame(now) {
   updateSpells(dt);
   updateSpin(dt);
   updateLevelFx(dt);
-  minimap.draw(dt, mobs, boss, folk, villagers);
+  minimap.draw(dt, mobs, boss, villagers);
 
   const vendor = shop.open ? null : villagers.nearest();
   if (tradeMsgT > 0) tradeMsgT -= dt;
