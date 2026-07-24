@@ -130,7 +130,52 @@ export class Mobs {
       scene.add(mesh);
       this.balls.push({ mesh, active: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0, dmg: 0 });
     }
+
+    // Death POPS — a quick expanding shell + shards when anything dies. Pure juice; pooled,
+    // because a battle can kill a dozen things in a second.
+    const popGeo = new THREE.IcosahedronGeometry(0.6, 0);
+    this.pops = [];
+    for (let i = 0; i < 30; i++) {
+      const mesh = new THREE.Mesh(popGeo, new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0, depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }));
+      mesh.visible = false;
+      scene.add(mesh);
+      this.pops.push({ mesh, active: false, t: 0 });
+    }
+    this.popI = 0;
+
+    // Damage numbers to float above whatever you hit — read by the UI layer each frame, then
+    // cleared. Only the PLAYER's hits fill this (see hit()); mob-vs-mob would be pure noise.
+    this.hitEvents = [];
   }
+
+  /** A cosmetic death burst at a point, tinted to the side that fell. */
+  deathPop(x, y, z, color) {
+    const p = this.pops[this.popI = (this.popI + 1) % this.pops.length];
+    p.active = true;
+    p.t = 0.34;
+    p.mesh.position.set(x, y + 0.6, z);
+    p.mesh.material.color.set(color);
+    p.mesh.scale.setScalar(0.4);
+    p.mesh.visible = true;
+  }
+
+  updatePops(dt) {
+    for (const p of this.pops) {
+      if (!p.active) continue;
+      p.t -= dt;
+      const f = Math.max(0, p.t / 0.34);       // 1 → 0
+      p.mesh.scale.setScalar(0.4 + (1 - f) * 2.4);   // expands as it fades
+      p.mesh.material.opacity = f * 0.9;
+      p.mesh.rotation.x += dt * 9;
+      p.mesh.rotation.y += dt * 7;
+      if (p.t <= 0) { p.active = false; p.mesh.visible = false; }
+    }
+  }
+
+  factionColor(e) { return this.factionCols[(e.faction || 0) % this.factionCols.length]; }
 
   affixColor(id) {
     let c = this._affixCache.get(id);
@@ -396,6 +441,7 @@ export class Mobs {
     target.aggroT = MOB.loseInterest;
     if (target.hp <= 0) {
       runAffix(target, "onDeath", this.fx);
+      this.deathPop(target.x, target.y, target.z, this.factionColor(target));
       this.despawn(target.id);
     }
   }
@@ -550,10 +596,13 @@ export class Mobs {
     e.aggro = true;
     e.aggroT = MOB.loseInterest;
     this.alert(e);                    // being shot at is a pack-wide event
+    // Floating damage number for the player's hit (weak-point hits pop bigger/brighter).
+    this.hitEvents.push({ x: e.x, y: e.y + 1.4, z: e.z, amount: Math.round(amount), weak });
     if (e.hp <= 0) {
       // Death hook runs BEFORE despawn, while the entity still has a position to explode at.
       runAffix(e, "onDeath", this.fx);
       sfx.killThud(e.x, e.z, e.elite);     // the reward note — heavier for a star
+      this.deathPop(e.x, e.y, e.z, this.factionColor(e));
       const out = { killed: true, elite: e.elite, ring: e.ring, affixes: affixLabel(e) };
       this.despawn(id);
       this.killed++;
@@ -955,6 +1004,7 @@ export class Mobs {
 
     this.updateBalls(dt, onPlayerHit);
     this.updateGround(dt);
+    this.updatePops(dt);
     this.render();
   }
 

@@ -26,6 +26,7 @@ export class Boss {
     this.group = null;
     this.shake = 0;
     this.killed = 0;
+    this.hitEvents = [];      // floating damage numbers, read + cleared by the UI each frame
 
     // Meteors are pooled: a volley in phase 2 can put a dozen rocks in the air at once,
     // and allocating meshes mid-fight is exactly when you can least afford a GC pause.
@@ -170,6 +171,7 @@ export class Boss {
     const dmg = Math.min(raw, cap);
     const weak = tag === "bossWeak";
     this.alive.hp -= dmg;
+    this.hitEvents.push({ x: this.alive.x, y: this.alive.y + 5.5, z: this.alive.z, amount: Math.round(dmg), weak });
     if (this.alive.hp <= 0) {
       const ring = this.alive.ring;
       sfx.killThud(this.alive.x, this.alive.z, true);   // a boss going down is always heavy

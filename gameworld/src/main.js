@@ -18,6 +18,7 @@ import { ICONS } from "./ui/icons.js";
 import { Inventory } from "./ui/inventory.js";
 import { Nameplates } from "./ui/nameplates.js";
 import { HealthBars } from "./ui/healthbars.js";
+import { DamageText } from "./ui/damagetext.js";
 import { rollRelic, applyRelic } from "./prog/relics.js";
 import { armorDR } from "./prog/stats.js";
 import { rollGear, vendorPiece, sellValue } from "./prog/gear.js";
@@ -727,6 +728,7 @@ const villagers = new Villagers(scene);
 const guards = new Guards(scene);
 const plates = new Nameplates(document.getElementById("plates"), camera);
 const hpBars = new HealthBars(document.getElementById("hpbars"), camera);
+const dmgText = new DamageText(document.getElementById("dmg"), camera);
 let tradeMsg = "", tradeMsgT = 0;
 // One context object for anything that can grant or change player state, so the shop and
 // the admin panel hand out abilities through exactly the same path. Getters are lazy
@@ -1278,6 +1280,12 @@ function frame(now) {
   guards.update(dt, mobs);
   // Only traders get a plate: labelling every keeper would turn a town into a wall of text.
   hpBars.draw(mobs.entities());
+  // Floating damage numbers for your hits (mob + boss), then clear the frame's events.
+  for (const ev of mobs.hitEvents) dmgText.spawn(ev.x, ev.y, ev.z, ev.amount, ev.weak);
+  for (const ev of boss.hitEvents) dmgText.spawn(ev.x, ev.y, ev.z, ev.amount, ev.weak);
+  mobs.hitEvents.length = 0;
+  boss.hitEvents.length = 0;
+  dmgText.draw(dt);
   plates.draw(villagers.list
     .filter((v) => Villagers.sells(v))
     .map((v) => ({ x: v.x, y: v.y + 2.05, z: v.z, label: v.role.name, sub: "F to trade" })));
