@@ -37,7 +37,11 @@ export const GOODS = {
     { id: "potion", name: "Healing Potion", price: 25, repeat: true,
       desc: `Restores a big share of your health (more every 10 levels). Press C. `
         + `Hold up to ${VILLAGE.potionCap}.`,
-      apply: () => { player.potions = Math.min(VILLAGE.potionCap, player.potions + 1); } },
+      // Returning false when full makes buy() refund and refuse — no more paying for nothing.
+      apply: () => {
+        if (player.potions >= VILLAGE.potionCap) return false;
+        player.potions++;
+      } },
     { id: "grenade", name: "Firebomb", price: 45, repeat: true,
       desc: "Refills one grenade charge.",
       apply: (game) => { game.grenades.refill(1); } },
@@ -351,9 +355,9 @@ export class Shop {
     const price = priceOf(good);
     if (player.points < price) { this.flash = "not enough points"; this.render(); return; }
     player.points -= price;
-    if (good.apply(this.game) === false) {   // no free slot, nothing bought
+    if (good.apply(this.game) === false) {   // couldn't complete — refund
       player.points += price;
-      this.flash = "no free ability slot";
+      this.flash = good.id === "potion" ? `potions full (${VILLAGE.potionCap})` : "no free ability slot";
       this.render();
       return;
     }

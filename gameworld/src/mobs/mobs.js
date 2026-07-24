@@ -40,14 +40,26 @@ export class Mobs {
     // ONE draw call for every mob alive. Individual meshes cost a draw call each, and this
     // machine has no discrete GPU — at 200 bodies that overhead is the whole frame budget.
     // Instancing makes population a simulation question rather than a rendering one.
-    this.geo = new THREE.ConeGeometry(MOB.radius, 1.6, 5);
-    this.geo.translate(0, 0.8, 0);    // pivot at the feet, so ground-snapping is exact
-    this.mesh = new THREE.InstancedMesh(
-      this.geo, new THREE.MeshLambertMaterial({}), MOB.maxAliveCap + 32);
-    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.mesh.frustumCulled = false;  // instances move every frame; the bounds would lie
-    this.mesh.count = 0;
-    scene.add(this.mesh);
+    // Each mob TYPE is a distinct SILHOUETTE now, so you read WHAT a creature is from its
+    // outline — and COLOUR is freed up to say WHOSE side it's on (its faction). One
+    // InstancedMesh per shape, one draw call each; the type read costs nothing at runtime.
+    const feet = (g, h) => { g.translate(0, h, 0); return g; };
+    this.shapes = {
+      plain: feet(new THREE.ConeGeometry(MOB.radius, 1.6, 5), 0.8),        // the rank and file
+      charger: feet(new THREE.BoxGeometry(0.95, 1.3, 0.95), 0.65),         // a bulky bruiser
+      caster: feet(new THREE.CylinderGeometry(0.34, 0.34, 1.95, 8), 0.98), // tall and thin
+      flyer: new THREE.OctahedronGeometry(0.72),                           // a floating diamond
+      swarm: feet(new THREE.TetrahedronGeometry(0.52), 0.3),               // tiny and spiky
+    };
+    this.meshes = {};
+    for (const [k, g] of Object.entries(this.shapes)) {
+      const m = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({}), MOB.maxAliveCap + 32);
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      m.frustumCulled = false;   // instances move every frame; the bounds would lie
+      m.count = 0;
+      scene.add(m);
+      this.meshes[k] = m;
+    }
 
     // Scratch objects, reused every frame — allocating per mob per frame is exactly the
     // GC sawtooth that ruins frame times at these counts.
@@ -75,6 +87,8 @@ export class Mobs {
     this.COL_SWARM = new THREE.Color(0xc3d94a);     // pale: many, small, brief
     this.COL_HURT = new THREE.Color(0xff6655);
     this._affixCol = new THREE.Color();
+    this._white = new THREE.Color(0xffffff);
+    this._factionElite = new THREE.Color();
     this._affixCache = new Map();     // affix id -> THREE.Color, built once
 
     // Dying bursts: a telegraph ring, then a bang. Pooled — a wiped elite pack can put
@@ -148,35 +162,43 @@ export class Mobs {
       // Hold each colour, then snap across quickly: readable as "orange AND blue", not mud.
       return this._affixCol.copy(a).lerp(b, Math.max(0, Math.min(1, (f - 0.75) * 4)));
     }
-    if (e.flies) return this.COL_CASTER;
-    if (e.caster) return this.COL_GROUNDCASTER;
-    if (e.charger) return this.COL_CHARGER;
-    if (e.swarm) return this.COL_SWARM;
-    if (e.elite) return this.COL_ELITE;
-    // Plain mobs wear their FACTION colour — the bulk of a camp, so the war reads at a glance.
-    return this.factionCols[(e.faction || 0) % this.factionCols.length];
+    // Shape already says WHAT it is; colour says WHOSE side it's on. Elites glow brighter.
+    const base = this.factionCols[(e.faction || 0) % this.factionCols.length];
+    if (e.elite) return this._factionElite.copy(base).lerp(this._white, 0.4);
+    return base;
   }
 
-  /** Write every live mob into the instance buffer. One pass, one draw call. */
+  /** Which silhouette this creature is drawn as. */
+  shapeOf(e) {
+    if (e.swarm) return "swarm";
+    if (e.flies) return "flyer";
+    if (e.caster) return "caster";
+    if (e.charger) return "charger";
+    return "plain";
+  }
+
+  /** Write every live mob into its SHAPE's instance buffer — one draw call per shape. */
   render() {
     const now = performance.now();
-    let i = 0;
-    const cap = this.mesh.instanceMatrix.count;
+    const idx = { plain: 0, charger: 0, caster: 0, flyer: 0, swarm: 0 };
     for (const e of this.entities()) {
-      if (i >= cap) break;
+      const shape = this.shapeOf(e);
+      const mesh = this.meshes[shape];
+      const i = idx[shape];
+      if (i >= mesh.instanceMatrix.count) continue;   // that shape's buffer is full
       const sc = (e.elite ? MOB.eliteScale : 1) * (e.scale || 1);
       this._q.setFromAxisAngle(this._up, e.facing ?? e.heading ?? 0);
-      // Flyers hang point-down, so a threat in the air is a different silhouette from a
-      // threat on the ground even before you read its colour.
-      if (e.flies) this._q.multiply(this._flip);
       this._m.compose(this._p.set(e.x, e.y, e.z), this._q, this._s.set(sc, sc, sc));
-      this.mesh.setMatrixAt(i, this._m);
-      this.mesh.setColorAt(i, this.colorOf(e, now));
-      i++;
+      mesh.setMatrixAt(i, this._m);
+      mesh.setColorAt(i, this.colorOf(e, now));
+      idx[shape] = i + 1;
     }
-    this.mesh.count = i;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    for (const k of Object.keys(this.meshes)) {
+      const m = this.meshes[k];
+      m.count = idx[k];
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
   }
 
   /** Roll one mob's stats from the tier it stands in (D8). */
