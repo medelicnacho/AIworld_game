@@ -31,6 +31,12 @@ export class Bridge {
 
   connect() {
     if (this.state === "connecting" || this.es) return;
+    // The lab runs on YOUR machine. On a stranger's it can only ever fail, forever, on a
+    // backoff — a console full of red for a feature they cannot have, which reads as a broken
+    // game rather than an absent one. So a built copy simply never reaches for it. This is
+    // the same rule as the rest of the file (the bridge is an enhancement, never a
+    // dependency), applied one step earlier: the best failure is the one that never happens.
+    if (!import.meta.env?.DEV) { this.state = "offline"; return; }
     this.state = "connecting";
 
     // EventSource retries on its own, but with no backoff control and a console error per
