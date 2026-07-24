@@ -11,7 +11,6 @@ const PLAYLIST = [
   "/audio/killerspacetuna.mp3",  // and back to Killer Space Tuna
 ];
 const VOLUME = 0.3;        // background, under the sound effects
-const FADE_MS = 1200;
 
 export class Music {
   constructor(volume = VOLUME) {
@@ -21,23 +20,32 @@ export class Music {
     this.idx = 0;
     this.el = new Audio(PLAYLIST[0]);
     this.el.preload = "auto";
-    this.el.volume = 0;
+    this.el.volume = this.volume;
     // When one track finishes, roll straight into the next — the whole point of a playlist.
     this.el.addEventListener("ended", () => this.advance());
-    this._fade = null;
+    // A bad/slow track shouldn't kill the whole soundtrack — skip to the next.
+    this.el.addEventListener("error", () => { if (this.started) this.advance(); });
   }
 
   advance() {
     this.idx = (this.idx + 1) % PLAYLIST.length;
     this.el.src = PLAYLIST[this.idx];
-    if (this.started && !this.muted) this.el.play().catch(() => {});
+    this.play();
+  }
+
+  /** The one place a real play() happens — only when it SHOULD be sounding, so redundant
+   *  callers can't abort each other's promise and leave the track playing silently. */
+  play() {
+    if (!this.started || this.muted) return;
+    this.el.volume = this.volume;         // set DIRECTLY, never via a promise that may abort
+    if (this.el.paused) this.el.play().catch(() => {});
   }
 
   /** Call from a user gesture (pointer lock). Safe to call repeatedly. */
   start() {
-    if (this.started || this.muted) return;
+    if (this.started) return;
     this.started = true;
-    this.el.play().then(() => this.fade(this.volume, FADE_MS)).catch(() => { this.started = false; });
+    this.play();
   }
 
   /** Kept for the caller's sake — the playlist plays the same everywhere now. */
@@ -46,29 +54,18 @@ export class Music {
   setPaused(paused) {
     if (!this.started) return;
     if (paused) this.el.pause();
-    else if (!this.muted) this.el.play().catch(() => {});
+    else this.play();
   }
 
   /** Explicit pause/resume for the death screen. */
   pause() { this.el.pause(); }
-  resume() { if (this.started && !this.muted) this.el.play().catch(() => {}); }
+  resume() { this.play(); }
 
   toggle() {
     this.muted = !this.muted;
     if (this.muted) this.el.pause();
-    else if (this.started) this.el.play().catch(() => {});
+    else if (this.started) this.play();
     else this.start();
     return !this.muted;
-  }
-
-  fade(target, ms = FADE_MS) {
-    const from = this.el.volume;
-    const t0 = performance.now();
-    clearInterval(this._fade);
-    this._fade = setInterval(() => {
-      const t = Math.min(1, (performance.now() - t0) / ms);
-      this.el.volume = Math.max(0, Math.min(1, from + (target - from) * t));
-      if (t >= 1) clearInterval(this._fade);
-    }, 33);
   }
 }
