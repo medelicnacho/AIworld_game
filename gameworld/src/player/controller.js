@@ -74,6 +74,15 @@ export function attachInput(canvas, hooks = {}) {
     // text field is focused, e.g. the admin panel, so Tab-between-fields still works there.)
     if (e.code === "Tab" && !/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) e.preventDefault();
     if (e.code === "F5") { e.preventDefault(); hooks.toggleCamera?.(); return; }
+    // ESCAPE MEANS PAUSE — as a key, not only as a side effect. While the browser holds the
+    // mouse, Escape's keydown rarely arrives at all: releasing the capture IS its meaning
+    // there, and the unlock event carries the pause. But the game now runs WITHOUT the
+    // capture too (a refused grab no longer blocks play, and there is always a gap after
+    // leaving a vendor while it is re-acquired) — and in that state Escape used to be a
+    // completely dead key: nothing to release, no event, no pause, however hard you pressed
+    // it. The key itself has to speak whenever no capture is present to speak for it.
+    // (The shop and the character sheet claim Escape first, in capture, when they are open.)
+    if (e.code === "Escape" && !e.repeat) { hooks.escapeKey?.(); return; }
     if (e.code === "KeyM") { hooks.toggleMusic?.(); return; }
     // Live look-speed tuning: 20% per press, clamped to a sane band.
     if (e.code === "BracketLeft" || e.code === "BracketRight") {

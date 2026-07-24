@@ -1198,6 +1198,12 @@ attachInput(renderer.domElement, {
     const v = villagers.nearest();
     if (!v) return;
     shop.show(v);
+    // Pause the world ON PURPOSE, not as a side effect of losing the mouse. Relying on the
+    // unlock event left a gap where the panel was open while the game still ran behind it —
+    // and if the unlock happened to land inside the post-resume grace window, that gap
+    // lasted the whole visit: WASD quietly walked you away from the person you were
+    // talking to.
+    setPaused(true);
   },
   ability: (i) => {
     if (inSafe) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; return; }
@@ -1235,12 +1241,25 @@ attachInput(renderer.domElement, {
     sfx.unlock();
     if (paused) { lockTries = 0; setPaused(false); }
   },
+  // Escape as a KEY. Only fires when no panel claimed it first (they take it in capture).
+  // If the mouse is captured, stay out of the way — the browser is about to release it and
+  // the unlock path below will pause; acting here too would double-handle one press. If it
+  // is NOT captured, this is the only pause there is.
+  escapeKey: () => {
+    if (dead || shop.open || inventory.open || paused) return;
+    if (document.pointerLockElement) return;
+    setPaused(true);
+  },
   onLock: () => { music.start(); sfx.unlock(); setPaused(false); },
   onUnlock: () => {
-    // Belt and braces for the same collision: ignore an unlock that lands in the moment
-    // after a deliberate resume, so a stray release can never re-pause what we just resumed.
     if (dead) return;                   // death owns the pause; the button resumes
-    if (performance.now() - resumedAt < 900) return;
+    // Ignore an unlock landing in the instant after a deliberate resume — the browser race
+    // this guards against resolves within the same keypress, tens of milliseconds. It was
+    // 900ms, which swallowed the player's own DELIBERATE Escape for most of a second after
+    // leaving a vendor: the pause ate the press, the mouse was gone, and the key went dead
+    // until they clicked. Short window, and a swallowed release now re-chases the capture
+    // so the game never idles unlocked with nothing pending.
+    if (performance.now() - resumedAt < 300) { setTimeout(tryLock, 400); return; }
     setPaused(true);
   },
   // Look control is allowed whenever the game is actually RUNNING, lock or no lock. The
