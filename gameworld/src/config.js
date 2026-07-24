@@ -629,6 +629,10 @@ export const MOB = {
   // The brain decides INTENT (close, hold, lunge); these decide HOW the body gets there.
   // Same seam as PLAN §4 — a mob brain and a soul brain will drive the same locomotion.
   neighborRadius: 10,     // who counts as "nearby" for flocking
+  // In a dense pile-up, EVERY mob scanning EVERY neighbour is the O(n²) that lags. Flocking
+  // only needs a SAMPLE, so we stop after this many — the motion looks identical, the cost
+  // stops exploding. This is the single biggest knob for big-group performance.
+  maxNeighbours: 12,
   separation: 2.8,        // below this they actively push apart — no stacking, ever
   sepForce: 3.4,
   alignForce: 1.0,        // match your neighbours' heading: a pack moves as one body

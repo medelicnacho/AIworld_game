@@ -568,7 +568,10 @@ export class Mobs {
     for (const o of nearby(e.x, e.z, MOB.neighborRadius)) {
       if (o === e || o.kind !== "mob") continue;
       const d = Math.hypot(o.x - e.x, o.z - e.z);
-      if (d < MOB.neighborRadius) out.push({ o, d });
+      if (d < MOB.neighborRadius) {
+        out.push({ o, d });
+        if (out.length >= MOB.maxNeighbours) break;   // a sample is enough; bounds dense cost
+      }
     }
     return out;
   }
@@ -680,7 +683,24 @@ export class Mobs {
       // mob. You still win priority when you're the closest threat and have been noticed, so
       // walking into a melee pulls them onto you; otherwise the two camps fight each other.
       const guard = guardNear(e.x, e.z);
-      let warFoe = guard ? null : this.enemyMobNear(e, MOB.warRange);
+      // The war target is the expensive part (a spatial scan), so it's THROTTLED: recompute
+      // the nearest enemy only every ~0.2s (staggered per mob), and between recomputes just
+      // re-validate the cached one. Combat doesn't need frame-perfect target picking, and this
+      // is what keeps a big battle from scanning n² enemies every frame.
+      let warFoe = null;
+      if (MOB.factionWar && !guard) {
+        e.warThink = (e.warThink || 0) - dt;
+        if (e.warThink <= 0) {
+          e.warThink = 0.2 + this.rng() * 0.2;
+          const found = this.enemyMobNear(e, MOB.warRange);
+          e.warFoeId = found ? found.id : 0;
+        }
+        if (e.warFoeId) {
+          const c = world.entities.get(e.warFoeId);
+          warFoe = (c && c.hp > 0 && c.faction !== e.faction
+            && Math.hypot(c.x - e.x, c.z - e.z) < MOB.warRange * 1.4) ? c : null;
+        }
+      }
       if (warFoe && !playerSafe && dist < MOB.noticeRange
           && dist < Math.hypot(warFoe.x - e.x, warFoe.z - e.z)) warFoe = null;
       const foe = guard || warFoe;
