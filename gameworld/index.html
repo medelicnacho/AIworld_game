@@ -190,6 +190,18 @@
         color: #dfe8f5; border-radius: 4px; padding: 3px 6px; font: inherit; }
       #inv .admin button { background: #37425c; border: 1px solid #55668a;
         color: #dfe8f5; border-radius: 5px; padding: 4px 10px; cursor: pointer; font: inherit; }
+      /* Settings strip — visible on every tab, because the one setting people need is the one
+         nobody could find. Sits above the footer and outside the scroll area, so it is always
+         on screen no matter how long the panel's contents get. */
+      #inv .opts { flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+        padding: 8px 14px; background: #141b28; border-top: 1px solid #222c3e;
+        color: #a9bcd6; font-size: 12px; }
+      #inv .opts label { color: #cdd8ea; }
+      #inv .opts input[type=range] { flex: 1 1 auto; max-width: 260px; accent-color: #ffce5e; }
+      #inv .opts .optval { min-width: 34px; text-align: right; color: #ffe6a8;
+        font-variant-numeric: tabular-nums; }
+      #inv .opts .opthint { color: #6f819b; }
+      #inv .opts .opthint b { color: #9fb4d4; font-weight: 600; }
       #inv footer { padding: 9px 14px; background: #161d2b; color: #8fa3bf; font-size: 12px; }
       /* The panel had no height limit at all — it simply grew with its contents, so opening
          the testing tools pushed the footer (and the bottom row of buttons) off the bottom of

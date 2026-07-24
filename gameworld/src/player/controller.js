@@ -29,6 +29,19 @@ export const input = {
 };
 
 const LOOK_KEY = "gw.look";
+export const LOOK_MIN = 0.0015, LOOK_MAX = 0.05;
+
+/**
+ * Set and remember look sensitivity. Exported so the pause screen can offer it as a VISIBLE
+ * control: a setting that exists only as an undocumented keybind is a setting nobody but the
+ * author has. Every player of a build gets the default and no way to learn otherwise, which
+ * is how "too slow for me" becomes "the controls are broken" in a bug report.
+ */
+export function setLook(value) {
+  CAMERA.sensitivity = Math.max(LOOK_MIN, Math.min(LOOK_MAX, value));
+  try { localStorage.setItem(LOOK_KEY, String(CAMERA.sensitivity)); } catch { /* ignore */ }
+  return CAMERA.sensitivity;
+}
 
 // [forward, right] per movement key — the frame a dodge direction is built in.
 const MOVE_DIRS = {
@@ -58,9 +71,7 @@ export function attachInput(canvas, hooks = {}) {
     if (e.code === "KeyM") { hooks.toggleMusic?.(); return; }
     // Live look-speed tuning: 20% per press, clamped to a sane band.
     if (e.code === "BracketLeft" || e.code === "BracketRight") {
-      const f = e.code === "BracketRight" ? 1.2 : 1 / 1.2;
-      CAMERA.sensitivity = Math.max(0.0005, Math.min(0.05, CAMERA.sensitivity * f));
-      localStorage.setItem(LOOK_KEY, String(CAMERA.sensitivity));
+      setLook(CAMERA.sensitivity * (e.code === "BracketRight" ? 1.2 : 1 / 1.2));
       return;
     }
     // !e.repeat: the OS fires keydown repeatedly while a key is held — without this, one

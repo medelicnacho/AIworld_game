@@ -12,7 +12,8 @@
 
 import { SLOTS } from "../player/abilities.js";
 import { ICONS } from "./icons.js";
-import { WEAPONS, STAT_INFO, ADMIN_CODE } from "../config.js";
+import { WEAPONS, STAT_INFO, ADMIN_CODE, CAMERA } from "../config.js";
+import { setLook, LOOK_MIN, LOOK_MAX } from "../player/controller.js";
 import { statLine } from "./shop.js";
 import { sortBag } from "../prog/gear.js";
 
@@ -73,6 +74,15 @@ export class Inventory {
         this.close();
       }
     }, true);
+    // Live while you drag. Deliberately does NOT re-render the panel: rebuilding the markup
+    // under the cursor would tear the slider out from under the mouse on the first pixel of
+    // movement, so only the number beside it is updated.
+    this.el.addEventListener("input", (e) => {
+      if (e.target?.id !== "opt-sens") return;
+      const v = setLook(Number(e.target.value));
+      const out = this.el.querySelector(".optval");
+      if (out) out.textContent = (v * 1000).toFixed(1);
+    });
     this.el.addEventListener("dragstart", (e) => this.onDragStart(e));
     this.el.addEventListener("dragover", (e) => {
       if (e.target.closest("[data-slot],[data-bag]")) e.preventDefault();   // allow drop
@@ -528,6 +538,13 @@ export class Inventory {
           <div class="tabbody">${body}</div>
           ${this.adminGateHtml()}
           ${this.adminHtml()}
+        </div>
+        <div class="opts">
+          <label for="opt-sens">Mouse sensitivity</label>
+          <input id="opt-sens" type="range" min="${LOOK_MIN}" max="${LOOK_MAX}" step="0.0005"
+                 value="${CAMERA.sensitivity}">
+          <span class="optval">${(CAMERA.sensitivity * 1000).toFixed(1)}</span>
+          <span class="opthint">or <b>[</b> <b>]</b> while playing</span>
         </div>
         <footer>${foot}</footer>
       </div>`;
