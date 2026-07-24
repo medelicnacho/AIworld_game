@@ -295,11 +295,11 @@ let spinTick = 0;
 function trySpin() {
   if (player.spinT > 0 || player.spinCd > 0) return;
   player.spinT = SPIN.time;
-  // Haste shortens it, the floor stops haste breaking it — the same rail as everywhere else.
-  player.spinCd = Math.max(SPIN.cdFloor, SPIN.cd * (player.hasteCd || 1));
+  // No cooldown yet — it does not start until the spin is over (set in updateSpin). While
+  // spinning you are untouchable start to finish; the danger lives in the gap that opens after.
   player.iframes = Math.max(player.iframes, SPIN.iframes);
   spinTick = 0;
-  // ONE shove, on the opening beat — room to fight in, not a permanent force field.
+  // ONE shove, on the opening beat.
   for (const e of [...world.entities.values()]) {
     if (e.kind !== "mob") continue;
     if (Math.hypot(e.x - player.x, e.z - player.z) > SPIN.radius) continue;
@@ -313,6 +313,8 @@ function updateSpin(dt) {
   if (player.spinCd > 0) player.spinCd -= dt;
   if (player.spinT > 0) {
     player.spinT -= dt;
+    // Untouchable the WHOLE spin: keep i-frames topped up to whatever spin time remains.
+    player.iframes = Math.max(player.iframes, player.spinT);
     spinTick -= dt;
     if (spinTick <= 0) {
       spinTick = SPIN.tick;
@@ -320,12 +322,16 @@ function updateSpin(dt) {
       // GUN bucket — this is the weapon working, not a spell.
       blast(player.x, player.y + 1, player.z, SPIN.radius, SPIN.damage, 4, false, true, false, "gun");
     }
+    if (player.spinT <= 0) {
+      // Spin just ended — NOW the cooldown starts. Haste shortens it, the floor stops haste
+      // breaking it, the same rail as everywhere else.
+      player.spinCd = Math.max(SPIN.cdFloor, SPIN.cd * (player.hasteCd || 1));
+    }
     spinRingFx.visible = true;
     spinRingFx.position.set(player.x, player.y + 0.35, player.z);
     spinRingFx.rotation.y -= dt * 22;
-    // The bright phase IS the untouchable window, so the timing you must learn is drawn.
-    const guarded = SPIN.time - player.spinT < SPIN.iframes;
-    spinRingFx.material.opacity = guarded ? 0.8 : 0.28 + 0.12 * Math.sin(performance.now() * 0.025);
+    // Bright the whole spin, because the whole spin is untouchable now.
+    spinRingFx.material.opacity = 0.8;
   } else if (spinRingFx.visible) {
     spinRingFx.visible = false;
   }

@@ -228,14 +228,13 @@ for (const id of ["cleaver", "lobber", "lance"]) {
 // the one that is best at READING incoming damage rather than the one that cannot be hurt.
 export const SPIN = {
   time: 2.5,
-  // UNTOUCHABLE ONLY AT THE START. Three seconds of invulnerability on a four second cooldown
-  // is safe three quarters of the time, and with haste it finishes while you are still
-  // spinning — permanently immune, which deletes every telegraph in the game. Everything else
-  // here runs at about a quarter uptime (dodge 0.2s per 0.7s, Whirlwind 3.6s per 13s), so the
-  // safe part is a WINDOW you have to time, and missing it costs you the move.
-  iframes: 0.6,
-  cd: 5,
-  cdFloor: 2.5,          // haste has no ceiling; this is the rail, as everywhere else
+  // UNTOUCHABLE THE WHOLE SPIN, and the cooldown does not start ticking until the spin ENDS.
+  // So the shape is: 2.5s of guaranteed safety, then a real exposed gap of `cd` (down to
+  // `cdFloor` with haste) before you can vanish again. Guard start-to-finish, but never
+  // permanently — the gap between spins is where the danger lives.
+  iframes: 2.5,          // = time: guarded start to finish
+  cd: 2.5,               // starts counting AFTER the spin, not on cast
+  cdFloor: 1.2,          // ...down to this with haste stacked
   radius: 6.6,
   tick: 0.25,
   // Per tick, and deliberately the WEAKEST sustained damage in the kit: under the cleaver's

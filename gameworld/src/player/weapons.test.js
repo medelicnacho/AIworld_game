@@ -44,15 +44,15 @@ test("faction weapons cost a fortune — the price IS the gate", () => {
   }
 });
 
-test("SPIN: untouchable is a WINDOW, and uptime stays on the game's budget", () => {
-  // The whole argument: everything else in this game is safe about a quarter of the time
-  // (dodge 0.2s/0.7s, Whirlwind 3.6s/13s). If the spin's guarded window over its FLOORED
-  // cooldown ever exceeds that, haste stacking walks it toward permanent invulnerability —
-  // which deletes every telegraph in the game.
-  assert.ok(SPIN.iframes < SPIN.time, "the guard must end before the spin does");
-  assert.ok(SPIN.iframes / SPIN.cdFloor <= 0.25 + 1e-9,
-    `guarded uptime at the haste floor is ${(SPIN.iframes / SPIN.cdFloor).toFixed(2)} — over budget`);
+test("SPIN: untouchable the WHOLE spin, but the gap after it is real", () => {
+  // The author's chosen shape: you are guarded start to finish, and the cooldown does not
+  // start until the spin ENDS. That is only NOT permanent invulnerability if a real exposed
+  // gap opens afterwards — so the one rule that has to hold is that the floored cooldown you
+  // spend vulnerable is itself a meaningful slice of the safe time, never a sliver.
+  assert.ok(SPIN.iframes >= SPIN.time, "the guard must cover the whole spin");
   assert.ok(SPIN.cdFloor > 0, "haste has no ceiling; the floor is the rail");
+  assert.ok(SPIN.cdFloor / SPIN.time >= 0.4,
+    `the exposed gap at the haste floor is ${(SPIN.cdFloor / SPIN.time).toFixed(2)} of the spin — too thin to be a real opening`);
 });
 
 test("SPIN: sustained damage loses to swinging, and to Whirlwind", () => {
