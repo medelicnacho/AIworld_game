@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, VILLAGE, RELIC, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -19,7 +19,6 @@ import { Inventory } from "./ui/inventory.js";
 import { Nameplates } from "./ui/nameplates.js";
 import { HealthBars } from "./ui/healthbars.js";
 import { DamageText } from "./ui/damagetext.js";
-import { rollRelic, applyRelic } from "./prog/relics.js";
 import { armorDR } from "./prog/stats.js";
 import { rollGear, vendorPiece, sellValue } from "./prog/gear.js";
 import { player, spawnPlayer, world } from "./state.js";
@@ -37,6 +36,7 @@ import { Abilities, SLOTS, SLOT_KEYS } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
 import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, xpLevelMult } from "./prog/xp.js";
+import { save as saveGame, load as loadSave, restore as restoreSave, hasSave, wipe as wipeSave } from "./prog/save.js";
 import { mulberry32 } from "./rng.js";
 
 const FIXED_DT = 1 / 60;
@@ -534,6 +534,7 @@ function levelUp() {
   levelBeam.visible = true;
   levelRing.visible = true;
   sfx.levelUp();
+  saveSoon();       // the thing you are least willing to re-earn
 }
 
 function updateLevelFx(dt) {
@@ -557,58 +558,65 @@ function updateLevelFx(dt) {
   }
 }
 
-// Boss relics lying on the ground. One mesh, one relic at a time — bosses are rare enough
-// that two drops never coexist, and a pool would be ceremony for a maximum of one.
-const relicMesh = (() => {
-  const g = new THREE.OctahedronGeometry(0.6, 0);
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffd45e }));
-  m.visible = false;
-  scene.add(m);
-  return m;
-})();
-const relicLight = new THREE.PointLight(0xffc94a, 0, 22);
-scene.add(relicLight);
-let groundRelic = null;      // { relic, x, y, z, t }
+// The glow an EPIC drop carries. One light, lent to whichever purple is nearest — see
+// updateGearDrops. It is the only light any piece of loot gets, because a light everything
+// has is a light that says nothing.
+const epicLight = new THREE.PointLight(0x7a1fd0, 0, 26);
+scene.add(epicLight);
 
-function dropRelic(x, z, tier) {
-  const relic = rollRelic(tier, shakeRng);
-  groundRelic = { relic, x, y: groundY(x, z) + 1.1, z, t: RELIC.life };
-  relicMesh.position.set(x, groundRelic.y, z);
-  relicMesh.visible = true;
-  killFeed = `◆ BOSS DOWN ◆   ${relic.name} lies where it fell`;
-  relicMesh.material.color.set(relic.color);
+/**
+ * WHAT A BOSS LEAVES BEHIND.
+ *
+ * Relics are gone. They were designed as "a bundle of shop purchases" back when the shop was
+ * where power came from — but the game grew a five-slot loot system with rarity colours, and
+ * that is a far better home for a boss prize. A relic was a paragraph you read once; a purple
+ * drop is a thing you wear, compare, and remember where you got.
+ *
+ * Two guarantees make it feel like a boss rather than a big mob: nothing below blue ever
+ * falls, and there is a real shot at purple that grows with depth. And sometimes it gives up
+ * a SPELL instead — the only reward in the game that changes how you play rather than what
+ * your numbers say, which is why it is worth the occasional piece of armour.
+ */
+function dropBossLoot(x, z, tier) {
+  const spell = shakeRng() < DROP.bossSpell ? grantUnownedSpell(tier) : null;
+  const pieces = DROP.bossPieces - (spell ? 1 : 0);
+  let best = null;
+  for (let i = 0; i < pieces; i++) {
+    const piece = rollGear(tier, shakeRng, {
+      minRarity: DROP.bossMinRarity,
+      epicChance: DROP.bossEpic + DROP.bossEpicPerRing * tier,
+    });
+    if (!best || piece.rarity === "epic") best = piece;
+    // Scattered where it fell, so you still have to walk into the arena to collect — a last
+    // small decision if anything else is still alive.
+    const a = shakeRng() * Math.PI * 2, r = 1.5 + shakeRng() * 2.5;
+    placeGearDrop(piece, x + Math.cos(a) * r, z + Math.sin(a) * r);
+  }
+  killFeed = `◆ BOSS DOWN ◆   ${spell ? `${spell} — a new power` : ""}`
+    + `${spell && best ? "  ·  " : ""}${best ? `${best.rarity === "epic" ? "★ EPIC ★ " : ""}${best.name}` : ""}`;
 }
 
-function updateRelic(dt) {
-  if (!groundRelic) return;
-  groundRelic.t -= dt;
-  const r = groundRelic;
-  relicMesh.rotation.y += dt * 1.6;
-  relicMesh.position.y = r.y + Math.sin(performance.now() * 0.003) * RELIC.bob;
-  relicLight.position.copy(relicMesh.position);
-  relicLight.intensity = 8 + Math.sin(performance.now() * 0.005) * 3;
-
-  if (Math.hypot(player.x - r.x, player.z - r.z) < RELIC.pickupRange) {
-    applyRelic(r.relic, gameCtx);
-    applyLevelStats();                  // fold it in the same way a purchase would
-    tradeMsg = `${r.relic.name} — ${r.relic.lines.join(", ")}`;
-    tradeMsgT = 6;
-    sfx.healDone();
-    groundRelic = null;
-    relicMesh.visible = false;
-    relicLight.intensity = 0;
-    return;
-  }
-  if (r.t <= 0) {
-    groundRelic = null;
-    relicMesh.visible = false;
-    relicLight.intensity = 0;
-  }
+/**
+ * Hand over an ability the player does not own yet, respecting the same depth gates the shop
+ * uses — a ring-1 boss must not skip you past three rings of progression. Returns its name,
+ * or null when there is nothing left to give (in which case the caller drops armour instead,
+ * so a boss never pays out nothing).
+ */
+function grantUnownedSpell(tier) {
+  const owned = new Set(abilities.owned.map((a) => a.id));
+  const pool = (GOODS.adept || []).filter((g) => (g.minTier || 0) <= tier && !owned.has(g.id));
+  if (!pool.length) return null;
+  const good = pool[Math.floor(shakeRng() * pool.length)];
+  if (good.apply(gameCtx) === false) return null;
+  player.upgrades[good.id] = (player.upgrades[good.id] || 0) + 1;   // the shop must agree
+  sfx.levelUp();
+  return good.name;
 }
 
-// GEAR DROPS. Mobs drop often, so unlike the single boss relic these are a POOL of small
-// coloured cubes lying on the ground — grey/green/blue by rarity. Walk over one and it goes
-// to your BAG (never auto-worn), so picking a drop up is free but wearing it is a choice.
+// GEAR DROPS. Everything a fight leaves behind now comes through here — trash drops and boss
+// drops alike — a POOL of small coloured cubes on the ground, grey through purple by rarity.
+// Walk over one and it goes to your BAG (never auto-worn), so picking a drop up is free but
+// wearing it is a choice.
 const GEAR_DROP_POOL = 16;
 const gearDrops = [];      // { piece, x, y, z, t, mesh }
 let gearDropI = 0;
@@ -634,7 +642,7 @@ function placeGearDrop(piece, x, z) {
   const y = groundY(x, z) + 0.8;
   mesh.position.set(x, y, z);
   mesh.visible = true;
-  gearDrops.push({ piece, x, y, z, t: RELIC.life, mesh });
+  gearDrops.push({ piece, x, y, z, t: DROP.life, mesh });
 }
 
 const dropGear = (x, z, ring) => placeGearDrop(rollGear(ring, shakeRng), x, z);
@@ -654,12 +662,24 @@ function dropOwnedGear(uid) {
 }
 
 function updateGearDrops(dt) {
+  // Only an EPIC glows, and only the nearest one carries the light — a light per drop would
+  // be a light per grey helmet, which would make the rarest thing in the game look like every
+  // other thing in the game. Scarcity is the whole signal; spending it on commons wastes it.
+  let lit = null, litD = 1e9;
   for (let i = gearDrops.length - 1; i >= 0; i--) {
     const d = gearDrops[i];
     d.t -= dt;
-    d.mesh.rotation.y += dt * 1.7;
-    d.mesh.position.y = d.y + Math.sin(performance.now() * 0.004 + i) * 0.14;
-    if (Math.hypot(player.x - d.x, player.z - d.z) < RELIC.pickupRange) {
+    // A purple turns faster and rides higher, so it reads as different before you can even
+    // make out the colour.
+    const epic = d.piece.rarity === "epic";
+    d.mesh.rotation.y += dt * (epic ? 3.2 : 1.7);
+    d.mesh.position.y = d.y + Math.sin(performance.now() * 0.004 + i) * (epic ? 0.26 : 0.14);
+    if (epic) {
+      d.mesh.scale.setScalar(1.35 + Math.sin(performance.now() * 0.006) * 0.12);
+      const dist = Math.hypot(player.x - d.x, player.z - d.z);
+      if (dist < litD) { litD = dist; lit = d; }
+    }
+    if (Math.hypot(player.x - d.x, player.z - d.z) < DROP.pickupRange) {
       bagGear(d.piece);
       killFeed = `↑ ${d.piece.name}  (${statLine(d.piece.stats)})`;
       sfx.pickup();
@@ -668,6 +688,13 @@ function updateGearDrops(dt) {
       continue;
     }
     if (d.t <= 0) { d.mesh.visible = false; gearDrops.splice(i, 1); }
+  }
+  if (lit) {
+    epicLight.color.setHex(lit.piece.glow || 0x7a1fd0);
+    epicLight.position.set(lit.x, lit.y + 0.6, lit.z);
+    epicLight.intensity = 16 + Math.sin(performance.now() * 0.005) * 5;
+  } else {
+    epicLight.intensity = 0;
   }
 }
 
@@ -701,6 +728,15 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
     globalPct: (player.dmgGlobal || 0) * 100,
     speedMult: player.speedMult, dashMult: player.dashMult,
   }),
+  // START OVER. Wipes the slot and reloads, rather than trying to unwind a live game back to
+  // its opening state by hand — there are a dozen places holding a piece of who you are (the
+  // bar, your guns, worn gear, bought upgrades, stat multipliers), and a reset that misses one
+  // of them leaves a character that is neither old nor new. A reload cannot miss any.
+  resetGame: () => {
+    resetting = true;      // must come FIRST — the reload below fires the save-on-exit hooks
+    wipeSave();
+    window.location.reload();
+  },
   state: () => ({ level: player.level, points: player.points }),
   addPoints: (n) => { player.points += n; },
   setLevel: (n) => {
@@ -777,6 +813,7 @@ function recomputeGear() {
   }
   for (const k of Object.keys(sum)) player[k] = sum[k];
   applyLevelStats();
+  saveSoon();       // every equip, sell and purchase lands here eventually
 }
 
 /**
@@ -904,7 +941,7 @@ function rewardBoss(ring, x, z) {
   if (lv) levelUp();
   // The relic falls where the boss did — you have to walk into the arena to take it, which
   // is a last small decision if anything else is still alive.
-  if (x !== undefined) dropRelic(x, z, ring);
+  if (x !== undefined) dropBossLoot(x, z, ring);
 }
 
 /**
@@ -964,6 +1001,11 @@ function onDeath() {
   if (dead) return;
   dead = true;
   const lost = loseLevel();
+  // COMMIT IT, this instant. Every other save can wait; this one cannot. The whole weight of
+  // dying rests on the level being genuinely gone, and a player who works out that closing the
+  // tab on the death screen undoes it has been handed a way to opt out of the only real stake
+  // in the game — and will use it, because everyone does.
+  saveNow();
   document.body.classList.add("dead");
   music.pause();
   deathSound.currentTime = 0;
@@ -1012,6 +1054,49 @@ function spawnInTown() {
   player.vx = player.vy = player.vz = 0;
 }
 spawnInTown();
+
+// --- PERSISTENCE ---------------------------------------------------------------------
+// One slot, written quietly, never rewindable. See prog/save.js for why that is a design
+// decision rather than a shortcut: a game whose death penalty is a whole level only keeps
+// that stake if closing the tab cannot undo it.
+const saveCtx = {
+  get abilities() { return abilities; },
+  get gun() { return gun; },
+  get game() { return gameCtx; },
+  slots: SLOTS,
+  recomputeGear,
+};
+// Once a wipe is underway, NOTHING may write again. Erasing the slot reloads the page, and a
+// reload fires the very "save before you go" handler below — which cheerfully wrote the whole
+// character back over the wipe a few milliseconds after it happened, so Start Over erased
+// nothing at all. Any code that can save must first ask whether saving is still allowed.
+let resetting = false;
+// A debounced write, for the things that happen in clusters — walking over three drops in a
+// second should cost one save, not three. Anything that must not be lost calls saveNow.
+let saveT = 0;
+const persist = () => { if (!resetting) saveGame(saveCtx); };
+const saveSoon = () => { saveT = 1.5; };
+const saveNow = () => { saveT = 0; persist(); };
+
+if (hasSave()) {
+  const data = loadSave();
+  try {
+    restoreSave(data, saveCtx);
+    killFeed = "welcome back";
+  } catch (err) {
+    // A save that will not load must never be a wall. Better a fresh character than a game
+    // that cannot be started at all — one costs a session, the other costs the player.
+    console.warn("[save] could not restore, starting fresh:", err);
+    wipeSave();
+    spawnInTown();
+  }
+}
+// The browser can close without warning. This is the last chance to commit, and it has to be
+// cheap and synchronous — 'hidden' fires on tab-switch and phone-lock too, which are exactly
+// the moments a session quietly ends for good.
+addEventListener("pagehide", () => persist());
+document.addEventListener("visibilitychange", () => { if (document.hidden) persist(); });
+
 attachInput(renderer.domElement, {
   toggleCamera: () => rig.toggle(),
   toggleMusic: () => music.toggle(),
@@ -1141,6 +1226,8 @@ const ammoEl = document.getElementById("ammo");
 const xpEl = document.getElementById("xp");
 const alertEl = document.getElementById("alert");
 let acc = 0, last = performance.now(), fps = 60;
+const AUTOSAVE_EVERY = 25;      // seconds; the backstop under the event-driven saves
+let autosaveT = AUTOSAVE_EVERY;
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -1346,6 +1433,12 @@ function frame(now) {
   // regen while kiting a pack, which is the exact situation it should not rescue.
   music.setPlace(inSafe ? "town" : "world");
 
+  // The debounced write, plus a slow backstop so a long quiet session of just walking and
+  // killing is never entirely unrecorded.
+  if (saveT > 0) { saveT -= dt; if (saveT <= 0) persist(); }
+  autosaveT -= dt;
+  if (autosaveT <= 0) { autosaveT = AUTOSAVE_EVERY; persist(); }
+
   if (player.potionCd > 0) player.potionCd -= dt;
   if (combatT > 0) combatT -= dt;
   hunted = mobs.anyHunting() || (boss.active
@@ -1359,11 +1452,10 @@ function frame(now) {
     }
   }
 
-  updateRelic(dt);
   updateGearDrops(dt);
   updateSpells(dt);
   updateLevelFx(dt);
-  minimap.draw(dt, mobs, boss, folk);
+  minimap.draw(dt, mobs, boss, folk, villagers);
 
   const vendor = shop.open ? null : villagers.nearest();
   if (tradeMsgT > 0) tradeMsgT -= dt;

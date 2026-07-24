@@ -167,11 +167,24 @@ export function levelForTier(t) {
   return t <= 0 ? 1 : 5 + 5 * t;
 }
 
-/** D9's death penalty: lose the top level, and land just short of regaining it. */
+/**
+ * D9's death penalty: you lose a LEVEL, and land a third of the way into the one below.
+ *
+ * This is deliberately the harshest thing in the game and it is meant to be — hardcore WoW's
+ * grip without its permanence. The number on your character goes down where you can see it,
+ * which is what makes the fear real; a gentler penalty measured in slices of a bar is fairer
+ * and much less frightening, and fear is the point. See XP.deathLandFrac.
+ *
+ * It also pairs with respawnTierFor(): your level is your passport to the deep, so losing one
+ * can revoke your right to wake out there and carry you back to ground you have earned. The
+ * two rules are the same idea said twice, and they are meant to agree.
+ *
+ * @returns {boolean} whether a level was actually lost (the death screen says so if it was)
+ */
 export function loseLevel() {
-  if (player.level <= 1) { player.xp = 0; return false; }
+  if (player.level <= 1) { player.xp = 0; return false; }   // level 1 is the floor
   player.level--;
   applyLevelStats();
-  player.xp = Math.floor(xpToNext(player.level) * 0.5);
+  player.xp = Math.floor(xpToNext(player.level) * XP.deathLandFrac);
   return true;
 }

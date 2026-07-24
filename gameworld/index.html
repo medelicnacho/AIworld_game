@@ -152,11 +152,27 @@
       #inv .cell .ic { width: 30px; height: 30px; }
       #inv .cell .ic svg { width: 100%; height: 100%; display: block; }
       #inv .cell .nm { font-size: 9px; text-align: center; line-height: 1.15; color: #f0f5ff; }
+      /* Tier badge — the second number a piece needs. Muted, because it is for comparing two
+         items you are already looking at, not for catching your eye across the panel. */
+      #inv .cell { position: relative; }
+      #inv .cell .tier { position: absolute; top: 2px; right: 3px; font-size: 8px;
+        color: #8fa3bf; letter-spacing: 0.02em; }
+      /* An epic gets a faint aura in the bag, the paper echo of the light it gave off on the
+         ground — so the thing you walked across a ring for still looks like it when stowed. */
+      #inv .cell.epic { box-shadow: 0 0 9px rgba(163,53,238,0.55), inset 0 0 12px rgba(122,31,208,0.25); }
+      #shop .sellitem .tr { font-size: 9px; color: #8fa3bf; margin-left: auto; padding: 0 6px; }
       #inv .none { padding: 14px; color: #93a6c0; margin: 0; }
       #inv .adm { background: #26314a; border: 1px solid #3d4d6b; color: #9fb4d4;
         border-radius: 5px; padding: 3px 9px; margin-right: 8px; cursor: pointer;
         font: inherit; font-size: 11px; }
       #inv .adm.on { background: #6b4a12; border-color: #c99a3a; color: #ffd98a; }
+      /* Start over. Muted until it is armed — a destructive button that shouts all the time
+         gets tuned out, and then it is loud exactly when nobody is reading it any more. */
+      #inv .reset { background: #2a1f26; border: 1px solid #4d3a44; color: #b09aa4;
+        border-radius: 5px; padding: 3px 9px; margin-right: 8px; cursor: pointer;
+        font: inherit; font-size: 11px; }
+      #inv .reset:hover { border-color: #8c5a6b; color: #e8c2cd; }
+      #inv .reset.go { background: #6b1d2c; border-color: #c9455f; color: #ffd6de; }
       #inv .admin { padding: 10px 14px; background: #1d1a10;
         border-top: 1px solid #4a3c18; color: #e8d9b0; font-size: 12px; }
       #inv .admin .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

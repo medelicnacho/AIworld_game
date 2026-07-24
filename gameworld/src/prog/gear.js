@@ -21,7 +21,20 @@ export const RARITY = {
   common: { key: "common", label: "Common", color: "#b9c0cc", nStats: 0 },
   uncommon: { key: "uncommon", label: "Uncommon", color: "#5fd66a", nStats: 2 },
   rare: { key: "rare", label: "Rare", color: "#5b9dff", nStats: 4 },
+  // EPIC IS BOSS-ONLY. Nothing you kill in the field can roll it, and that restriction is the
+  // entire point: a colour that can turn up anywhere is only a rarer number, while a colour
+  // that can only come from the hardest fight in the ring is a trophy. When purple appears on
+  // the ground, it means something died that was worth telling someone about.
+  // Deep purple, and the only rarity that GLOWS on the ground — it carries its own light, so
+  // an epic lying in a field announces itself from across the ring instead of being one more
+  // coloured cube you might walk past. Six stats against blue's four, and the biggest numbers
+  // on the ladder. Colour is the genre's purple rather than a truly dark one because it also
+  // has to stay legible as text on a dark panel; the DARKNESS lives in the glow, not the label.
+  epic: { key: "epic", label: "Epic", color: "#a335ee", glow: 0x7a1fd0, nStats: 6 },
 };
+
+/** Worst to best. Used to floor a roll at a guaranteed minimum (boss drops). */
+const LADDER = ["common", "uncommon", "rare", "epic"];
 
 const SLOT_NOUN = { helm: "Helm", shoulders: "Guards", vest: "Vest", pants: "Legs", boots: "Boots" };
 
@@ -46,6 +59,17 @@ const COMMON_PREFIX = ["Worn", "Crude", "Plain", "Rough"];
 
 let _uid = 0;                                // instance ids; deterministic, no Math.random
 
+/**
+ * Step the name counter past a number. A loaded game brings pieces whose names were handed out
+ * in an earlier session, while this counter starts again from zero with the page — so without
+ * this the first piece you picked up after loading would be born sharing a name with something
+ * already in your bag, and every action that finds a piece BY name (equip, sell, drop) would
+ * hit whichever it met first. Called once on load, with the highest name it saw.
+ */
+export function bumpUid(n) {
+  if (Number.isFinite(n) && n > _uid) _uid = n;
+}
+
 /** Which rolled stat "leads" the piece, comparing magnitudes normalised by their base. */
 function dominant(stats, rolled) {
   if (!rolled.length) return null;
@@ -68,13 +92,22 @@ export function gearName(slot, stats, rolled, rng) {
  * Roll a random dropped piece for a kill in `ring`, using the seeded rng. Common is the
  * common case; deeper rings roll bigger numbers and, slightly, better rarity.
  */
-export function rollGear(ring, rng) {
+export function rollGear(ring, rng, { minRarity = null, epicChance = 0 } = {}) {
   // Gray is the constant common drop; green and blue are genuine finds. ~86% / ~11% / ~3% at
-  // the surface, with depth nudging a little toward the good stuff.
+  // the surface, with depth nudging a little toward the good stuff. Field kills pass no
+  // options, so this is exactly the table it always was — epic can never appear here.
   const r = rng() + ring * 0.01;
-  const rarity = r < 0.86 ? RARITY.common : r < 0.97 ? RARITY.uncommon : RARITY.rare;
+  let rarity = r < 0.86 ? RARITY.common : r < 0.97 ? RARITY.uncommon : RARITY.rare;
+  // A boss rolls on the same table but with a FLOOR and a shot at purple. Rolling-then-flooring
+  // rather than using a separate table means one distribution to reason about, and a boss that
+  // gets lucky on the ordinary roll still benefits from it.
+  if (epicChance > 0 && rng() < epicChance) rarity = RARITY.epic;
+  if (minRarity && LADDER.indexOf(rarity.key) < LADDER.indexOf(minRarity)) {
+    rarity = RARITY[minRarity];
+  }
   const slot = ARMOR_SLOT_ORDER[Math.floor(rng() * ARMOR_SLOT_ORDER.length)];
-  const rarMult = rarity.key === "rare" ? 1.5 : rarity.key === "uncommon" ? 1.18 : 1.0;
+  const rarMult = rarity.key === "epic" ? 1.95 : rarity.key === "rare" ? 1.5
+    : rarity.key === "uncommon" ? 1.18 : 1.0;
   const ringScale = 1 + ring * 0.5;
 
   // Armour VARIES piece to piece (±25%), so two greys of the same slot are rarely identical
@@ -92,6 +125,12 @@ export function rollGear(ring, rng) {
   return {
     uid: `drop_${_uid++}`,
     slot, rarity: rarity.key, color: rarity.color,
+    // WHERE IT CAME FROM. Rarity says how MANY stats a piece carries; tier says how BIG they
+    // are, and the two are independent — a blue out of the Commons and a blue out of the Deep
+    // look identical in a bag while one has roughly four times the numbers. Without this the
+    // player cannot compare their own loot, which quietly makes every upgrade a guess.
+    tier: ring,
+    glow: rarity.glow || 0,
     armor: stats.armor, stats,
     name: gearName(slot, stats, rolled, rng),
   };
@@ -99,14 +138,27 @@ export function rollGear(ring, rng) {
 
 /** What a piece sells back for — armour plus a rarity bonus, rounded. */
 export function sellValue(piece) {
-  const bonus = piece.rarity === "rare" ? 60 : piece.rarity === "uncommon" ? 25 : 8;
+  const bonus = piece.rarity === "epic" ? 160 : piece.rarity === "rare" ? 60
+    : piece.rarity === "uncommon" ? 25 : 8;
   return Math.max(1, Math.round((piece.armor || 0) * 0.4 + bonus));
 }
 
 /** Turn a FIXED config piece (smith stock) into an owned instance. Vendor gear is green. */
 export function vendorPiece(cfg) {
   return {
-    uid: cfg.id, slot: cfg.slot, rarity: "uncommon", color: RARITY.uncommon.color,
-    armor: cfg.armor, stats: cfg.stats, name: cfg.name,
+    // A unique name per purchase. Sharing the config's id meant two of the same bought piece
+    // were literally the same item as far as every by-name lookup was concerned: equipping the
+    // second silently destroyed the first, and selling a spare out of your bag unequipped the
+    // one you were wearing.
+    uid: `buy_${cfg.id}_${_uid++}`,
+    slot: cfg.slot, rarity: "uncommon", color: RARITY.uncommon.color,
+    tier: cfg.minTier || 0,
+    glow: 0,
+    armor: cfg.armor,
+    // A COPY. Sharing the config object meant every instance of a bought piece pointed at the
+    // one table entry, so anything that ever wrote to a piece's stats would edit the shop's
+    // stock for the rest of the session.
+    stats: { ...cfg.stats },
+    name: cfg.name,
   };
 }

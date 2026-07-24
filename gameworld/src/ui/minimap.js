@@ -13,6 +13,7 @@ import { RINGS } from "../config.js";
 import { player } from "../state.js";
 import { heightAt, ringAt, tierStart } from "../world/gen.js";
 import { sanctuariesNear, boundaryAt, gateArc } from "../world/sanctuary.js";
+import { Villagers } from "../town/villagers.js";
 
 const RANGE = 130;        // world units from centre to rim
 const TERRAIN_RES = 72;   // offscreen resolution of the baked terrain
@@ -63,7 +64,55 @@ export class Minimap {
     this.bakedAt = { x: player.x, z: player.z };
   }
 
-  draw(dt, mobs, boss, folk) {
+  /**
+   * Traders, labelled, tracked live.
+   *
+   * A town is a place you go TO do something — resupply, re-arm, sell what you dragged home —
+   * and until now finding the person who does it meant walking laps of the enclosure reading
+   * nameplates. They also drift: each villager walks a slow circuit, so a marker painted once
+   * would send you where the smith USED to be. These are read fresh every frame, so the dot is
+   * always where the person actually is.
+   *
+   * Only the ones who SELL get a marker. Labelling every resident would turn a town into a
+   * wall of text and bury the three names that matter.
+   */
+  drawVendors(ctx, villagers, R, scale) {
+    if (!villagers) return;
+    ctx.font = "8px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    const placed = [];
+    for (const v of villagers.list) {
+      if (!Villagers.sells(v)) continue;
+      const m = this.toMap(v.x - player.x, v.z - player.z);
+      if (Math.hypot(m.mx, m.my) > RANGE) continue;
+      const px = R + m.mx * scale, py = R - m.my * scale;
+
+      ctx.beginPath();
+      ctx.arc(px, py, 2.6, 0, Math.PI * 2);
+      ctx.fillStyle = "#5fe08a";
+      ctx.fill();
+      ctx.strokeStyle = "#0d3a22";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // A city holds two of each trade, and three names stacked on one spot is mush. If a
+      // label would land on one already drawn, keep the dot and drop the word — the dot still
+      // says "someone sells here", which is most of the value.
+      const label = v.role.name;
+      const w = ctx.measureText(label).width;
+      const box = { x0: px - w / 2 - 1, x1: px + w / 2 + 1, y0: py - 13, y1: py - 4 };
+      if (placed.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0)) continue;
+      placed.push(box);
+
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = "rgba(6,18,12,0.85)";   // a dark outline, so it reads over pale terrain
+      ctx.strokeText(label, px, py - 5);
+      ctx.fillStyle = "#b8ffd2";
+      ctx.fillText(label, px, py - 5);
+    }
+  }
+
+  draw(dt, mobs, boss, folk, villagers) {
     const ctx = this.ctx, R = this.r;
 
     this.bakeTimer -= dt;
@@ -177,6 +226,9 @@ export class Minimap {
         ctx.fill();
       }
     }
+
+    // Traders, on top of the dots so a label is never buried under a mob marker.
+    this.drawVendors(ctx, villagers, R, scale);
 
     // Boss — always shown, clamped to the rim if it's beyond range.
     if (boss.active) {

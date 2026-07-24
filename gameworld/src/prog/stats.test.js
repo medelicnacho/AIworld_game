@@ -45,8 +45,31 @@ test("armorDR: never exceeds the sanity cap", () => {
   assert.ok(armorDR(1e9, 0) <= STATS.armorDRCap);
 });
 
-test("maxHpFor: base at zero stamina, +stamHp per point", () => {
+test("maxHpFor: base at zero stamina", () => {
   assert.equal(maxHpFor(0), STATS.baseHp);
   assert.equal(maxHpFor(undefined), STATS.baseHp);
-  assert.equal(maxHpFor(10), STATS.baseHp + STATS.stamHp * 10);
+  assert.equal(maxHpFor(-5), STATS.baseHp, "negative stamina cannot drain the base pool");
+});
+
+test("maxHpFor: the first points are worth ~stamHp each (early game is untouched)", () => {
+  // The curve's slope at zero is exactly stamHp, so one point of Stamina still reads as the
+  // number on the tooltip. It may only ever be worth LESS as you stack, never more.
+  const one = maxHpFor(1) - maxHpFor(0);
+  assert.ok(one > STATS.stamHp * 0.99 && one <= STATS.stamHp,
+    `first point should be ~${STATS.stamHp} hp, got ${one}`);
+  assert.ok(maxHpFor(10) > STATS.baseHp + STATS.stamHp * 9, "10 stam still worth ~80 hp");
+});
+
+test("maxHpFor: soft-capped — always climbing, never linear, never reaching the cap", () => {
+  let prevS = 0, prev = maxHpFor(0), prevRate = Infinity;
+  for (const s of [1, 5, 10, 25, 50, 100, 200, 400, 800, 1e6]) {
+    const hp = maxHpFor(s);
+    assert.ok(hp > prev, `must keep climbing at ${s} stamina`);
+    // HP per point of stamina ACROSS THIS INTERVAL — must never rise (concave, diminishing).
+    const rate = (hp - prev) / (s - prevS);
+    assert.ok(rate <= prevRate, `each point must be worth no more than the last (at ${s})`);
+    prevS = s; prev = hp; prevRate = rate;
+  }
+  assert.ok(maxHpFor(1e9) < STATS.baseHp + STATS.stamHpCap,
+    "the asymptote is a ceiling no amount of stacking may cross");
 });

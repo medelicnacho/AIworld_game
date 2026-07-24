@@ -33,7 +33,17 @@ export function armorDR(armor, attackerTier = 0) {
   return Math.min(STATS.armorDRCap, dr);   // a sanity rail; the formula rarely reaches it
 }
 
-/** Stamina -> max health. Flat and linear, the MMO way: bulk is a gear decision now. */
+/**
+ * Stamina -> max health, on the same diminishing curve as everything else here.
+ *
+ * `baseHp + cap * stam/(stam + K)`. Chosen so the SLOPE AT ZERO is exactly STATS.stamHp
+ * (because cap = stamHp * K), which means the first points of Stamina are worth precisely
+ * what they were under the old linear rule and nothing about the early game moves. It bends
+ * where stacking starts, and asymptotes below baseHp + cap so no amount of farming can buy
+ * its way out of a telegraph. Same shape, same reasoning, as armorDR above.
+ */
 export function maxHpFor(stamina) {
-  return STATS.baseHp + STATS.stamHp * (stamina || 0);
+  const s = stamina || 0;
+  if (s <= 0) return STATS.baseHp;
+  return STATS.baseHp + STATS.stamHpCap * (s / (s + STATS.stamK));
 }

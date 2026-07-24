@@ -2,6 +2,14 @@
 
 export const WORLD_SEED = 1337;
 
+// The admin/testing panel is behind this code. It is a SPEED BUMP, not a lock — the code
+// ships inside the game and anyone determined can read it out. That is fine, because the
+// thing it is defending against is not an attacker, it is a curious playtester: the first
+// instinct on seeing a button marked "admin" is to press it, and one who hands themselves
+// level 50 and every spell can no longer tell you whether your opening hour is too hard.
+// It only has to be enough friction that nobody wanders in by accident.
+export const ADMIN_CODE = "4711";
+
 // Chunk dimensions. Y is the full world height — the world is read-only (D1), so a
 // chunk is a column, never a stack, and there is no vertical streaming to write.
 export const CHUNK_X = 16;
@@ -219,6 +227,19 @@ export const XP = {
   greyExp: 2.2,        // >1 makes the drop punchy rather than linear
   bossXpFloor: 0.2,    // a boss never greys BELOW this — it's still a fight, just not farmable
 
+  // DEATH TAKES A LEVEL. This is the point of the whole design, not a rough edge on it:
+  // hardcore WoW's grip without hardcore WoW's permanence.
+  //
+  // The dread comes from LEGIBILITY, not from the size of the setback. A level is a number
+  // on your character that you can watch go down, name out loud, and be afraid of — which is
+  // what makes a level something you HOLD rather than something you merely earned. A gentler,
+  // fairer penalty measured in fractions of a bar is tidier and far less frightening, and
+  // fear is the design goal here. Do not "fix" this into fairness.
+  //
+  // You land a third of the way into the level below, so the climb back is real but the
+  // character is never stranded at zero.
+  deathLandFrac: 0.33,
+
   // Interim level rewards. D9's real answer is a 1-of-3 card pick — this keeps levelling
   // FELT until that UI exists, and is meant to be replaced by it, not kept.
   // Levels buy MOBILITY, not bulk. Max HP never moves, so a meteor is as lethal at level 40
@@ -320,17 +341,6 @@ export const CHAIN = { price: 210, minTier: 1, cd: 8, range: 34, jumps: 5, jumpR
 // Sprint: a burst of movement speed on demand (a movement spell, the first of several).
 export const SPRINT = { price: 150, minTier: 0, cd: 11, dur: 4, mult: 1.7 };
 
-// Boss relics: a bundle of shop upgrades, dropped on the ground to be walked over.
-export const RELIC = {
-  minStats: 2,
-  maxStats: 2,
-  thirdStatTier: 4,     // deep bosses roll a third
-  stacksBase: 2,        // "purchases" of each stat at tier 0...
-  stacksPerTier: 0.55,  // ...growing with the fight
-  pickupRange: 2.4,
-  life: 240,            // seconds it waits on the ground before fading
-  bob: 0.35,
-};
 
 // Haste — the Adept's answer to the smith's plating. Where armour makes you harder to
 // kill, haste makes everything you do arrive sooner. All three terms are multiplicative
@@ -397,8 +407,24 @@ export const GRENADE = {
 // these can grow without ever needing a clamp.
 export const STATS = {
   // Health from Stamina. Base is the old flat 100; stamina on gear (G2) grows it from there.
+  //
+  // SOFT-CAPPED, like every other stat in this file. Stamina was the one that escaped the
+  // rule: armour is armor/(armor+K), the ratings are rating/(rating+K), speed is a tanh and
+  // the dash is a sqrt — all "always climbing, never linear". Stamina was `100 + 8*stam`,
+  // linear and unbounded, and it was doing essentially ALL of the survivability spread: at
+  // ring 5 a farmed kit's armour was worth x2.1 effective HP while its stamina was worth
+  // x16. That is what let a geared player ignore a telegraph the design promised would
+  // always be lethal.
+  //
+  // stamHp is kept as the SLOPE AT ZERO, so the first points are worth exactly what they
+  // were and the early game is untouched (stam 27: 316 -> 283 hp). stamK sets where it
+  // bends; stamHpCap is the ceiling it approaches but never reaches.
+  //   stam  10 -> 174 (was 180) ·  27 -> 283 (was 316) ·  90 -> 567 (was 820)
+  //   stam 187 -> 813 (was 1596) · 265 -> 934 (was 2220) · 600 -> 1177 (was 4900)
   baseHp: 100,
   stamHp: 8,
+  stamK: 180,             // stamina at which you have half the cap
+  stamHpCap: 1440,        // = stamHp * stamK, so the curve's slope at 0 is exactly stamHp
   // Armour curve: DR = armor / (armor + armorK + armorPerTier*attackerTier). Tuned so the
   // old shop feel roughly ports -- 1 Heavy Plating (+45) ~13% at tier 0, 5 ~43%, 10 ~60%,
   // close to the old 0.9^n at low-mid stacks but SANE at high stacks and weaker at depth.
@@ -466,6 +492,40 @@ export const LOOT = {
   perTier: 2.5,
   eliteMult: 4,
   bossMult: 45,
+};
+
+// WHAT DIES, AND WHAT IT LEAVES.
+//
+// Two ideas, and the gap between them is the whole reward structure:
+//
+//   A FIELD KILL is a lottery ticket. Almost every drop is grey, and purple is possible but
+//   vanishingly so — which is exactly why it is worth having. A ticket that never pays is a
+//   waste of a slot, but one that pays roughly once in an evening's hunting turns every
+//   ordinary kill into a small held breath. That feeling is worth more than the item.
+//
+//   A BOSS is a guarantee. It is the hardest thing in the ring and it must never hand you
+//   something you would sell without reading, so its drops have a FLOOR — blue at worst — and
+//   a real shot at purple that grows the deeper you fight. Occasionally it gives up a SPELL
+//   instead of numbers, which is the only reward in the game that changes how you play rather
+//   than what your numbers say.
+export const DROP = {
+  // Tuned by feel rather than by taste in percentages: roughly one purple per several
+  // THOUSAND ordinary kills, which is an evening or three of hunting. Rare enough that you
+  // remember where you were standing; not so rare that the ticket never pays and the whole
+  // idea quietly becomes decoration.
+  fieldEpic: 0.0012,         // chance a field drop rolls purple at ring 0...
+  fieldEpicPerRing: 0.0004,  // ...creeping up with depth.
+  bossPieces: 2,             // a boss is rare enough to be worth more than a single item
+  bossMinRarity: "rare",     // never worse than blue — a boss must not disappoint
+  bossEpic: 0.22,            // ...and this often, purple
+  bossEpicPerRing: 0.05,     // deeper bosses are the real source of epics
+  bossSpell: 0.25,           // instead of a piece: an ability you do not own yet
+
+  // How loot behaves once it is lying on the ground. (These moved here from the old RELIC
+  // block when relics were removed — they were never about relics, they were about anything
+  // waiting to be picked up.)
+  pickupRange: 2.4,
+  life: 240,                 // seconds a drop waits before fading
 };
 
 // The green folk — nomad bands. SCOPE, on purpose: movement, bunching and breeding ONLY.
@@ -757,6 +817,26 @@ export const BOSS = {
   phase2At: 0.5,          // below this HP fraction: faster volleys, more rocks
   phase2Rate: 0.6,
   phase2Bonus: 3,
+
+  // TELEGRAPHED DAMAGE IS A FRACTION OF YOUR MAX HP — but never LESS than the flat,
+  // ring-scaled number above. `max(flat, frac * maxHp)` gives both designs at once:
+  //
+  //   - the flat term is the DEPTH term and is unchanged, so an under-geared player walking
+  //     out too far is punished exactly as hard as before (ring 5 bare: still 1.5 meteors);
+  //   - the fraction only ever BINDS on someone who out-stacked it, which is the only case
+  //     that was broken. Farmed kit at ring 5 went from 51 meteors-to-die to ~6.
+  //
+  // This is what keeps D10's promise honest at every gear level: "a meteor is as lethal at
+  // level 40 as at level 4". Armour still reduces it (armour is bounded by its own curve, so
+  // it can only ever be worth ~2x, which is a reward rather than an exemption). Note the game
+  // already treats RESTORATION this way — HEAL.fraction and the potions are both %max-HP —
+  // so this is the damage side finally matching the healing side.
+  //
+  // Untelegraphed damage (trash melee, fireballs) stays FLAT on purpose: chip damage is what
+  // Stamina is legitimately for. The line is telegraph, not source.
+  meteorFrac: 0.34,       // ~2.9 rocks to die — exactly what a level-1 player feels today
+  beamFrac: 0.30,         // per second in the beam
+  contactFrac: 0.26,      // walking into the boss
 
   meteorTelegraph: 1.30,  // seconds the ground marker shows BEFORE the rock lands
   meteorFall: 0.45,       // seconds from sky to impact once it's committed

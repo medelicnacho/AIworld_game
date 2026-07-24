@@ -5,10 +5,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { rollGear, sellValue, vendorPiece, RARITY } from "./gear.js";
-import { ARMOR, ARMOR_SLOT_ORDER } from "../config.js";
+import { ARMOR, ARMOR_SLOT_ORDER, DROP } from "../config.js";
 import { mulberry32 } from "../rng.js";
 
-const RARITY_STATS = { common: 0, uncommon: 2, rare: 4 };
+const RARITY_STATS = { common: 0, uncommon: 2, rare: 4, epic: 6 };
 
 test("rollGear: every roll is well-formed", () => {
   const rng = mulberry32(12345);
@@ -39,14 +39,45 @@ test("rollGear: uids are unique across a run", () => {
 
 test("rollGear: gray common, blue rare — distribution holds", () => {
   const rng = mulberry32(0xC0FFEE);
-  const count = { common: 0, uncommon: 0, rare: 0 };
+  const count = { common: 0, uncommon: 0, rare: 0, epic: 0 };
   const N = 20000;
-  for (let i = 0; i < N; i++) count[rollGear(0, rng).rarity]++;
+  for (let i = 0; i < N; i++) count[rollGear(0, rng, { epicChance: DROP.fieldEpic }).rarity]++;
   // Common dominates; rare is a small minority. Loose bounds so tuning can move without
   // breaking the test, tight enough to catch an accidental flip of the thresholds.
   assert.ok(count.common / N > 0.75, `common should be the bulk (was ${count.common / N})`);
   assert.ok(count.rare / N < 0.10, `rare should be scarce (was ${count.rare / N})`);
   assert.ok(count.common > count.uncommon && count.uncommon > count.rare, "gray > green > blue");
+  // Purple off an ordinary kill has to stay a story, not a Tuesday. If this ever climbs, the
+  // lottery ticket stops being worth holding.
+  assert.ok(count.epic / N < 0.01, `field epic must stay vanishing (was ${count.epic / N})`);
+  assert.ok(count.epic > 0, "…but it must be possible, or the ticket never pays");
+});
+
+test("rollGear: a FIELD kill can never be forced above blue by accident", () => {
+  const rng = mulberry32(0xBEEF);
+  for (let i = 0; i < 4000; i++) {
+    // No options at all: this is what a trash mob rolls.
+    assert.notEqual(rollGear(i % 10, rng).rarity, "epic", "no epic without an explicit chance");
+  }
+});
+
+test("rollGear: a boss floors at blue and reaches purple", () => {
+  const rng = mulberry32(0x5A5A);
+  const count = { common: 0, uncommon: 0, rare: 0, epic: 0 };
+  const N = 4000;
+  for (let i = 0; i < N; i++) {
+    count[rollGear(3, rng, { minRarity: DROP.bossMinRarity, epicChance: 0.25 }).rarity]++;
+  }
+  assert.equal(count.common + count.uncommon, 0, "a boss must never hand out grey or green");
+  assert.ok(count.epic / N > 0.15, `purple should be a real prospect (was ${count.epic / N})`);
+  assert.ok(count.rare > count.epic, "…but blue is still the usual outcome");
+});
+
+test("rollGear: every piece is stamped with the ring it came from", () => {
+  const rng = mulberry32(9);
+  for (const ring of [0, 1, 5, 9]) {
+    for (let i = 0; i < 50; i++) assert.equal(rollGear(ring, rng).tier, ring);
+  }
 });
 
 test("rollGear: deeper rings roll bigger armour on average", () => {
@@ -71,7 +102,26 @@ test("vendorPiece: a config piece becomes a green owned instance intact", () => 
   const p = vendorPiece(cfg);
   assert.equal(p.slot, cfg.slot);
   assert.equal(p.armor, cfg.armor);
-  assert.equal(p.stats, cfg.stats);
+  assert.deepEqual(p.stats, cfg.stats, "carries the same numbers");
   assert.equal(p.rarity, "uncommon");
   assert.ok(p.uid);
+});
+
+test("vendorPiece: two of the same purchase are two DIFFERENT items (the item-loss bug)", () => {
+  // They used to share the config's id as their name. Every lookup in the game finds a piece
+  // BY that name, so two identical purchases were one item: equipping the second silently
+  // destroyed the first, and selling the spare out of your bag stripped the one you had on.
+  const cfg = ARMOR[Object.keys(ARMOR)[0]];
+  const a = vendorPiece(cfg), b = vendorPiece(cfg);
+  assert.notEqual(a.uid, b.uid, "two purchases must be distinguishable");
+});
+
+test("vendorPiece: does not hand out a reference to the shop's own stock", () => {
+  // Sharing the config object meant a write to any instance edited the table every future
+  // purchase is built from.
+  const cfg = ARMOR[Object.keys(ARMOR)[0]];
+  const p = vendorPiece(cfg);
+  assert.notEqual(p.stats, cfg.stats, "must be a copy, not the config object itself");
+  p.stats.armor = 99999;
+  assert.notEqual(cfg.stats.armor, 99999, "editing a piece must not edit the shop");
 });

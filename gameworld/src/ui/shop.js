@@ -9,7 +9,7 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, HASTE, WEAPONS, ARMOR, STAT_INFO, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "../config.js";
+import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, WEAPONS, ARMOR, STAT_INFO, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "../config.js";
 import { tierAt } from "../world/gen.js";
 import { sellValue } from "../prog/gear.js";
 import { sfx } from "../audio/sfx.js";
@@ -61,19 +61,24 @@ export const GOODS = {
       desc: "Your double-tap dodge goes farther and faster. Stacks with diminishing "
         + "returns — and everything that raises your speed lengthens it too.",
       apply: () => { player.dashRank += 1; } },
-    { id: "quickload", name: "Quick Loader", price: 95, upgrade: true,
-      desc: "-8% reload time, permanently.",
-      // Capped HERE, and this is now the only place it can be raised from: relics grant
-      // by calling this very function, so a lucky drop obeys the same ceiling a purchase
-      // does. Reload reaching 1.0 was what made the gun's reload vanish entirely.
-      apply: () => { player.gearReload = Math.min(0.6, player.gearReload + 0.08); } },
+    // REMOVED: "Quick Loader", the stacking -8% reload passive. Same story as Haste Weave at
+    // the Adept — gear rolls a Reload rating that does the identical job on a proper curve, so
+    // this was the second half of one job being done twice. Both were bought once, forgotten,
+    // and changed nothing about how the gun was actually used.
+    //
+    // As with haste, the machinery survives: player.gearReload simply stays at zero now, which
+    // collapses its term to 1 and leaves the gear rating deciding reload speed on its own.
   ],
+  // REMOVED: "Haste Weave", the stacking passive that used to sit at the top of this list.
+  // Gear rolls a Haste rating that does the same job on a proper diminishing curve, so the
+  // two were one job done twice — and of everything the Adept sells it was the only thing
+  // that changed no decision. You bought it, your numbers moved, and you played identically.
+  // A shop should sell you new verbs, not bigger adjectives.
+  //
+  // The haste MACHINERY stays alive and untouched: player.haste simply never leaves zero now,
+  // which collapses its term to 1 and leaves the gear rating driving fire rate, cooldowns and
+  // the heal channel exactly as before.
   adept: [
-    { id: "haste", name: "Haste Weave", price: HASTE.price, upgrade: true,
-      desc: `+${Math.round((HASTE.fire - 1) * 100)}% fire rate, `
-        + `-${Math.round((1 - HASTE.cooldown) * 100)}% grenade cooldown and a `
-        + `-${Math.round((1 - HASTE.cast) * 100)}% shorter heal channel. Permanent, stacking.`,
-      apply: () => { player.haste += 1; } },
     { id: "firering", name: "Ring of Fire", price: FIRERING.price, once: true,
       desc: `A wall of flame erupts outward, ${FIRERING.damage} damage to everything within `
         + `${FIRERING.radius}m. ${FIRERING.cd}s cooldown. Goes to your first free slot.`,
@@ -302,7 +307,8 @@ export class Shop {
     const equipped = player.gearSlots?.[piece.slot];
     const worn = equipped && equipped.uid === piece.uid;
     let html = `<div class="tt-name" style="color:${piece.color || "#dfe8f5"}">${piece.name}</div>`;
-    html += `<div class="tt-slot">${piece.slot}${worn ? " · equipped" : ""}</div>`;
+    html += `<div class="tt-slot">${piece.slot}`
+      + `${piece.tier === undefined ? "" : ` · tier ${piece.tier}`}${worn ? " · equipped" : ""}</div>`;
     html += `<div class="tt-stats">${this.statRows(piece.stats)}</div>`;
     if (this.shift && equipped && !worn) {
       html += `<div class="tt-cmp">vs equipped — ${equipped.name}</div>`;
@@ -402,6 +408,7 @@ export class Shop {
       <button class="sellitem" data-sell="${p.uid}" style="border-color:${p.color}"
               title="${statLine(p.stats)}">
         <span class="nm" style="color:${p.color}">${p.name}</span>
+        <span class="tr">T${p.tier ?? 0}</span>
         <span class="pr">+${sellValue(p)}</span>
       </button>`).join("") : `<p class="empty">Your bags are empty.</p>`;
 

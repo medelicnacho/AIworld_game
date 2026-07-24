@@ -70,6 +70,15 @@ export class Boss {
 
   get active() { return this.alive !== null; }
 
+  /**
+   * A telegraphed hit's damage: the ring-scaled flat number, or a fraction of the player's
+   * max HP, whichever is BIGGER. See BOSS.meteorFrac for why it is a max() and not a swap —
+   * the flat term keeps punishing depth, the fraction only binds on a stacked pool.
+   */
+  telegraphed(flat, frac) {
+    return Math.max(flat * (this.alive?.dmg || 1), frac * player.maxHp);
+  }
+
   spawn(x, z) {
     if (this.alive) return null;
     // Never on holy ground. A boss inside the walls would be unkillable (weapons are
@@ -288,7 +297,7 @@ export class Boss {
 
       if (dist < BOSS.contactRange && b.contactCd <= 0 && player.iframes <= 0) {
         b.contactCd = BOSS.contactCd;
-        onPlayerHit?.(BOSS.contactDamage * b.dmg, b.x, b.z);
+        onPlayerHit?.(this.telegraphed(BOSS.contactDamage, BOSS.contactFrac), b.x, b.z);
       }
     } else {
       // You ran past its reach: it EVADES. Every telegraph drops and it heals back to full,
@@ -345,7 +354,8 @@ export class Boss {
         b.beamZ += (dz / d) * step;
       }
       if (d < BOSS.beamRadius && player.iframes <= 0) {
-        onBeamHit?.(BOSS.beamDps * b.dmg * dt, b.beamX, b.beamZ);
+        // Per SECOND, so the fraction is scaled by dt exactly like the flat dps is.
+        onBeamHit?.(this.telegraphed(BOSS.beamDps, BOSS.beamFrac) * dt, b.beamX, b.beamZ);
       }
       if (b.beamT <= 0) this.hideBeam();
     } else {
@@ -394,7 +404,7 @@ export class Boss {
         if (m.t <= 0) {
           const d = Math.hypot(player.x - m.x, player.z - m.z);
           if (d < BOSS.meteorRadius && player.iframes <= 0) {
-            onMeteorHit?.(BOSS.meteorDamage * (this.alive?.dmg || 1), m.x, m.z);
+            onMeteorHit?.(this.telegraphed(BOSS.meteorDamage, BOSS.meteorFrac), m.x, m.z);
           }
           sfx.explosion(m.x, m.z, 1.35);
           this.shake = Math.min(1, this.shake + BOSS.shake);

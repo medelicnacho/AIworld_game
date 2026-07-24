@@ -12,7 +12,7 @@
 
 import { SLOTS } from "../player/abilities.js";
 import { ICONS } from "./icons.js";
-import { WEAPONS, STAT_INFO } from "../config.js";
+import { WEAPONS, STAT_INFO, ADMIN_CODE } from "../config.js";
 import { statLine } from "./shop.js";
 
 const SLOT_LABEL = { helm: "Helm", shoulders: "Shoulders", vest: "Vest", pants: "Legs", boots: "Boots" };
@@ -30,6 +30,12 @@ export class Inventory {
     this.hooks = hooks;      // { onClose, gun, charStats, equipWeapon, grantAll, setLevel, ... }
     this.open = false;
     this.admin = false;
+    // Asked once per page load, not once per visit to the sheet — a code you retype every
+    // time you tab out to change something is a tax on the person it is meant to serve.
+    this.adminUnlocked = false;
+    this.adminAsking = false;
+    this.adminWrong = false;
+    this.confirmReset = false;
     this.tab = "character";
     this.picked = null;      // {from: "bag"|"slot", index} — Spells tab only
     this.hoverUid = null;    // gear cell under the cursor, for the compare tooltip
@@ -53,6 +59,13 @@ export class Inventory {
     // ever fire — it needs its own handler, in capture, exactly like the shop.
     window.addEventListener("keydown", (e) => {
       if (!this.open) return;
+      // Enter submits the code box. Escape must NOT close the sheet while you are typing in
+      // it either — losing what you typed to a stray key is the kind of small cruelty that
+      // makes people stop using a tool.
+      if (e.target?.id === "adm-code") {
+        if (e.code === "Enter") { e.preventDefault(); e.stopPropagation(); this.tryAdminCode(); }
+        return;
+      }
       if (e.code === "Escape") {
         e.preventDefault();
         e.stopPropagation();
@@ -126,7 +139,24 @@ export class Inventory {
     const arm = e.target.closest("[data-gear]");
     if (arm) { this.hooks.equipGear?.(arm.dataset.gear); this.render(); return; }
 
-    if (e.target.closest("[data-admin]")) { this.admin = !this.admin; this.render(); return; }
+    if (e.target.closest("[data-admin]")) {
+      // Unlocked already: it is just a toggle. Locked: ask, rather than opening.
+      if (this.adminUnlocked) this.admin = !this.admin;
+      else { this.adminAsking = !this.adminAsking; this.adminWrong = false; }
+      this.render();
+      if (this.adminAsking) this.el.querySelector("#adm-code")?.focus();
+      return;
+    }
+    if (e.target.closest("[data-admincode]")) { this.tryAdminCode(); return; }
+    if (e.target.closest("[data-reset]")) {
+      if (!this.confirmReset) { this.confirmReset = true; this.render(); return; }
+      this.confirmReset = false;
+      this.hooks.resetGame?.();
+      return;
+    }
+    // Any other click in the panel takes the confirm back down — you should have to MEAN it
+    // in one go, not leave a loaded button sitting there for the next stray press.
+    if (this.confirmReset) { this.confirmReset = false; this.render(); }
     if (e.target.closest("[data-grant]")) { this.hooks.grantAll?.(); this.render(); return; }
     const one = e.target.closest("[data-give]");
     if (one) { this.hooks.give?.(one.dataset.give); this.render(); return; }
@@ -226,7 +256,8 @@ export class Inventory {
     const worn = equipped && equipped.uid === piece.uid;
 
     let html = `<div class="tt-name" style="color:${piece.color}">${piece.name}</div>`;
-    html += `<div class="tt-slot">${SLOT_LABEL[piece.slot] || piece.slot}${worn ? " · equipped" : ""}</div>`;
+    html += `<div class="tt-slot">${SLOT_LABEL[piece.slot] || piece.slot}`
+      + ` · tier ${piece.tier ?? 0}${worn ? " · equipped" : ""}</div>`;
     html += `<div class="tt-stats">${this.statRows(piece.stats)}</div>`;
     if (this.shift && equipped && !worn) {
       html += `<div class="tt-cmp">vs equipped — ${equipped.name}</div>`;
@@ -338,11 +369,15 @@ export class Inventory {
       (rank[b.rarity] || 0) - (rank[a.rarity] || 0)
       || (b.armor || 0) - (a.armor || 0)
       || String(a.uid).localeCompare(String(b.uid)));
+    // The TIER badge. Rarity (the colour) says how many stats a piece carries; tier says how
+    // big they are, and they move independently — a blue out of the Commons and a blue out of
+    // the Deep look identical without this while one has several times the numbers. Two pieces
+    // cannot be compared on colour alone, so the second number has to be on the tile.
     const pieces = sorted.map((p) =>
-      `<div class="cell ${worn.has(p.uid) ? "eq" : ""}" data-gear="${p.uid}"
-            style="border-color:${p.color}"
+      `<div class="cell ${worn.has(p.uid) ? "eq" : ""} ${p.rarity === "epic" ? "epic" : ""}"
+            data-gear="${p.uid}" style="border-color:${p.color}"
             title="${p.name} — ${statLine(p.stats)}"><span class="nm"
-            style="color:${p.color}">${p.name}</span></div>`).join("");
+            style="color:${p.color}">${p.name}</span><span class="tier">T${p.tier ?? 0}</span></div>`).join("");
     const items = weps + pieces;
 
     // The legend: every stat, in plain terms. This is what makes the numbers on a piece mean
@@ -388,9 +423,37 @@ export class Inventory {
     </div>`;
   }
 
+  /** Check what was typed into the code box. Right: open up, and stay open for the session. */
+  tryAdminCode() {
+    const v = this.el.querySelector("#adm-code")?.value?.trim();
+    if (v === ADMIN_CODE) {
+      this.adminUnlocked = true;
+      this.admin = true;
+      this.adminAsking = false;
+      this.adminWrong = false;
+    } else {
+      this.adminWrong = true;
+    }
+    this.render();
+    if (this.adminAsking) this.el.querySelector("#adm-code")?.focus();
+  }
+
+  /** The code box. Shown in place of the panel until the right code goes in. */
+  adminGateHtml() {
+    if (!this.adminAsking || this.adminUnlocked) return "";
+    return `
+      <div class="admin">
+        <div class="row">
+          <span class="lbl">${this.adminWrong ? "wrong code" : "testing tools — code:"}</span>
+          <input id="adm-code" type="password" autocomplete="off" inputmode="numeric">
+          <button data-admincode>unlock</button>
+        </div>
+      </div>`;
+  }
+
   /** A testing panel: set level, hand yourself points, grant every ability at once. */
   adminHtml() {
-    if (!this.admin) return "";
+    if (!this.admin || !this.adminUnlocked) return "";
     const p = this.hooks.state?.() || {};
     const owned = new Set(this.abilities.owned.map((o) => o.id));
     const list = (this.hooks.catalog?.() || []).map((g) => `
@@ -425,6 +488,15 @@ export class Inventory {
     const body = this.tab === "character" ? this.characterHtml()
       : this.tab === "spells" ? this.spellsHtml()
         : this.talentsHtml();
+    // START OVER. Deliberately two presses: this deletes a character that may represent hours,
+    // and in a game where dying already costs a level, an accidental wipe is the one loss
+    // there is no coming back from. The confirm state also renames the button — a button that
+    // says "sure?" cannot be pressed twice by muscle memory the way one that keeps its label
+    // can, which is the actual failure this is guarding against.
+    const reset = this.confirmReset
+      ? `<button class="reset go" data-reset>Erase everything?</button>`
+      : `<button class="reset" data-reset>Start over</button>`;
+
     const foot = this.tab === "spells"
       ? (this.picked ? "Now click a slot to place it"
         : "Drag or click an ability onto a slot · drag it out to unequip · Esc to resume")
@@ -436,11 +508,13 @@ export class Inventory {
       <div class="panel">
         <header>
           <h2>Character</h2>
+          ${reset}
           <button class="adm ${this.admin ? "on" : ""}" data-admin>admin</button>
           <button class="x" data-close>✕</button>
         </header>
         <nav class="tabs">${tabs}</nav>
         <div class="tabbody">${body}</div>
+        ${this.adminGateHtml()}
         ${this.adminHtml()}
         <footer>${foot}</footer>
       </div>`;

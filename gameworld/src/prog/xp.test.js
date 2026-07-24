@@ -4,7 +4,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyLevelStats, xpToNext, respawnTierFor, xpLevelMult } from "./xp.js";
+import { applyLevelStats, xpToNext, respawnTierFor, xpLevelMult, loseLevel } from "./xp.js";
+import { maxHpFor } from "./stats.js";
 import { player } from "../state.js";
 import { GRACE, XP, STATS } from "../config.js";
 
@@ -94,8 +95,49 @@ test("grace: full at level 1, gone by GRACE.levels+1, monotonically fading", () 
 
 test("maxHp: driven by Stamina, and hp rides a raised ceiling up", () => {
   derive(5, { stamina: 20, hp: 100, maxHp: 100 });
-  assert.equal(player.maxHp, STATS.baseHp + STATS.stamHp * 20);
+  assert.equal(player.maxHp, maxHpFor(20));
+  assert.ok(player.maxHp > STATS.baseHp, "Stamina must actually raise the pool");
   assert.ok(player.hp <= player.maxHp, "hp never exceeds max");
+});
+
+test("death: ALWAYS costs a level, at every level — this is the design, not a bug", () => {
+  // Guarding the intent: death is meant to be the harshest thing in the game. If someone
+  // later "fixes" this into a gentler fraction-of-a-bar penalty, this test should stop them.
+  for (const lv of [2, 5, 20, 40, 60]) {
+    derive(lv);
+    player.xp = Math.floor(xpToNext(lv) * 0.9);      // nearly levelled: still costs a level
+    assert.equal(loseLevel(), true, `dying at level ${lv} must cost a level`);
+    assert.equal(player.level, lv - 1, `must land exactly one level down from ${lv}`);
+  }
+});
+
+test("death: you land a third of the way into the level below, wherever you died in yours", () => {
+  for (const lv of [10, 30, 50]) {
+    for (const where of [0, 0.5, 0.99]) {
+      derive(lv);
+      player.xp = Math.floor(xpToNext(lv) * where);
+      loseLevel();
+      assert.equal(player.xp, Math.floor(xpToNext(lv - 1) * XP.deathLandFrac),
+        `landing spot must not depend on how far into level ${lv} you were`);
+      assert.ok(player.xp > 0, "never stranded at zero — the climb back has a running start");
+      assert.ok(player.xp < xpToNext(lv - 1), "and never so far in that the level is free");
+    }
+  }
+});
+
+test("death: losing a level also re-derives your stats (the setback is felt, not just shown)", () => {
+  derive(20);
+  const before = player.dmgMult;
+  loseLevel();
+  assert.ok(player.dmgMult < before, "a lost level must actually cost you power");
+});
+
+test("death: level 1 is a floor — you can never be driven below it", () => {
+  derive(1);
+  player.xp = 0;
+  assert.equal(loseLevel(), false, "level 1 has nothing left to take");
+  assert.equal(player.level, 1);
+  assert.ok(player.xp >= 0, "xp can never go negative");
 });
 
 test("reloadMult: floored above zero even with absurd reload rating (the bricked-gun bug)", () => {
