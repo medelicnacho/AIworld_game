@@ -94,6 +94,10 @@ function build(key, x, z, radius, rng, city) {
     // you. Derived from the same seeded roll as everything else, so a town's allegiance is a
     // fact about the world rather than something stored anywhere.
     faction: city ? null : Math.floor(rng() * 3),
+    // NEUTRAL ground: nobody's colour flies here and all three keep a desk. Cities are neutral
+    // by nature; the spawn town is neutral by decision, because it is where the game is taught
+    // and showing a new player one option out of three is a bad way to introduce a choice.
+    neutral: !!city,
     rMin: Math.min(...corners.map((c) => c.r)),
     rMax: Math.max(...corners.map((c) => c.r)),
     gate: rng() * Math.PI * 2,
@@ -119,7 +123,10 @@ export function tierSettlements(t) {
   if (t === 0) {
     // The one you wake next to. Fixed, close, and small — you should never have to search
     // for your first refuge.
-    out.push(build("t0-home", 96, 34, RADIUS, rng, false));
+    const home = build("t0-home", 96, 34, RADIUS, rng, false);
+    home.neutral = true;      // home belongs to nobody; all three recruit here
+    home.faction = null;
+    out.push(home);
   } else {
     const lo = tierStart(t), w = tierWidth(t);
     const n = townCount(t);

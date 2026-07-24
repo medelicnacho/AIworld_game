@@ -131,28 +131,44 @@ const GRADES = [
   { key: "sworn", label: "Sworn", a: 520, attr: 55, stam: 100, rate: 420, dmg: 0.24, price: 14000 },
 ];
 
-/** What each faction's gear is FOR, per slot. This is where the three builds diverge. */
+/**
+ * What each faction's gear is FOR, per slot. This is where the three builds diverge.
+ *
+ * MOSTLY one thing, with a LITTLE of the others. A set that carried nothing but its headline
+ * stat would make a whole faction read as one number going up — a spreadsheet column rather
+ * than a character — and would leave the two builds you did not pick feeling like things you
+ * are missing rather than things you traded away. A splash of the other two keeps every piece
+ * worth reading, lets a slot occasionally surprise you, and means a full kit still HAS a
+ * spine without being a single bone.
+ *
+ * `m` is the minor helping: a fraction of the headline number, applied to the stats that
+ * belong to the OTHER two factions. Change that one value to make the sets purer or muddier.
+ */
+const MINOR = 0.32;
+const mi = (n) => Math.max(1, Math.round(n * MINOR));       // whole-number stats
+const mf = (n) => +(n * MINOR).toFixed(3);                  // fractions (damage, move speed)
+
 const TEMPLATES = {
   damage: {
-    helm: (g) => ({ armor: g.a, str: g.attr, dmgSpell: g.dmg }),
-    shoulders: (g) => ({ armor: g.a, str: g.attr, dmgGun: g.dmg }),
-    vest: (g) => ({ armor: Math.round(g.a * 1.2), str: g.attr, dmgGlobal: g.dmg }),
-    pants: (g) => ({ armor: g.a, str: g.attr, dmgGrenade: g.dmg }),
-    boots: (g) => ({ armor: Math.round(g.a * 0.8), str: g.attr, dmgGlobal: g.dmg * 0.6 }),
+    helm: (g) => ({ armor: g.a, str: g.attr, dmgSpell: g.dmg, rHaste: mi(g.rate) }),
+    shoulders: (g) => ({ armor: g.a, str: g.attr, dmgGun: g.dmg, agi: mi(g.attr) }),
+    vest: (g) => ({ armor: Math.round(g.a * 1.2), str: g.attr, dmgGlobal: g.dmg, stamina: mi(g.stam) }),
+    pants: (g) => ({ armor: g.a, str: g.attr, dmgGrenade: g.dmg, stamina: mi(g.stam) }),
+    boots: (g) => ({ armor: Math.round(g.a * 0.8), str: g.attr, dmgGlobal: g.dmg * 0.6, moveSpeed: mf(g.dmg) }),
   },
   speed: {
-    helm: (g) => ({ armor: Math.round(g.a * 0.8), agi: g.attr, rHaste: g.rate }),
-    shoulders: (g) => ({ armor: Math.round(g.a * 0.8), agi: g.attr, rAtkSpeed: g.rate }),
-    vest: (g) => ({ armor: g.a, agi: g.attr, moveSpeed: g.dmg * 0.5 }),
-    pants: (g) => ({ armor: Math.round(g.a * 0.8), agi: g.attr, rReload: g.rate }),
-    boots: (g) => ({ armor: Math.round(g.a * 0.7), agi: Math.round(g.attr * 1.4), moveSpeed: g.dmg * 0.8 }),
+    helm: (g) => ({ armor: Math.round(g.a * 0.8), agi: g.attr, rHaste: g.rate, dmgSpell: mf(g.dmg) }),
+    shoulders: (g) => ({ armor: Math.round(g.a * 0.8), agi: g.attr, rAtkSpeed: g.rate, str: mi(g.attr) }),
+    vest: (g) => ({ armor: g.a, agi: g.attr, moveSpeed: g.dmg * 0.5, stamina: mi(g.stam) }),
+    pants: (g) => ({ armor: Math.round(g.a * 0.8), agi: g.attr, rReload: g.rate, dmgGun: mf(g.dmg) }),
+    boots: (g) => ({ armor: Math.round(g.a * 0.7), agi: Math.round(g.attr * 1.4), moveSpeed: g.dmg * 0.8, stamina: mi(g.stam) }),
   },
   survival: {
-    helm: (g) => ({ armor: Math.round(g.a * 1.3), stamina: g.stam }),
-    shoulders: (g) => ({ armor: Math.round(g.a * 1.3), stamina: g.stam }),
-    vest: (g) => ({ armor: Math.round(g.a * 1.8), stamina: Math.round(g.stam * 1.5) }),
-    pants: (g) => ({ armor: Math.round(g.a * 1.3), stamina: g.stam }),
-    boots: (g) => ({ armor: g.a, stamina: g.stam, moveSpeed: g.dmg * 0.3 }),
+    helm: (g) => ({ armor: Math.round(g.a * 1.3), stamina: g.stam, rHaste: mi(g.rate) }),
+    shoulders: (g) => ({ armor: Math.round(g.a * 1.3), stamina: g.stam, str: mi(g.attr) }),
+    vest: (g) => ({ armor: Math.round(g.a * 1.8), stamina: Math.round(g.stam * 1.5), dmgGlobal: mf(g.dmg) }),
+    pants: (g) => ({ armor: Math.round(g.a * 1.3), stamina: g.stam, agi: mi(g.attr) }),
+    boots: (g) => ({ armor: g.a, stamina: g.stam, moveSpeed: g.dmg * 0.3, agi: mi(g.attr) }),
   },
 };
 
@@ -245,7 +261,7 @@ export function repForTurnIn(piece) {
  */
 export function servesYou(sanctuary) {
   if (!sanctuary) return false;
-  if (sanctuary.city) return true;
+  if (sanctuary.city || sanctuary.neutral) return true;
   if (!player.faction) return false;              // unaligned: only cities have a desk for you
   // A town stores its allegiance as a COLOUR INDEX, because that is what the seeded world roll
   // produces and what the mob camps already use. The player stores a NAME. Comparing the two
@@ -256,7 +272,7 @@ export function servesYou(sanctuary) {
 
 /** Which faction flies over this town, by name. Null for neutral ground. */
 export function factionOfTown(sanctuary) {
-  if (!sanctuary || sanctuary.city) return null;
+  if (!sanctuary || sanctuary.city || sanctuary.neutral) return null;
   const n = sanctuary.faction;
   if (n === null || n === undefined) return null;
   return FACTIONS[n % FACTIONS.length].id;

@@ -130,16 +130,28 @@ test("every piece is well-formed, priced, and gets dearer as it gets better", ()
   }
 });
 
-test("each faction's gear actually pulls its own way", () => {
-  const has = (fid, stat) => FACTION_GEAR
+test("each faction's gear is MOSTLY its own thing, with a little of the others", () => {
+  // A set carrying nothing but its headline stat reads as one number going up rather than as
+  // a character, and makes the builds you did not pick feel missing instead of traded away.
+  // So every faction carries a splash of the other two — and the rule that has to hold is
+  // DOMINANCE, not purity: your own stat should still dwarf what a rival set gives you.
+  const total = (fid, stat) => FACTION_GEAR
     .filter((p) => p.faction === fid)
-    .some((p) => p.stats[stat] > 0);
-  assert.ok(has("ash", "str"), "the damage faction sells Strength");
-  assert.ok(has("vale", "agi"), "the speed faction sells Agility");
-  assert.ok(has("iron", "stamina"), "the survival faction sells Stamina");
-  // ...and does NOT sell the others' identity, or the three tracks blur into one.
-  assert.ok(!has("iron", "str"), "survival gear should not be a damage set in disguise");
-  assert.ok(!has("ash", "stamina"), "damage gear should not quietly be the tank set");
+    .reduce((s, p) => s + (p.stats[stat] || 0), 0);
+
+  const owner = { str: "ash", agi: "vale", stamina: "iron" };
+  for (const [stat, fid] of Object.entries(owner)) {
+    const mine = total(fid, stat);
+    assert.ok(mine > 0, `${fid} must sell ${stat} — it is their whole identity`);
+    for (const other of FACTIONS.map((f) => f.id)) {
+      if (other === fid) continue;
+      const theirs = total(other, stat);
+      assert.ok(theirs > 0,
+        `${other} should carry SOME ${stat}; a pure set is a spreadsheet column`);
+      assert.ok(mine > theirs * 2,
+        `${fid} must clearly dominate ${stat} (${mine} vs ${other}'s ${theirs})`);
+    }
+  }
 });
 
 test("COLD, NOT HOSTILE: a rival's town keeps its kit, a city always serves", () => {

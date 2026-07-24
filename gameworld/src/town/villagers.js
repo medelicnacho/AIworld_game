@@ -67,20 +67,41 @@ export class Villagers {
     // A city is bigger, so it holds more people AND a second set of traders — walking a
     // city to find the one adept would be a chore rather than a place.
     if (s.city) roles.push("herbalist", "smith", "adept");
-    // Whose desk is here. A city keeps all three quarters — that is what neutral ground
-    // MEANS, and it is where you go to pick a side. A town keeps only its own.
-    if (s.city) roles.push(...QM);
+    // Whose desk is here. NEUTRAL ground — every city, and the spawn town — keeps all three
+    // quarters, because that is what neutral means and it is where you go to pick a side.
+    // A town that flies a colour keeps only its own.
+    const neutral = s.city || s.neutral;
+    if (neutral) roles.push(...QM);
     else if (s.faction !== null && s.faction !== undefined) roles.push(QM[s.faction % QM.length]);
     const want = Math.round(VILLAGE.perSanctuary * (s.r / 46));
     while (roles.length < want) roles.push("keeper");
+
+    // QUARTERMASTERS STAND STILL, and stand APART. Everyone else strolls a slow circuit,
+    // which is right for people who live here and wrong for someone at a desk: a recruiter
+    // you have to chase is a recruiter you give up on. Fixed posts also make them findable —
+    // you learn where the Ash desk is and it is still there next time.
+    //
+    // They are spread on evenly-divided bearings so three of them in one city never end up
+    // standing on each other, which is the thing that would make the choice look like one
+    // muddled clump instead of three quarters.
+    let qmSeen = 0;
+    const qmCount = roles.filter((k) => QM.includes(k)).length;
     for (const key of roles) {
       const ri = ROLES.findIndex((r) => r.key === key);
+      const isQm = QM.includes(key);
+      const ang = isQm
+        ? (qmSeen / Math.max(1, qmCount)) * Math.PI * 2 + 0.4
+        : rng() * Math.PI * 2;
+      if (isQm) qmSeen++;
       folk.push({
         role: ROLES[ri], ri, s,
-        ang: rng() * Math.PI * 2,
-        rad: 4 + rng() * Math.max(4, s.rMin - 9),   // inside even the nearest wall
-        spd: (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.05),   // slower: a bigger circuit
-        bob: rng() * Math.PI * 2,
+        ang,
+        // Posted a comfortable way in from the wall — far enough to be inside the town proper,
+        // near enough that you meet them on the way through rather than having to hunt.
+        rad: isQm ? Math.max(6, Math.min(16, s.rMin - 12)) : 4 + rng() * Math.max(4, s.rMin - 9),
+        spd: isQm ? 0 : (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.05),
+        bob: isQm ? 0 : rng() * Math.PI * 2,
+        still: isQm,
         x: s.x, z: s.z, y: 0,
       });
     }
@@ -106,11 +127,15 @@ export class Villagers {
     for (const folk of this.built.values()) {
       for (const v of folk) {
         // A slow circuit of the enclosure. They have somewhere to be, and it is here.
-        v.ang += v.spd * dt;
-        v.bob += dt * 1.8;
+        // Quartermasters are the exception: they hold their post, so their spot on the map
+        // and their place in your memory of the town both stay put.
+        if (!v.still) {
+          v.ang += v.spd * dt;
+          v.bob += dt * 1.8;
+        }
         v.x = v.s.x + Math.cos(v.ang) * v.rad;
         v.z = v.s.z + Math.sin(v.ang) * v.rad;
-        v.y = groundY(v.x, v.z) + Math.sin(v.bob) * 0.04;
+        v.y = groundY(v.x, v.z) + (v.still ? 0 : Math.sin(v.bob) * 0.04);
         this.list.push(v);
       }
     }
