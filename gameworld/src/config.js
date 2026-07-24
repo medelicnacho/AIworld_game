@@ -129,8 +129,11 @@ Object.assign(WEAPONS, {
   cleaver: {
     id: "cleaver", name: "Iron Cleaver", price: 900, faction: "iron", mode: "melee",
     // A cone, not a ray. Reach is short and the arc is wide: you are not aiming so much as
-    // deciding to be here.
-    damage: 88, fireRate: 1.9, range: 4.4, coneDeg: 100, knock: 12,
+    // deciding to be here. 6.0, up from 4.4 after play — mobs bite at ~2.4 and lunge from
+    // further, so a 4.4 swing meant trading hits with everything you fought. The extra reach
+    // gives the cleaver a band where it strikes FIRST, which is what makes closing in feel
+    // like a plan instead of a toll. The drawn arc follows this number automatically.
+    damage: 88, fireRate: 1.9, range: 6.0, coneDeg: 100, knock: 12,
     magSize: 0, reloadTime: 0, pellets: 1, auto: true, recoil: 0.004, recoilRecover: 0.7,
     spreadHip: 0, spreadAim: 0, sound: "cleave",
     desc: "A wide swing in front of you that throws things back. Right-click to spin: "
