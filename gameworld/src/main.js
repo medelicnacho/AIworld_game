@@ -991,7 +991,9 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
   }
 }
 
-const deathSound = new Audio("/audio/popsound.mp3");
+// Relative, not "/audio/..." — see the note in audio/music.js: a leading slash breaks
+// anywhere the game is served from a subfolder rather than a domain root.
+const deathSound = new Audio("audio/popsound.mp3");
 const deathSubEl = document.getElementById("death-sub");
 
 // Death is now a SCREEN, not an instant teleport: the pop sound plays, the music stops, and

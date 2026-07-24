@@ -9,14 +9,19 @@
 //
 // Each track carries its own gain (0..1) so the layers balance; the master VOLUME sits under it.
 // (To change the mix, edit the lists below.)
+//
+// Paths are RELATIVE on purpose. A leading slash means "the root of this domain", which is
+// only correct when the game IS the domain -- and most places you would hand it to someone
+// (itch.io among them) serve it from a subfolder, where a leading slash silently points at
+// nothing and the whole soundtrack 404s.
 
 const BED_TRACKS = [
-  { src: "/audio/warsound.mp3", gain: 1.0 },   // war 1
-  { src: "/audio/warsound2.mp3", gain: 1.0 },  // war 2
-  { src: "/audio/radio.mp3", gain: 0.4 },      // radio — quieter, it was too loud
+  { src: "audio/warsound.mp3", gain: 1.0 },   // war 1
+  { src: "audio/warsound2.mp3", gain: 1.0 },  // war 2
+  { src: "audio/radio.mp3", gain: 0.4 },      // radio — quieter, it was too loud
 ];
-const OUTSIDE_TRACK = { src: "/audio/donkeybeats.mp3", gain: 0.85 };  // frontier track
-const TOWN_TRACK = { src: "/audio/chillax.mp3", gain: 1.0 };          // the city track we had
+const OUTSIDE_TRACK = { src: "audio/donkeybeats.mp3", gain: 0.85 };  // frontier track
+const TOWN_TRACK = { src: "audio/chillax.mp3", gain: 1.0 };          // the city track we had
 
 const VOLUME = 0.24;       // master, kept low so the layers don't clip
 const CROSS_MS = 1100;     // gate-crossing fade

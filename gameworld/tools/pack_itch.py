@@ -18,11 +18,26 @@ OUT = os.path.join(HERE, "gameworld-itch.zip")
 if not os.path.isdir(DIST):
     raise SystemExit("no dist/ -- run `npm run build` first")
 
+paths = []
+for root, _, files in os.walk(DIST):
+    for f in files:
+        p = os.path.join(root, f)
+        paths.append((os.path.relpath(p, DIST).replace(os.sep, "/"), p))
+
+# index.html FIRST, then everything else. Not required by the format, but some unpackers
+# peek at the first entry to decide what an archive is, and it costs nothing to be obvious.
+paths.sort(key=lambda t: (t[0] != "index.html", t[0]))
+
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
-    for root, _, files in os.walk(DIST):
-        for f in files:
-            p = os.path.join(root, f)
-            z.write(p, os.path.relpath(p, DIST))
+    # Explicit DIRECTORY entries. A zip is perfectly valid without them and most tools cope
+    # fine, but "made only of file paths, no folders" is the one way this archive differed
+    # from what an ordinary zip utility produces -- and when a service says it cannot find a
+    # file that is demonstrably there, removing every difference from the ordinary is cheaper
+    # than arguing about whose reader is right.
+    for d in sorted({os.path.dirname(rel) for rel, _ in paths if os.path.dirname(rel)}):
+        z.writestr(zipfile.ZipInfo(d + "/"), b"")
+    for rel, full in paths:
+        z.write(full, rel)
 
 with zipfile.ZipFile(OUT) as z:
     names = z.namelist()
