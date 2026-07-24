@@ -229,6 +229,19 @@ export class Shop {
         this.render();
         return;
       }
+      // Switching sides is a two-press confirm: first click arms it (the button re-labels to
+      // name what you would lose), second click does it.
+      const switchId = e.target?.closest?.("[data-switch]")?.dataset?.switch;
+      if (switchId) {
+        if (this.confirmSwitch !== switchId) { this.confirmSwitch = switchId; this.render(); return; }
+        this.confirmSwitch = null;
+        if (join(switchId)) { sfx.levelUp(); this.flash = `you ride with ${factionById(switchId).name} now`; }
+        this.render();
+        return;
+      }
+      // Any OTHER click in the panel disarms a pending switch — you must mean it in one go,
+      // not leave a loaded button waiting for the next stray press.
+      if (this.confirmSwitch) { this.confirmSwitch = null; this.render(); return; }
       const facId = e.target?.closest?.("[data-buyfac]")?.dataset?.buyfac;
       if (facId) { this.buyFaction(facId); return; }
       const wepId = e.target?.closest?.("[data-buyweapon]")?.dataset?.buyweapon;
@@ -290,6 +303,7 @@ export class Shop {
   show(vendor) {
     if (!vendor) return;
     this.vendor = vendor;
+    this.confirmSwitch = null;      // an armed switch must never survive to the next visit
     document.body.classList.add("shopping");
     this.render();
     if (document.pointerLockElement) document.exitPointerLock();
@@ -453,13 +467,28 @@ export class Shop {
 
     if (mine !== fid) {
       const own = factionById(mine);
+      const ownPr = repProgress(rep);
+      // TWO PRESSES, and the button changes its words on the first — the same guard the Start
+      // Over button uses. Abandoning a faction throws away every hour of standing you have
+      // earned, so it must not be a thing muscle memory can do; a button that suddenly reads
+      // "give up X standing?" cannot be double-clicked through the way one that keeps its
+      // label can. What you would LOSE is named on the confirm, not buried in a note.
+      const swap = this.confirmSwitch === fid
+        ? `<button class="join go" data-switch="${f.id}" style="border-color:${f.color}">
+             Abandon ${own?.name || "your faction"}? — lose ${ownPr.name} · ${rep} standing
+           </button>`
+        : `<button class="join" data-switch="${f.id}" style="border-color:${f.color}">
+             Swear to ${f.name} instead
+           </button>`;
       return `
         <div class="qm">
-          <p class="qmlead" style="color:${f.color}">${f.name} has nothing for you.</p>
+          <p class="qmlead" style="color:${f.color}">${f.name} has nothing for you — yet.</p>
           <p class="qmblurb">You wear ${own?.name || "another"}'s colours. You are welcome to
             rest here and buy what any traveller can — but their kit is not for sale to you.</p>
-          <p class="qmnote">You can change sides at any of their quarters. You would keep
-            every item you own and lose every point of standing you have earned.</p>
+          <p class="qmnote">Change sides and you keep every item you own, but your standing
+            with ${own?.name || "your faction"} — <b>${ownPr.name}, ${rep}</b> — is gone, and
+            you begin ${f.name}'s ladder at the bottom.</p>
+          ${swap}
         </div>`;
     }
 
