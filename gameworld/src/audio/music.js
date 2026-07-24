@@ -1,9 +1,11 @@
-// Place-based soundtrack: two channels that both stream the whole time, and only their VOLUMES
-// crossfade as you cross a gate — so neither restarts from the top when you step in or out.
+// Layered soundtrack: two channels that both stream the whole time, and only their VOLUMES
+// change as you cross the city gate — so neither restarts from the top when you step in or out.
 //
-//   OUTSIDE the city — a PLAYLIST of the action tracks (war 1, war 2, radio) played one after
-//                      another and looped, so the frontier has a rotating score.
-//   INSIDE the city  — the one chill town track, looped.
+//   EVERYWHERE      — a PLAYLIST of the action tracks (war 1, war 2, radio) played one after
+//                     another and looped forever. This bed is ALWAYS audible, outside AND in
+//                     town, so the war/radio songs never go silent and radio gets its turn.
+//   INSIDE the city — the chill town track is LAYERED on top of that bed, so town = action
+//                     bed + chillax, and stepping outside just drops the chillax layer.
 //
 // (To change which songs go where, edit WORLD_PLAYLIST / TOWN_TRACK below.)
 
@@ -66,10 +68,11 @@ export class Music {
     this.applyVolumes();
   }
 
-  /** Fade each channel toward the volume its place deserves right now. */
+  /** Fade each channel toward the volume its place deserves right now. The action bed is on
+   *  everywhere; the town track is layered on top only when you're inside the city. */
   applyVolumes(ms = CROSS_MS) {
     const live = this.started && !this.muted;
-    this.fade(this.world, live && this.where === "world" ? this.volume : 0, ms);
+    this.fade(this.world, live ? this.volume : 0, ms);
     this.fade(this.town, live && this.where === "town" ? this.volume : 0, ms);
   }
 
