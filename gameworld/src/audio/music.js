@@ -9,14 +9,16 @@
 //
 // (To change the mix, edit WORLD_TRACKS / TOWN_TRACK below.)
 
+// Each track carries its OWN gain (0..1) so the layers can be balanced against each other —
+// radio was drowning the war tracks, so it's mixed down here.
 const WORLD_TRACKS = [
-  "/audio/warsound.mp3",   // war 1
-  "/audio/warsound2.mp3",  // war 2
-  "/audio/radio.mp3",      // radio
+  { src: "/audio/warsound.mp3", gain: 1.0 },   // war 1
+  { src: "/audio/warsound2.mp3", gain: 1.0 },  // war 2
+  { src: "/audio/radio.mp3", gain: 0.4 },      // radio — quieter, it was too loud
 ];
-const TOWN_TRACK = "/audio/chillax.mp3";   // the city track we had
+const TOWN_TRACK = { src: "/audio/chillax.mp3", gain: 1.0 };   // the city track we had
 
-const VOLUME = 0.24;       // per track, kept low so three layers don't clip
+const VOLUME = 0.24;       // master, kept low so the layers don't clip
 const CROSS_MS = 1100;     // gate-crossing fade
 
 export class Music {
@@ -28,14 +30,15 @@ export class Music {
 
     // Three action tracks, each an independent forever-loop. Same simple shape as the town
     // track that already works — no src swapping, no 'ended' handoff to go wrong.
-    this.world = WORLD_TRACKS.map((src) => this.makeLoop(src));
+    this.world = WORLD_TRACKS.map((t) => this.makeLoop(t));
     this.town = this.makeLoop(TOWN_TRACK);
   }
 
-  makeLoop(src) {
+  makeLoop({ src, gain }) {
     const el = new Audio(src);
     el.loop = true;
     el.volume = 0;
+    el._gain = gain;   // per-track balance, multiplied into the master below
     return el;
   }
 
@@ -67,8 +70,8 @@ export class Music {
    *  everywhere; the town track is layered on top only when you're inside the city. */
   applyVolumes(ms = CROSS_MS) {
     const live = this.started && !this.muted;
-    for (const el of this.world) this.fade(el, live ? this.volume : 0, ms);
-    this.fade(this.town, live && this.where === "town" ? this.volume : 0, ms);
+    for (const el of this.world) this.fade(el, live ? this.volume * el._gain : 0, ms);
+    this.fade(this.town, live && this.where === "town" ? this.volume * this.town._gain : 0, ms);
   }
 
   setPaused(paused) {
