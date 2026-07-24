@@ -277,6 +277,19 @@ export function servesYou(sanctuary) {
   return factionOfTown(sanctuary) === player.faction;
 }
 
+/**
+ * Is this sanctuary HOSTILE to you — a town you are not welcome in?
+ *
+ * A place that serves you (your own colours, neutral ground, a city) is a refuge, and combat
+ * moves have no business there: it is why weapons stow at the gate. A rival's town does not
+ * serve you — you are an intruder inside someone else's walls — so it is treated as hostile
+ * ground where your dash still answers. One rule, so "where am I allowed to fight-move" and
+ * "who will sell to me" can never give different answers about the same town.
+ */
+export function isHostileSanctuary(sanctuary) {
+  return !!sanctuary && !servesYou(sanctuary);
+}
+
 /** Which faction flies over this town, by name. Null for neutral ground. */
 export function factionOfTown(sanctuary) {
   if (!sanctuary || sanctuary.city || sanctuary.neutral) return null;

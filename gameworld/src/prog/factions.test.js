@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   FACTIONS, REP_TIERS, JOIN_LEVEL, factionById, repForKill, tierOf, repProgress,
-  FACTION_GEAR, stockFor, lockedFor, join, awardRep, isMyEnemy, servesYou, repForTurnIn,
+  FACTION_GEAR, stockFor, lockedFor, join, awardRep, isMyEnemy, servesYou, repForTurnIn, isHostileSanctuary,
 } from "./factions.js";
 import { RARITY } from "./gear.js";
 import { player } from "../state.js";
@@ -182,5 +182,29 @@ test("turn-ins: better gear is worth more, and faction kit cannot be recycled", 
   // un-turn-in-able the day it is added.
   for (const key of Object.keys(RARITY)) {
     assert.equal(typeof repForTurnIn({ rarity: key }), "number", `no turn-in value for ${key}`);
+  }
+});
+
+test("hostile ground: only a town you are NOT welcome in counts as hostile", () => {
+  // Drives the "no combat moves in a friendly safe zone, but your dash answers on rival
+  // ground" rule. It must agree exactly with servesYou — one town cannot both sell to you
+  // and be somewhere you may fight.
+  const city = { city: true };
+  const neutralHome = { neutral: true };
+  const ashTown = { faction: 0 };   // FACTIONS[0] is Ash
+  const valeTown = { faction: 1 };
+
+  fresh();
+  join("ash");
+  assert.equal(isHostileSanctuary(ashTown), false, "your own town is a refuge, not a battlefield");
+  assert.equal(isHostileSanctuary(city), false, "neutral cities are refuges");
+  assert.equal(isHostileSanctuary(neutralHome), false, "the spawn town is neutral ground");
+  assert.equal(isHostileSanctuary(valeTown), true, "a rival's town is intruder ground");
+  assert.equal(isHostileSanctuary(null), false, "the open field is not a sanctuary at all");
+
+  // And the invariant that ties it to the shop: nowhere may both serve you and be hostile.
+  for (const s of [city, neutralHome, ashTown, valeTown]) {
+    assert.notEqual(servesYou(s), isHostileSanctuary(s),
+      "a town cannot be both a shop that serves you and a place you may fight");
   }
 });
