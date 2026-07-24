@@ -806,25 +806,30 @@ export class Mobs {
       }
 
       if (e.aggro && e.caster) {
-        // CASTER: hold the middle distance and throw. Never lunges, never brawls.
+        // CASTER: hold the middle distance and throw — at its war target if it has one, at
+        // you otherwise. Never lunges, never brawls.
         e.bold = false;
+        const ctx = foeMob ? foeMob.x : player.x, ctz = foeMob ? foeMob.z : player.z;
+        const cdx = ctx - e.x, cdz = ctz - e.z;
+        const cdist = Math.hypot(cdx, cdz) || 1;
+        const cux = cdx / cdist, cuz = cdz / cdist;
         if (e.castT > 0) {
           // Winding up: rooted and glowing. Standing still IS the tell.
           e.castT -= dt;
           if (e.castT <= 0) {
-            this.fire(e);
+            this.fire(e, foeMob);
             e.castCd = MOB.castCd;
           }
         } else {
           if (e.castCd > 0) e.castCd -= dt;
-          if (e.castCd <= 0 && dist > MOB.castMin && dist < MOB.castMax) e.castT = MOB.castWindup;
+          if (e.castCd <= 0 && cdist > MOB.castMin && cdist < MOB.castMax) e.castT = MOB.castWindup;
 
           // Keep the range band: back off when crowded, close when you've drifted too far.
-          const want = dist < MOB.castMin ? -1 : dist > MOB.castMax * 0.75 ? 1 : 0;
-          vx += ux * want * 1.4;
-          vz += uz * want * 1.4;
-          vx += -uz * e.bias * 0.6;      // and drift sideways so they're not static targets
-          vz += ux * e.bias * 0.6;
+          const want = cdist < MOB.castMin ? -1 : cdist > MOB.castMax * 0.75 ? 1 : 0;
+          vx += cux * want * 1.4;
+          vz += cuz * want * 1.4;
+          vx += -cuz * e.bias * 0.6;      // and drift sideways so they're not static targets
+          vz += cux * e.bias * 0.6;
         }
       } else if (e.aggro) {
         // Against an enemy mob a creature COMMITS — it closes and brawls rather than circling.
@@ -954,11 +959,15 @@ export class Mobs {
   }
 
   /** Release a fireball at where the player is RIGHT NOW — no homing, so it's dodgeable. */
-  fire(e) {
+  fire(e, target = null) {
     const slot = this.balls.find((b) => !b.active);
     if (!slot) return;
     const sx = e.x, sy = e.y + (e.flies ? -0.6 : 1.1), sz = e.z;
-    const dx = player.x - sx, dy = (player.y + 0.9) - sy, dz = player.z - sz;
+    // Aim at the war target if there is one (an enemy mob), otherwise at you.
+    const tx = target ? target.x : player.x;
+    const ty = target ? (target.y + 0.6) : (player.y + 0.9);
+    const tz = target ? target.z : player.z;
+    const dx = tx - sx, dy = ty - sy, dz = tz - sz;
     const d = Math.hypot(dx, dy, dz) || 1;
     slot.active = true;
     slot.x = sx; slot.y = sy; slot.z = sz;
@@ -969,6 +978,8 @@ export class Mobs {
     // Scales with tier like everything else, but off the BALL's base rather than the
     // caster's melee damage — a fireball is its own attack, not a reskinned bite.
     slot.dmg = MOB.ballDamage * (1 + MOB.damagePerRing * e.ring);
+    slot.war = !!target;          // a war shot hits enemy mobs; a normal shot hits you
+    slot.faction = e.faction;
     slot.mesh.visible = true;
     slot.mesh.position.set(sx, sy, sz);
     sfx.cast(sx, sz);
@@ -1011,9 +1022,21 @@ export class Mobs {
       b.t -= dt;
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
 
-      const hitPlayer = Math.hypot(player.x - b.x, (player.y + 0.9) - b.y, player.z - b.z)
-        < MOB.ballRadius + PLAYER.radius;
-      if (hitPlayer && player.iframes <= 0) {
+      if (b.war) {
+        // A war shot: strikes the first enemy-faction mob it touches. No player reward.
+        let hit = null;
+        for (const o of nearby(b.x, b.z, MOB.ballRadius + MOB.radius)) {
+          if (o.kind !== "mob" || o.hp <= 0 || o.faction === b.faction) continue;
+          if (Math.hypot(o.x - b.x, (o.y + 0.6) - b.y, o.z - b.z) < MOB.ballRadius + MOB.radius) { hit = o; break; }
+        }
+        if (hit) {
+          this.hitMob(hit, b.dmg);
+          sfx.explosion(b.x, b.z, 0.4);
+          b.active = false; b.mesh.visible = false;
+          continue;
+        }
+      } else if (Math.hypot(player.x - b.x, (player.y + 0.9) - b.y, player.z - b.z)
+          < MOB.ballRadius + PLAYER.radius && player.iframes <= 0) {
         onPlayerHit?.({ damage: b.dmg, x: b.x, z: b.z });
         sfx.explosion(b.x, b.z, 0.4);
         b.active = false; b.mesh.visible = false;
