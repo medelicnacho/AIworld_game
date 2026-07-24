@@ -1,76 +1,104 @@
-// The soundtrack: a continuous PLAYLIST of three streamed tracks — war1, war2, radio — that
-// plays on a loop the whole session. Each finishes and the next begins; when the last ends it
-// wraps to the first. Streamed through one <audio> element rather than decoded into WebAudio,
-// because they're multi-megabyte files and this starts playback immediately.
+// Place-based soundtrack: two channels that both stream the whole time, and only their VOLUMES
+// crossfade as you cross a gate — so neither restarts from the top when you step in or out.
+//
+//   OUTSIDE the city — a PLAYLIST of the action tracks (war 1, war 2, radio) played one after
+//                      another and looped, so the frontier has a rotating score.
+//   INSIDE the city  — the one chill town track, looped.
+//
+// (To change which songs go where, edit WORLD_PLAYLIST / TOWN_TRACK below.)
 
-// The full soundtrack, played on a loop: each track finishes and the next begins, wrapping
-// forever. So you hear ALL of them over time, not just the first — war 1, then Killer Space
-// Tuna, then war 2, then the radio, then back to war 1.
-const PLAYLIST = [
-  "/audio/warsound.mp3",         // war 1 — the battle song
-  "/audio/killerspacetuna.mp3",  // Killer Space Tuna
-  "/audio/warsound2.mp3",        // war 2
-  "/audio/radio.mp3",            // the radio
+const WORLD_PLAYLIST = [
+  "/audio/warsound.mp3",   // war 1
+  "/audio/warsound2.mp3",  // war 2
+  "/audio/radio.mp3",      // radio
 ];
+const TOWN_TRACK = "/audio/chillax.mp3";   // the city track we had
+
 const VOLUME = 0.3;        // background, under the sound effects
+const CROSS_MS = 1100;     // gate crossings
 
 export class Music {
   constructor(volume = VOLUME) {
     this.volume = volume;
     this.muted = false;
     this.started = false;
+    this.where = "world";
     this.idx = 0;
-    this.el = new Audio(PLAYLIST[0]);
-    this.el.preload = "auto";
-    this.el.volume = this.volume;
-    // When one track finishes, roll straight into the next — the whole point of a playlist.
-    this.el.addEventListener("ended", () => this.advance());
-    // A bad/slow track shouldn't kill the whole soundtrack — skip to the next.
-    this.el.addEventListener("error", () => { if (this.started) this.advance(); });
+
+    // The frontier channel is a playlist: advance on end, wrap forever.
+    this.world = new Audio(WORLD_PLAYLIST[0]);
+    this.world.volume = 0;
+    this.world.addEventListener("ended", () => this.advanceWorld());
+    this.world.addEventListener("error", () => { if (this.started) this.advanceWorld(); });
+
+    // The city channel is a single looping track.
+    this.town = new Audio(TOWN_TRACK);
+    this.town.loop = true;
+    this.town.volume = 0;
   }
 
-  advance() {
-    this.idx = (this.idx + 1) % PLAYLIST.length;
-    this.el.src = PLAYLIST[this.idx];
-    this.el.load();          // fetch the new track before we ask it to play
-    this.play();
+  advanceWorld() {
+    this.idx = (this.idx + 1) % WORLD_PLAYLIST.length;
+    this.world.src = WORLD_PLAYLIST[this.idx];
+    this.world.load();
+    if (this.started && !this.muted) this.world.play().catch(() => {});
   }
 
-  /** The one place a real play() happens — only when it SHOULD be sounding, so redundant
-   *  callers can't abort each other's promise and leave the track playing silently. */
-  play() {
+  /** Make sure both channels are STREAMING when they should be. Volume decides what's heard;
+   *  playing both keeps their positions warm and lets the world playlist keep advancing. */
+  ensurePlaying() {
     if (!this.started || this.muted) return;
-    this.el.volume = this.volume;         // set DIRECTLY, never via a promise that may abort
-    if (this.el.paused) {
-      this.el.play().catch((e) => console.warn("[music] play blocked:", e?.name || e));
+    for (const el of [this.world, this.town]) {
+      if (el.paused) el.play().catch((e) => console.warn("[music] play blocked:", e?.name || e));
     }
   }
 
-  /** Call from a user gesture (pointer lock). Safe to call repeatedly. */
+  /** Call from a user gesture (pointer lock, or any click/key). Idempotent. */
   start() {
-    if (this.started) return;
-    this.started = true;
-    this.play();
+    if (!this.started) this.started = true;
+    this.ensurePlaying();
+    this.applyVolumes(0);
   }
 
-  /** Kept for the caller's sake — the playlist plays the same everywhere now. */
-  setPlace() {}
+  setPlace(where) {
+    if (where === this.where) return;
+    this.where = where;
+    this.applyVolumes();
+  }
+
+  /** Fade each channel toward the volume its place deserves right now. */
+  applyVolumes(ms = CROSS_MS) {
+    const live = this.started && !this.muted;
+    this.fade(this.world, live && this.where === "world" ? this.volume : 0, ms);
+    this.fade(this.town, live && this.where === "town" ? this.volume : 0, ms);
+  }
 
   setPaused(paused) {
     if (!this.started) return;
-    if (paused) this.el.pause();
-    else this.play();
+    if (paused) { this.world.pause(); this.town.pause(); }
+    else { this.ensurePlaying(); this.applyVolumes(0); }
   }
 
   /** Explicit pause/resume for the death screen. */
-  pause() { this.el.pause(); }
-  resume() { this.play(); }
+  pause() { this.world.pause(); this.town.pause(); }
+  resume() { this.ensurePlaying(); this.applyVolumes(0); }
 
   toggle() {
     this.muted = !this.muted;
-    if (this.muted) this.el.pause();
-    else if (this.started) this.play();
-    else this.start();
+    if (this.muted) { this.world.pause(); this.town.pause(); }
+    else { this.started = true; this.ensurePlaying(); this.applyVolumes(0); }
     return !this.muted;
+  }
+
+  fade(el, target, ms) {
+    const from = el.volume;
+    const t0 = performance.now();
+    clearInterval(el._fade);
+    if (ms <= 0) { el.volume = target; return; }
+    el._fade = setInterval(() => {
+      const t = Math.min(1, (performance.now() - t0) / ms);
+      el.volume = Math.max(0, Math.min(1, from + (target - from) * t));
+      if (t >= 1) clearInterval(el._fade);
+    }, 33);
   }
 }
