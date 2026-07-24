@@ -84,7 +84,8 @@ export class Mobs {
     ];
     this.COL_CASTER = new THREE.Color(0xd11f1f);   // red: airborne ranged
     this.COL_GROUNDCASTER = new THREE.Color(0x8a3fd1);   // violet: ranged, but grounded
-    this.COL_CHARGING = new THREE.Color(0xff8a3c);  // hot while winding up — the telegraph
+    // (The wind-up telegraph is a JUDDER now, not a colour — see render(). This is left as a
+    // named colour in case a future tell wants it, but nothing reads it today.)
     this.COL_CHARGER = new THREE.Color(0x6b4a2a);   // heavy brown: it comes at you
     this.COL_SWARM = new THREE.Color(0xc3d94a);     // pale: many, small, brief
     this.COL_HURT = new THREE.Color(0xff6655);
@@ -195,9 +196,9 @@ export class Mobs {
    */
   colorOf(e, now) {
     if (e.hurtT > 0) return this.COL_HURT;
-    // Winding up to charge uses the SAME hot tell as a caster's wind-up: one colour for
-    // "something is about to happen", learned once and read everywhere.
-    if (e.castT > 0 || e.windT > 0) return this.COL_CHARGING;
+    // The wind-up telegraph is a VIBRATION now (see render()), not a colour swap — so a
+    // caster or charger keeps its faction colour the whole time and you never lose track of
+    // whose side it is on while it is about to fire.
     const n = e.affixes?.length || 0;
     if (n === 1) return this.affixColor(e.affixes[0]);
     if (n > 1) {
@@ -235,7 +236,17 @@ export class Mobs {
       if (i >= mesh.instanceMatrix.count) continue;   // that shape's buffer is full
       const sc = (e.elite ? MOB.eliteScale : 1) * (e.scale || 1);
       this._q.setFromAxisAngle(this._up, e.facing ?? e.heading ?? 0);
-      this._m.compose(this._p.set(e.x, e.y, e.z), this._q, this._s.set(sc, sc, sc));
+      // THE WIND-UP TELEGRAPH: a fast side-to-side JUDDER while a caster is charging a shot or
+      // a charger is coiling, instead of a colour change. A shake reads as "tense, about to
+      // release" and keeps the body's colour intact. Perpendicular to its facing, at ~14Hz,
+      // with a per-mob phase so a whole pack does not quiver in lockstep.
+      let vx = e.x, vz = e.z;
+      if (e.castT > 0 || e.windT > 0) {
+        const shake = Math.sin(now * 0.09 + (e.wobble || 0) * 7) * 0.14;
+        vx += Math.cos(e.facing ?? 0) * shake;      // sideways relative to where it faces
+        vz += -Math.sin(e.facing ?? 0) * shake;
+      }
+      this._m.compose(this._p.set(vx, e.y, vz), this._q, this._s.set(sc, sc, sc));
       mesh.setMatrixAt(i, this._m);
       mesh.setColorAt(i, this.colorOf(e, now));
       idx[shape] = i + 1;
