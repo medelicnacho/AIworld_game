@@ -320,7 +320,7 @@ export class Mobs {
       facing: 0,
       scale: 1,
       swarm: false,
-      windT: 0, rushT: 0, recoverT: 0, rushX: 0, rushZ: 0,
+      windT: 0, rushT: 0, recoverT: 0, rushX: 0, rushZ: 0, rushVoice: null,
       kx: 0, kz: 0, kT: 0,
       castT: 0, castCd: 1.5 + this.rng() * MOB.castCd,
       slowT: 0, slowMul: 1, rootT: 0,     // crowd control from player spells
@@ -447,6 +447,13 @@ export class Mobs {
   }
 
   despawn(id) {
+    // Kill any sound the body was still making. Shooting a charger out of the air mid-run is
+    // the most satisfying thing you can do to one, and it has to be silent the instant it
+    // dies — a rumble still rolling from something that is no longer there would send you
+    // dodging away from nothing. Every removal path funnels through here, so this is the one
+    // place that has to remember: dying, despawning, and wandering off are all covered.
+    const e = world.entities.get(id);
+    if (e?.rushVoice) { e.rushVoice.stop(); e.rushVoice = null; }
     removeEntity(id);   // the instance buffer is rebuilt each frame; nothing to free
   }
 
@@ -697,6 +704,12 @@ export class Mobs {
       if (e.slowT > 0) e.slowT -= dt;
       if (e.rootT > 0) e.rootT -= dt;
       if (e.flies) e.wobble += dt;       // the hover bob, independent of any wandering
+      // ONE INVARIANT, checked in one place: a charge sound belongs to a charge in progress.
+      // A run can be broken off by a dozen things — knockback, a root, losing you at the
+      // sanctuary line, being leashed home — and most of them skip the charger branch below
+      // entirely. Rather than remembering to stop the sound in every one of those, state the
+      // rule once here and let every interruption obey it for free.
+      if (e.rushVoice && e.rushT <= 0) { e.rushVoice.stop(); e.rushVoice = null; }
       if (e.affixes.length) runAffix(e, "onTick", dt, this.fx);
 
       const ux = dx / dist, uz = dz / dist;
@@ -837,16 +850,30 @@ export class Mobs {
           const nx = e.x + e.rushX * MOB.chargeSpeed * dt;
           const nz = e.z + e.rushZ * MOB.chargeSpeed * dt;
           if (!sanctuaryOf(nx, nz, 1.5)) { e.x = nx; e.z = nz; }
+          // Re-aim the rumble at the BODY every step. It crosses most of the gap between you
+          // while it runs, and the whole point of the sound is to answer "where is it now"
+          // while you are turned away mid-dodge.
+          e.rushVoice?.move(e.x, e.z);
           if (dist < MOB.attackRange * 1.3 && player.iframes <= 0) {
             onPlayerHit?.({ damage: e.damage * MOB.chargeDamage, x: e.x, z: e.z });
             runAffix(e, "onHitPlayer", this.fx);
             e.rushT = 0;
           }
-          if (e.rushT <= 0) e.recoverT = MOB.chargeRecover;
+          // Covers BOTH endings — running out of momentum and connecting with you. The sound
+          // has to die with the threat; one that lingers is the game lying about where danger
+          // is, and that costs more than having no cue at all.
+          if (e.rushT <= 0) {
+            e.recoverT = MOB.chargeRecover;
+            e.rushVoice?.stop();
+            e.rushVoice = null;
+          }
         } else {
           e.windT -= dt;                        // rooted, glowing
           e.rushX = ux; e.rushZ = uz;           // aim updates until the instant it goes
-          if (e.windT <= 0) e.rushT = MOB.chargeTime;
+          if (e.windT <= 0) {
+            e.rushT = MOB.chargeTime;
+            e.rushVoice = sfx.chargeRush(e.x, e.z, MOB.chargeTime + 0.5);
+          }
         }
         e.y = this.restY(e);
         reindex(e);
@@ -914,6 +941,10 @@ export class Mobs {
         if (!foe && e.charger && e.atkCd <= 0 && dist > MOB.attackRange * 2.5 && dist < MOB.chargeRange) {
           e.windT = MOB.chargeWind;
           e.atkCd = MOB.attackCd * 2.2;
+          // The wind-up is the only warning you get before the one attack that can reach you
+          // from off screen. The glow only works if you happen to be looking at it; the sound
+          // works wherever you are facing, which is the whole reason it exists.
+          sfx.chargeWind(e.x, e.z, MOB.chargeWind);
         } else if (!foe && e.bold && dist <= MOB.attackRange * 1.7 && e.atkCd <= 0) {
           // No lunge at a guard: a lunge writes position directly and would shove the mob
           // straight through the line. Damage to guards comes from PRESSING them — the

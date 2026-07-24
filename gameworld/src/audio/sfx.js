@@ -100,6 +100,31 @@ export class Sfx {
     return { input: g, gain: falloff };
   }
 
+  /**
+   * A MOVING sound source. place() takes a snapshot of where something is, which is right
+   * for a bang and wrong for anything that travels: a charger crosses most of the ground
+   * between you while it is charging, so a fixed pan would keep insisting it is where it
+   * started — at exactly the moment you are sidestepping, looking elsewhere, and trusting
+   * your ears. Returns a handle whose distance and pan can be re-aimed every frame.
+   */
+  tracker(reach = MAX_DIST) {
+    const dist = this.ctx.createGain();
+    const pan = this.ctx.createStereoPanner();
+    dist.connect(pan);
+    pan.connect(this.master);
+    const set = (x, z) => {
+      const dx = x - player.x, dz = z - player.z;
+      const d = Math.hypot(dx, dz);
+      const rx = Math.cos(player.yaw), rz = -Math.sin(player.yaw);
+      const inv = 1 / (d || 1);
+      pan.pan.value = Math.max(-1, Math.min(1, dx * inv * rx + dz * inv * rz));
+      const g = Math.max(0, 1 - d / reach) ** 2;
+      dist.gain.value = g;
+      return g;
+    };
+    return { input: dist, set };
+  }
+
   /** Soft-clip curve — what makes a roar sound like a throat instead of a sine. */
   distortion(amount = 40) {
     const ws = this.ctx.createWaveShaper();
@@ -261,6 +286,135 @@ export class Sfx {
     ag.gain.exponentialRampToValueAtTime(0.25, t + dur * 0.9);
     air.connect(bp); bp.connect(ag); ag.connect(trem);
     air.start(t); air.stop(t + dur);
+  }
+
+  /**
+   * A charger COILING — the wind-up, while it is rooted and glowing.
+   *
+   * This is the fairness cue for the one attack in the game that can kill you from off
+   * screen. It has to answer two questions at once: something is about to commit, and it is
+   * over THERE. Everything else follows from that.
+   *
+   * Deliberately NOT built from the same parts as the boss's volley cue. That one is a
+   * machine alarm — high, thin, accelerating — and it means "get off this ground". This one
+   * means "get out of this line", which is a completely different answer, so it is a throat
+   * and a pair of feet instead: low, gritty, no tremolo. Two warnings that demand different
+   * reactions must never share a timbre, or players learn the wrong response to one of them.
+   *
+   * It SWELLS to peak at the instant of release, so you can hear how long you have rather
+   * than merely that danger exists. A warning with no timing in it is only half a warning.
+   */
+  chargeWind(x, z, dur = 0.75) {
+    if (!this.on || !this.budget(1, 400)) return;
+    const t = this.t;
+    const { input, gain } = this.place(x, z, 95);
+    if (gain <= 0.001) return;                 // too far to matter; don't clutter the mix
+
+    const out = this.ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(gain * 0.85, t + dur * 0.95);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.06);
+    out.connect(input);
+
+    // The growl: a rev, climbing as power is wound up behind it.
+    for (const [f0, f1, g] of [[52, 104, 0.34], [78, 157, 0.15]]) {
+      const o = this.ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      const og = this.ctx.createGain();
+      og.gain.value = g;
+      const dist = this.distortion(55);
+      o.connect(dist); dist.connect(og); og.connect(out);
+      o.start(t); o.stop(t + dur + 0.1);
+    }
+
+    // Grit underneath — feet planting and scraping. It sweeps DOWN while the growl climbs,
+    // so the two pull apart and the whole thing reads as something coiling rather than
+    // simply getting louder.
+    const scrape = this.noise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.setValueAtTime(1700, t);
+    bp.frequency.exponentialRampToValueAtTime(430, t + dur);
+    bp.Q.value = 1.4;
+    const sg = this.ctx.createGain();
+    sg.gain.value = 0.28;
+    scrape.connect(bp); bp.connect(sg); sg.connect(out);
+    scrape.start(t); scrape.stop(t + dur + 0.1);
+  }
+
+  /**
+   * A charger COMMITTED — the sustained rumble while it actually runs at you.
+   *
+   * The warning already happened; this sound has a different job. You will be looking away
+   * and moving, so its only purpose is to keep answering WHERE, continuously, until the
+   * threat is over. Hence the tracker: it follows the body rather than marking the spot the
+   * body left.
+   *
+   * Returns a handle that MUST be stopped when the charge ends. A rumble that outlives the
+   * thing making it is worse than no sound at all — it is the game lying about where danger
+   * is, and a player who stops trusting the audio has lost the cue entirely.
+   */
+  chargeRush(x, z, maxDur = 3) {
+    if (!this.on) return null;
+    // A hard cap on how many can sound at once. In a deep pack several may commit together,
+    // and past a few overlapping rumbles you cannot tell them apart anyway — at which point
+    // they stop being information and become mud.
+    this._rushVoices = this._rushVoices || 0;
+    if (this._rushVoices >= 4) return null;
+    this._rushVoices++;
+
+    const t = this.t;
+    const trk = this.tracker(95);
+    trk.set(x, z);
+
+    const out = this.ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.5, t + 0.05);   // no fade-in: it is already going
+    out.connect(trk.input);
+
+    const parts = [];
+    // Mass in motion — two very low saws beating against each other through a hard clip.
+    for (const [f, g] of [[41, 0.42], [61.5, 0.2]]) {
+      const o = this.ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = f;
+      const og = this.ctx.createGain();
+      og.gain.value = g;
+      const dist = this.distortion(38);
+      o.connect(dist); dist.connect(og); og.connect(out);
+      o.start(t);
+      parts.push(o);
+    }
+    // Air being shoved out of the way, so it reads as something travelling rather than as
+    // an engine idling in place.
+    const air = this.noise();
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 900;
+    const ag = this.ctx.createGain();
+    ag.gain.value = 0.3;
+    air.connect(lp); lp.connect(ag); ag.connect(out);
+    air.start(t);
+    parts.push(air);
+
+    let done = false;
+    const stop = () => {
+      if (done) return;                       // idempotent: the caller may stop it twice
+      done = true;
+      this._rushVoices = Math.max(0, this._rushVoices - 1);
+      const n = this.t;
+      out.gain.cancelScheduledValues(n);
+      out.gain.setValueAtTime(Math.max(0.0001, out.gain.value), n);
+      out.gain.exponentialRampToValueAtTime(0.0001, n + 0.09);
+      for (const o of parts) { try { o.stop(n + 0.12); } catch { /* already stopped */ } }
+    };
+    // A backstop, in case the body carrying this is removed by a path that forgets to stop
+    // it. Better a rumble that ends early than one that never ends.
+    setTimeout(stop, maxDur * 1000);
+
+    return { move: (nx, nz) => trk.set(nx, nz), stop };
   }
 
   /** Meteor impacts and grenades. `size` scales the length and the low thump. */
