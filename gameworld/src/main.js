@@ -36,7 +36,7 @@ import { Heal } from "./player/heal.js";
 import { Abilities, SLOTS, SLOT_KEYS } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
-import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, levelForTier, xpLevelMult } from "./prog/xp.js";
+import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, xpLevelMult } from "./prog/xp.js";
 import { mulberry32 } from "./rng.js";
 
 const FIXED_DT = 1 / 60;
@@ -863,7 +863,7 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
   const d = Math.hypot(dx, dz) || 1;
   player.vx += (dx / d) * knock;
   player.vz += (dz / d) * knock;
-  if (player.hp <= 0) respawn();
+  if (player.hp <= 0 && !dead) onDeath();
 }
 
 const hurtPlayer = (mob) => damagePlayer(mob.damage, mob.x, mob.z);
@@ -947,15 +947,29 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
   }
 }
 
-function respawn() {
-  // D9: death costs your top level. Not the run, not your gear — one level, and you land
-  // halfway to earning it back, so the loss stings without erasing the walk that bought it.
-  const lost = loseLevel();
+const deathSound = new Audio("/audio/popsound.mp3");
+const deathSubEl = document.getElementById("death-sub");
 
+// Death is now a SCREEN, not an instant teleport: the pop sound plays, the music stops, and
+// the game holds on a "Respawn" button until you press it. D9's level loss lands here, so the
+// screen can tell you about it.
+function onDeath() {
+  if (dead) return;
+  dead = true;
+  const lost = loseLevel();
+  document.body.classList.add("dead");
+  music.pause();
+  deathSound.currentTime = 0;
+  deathSound.play().catch(() => {});
+  if (document.pointerLockElement) document.exitPointerLock();
+  deathSubEl.textContent = lost
+    ? `You slipped to level ${player.level}. Respawn at the nearest safe town.`
+    : "Respawn at the nearest safe town.";
+}
+
+function doRespawn() {
   // You wake in the great city of the ring you fell in — but only as deep as your LEVEL
-  // entitles you to. Dying at tier 5 while under-levelled would otherwise be a free
-  // teleport past everything you skipped, and the walk back out is the thing that makes
-  // the frontier feel earned rather than handed over.
+  // entitles you to, so dying deep while under-levelled isn't a free teleport past everything.
   const diedIn = tierAt(player.x, player.z);
   const allowed = respawnTierFor(player.level);
   const wokeIn = Math.min(diedIn, allowed);
@@ -969,16 +983,16 @@ function respawn() {
   } else {
     spawnPlayer();
   }
-
   player.hp = player.maxHp;
   player.iframes = 1.5;                 // grace on arrival, so you can't be spawn-camped
-  const where = home?.city ? "the city" : "town";
-  killFeed = `you died${lost ? `  ▼ LEVEL ${player.level}` : ""}  · woke in ${where}`
-    + (wokeIn < diedIn
-      ? `, carried back to ${RINGS[Math.min(wokeIn, RINGS.length - 1)].name}`
-        + ` (tier ${diedIn} wants level ${levelForTier(diedIn)})`
-      : "");
+  killFeed = `woke in ${home?.city ? "the city" : "town"}`
+    + (wokeIn < diedIn ? `, carried back to ${RINGS[Math.min(wokeIn, RINGS.length - 1)].name}` : "");
+  dead = false;
+  document.body.classList.remove("dead");
+  music.resume();
+  resumeFromShop();                     // resume the world and chase the pointer lock back
 }
+document.getElementById("respawn-btn").addEventListener("click", doRespawn);
 
 // Start INSIDE the spawn town, not on the bare plain outside it — the first thing you see is
 // the place you'll come back to, and you're safe while you find your feet.
@@ -1033,6 +1047,7 @@ attachInput(renderer.domElement, {
   onUnlock: () => {
     // Belt and braces for the same collision: ignore an unlock that lands in the moment
     // after a deliberate resume, so a stray release can never re-pause what we just resumed.
+    if (dead) return;                   // death owns the pause; the button resumes
     if (performance.now() - resumedAt < 900) return;
     setPaused(true);
   },
@@ -1048,7 +1063,7 @@ addEventListener("resize", () => {
 });
 
 const clickEl = document.getElementById("click");
-let paused = true, everPlayed = false, inSafe = false;
+let paused = true, everPlayed = false, inSafe = false, dead = false;
 // Time left before regen resumes. Dealing damage counts as fighting, not just taking it.
 let combatT = 0, hunted = false;
 const markCombat = () => { combatT = REGEN.delay; };
@@ -1125,7 +1140,7 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, MAX_CATCHUP);
   last = now;    // updated even while paused, so resuming never simulates the gap
 
-  if (paused) {
+  if (paused || dead) {
     renderer.render(scene, camera);
     return;
   }

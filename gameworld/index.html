@@ -114,6 +114,20 @@
         #shop .col.sellcol { border-left: 0; border-top: 1px solid #222c3e; } }
       body.shopping #click { display: none; }
       body.inv #click { display: none; }
+      body.dead #click { display: none; }
+      /* Death screen — a dark takeover with the one action: respawn. */
+      #death { position: absolute; inset: 0; display: none; place-content: center;
+        pointer-events: auto; background: #06080cd8;
+        font: ui-sans-serif, system-ui, sans-serif; text-align: center; }
+      body.dead #death { display: grid; }
+      #death .dpanel { padding: 30px 40px; }
+      #death h1 { margin: 0; font-size: 46px; font-weight: 800; letter-spacing: .12em;
+        color: #ff5a4a; text-shadow: 0 4px 20px #000, 0 0 30px #ff2a1a55; }
+      #death #death-sub { margin: 10px 0 26px; color: #b9c6dc; font-size: 14px; max-width: 420px; }
+      #death #respawn-btn { background: #2b3a55; border: 1px solid #56709e; color: #eaf2ff;
+        border-radius: 8px; padding: 13px 26px; font: inherit; font-size: 16px; font-weight: 600;
+        cursor: pointer; box-shadow: 0 8px 30px #000a; }
+      #death #respawn-btn:hover { background: #35507d; border-color: #7fa0d6; }
 
       #inv { position: absolute; inset: 0; display: none; place-content: center;
         pointer-events: auto; font: 13px/1.5 ui-sans-serif, system-ui, sans-serif; }
@@ -315,6 +329,13 @@
          and the shop is the one overlay that must receive them. -->
     <div id="shop"></div>
     <div id="inv"></div>
+    <div id="death">
+      <div class="dpanel">
+        <h1>YOU DIED</h1>
+        <p id="death-sub"></p>
+        <button id="respawn-btn">Respawn in nearest safe zone</button>
+      </div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
