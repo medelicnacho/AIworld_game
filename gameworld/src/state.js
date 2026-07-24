@@ -54,6 +54,9 @@ export const player = {
   rHaste: 0, rAtkSpeed: 0, rReload: 0, graceMitigation: 0, sprintT: 0,
   haste: 0, hasteFire: 1, hasteCd: 1, hasteCast: 1, gearSpeed: 0, gearReload: 0,
   dashRank: 0, dashMult: 1, upgrades: {},
+  // FACTION. null while unaligned, which is a supported way to play forever — you simply
+  // have no ladder. `rep` is standing with the faction you are in NOW; switching zeroes it.
+  faction: null, rep: 0,
 };
 
 export function spawnPlayer() {

@@ -12,6 +12,8 @@ import { player } from "../state.js";
 import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, WEAPONS, ARMOR, STAT_INFO, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "../config.js";
 import { tierAt } from "../world/gen.js";
 import { sellValue, sortBag } from "../prog/gear.js";
+import { factionById, repProgress, stockFor, lockedFor, REP_TIERS, repForTurnIn, join, JOIN_LEVEL }
+  from "../prog/factions.js";
 import { sfx } from "../audio/sfx.js";
 
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
@@ -221,6 +223,22 @@ export class Shop {
     this.el.addEventListener("click", (e) => {
       const id = e.target?.closest?.("[data-buy]")?.dataset?.buy;
       if (id) { this.buy(id); return; }
+      const joinId = e.target?.closest?.("[data-join]")?.dataset?.join;
+      if (joinId) {
+        if (join(joinId)) { sfx.levelUp(); this.flash = `you ride with ${factionById(joinId).name}`; }
+        this.render();
+        return;
+      }
+      const facId = e.target?.closest?.("[data-buyfac]")?.dataset?.buyfac;
+      if (facId) { this.buyFaction(facId); return; }
+      const turnUid = e.target?.closest?.("[data-turnin]")?.dataset?.turnin;
+      if (turnUid) {
+        const got = this.game.turnIn?.(turnUid) || 0;
+        if (got) sfx.sell();
+        this.flash = got ? `handed in — +${got} standing` : "";
+        this.render();
+        return;
+      }
       const sellId = e.target?.closest?.("[data-sell]")?.dataset?.sell;
       if (sellId) {
         const got = this.game.sellGear?.(sellId);
@@ -375,8 +393,146 @@ export class Shop {
     this.render();
   }
 
+  /**
+   * THE QUARTERMASTER. A different panel from the ordinary vendor, because they answer a
+   * different question — not "what do you want to buy" but "whose side are you on".
+   *
+   * Three states, and each one is a different screen:
+   *   unaligned      an offer to join, and what joining would mean
+   *   this is yours  the ladder, the stock you have earned, and the turn-in desk
+   *   a rival's      a refusal. Cold, not hostile: you are standing safely in their town and
+   *                  they simply will not deal with you. That refusal IS the cost of having
+   *                  chosen, so it should be plain rather than hidden behind an empty list.
+   */
+  quartermasterHtml(fid) {
+    const f = factionById(fid);
+    const mine = player.faction;
+    const rep = player.rep || 0;
+
+    if (!mine && player.level < JOIN_LEVEL) {
+      return `
+        <div class="qm">
+          <p class="qmlead" style="color:${f.color}">${f.name} does not know you yet.</p>
+          <p class="qmblurb">${f.blurb}</p>
+          <p class="qmnote">Come back at <b>level ${JOIN_LEVEL}</b>. Choosing a side is the
+            first thing in this world you cannot undo cheaply, and it is worth understanding
+            what you are choosing between first.</p>
+        </div>`;
+    }
+
+    if (!mine) {
+      return `
+        <div class="qm">
+          <p class="qmlead" style="color:${f.color}">${f.name} will take you in.</p>
+          <p class="qmblurb">${f.blurb}</p>
+          <p class="qmnote">Their quarrel is with one of the three warring camps out there.
+            Once you join, <b>only that colour earns you standing</b> — you will start reading
+            camps before you fight them.</p>
+          <p class="qmnote">Their kit unlocks as you climb, and every piece still has to be
+            paid for. You may join one of the three. The other two will stay safe ground and
+            keep their gear to themselves.</p>
+          <button class="join" data-join="${f.id}" style="border-color:${f.color}">
+            Join ${f.name}
+          </button>
+        </div>`;
+    }
+
+    if (mine !== fid) {
+      const own = factionById(mine);
+      return `
+        <div class="qm">
+          <p class="qmlead" style="color:${f.color}">${f.name} has nothing for you.</p>
+          <p class="qmblurb">You wear ${own?.name || "another"}'s colours. You are welcome to
+            rest here and buy what any traveller can — but their kit is not for sale to you.</p>
+          <p class="qmnote">You can change sides at any of their quarters. You would keep
+            every item you own and lose every point of standing you have earned.</p>
+        </div>`;
+    }
+
+    const pr = repProgress(rep);
+    const stock = stockFor(fid, rep);
+    const locked = lockedFor(fid, rep);
+    const bar = Math.round(pr.frac * 24);
+
+    const row = (p, buyable) => `
+      <button class="item${buyable ? (player.points >= p.price ? "" : " poor") : " locked"}"
+              ${buyable ? `data-buyfac="${p.id}"` : "disabled"}>
+        <span class="nm" style="color:${buyable ? "#ffc03a" : "#7d8798"}">${p.name}</span>
+        <span class="ds">${statLine(p.stats)}</span>
+        <span class="pr">${buyable ? p.price : REP_TIERS[p.repTier].name}</span>
+      </button>`;
+
+    return `
+      <div class="qm">
+        <div class="repbar">
+          <span class="reptier" style="color:${f.color}">${pr.name}</span>
+          <span class="reptrack">${"█".repeat(bar)}${"░".repeat(24 - bar)}</span>
+          <span class="repnum">${pr.need ? `${rep} / ${pr.need} → ${pr.nextName}` : `${rep} · highest`}</span>
+        </div>
+        <div class="items">${stock.map((p) => row(p, true)).join("")}</div>
+        ${locked.length ? `<h3>Earned at ${REP_TIERS[locked[0].repTier].name}</h3>
+          <div class="items">${locked.map((p) => row(p, false)).join("")}</div>` : ""}
+      </div>`;
+  }
+
+  /**
+   * Buy a piece of faction kit. Reputation decided you were ALLOWED to; points are the price,
+   * and it is heavy. Neither can stand in for the other — that pairing is the whole reason
+   * points mean anything again.
+   */
+  buyFaction(id) {
+    const p = stockFor(player.faction, player.rep || 0).find((x) => x.id === id);
+    if (!p) return;
+    if (player.points < p.price) { this.flash = "not enough points"; this.render(); return; }
+    player.points -= p.price;
+    this.game.giveFactionGear?.(p);
+    this.flash = `bought ${p.name}`;
+    this.render();
+  }
+
   render() {
     if (!this.vendor) return;
+    // A quartermaster gets their own panel entirely — see quartermasterHtml.
+    const fid = this.vendor.role.faction;
+    if (fid) {
+      const bag = sortBag(player.ownedGear);
+      const mine = player.faction === fid;
+      // The TURN-IN desk. Your bag fills with pieces you will never wear, and selling them
+      // gives points that stop mattering the moment you have enough. Handing them to your own
+      // faction turns dead weight into progress instead — which is also why a drop is never
+      // wasted, even when it is worse than what you have on.
+      const turnRows = mine && bag.length
+        ? bag.map((p) => {
+          const worth = repForTurnIn(p);
+          return `
+            <button class="sellitem ${worth ? "" : "off"}" ${worth ? `data-turnin="${p.uid}"` : "disabled"}
+                    style="border-color:${p.color}" title="${statLine(p.stats)}">
+              <span class="nm" style="color:${p.color}">${p.name}</span>
+              <span class="tr">T${p.tier ?? 0}</span>
+              <span class="pr">${worth ? `+${worth}` : "—"}</span>
+            </button>`;
+        }).join("")
+        : `<p class="empty">${mine ? "Nothing to hand in." : ""}</p>`;
+
+      this.el.innerHTML = `
+        <div class="panel wide">
+          <header>
+            <h2>${this.vendor.role.name}</h2>
+            <span class="gold">${player.points} pts</span>
+            <button class="x" data-close>✕</button>
+          </header>
+          <div class="cols">
+            <div class="col">${this.quartermasterHtml(fid)}</div>
+            ${mine ? `<div class="col sellcol">
+              <h3>Hand in for standing</h3>
+              <div class="items sellitems">${turnRows}</div>
+            </div>` : ""}
+          </div>
+          <footer>${this.flash || "Esc or ✕ to leave"}</footer>
+        </div>`;
+      this.flash = "";
+      return;
+    }
     // Stock depends on WHERE the vendor is. Deeper settlements carry the deeper wares, so
     // pushing outward buys you access as well as points.
     const tier = tierAt(this.vendor.s.x, this.vendor.s.z);

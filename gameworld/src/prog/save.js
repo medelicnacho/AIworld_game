@@ -41,6 +41,10 @@ export function snapshot(ctx) {
     points: player.points,
     potions: player.potions,
     hp: player.hp,
+    // Who you ride with, and how far up their ladder. Losing this to a reload would
+    // undo the longest commitment in the game.
+    faction: player.faction || null,
+    rep: player.rep || 0,
     x: player.x, y: player.y, z: player.z,
     yaw: player.yaw, pitch: player.pitch,
     // Stacking upgrade counters. These live on the player rather than in the gear sum, so
@@ -73,6 +77,8 @@ export function restore(data, ctx) {
   player.xp = Math.max(0, data.xp | 0);
   player.points = Math.max(0, data.points | 0);
   player.potions = Math.max(0, data.potions | 0);
+  player.faction = data.faction || null;
+  player.rep = Math.max(0, data.rep | 0);
   player.x = data.x; player.y = data.y; player.z = data.z;
   player.yaw = data.yaw || 0; player.pitch = data.pitch || 0;
   player.haste = data.haste || 0;

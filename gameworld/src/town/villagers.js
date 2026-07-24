@@ -23,7 +23,17 @@ export const ROLES = [
   { key: "smith", name: "Smith", color: 0xd8b06a },
   { key: "adept", name: "Adept", color: 0x14141c },   // black: the one who sells abilities
   { key: "keeper", name: "Keeper", color: 0x8fa6c4 },
+  // QUARTERMASTERS. One per faction, and they are the only people in the world who can take
+  // you into one or sell you its kit. A TOWN gets the one whose colour it flies; a CITY keeps
+  // all three, which is what makes cities the neutral ground you can always fall back to —
+  // and why the choice of who to join happens there.
+  { key: "qm_ash", name: "Ash Quartermaster", color: 0xe8804a, faction: "ash" },
+  { key: "qm_vale", name: "Vale Quartermaster", color: 0x5fd6b4, faction: "vale" },
+  { key: "qm_iron", name: "Iron Quartermaster", color: 0x8fa8d8, faction: "iron" },
 ];
+
+/** The three quartermaster role keys, in faction order. */
+const QM = ["qm_ash", "qm_vale", "qm_iron"];
 
 export class Villagers {
   constructor(scene, seed = 0x71DE) {
@@ -57,6 +67,10 @@ export class Villagers {
     // A city is bigger, so it holds more people AND a second set of traders — walking a
     // city to find the one adept would be a chore rather than a place.
     if (s.city) roles.push("herbalist", "smith", "adept");
+    // Whose desk is here. A city keeps all three quarters — that is what neutral ground
+    // MEANS, and it is where you go to pick a side. A town keeps only its own.
+    if (s.city) roles.push(...QM);
+    else if (s.faction !== null && s.faction !== undefined) roles.push(QM[s.faction % QM.length]);
     const want = Math.round(VILLAGE.perSanctuary * (s.r / 46));
     while (roles.length < want) roles.push("keeper");
     for (const key of roles) {
@@ -73,9 +87,11 @@ export class Villagers {
     this.built.set(s.id, folk);
   }
 
-  /** Only the ones with something to sell are worth labelling. */
+  /** Only the ones with something to sell are worth labelling. A quartermaster always is —
+   *  their stock is generated rather than listed in GOODS, and even a rival's desk is worth
+   *  finding on the map so you know whose ground you are standing on. */
   static sells(v) {
-    return (GOODS[v.role.key] || []).length > 0;
+    return !!v.role.faction || (GOODS[v.role.key] || []).length > 0;
   }
 
   update(dt) {
@@ -101,10 +117,22 @@ export class Villagers {
     this.render();
   }
 
-  /** The villager you're standing next to, if any — what the trade prompt reads. */
+  /**
+   * The nearest villager you can actually DO something with.
+   *
+   * Only traders count. Most of a town's population is keepers — they exist so a settlement
+   * reads as somewhere people live rather than a row of shops — and returning them here meant
+   * walking up to someone, pressing the trade key, and being shown a full-screen panel with
+   * nothing in it. Worse now that quartermasters exist: with ten keepers to four traders, the
+   * person you came to see was usually crowded out by someone with no reason to be spoken to.
+   *
+   * Keepers stay in the world and stay unlabelled. They are scenery, and scenery should not
+   * intercept the one key you press to get things done.
+   */
   nearest() {
     let best = null, bd = VILLAGE.talkRange;
     for (const v of this.list) {
+      if (!Villagers.sells(v)) continue;
       const d = Math.hypot(v.x - player.x, v.z - player.z);
       if (d < bd) { bd = d; best = v; }
     }

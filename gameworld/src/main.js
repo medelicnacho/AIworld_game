@@ -20,7 +20,8 @@ import { Nameplates } from "./ui/nameplates.js";
 import { HealthBars } from "./ui/healthbars.js";
 import { DamageText } from "./ui/damagetext.js";
 import { armorDR } from "./prog/stats.js";
-import { rollGear, vendorPiece, sellValue } from "./prog/gear.js";
+import { rollGear, vendorPiece, sellValue, RARITY } from "./prog/gear.js";
+import { awardRep, repForTurnIn, myFaction, repProgress } from "./prog/factions.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY, solidAt } from "./world/gen.js";
@@ -794,6 +795,28 @@ const gameCtx = {
   equipArmor: (id) => buyArmor(id),      // smith buys a fixed piece by config id
   sellGear: (uid) => sellGear(uid),      // sell one bag piece at a vendor
   sellAllCommon: () => sellAllCommon(),  // "sell all gray" button
+  // Faction kit goes to the BAG like any other purchase, so a buy shows up where you expect
+  // it and wearing it stays a separate, deliberate act.
+  giveFactionGear: (p) => {
+    bagGear({
+      uid: `fac_${p.id}_${Date.now()}`, slot: p.slot, rarity: "faction",
+      color: RARITY.faction.color, glow: RARITY.faction.glow,
+      tier: p.repTier, armor: p.armor, stats: { ...p.stats }, name: p.name,
+    });
+    sfx.equip("rare");
+  },
+  // Hand a piece to your own quartermaster: it leaves the bag and becomes standing.
+  turnIn: (uid) => {
+    const i = player.ownedGear.findIndex((g) => g.uid === uid);
+    if (i < 0) return 0;
+    const piece = player.ownedGear[i];
+    const worth = repForTurnIn(piece);
+    if (!worth) return 0;
+    player.ownedGear.splice(i, 1);
+    player.rep = (player.rep || 0) + worth;
+    recomputeGear();
+    return worth;
+  },
   onClose: () => resumeFromShop(),
 };
 
@@ -920,9 +943,13 @@ function reward(res) {
     * (res.elite ? LOOT.eliteMult : 1));
   const xp = killValue(res.ring, res.elite, player.level);
   const lv = award(xp);
+  // Standing, but only for the colour your faction is sworn against. Two thirds of what you
+  // meet pays nothing, which is exactly what makes the choice change how you play — you start
+  // reading a camp's colour before you decide whether it is worth the fight.
+  const rep = awardRep(res.faction, res.ring, res.elite);
   // Naming what you killed is half of learning to read them.
   const what = res.affixes ? `★ ${res.affixes}` : res.elite ? "★ elite" : "kill";
-  killFeed = `${what}  +${xp}xp${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
+  killFeed = `${what}  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) levelUp();
 
   // Gear drops: frequent, and a lot more from elites. A piece lands a couple of steps away
@@ -1532,6 +1559,14 @@ function frame(now) {
     // screenshots. A state you cannot observe is a state you cannot debug.
     `cam  ${rig.mode}   look ${CAMERA.sensitivity.toFixed(4)}  [ / ]   ` +
     `pitch ${(player.pitch * 180 / Math.PI).toFixed(0)}°\n` +
+    `${(() => {
+      const f = myFaction();
+      if (!f) return player.level >= 10 ? "unaligned — a quartermaster in any city will take you in\n" : "";
+      const pr = repProgress(player.rep || 0);
+      const n = Math.round(pr.frac * 10);
+      return `${f.name}  ${pr.name}  ${"▮".repeat(n)}${"▯".repeat(10 - n)}`
+        + `${pr.need ? ` ${player.rep}/${pr.need}` : " · highest"}\n`;
+    })()}` +
     `LVL ${player.level}  dmg ×${player.dmgMult.toFixed(2)}  spd ×${player.speedMult.toFixed(2)}  jmp ×${player.jumpMult.toFixed(2)}\n` +
     `    ${"▮".repeat(Math.round(levelProgress() * 12))}` +
     `${"▯".repeat(12 - Math.round(levelProgress() * 12))} ${player.xp}/${xpToNext(player.level)}xp\n` +

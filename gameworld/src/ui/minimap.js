@@ -13,6 +13,7 @@ import { RINGS } from "../config.js";
 import { player } from "../state.js";
 import { heightAt, ringAt, tierStart } from "../world/gen.js";
 import { sanctuariesNear, boundaryAt, gateArc } from "../world/sanctuary.js";
+import { servesYou } from "../prog/factions.js";
 import { Villagers } from "../town/villagers.js";
 
 const RANGE = 130;        // world units from centre to rim — UNCHANGED as the map grows, so
@@ -150,12 +151,17 @@ export class Minimap {
    * means now: that way to spend your points.
    */
   nearestTradePost() {
-    let best = null, bd = 1e9;
+    let best = null, bd = 1e9, fallback = null, fd = 1e9;
     for (const s of sanctuariesNear(player.x, player.z, 900)) {
       const d = Math.hypot(s.x - player.x, s.z - player.z);
+      if (d < fd) { fd = d; fallback = s; }
+      if (!servesYou(s)) continue;
       if (d < bd) { bd = d; best = s; }
     }
-    return best;
+    // Before you have picked a side nothing "serves you" but the cities, and very early on
+    // there may be no city at all — so fall back to the nearest settlement rather than
+    // leaving a new player with no arrow and no idea there are towns.
+    return best || fallback;
   }
 
   /**

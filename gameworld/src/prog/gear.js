@@ -31,10 +31,15 @@ export const RARITY = {
   // on the ladder. Colour is the genre's purple rather than a truly dark one because it also
   // has to stay legible as text on a dark panel; the DARKNESS lives in the glow, not the label.
   epic: { key: "epic", label: "Epic", color: "#a335ee", glow: 0x7a1fd0, nStats: 6 },
+  // FACTION gear is gold, and it is NOT epic on purpose. Purple means "the world gave me
+  // this, once, after hours" — the moment a shop sells purple that meaning is gone. Gold is a
+  // second kind of prestige earned a completely different way: purple is luck and dead
+  // bosses, gold is loyalty and a long climb. Two axes instead of one devalued one.
+  faction: { key: "faction", label: "Faction", color: "#ffc03a", glow: 0xd8a72a, nStats: 0 },
 };
 
 /** Worst to best. THE one place the ladder's order is written down. */
-export const LADDER = ["common", "uncommon", "rare", "epic"];
+export const LADDER = ["common", "uncommon", "rare", "epic", "faction"];
 
 /** How good a rarity is, as a number. Unknown rarities sort to the bottom, not the top. */
 export const rarityRank = (key) => LADDER.indexOf(key);

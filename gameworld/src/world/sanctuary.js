@@ -89,6 +89,11 @@ function build(key, x, z, radius, rng, city) {
   const corners = makeShape(rng, radius);
   return {
     id: key, x, z, r: radius, corners, city,
+    // WHOSE TOWN THIS IS. Towns fly one of the three colours; cities are neutral ground where
+    // all three keep a house, so wherever you stand there is one place that always serves
+    // you. Derived from the same seeded roll as everything else, so a town's allegiance is a
+    // fact about the world rather than something stored anywhere.
+    faction: city ? null : Math.floor(rng() * 3),
     rMin: Math.min(...corners.map((c) => c.r)),
     rMax: Math.max(...corners.map((c) => c.r)),
     gate: rng() * Math.PI * 2,

@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rollGear, sellValue, vendorPiece, RARITY, rarityRank, sortBag } from "./gear.js";
+import { rollGear, sellValue, vendorPiece, RARITY, rarityRank, sortBag, LADDER } from "./gear.js";
 import { ARMOR, ARMOR_SLOT_ORDER, DROP } from "../config.js";
 import { mulberry32 } from "../rng.js";
 
@@ -93,12 +93,20 @@ test("rollGear: deeper rings roll bigger armour on average", () => {
 test("sortBag: EVERY rarity has a rank — no rarity may sort to the bottom by omission", () => {
   // The bug this exists to prevent: the bag sorted on a hand-written rarity->score table, so
   // adding `epic` scored it zero, below grey, and every purple sank to the bottom of the bag.
-  // Checking the whole RARITY set means the next rarity added cannot repeat it.
+  // Checking the whole RARITY set means the next rarity added cannot repeat it — which is the
+  // invariant worth guarding, rather than which rarity happens to be top today. (It caught
+  // faction gear being added, did its job, and this is the corrected intent.)
   for (const key of Object.keys(RARITY)) {
     assert.ok(rarityRank(key) >= 0, `rarity "${key}" is missing from the ladder`);
   }
-  assert.equal(rarityRank("epic"), Math.max(...Object.keys(RARITY).map(rarityRank)),
-    "epic must be the top of the ladder");
+  // The ladder must be strictly ordered and hold every rarity exactly once, or two of them
+  // would tie and the bag order would depend on whatever the sort happened to do.
+  assert.equal(new Set(LADDER).size, LADDER.length, "no rarity may appear twice");
+  assert.equal(LADDER.length, Object.keys(RARITY).length,
+    "the ladder and the rarity table must describe the same set");
+  assert.ok(rarityRank("epic") > rarityRank("rare"), "purple still beats blue");
+  assert.ok(rarityRank("faction") > rarityRank("epic"),
+    "earned faction kit is the top of the bag — it is the set you spend the whole climb on");
 });
 
 test("sortBag: best at the top, worst at the bottom", () => {

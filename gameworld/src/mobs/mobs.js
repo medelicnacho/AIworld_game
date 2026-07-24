@@ -610,13 +610,15 @@ export class Mobs {
       runAffix(e, "onDeath", this.fx);
       sfx.killThud(e.x, e.z, e.elite);     // the reward note — heavier for a star
       this.deathPop(e.x, e.y, e.z, this.factionColor(e));
-      const out = { killed: true, elite: e.elite, ring: e.ring, affixes: affixLabel(e) };
+      // faction rides along so the reward path can tell whether this was the colour your
+      // side is sworn against — the kill site is the only place that still knows.
+      const out = { killed: true, elite: e.elite, ring: e.ring, faction: e.faction, affixes: affixLabel(e) };
       this.despawn(id);
       this.killed++;
       return out;
     }
     sfx.hitConfirm(e.x, e.z, weak);        // your shot LANDED — the confirm the game lacked
-    return { killed: false, elite: e.elite, ring: e.ring, affixes: affixLabel(e) };
+    return { killed: false, elite: e.elite, ring: e.ring, faction: e.faction, affixes: affixLabel(e) };
   }
 
   neighbours(e) {
