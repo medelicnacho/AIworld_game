@@ -3,12 +3,14 @@
 // wraps to the first. Streamed through one <audio> element rather than decoded into WebAudio,
 // because they're multi-megabyte files and this starts playback immediately.
 
-// The battle song and Killer Space Tuna, played BACK AND FORTH: one ends, the other begins,
-// then back again, forever. (warsound2 and radio are still in public/audio if you want them
-// added to the rotation later — just drop them in this list.)
+// The full soundtrack, played on a loop: each track finishes and the next begins, wrapping
+// forever. So you hear ALL of them over time, not just the first — war 1, then Killer Space
+// Tuna, then war 2, then the radio, then back to war 1.
 const PLAYLIST = [
-  "/audio/warsound.mp3",         // the battle song
-  "/audio/killerspacetuna.mp3",  // and back to Killer Space Tuna
+  "/audio/warsound.mp3",         // war 1 — the battle song
+  "/audio/killerspacetuna.mp3",  // Killer Space Tuna
+  "/audio/warsound2.mp3",        // war 2
+  "/audio/radio.mp3",            // the radio
 ];
 const VOLUME = 0.3;        // background, under the sound effects
 
@@ -30,6 +32,7 @@ export class Music {
   advance() {
     this.idx = (this.idx + 1) % PLAYLIST.length;
     this.el.src = PLAYLIST[this.idx];
+    this.el.load();          // fetch the new track before we ask it to play
     this.play();
   }
 
