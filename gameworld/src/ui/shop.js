@@ -335,12 +335,19 @@ export class Shop {
     }).join("");
   }
 
-  /** The piece a hovered row refers to — an armour ware, or a bag piece being sold. */
+  /** The piece a hovered row refers to — an armour ware, a bag piece, or faction kit. */
   pieceFromTarget(el) {
     const buyId = el.closest("[data-buy]")?.dataset.buy;
     if (buyId?.startsWith("buy_")) {
       const cfg = ARMOR[buyId.slice(4)];
       return cfg ? { slot: cfg.slot, name: cfg.name, stats: cfg.stats, color: "#5fd66a" } : null;
+    }
+    // Faction kit at the quartermaster — the same compare, so you can weigh a piece against
+    // what you're wearing BEFORE you spend hard-won points on it, not after.
+    const facId = el.closest("[data-buyfac]")?.dataset.buyfac;
+    if (facId) {
+      const p = stockFor(player.faction, player.rep || 0).find((x) => x.id === facId);
+      return p ? { slot: p.slot, name: p.name, stats: p.stats, color: factionById(p.faction)?.color } : null;
     }
     const sellUid = el.closest("[data-sell]")?.dataset.sell;
     if (sellUid) return (player.ownedGear || []).find((p) => p.uid === sellUid) || null;
@@ -368,7 +375,7 @@ export class Shop {
 
   onHover(e) {
     if (!this.open) return;
-    const target = e.target.closest?.("[data-buy],[data-sell]");
+    const target = e.target.closest?.("[data-buy],[data-sell],[data-buyfac]");
     if (!target) { this.hideTip(); return; }
     this._hoverEl = target;
     const html = this.buildTip(target);
