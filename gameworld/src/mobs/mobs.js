@@ -862,7 +862,9 @@ export class Mobs {
         // were getting inside: they committed from outside and flew straight through.
         const lx = e.x + e.lx * MOB.lungeSpeed * dt;
         const lz = e.z + e.lz * MOB.lungeSpeed * dt;
-        if (sanctuaryOf(lx, lz, 1.5)) {
+        // Defenders lunge freely INSIDE their own walls — the wall-stop exists to keep wild
+        // mobs from committing their way through a gateway, not to disarm the garrison.
+        if (!e.defender && sanctuaryOf(lx, lz, 1.5)) {
           e.lungeT = 0;                       // stopped at the wall
         } else {
           e.x = lx;
@@ -909,7 +911,9 @@ export class Mobs {
           e.rushT -= dt;
           const nx = e.x + e.rushX * MOB.chargeSpeed * dt;
           const nz = e.z + e.rushZ * MOB.chargeSpeed * dt;
-          if (!sanctuaryOf(nx, nz, 1.5)) { e.x = nx; e.z = nz; }
+          // The garrison's chargers rush inside their own town; only WILD chargers stop at
+          // the walls. Without this the quartermaster's whole signature attack never fires.
+          if (e.defender || !sanctuaryOf(nx, nz, 1.5)) { e.x = nx; e.z = nz; }
           // Re-aim the rumble at the BODY every step. It crosses most of the gap between you
           // while it runs, and the whole point of the sound is to answer "where is it now"
           // while you are turned away mid-dodge.
@@ -1129,6 +1133,7 @@ export class Mobs {
     slot.dmg = MOB.ballDamage * (1 + MOB.damagePerRing * e.ring);
     slot.war = !!target;          // a war shot hits enemy mobs; a normal shot hits you
     slot.faction = e.faction;
+    slot.defender = !!e.defender; // a garrison's fireball flies INSIDE the walls
     slot.mesh.visible = true;
     slot.mesh.position.set(sx, sy, sz);
     sfx.cast(sx, sz);
@@ -1192,7 +1197,10 @@ export class Mobs {
         b.active = false; b.mesh.visible = false;
         continue;
       }
-      if (b.t <= 0 || solidAt(b.x, b.y, b.z) || sanctuaryOf(b.x, b.z, 0)) {
+      // Sanctuary ground snuffs fireballs — except a DEFENDER's, whose whole battlefield is
+      // the town. (The adept champion's barrage died on the spot it was cast from without
+      // this, which is why hostile towns read as safe.)
+      if (b.t <= 0 || solidAt(b.x, b.y, b.z) || (!b.defender && sanctuaryOf(b.x, b.z, 0))) {
         if (b.t > 0) sfx.explosion(b.x, b.z, 0.35);
         b.active = false; b.mesh.visible = false;
         continue;

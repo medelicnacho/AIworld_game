@@ -21,7 +21,7 @@ import { HealthBars } from "./ui/healthbars.js";
 import { DamageText } from "./ui/damagetext.js";
 import { armorDR } from "./prog/stats.js";
 import { rollGear, vendorPiece, sellValue, RARITY } from "./prog/gear.js";
-import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly } from "./prog/factions.js";
+import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, isHostileSanctuary } from "./prog/factions.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY, solidAt } from "./world/gen.js";
@@ -992,10 +992,15 @@ let hurtT = 0, killFeed = "";
 
 function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
   if (player.iframes > 0) return;      // the dodge window actually pays out here
-  // A sanctuary is safe, FULL STOP. The mobs, the boss and the projectiles each have their
-  // own behavioural guards, but those are about looking right; this is the guarantee. One
-  // rule in one place beats four that each have to be remembered.
-  if (sanctuaryOf(player.x, player.z, 0)) return;
+  // A sanctuary is safe — UNLESS it is a RIVAL faction's town. The mobs, the boss and the
+  // projectiles each have their own behavioural guards, but those are about looking right;
+  // this is the guarantee, and the raid needs the guarantee to have exactly one exception:
+  // on hostile ground the town's own garrison can genuinely hurt you. Wild threats still
+  // can't follow you in, so the walls still mean something — just not immunity.
+  {
+    const s = sanctuaryOf(player.x, player.z, 0);
+    if (s && !isHostileSanctuary(s)) return;
+  }
   // Armour applies HERE, at the one place damage enters the player — so it covers mob hits,
   // meteors, the beam, burning ground and your own grenades without any of them knowing it
   // exists. GEAR.md G1: mitigation is the WoW armour curve, and it reads the attacker's tier
@@ -1497,8 +1502,13 @@ function frame(now) {
 
   // Weapons stow inside the walls. Gated HERE rather than inside gun.js, for the same
   // reason the damage rule lives in damagePlayer: systems don't learn each other's names,
-  // and "what does a sanctuary mean" belongs in one place.
-  inSafe = sanctuaryOf(player.x, player.z, 0) !== null;
+  // and "what does a sanctuary mean" belongs in one place. A RIVAL's town is not safe:
+  // weapons stay out, the fast mend stays off, and the ✦ SANCTUARY label stays away —
+  // everything that reads inSafe learns "this is intruder ground" from this one line.
+  {
+    const s = sanctuaryOf(player.x, player.z, 0);
+    inSafe = s !== null && !isHostileSanctuary(s);
+  }
   const inSafeZone = inSafe;
 
   // RMB on the cleaver is the spin, edge-triggered like every other press-to-act input —
