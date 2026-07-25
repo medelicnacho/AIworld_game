@@ -79,6 +79,24 @@ export const WARCRY = {
   hailMobCd: 150,         // one soldier greets you once, then holds his peace a while
   hailRange: 11,          // walk this close to an ally before he bothers
   hailVolume: 0.95,
+  // THE TAUNT FLOOR — hardcoded lines synthesized ONCE per session (piper only, no model),
+  // then always loaded: an army is never silent again while the fancy lines bake, and
+  // combat mixes these randomly between the generated cries (tauntChance). Authored HERE
+  // on purpose: this is the game's trash-talk register, and re-toning it is one edit.
+  // One shared voice; per-faction playbackRate at play time makes three throats of it.
+  taunts: [
+    "I will kill you!",
+    "You're going to die!",
+    "Evil fatso!",
+    "Your mom is lame!",
+    "You like doodoo!",
+    "I poo and pee on your face!",
+    "Run home, little wanderer!",
+    "Crawl back to your walls!",
+  ],
+  tauntChance: 0.5,       // odds a cry slot uses the floor instead of a baked line
+  tauntBakeEvery: 3,      // piper-only synths are light; the floor fills fast
+  tauntVoice: { model: "en_US-ryan-medium.onnx", pace: 0.88 },
   // Per war-colour: piper model, synth pace, and a post-synth playbackRate — the cheap
   // monster-maker: Iron growls low and slow, Vale yips high and quick.
   voices: {

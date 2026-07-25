@@ -89,3 +89,11 @@ test("hails never starve behind the war: the emptier shelf bakes first", () => {
   assert.ok(firstTen.includes("hail"), "a hail bakes within the first few slots, not after 24");
   assert.ok(firstTen.includes("cry"), "and the war still bakes alongside");
 });
+
+test("the taunt floor: an army with taunts loaded is NEVER silent, even unbaked", () => {
+  played.length = 0;
+  const w = new WarCries(offline, fakeSfx);
+  w.taunts.push({ text: "I will kill you!", wav: new ArrayBuffer(4) });
+  w.cry({ faction: 0, x: 0, z: 0 }, "arm");        // cry cache empty — floor answers
+  assert.equal(played.length, 1, "the hardcoded floor speaks when nothing is baked");
+});

@@ -74,6 +74,7 @@ export class WarCries {
     }
     this.cache = new Map([[0, []], [1, []], [2, []]]);   // colour -> [{text, wav}]
     this.hails = new Map([[0, []], [1, []], [2, []]]);   // the friendly cache
+    this.taunts = [];              // the hardcoded floor — filled first, kept forever
     this.newsCursor = 0;           // this reader's place in the deed feed
     this.bakeT = 0;
     this.baking = false;
@@ -115,6 +116,13 @@ export class WarCries {
     if (this.bridge.state !== "online") return;
     const s = sanctuaryOf(player.x, player.z, 0);
     if (!s || isHostileSanctuary(s)) return;
+    // THE FLOOR FILLS FIRST: hardcoded taunts are piper-only (fast, no model), and once
+    // in they never leave — the guarantee that combat always has SOMETHING to shout.
+    if (this.taunts.length < WARCRY.taunts.length) {
+      this.bakeT = WARCRY.tauntBakeEvery;
+      this.bakeTaunt();
+      return;
+    }
     const shortCries = [0, 1, 2].filter((c) => this.cache.get(c).length < WARCRY.cachePerFaction);
     const shortHails = [0, 1, 2].filter((c) => this.hails.get(c).length < WARCRY.hailPerFaction);
     if (!shortCries.length && !shortHails.length) return;
@@ -132,6 +140,31 @@ export class WarCries {
     } else {
       this.bakeOne(shortCries[(this.rng() * shortCries.length) | 0]);
     }
+  }
+
+  async bakeTaunt() {
+    this.baking = true;
+    try {
+      const text = WARCRY.taunts[this.taunts.length];
+      const { model, pace } = WARCRY.tauntVoice;
+      const wav = await this.bridge.speak(text, model, pace);
+      if (wav) {
+        this.taunts.push({ text, wav });
+        console.info(`[warcry] taunt loaded ${this.taunts.length}/${WARCRY.taunts.length}: "${text}"`);
+      }
+    } catch { /* a missing taunt is a quieter floor */ } finally {
+      this.baking = false;
+    }
+  }
+
+  /** One line for a mouth: the hardcoded floor or a baked cry, mixed by tauntChance —
+   *  and always the floor when the baked shelf is still empty. */
+  pickLine(colour) {
+    const bin = this.cache.get(colour);
+    const floor = this.taunts.length
+      && (this.rng() < WARCRY.tauntChance || !bin.length);
+    if (floor) return this.taunts[(this.rng() * this.taunts.length) | 0];
+    return bin.length ? bin[(this.rng() * bin.length) | 0] : null;
   }
 
   async bakeHail(colour) {
@@ -254,9 +287,9 @@ export class WarCries {
     const chance = kind === "charge" ? WARCRY.chargeChance
       : kind === "arm" ? 1 : WARCRY.aggroChance;
     if (this.rng() >= chance) return;
-    const bin = this.cache.get(colour);
-    if (!bin.length) return;                       // not baked yet: this army is still quiet
-    const { text, wav } = bin[(this.rng() * bin.length) | 0];
+    const pick = this.pickLine(colour);
+    if (!pick) return;                             // nothing loaded yet: still quiet
+    const { text, wav } = pick;
     this.globalCd = WARCRY.globalCd;
     this.factionCd.set(colour, WARCRY.factionCd);
     const { rate } = WARCRY.voices[colour];
@@ -271,11 +304,12 @@ export class WarCries {
     for (const o of nearby(e.x, e.z, 34)) {
       if (echoes >= WARCRY.echoes) break;
       if (o === e || o.kind !== "mob" || o.hp <= 0 || ((o.faction || 0) % 3) !== colour) continue;
-      const pick = bin[(this.rng() * bin.length) | 0];
+      const echoPick = this.pickLine(colour);
+      if (!echoPick) break;
       const delay = WARCRY.echoDelayMin + this.rng() * (WARCRY.echoDelayMax - WARCRY.echoDelayMin);
       const throat = rate * (0.94 + this.rng() * 0.12);
       setTimeout(() => {
-        if (o.hp > 0) this.sfx.playClip(pick.wav, o.x, o.z, WARCRY.volume * WARCRY.echoVolume, throat);
+        if (o.hp > 0) this.sfx.playClip(echoPick.wav, o.x, o.z, WARCRY.volume * WARCRY.echoVolume, throat);
       }, delay * 1000);
       echoes++;
     }
