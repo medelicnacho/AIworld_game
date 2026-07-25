@@ -145,7 +145,7 @@ export function restore(data, ctx) {
     try {
       const hoursAway = data.at ? Math.max(0, (Date.now() - data.at) / 3.6e6) : 0;
       ctx.townVoice.restore(data.town.voice, hoursAway);
-      ctx.townChat.restore(data.town.chat);
+      ctx.townChat.restore(data.town.chat, hoursAway);
     } catch { /* a corrupt memory is forgotten, not fatal */ }
   }
 }

@@ -45,6 +45,41 @@ const NAME_RX = [
 const NOT_NAMES = new Set(["going", "gonna", "here", "sure", "fine", "sorry", "just",
   "back", "leaving", "staying", "done", "good", "okay", "ok", "not", "so", "the"]);
 
+// REGARD (VOICE.md C3) — what she thinks of YOU, earned one utterance at a time. The
+// playtest that demanded it: "screw you too" and "your mom is lame" cost the player
+// nothing; every reply came back the same flat cold. Now each message shifts a
+// per-villager disposition (clamped so one outburst is a mark, not a verdict), it is
+// stored beside her other facts, it survives the save — and grudges FADE slower than
+// gossip: a day away softens one step, it never resets. Scored by lexicon, not by the
+// model, for the same reason mood is: a dial the sim owns is a dial the sim can trust.
+const RUDE = new Set(["screw", "stupid", "idiot", "shut", "dumb", "lame", "suck", "ugly",
+  "fool", "fools", "hate", "damn", "worthless", "trash", "loser", "shrew", "hag"]);
+const KIND = new Set(["please", "thanks", "thank", "sorry", "appreciate", "kind",
+  "lovely", "good", "beautiful", "wonderful", "friend", "helpful"]);
+
+/** How this utterance moves her opinion of you: -1, 0, or +1. Exported for its tests. */
+export function regardShift(said) {
+  const words = said.toLowerCase().replace(/[^a-z' ]+/g, " ").split(/\s+/);
+  let d = 0;
+  for (const w of words) {
+    if (RUDE.has(w)) d--;
+    else if (KIND.has(w)) d++;
+  }
+  return Math.max(-1, Math.min(1, d));
+}
+
+/** Disposition as a word the prompt can carry, plus the register it implies. */
+export function regardWord(r = 0) {
+  return r <= -3 ? "hostile" : r < 0 ? "sour" : r >= 3 ? "friendly" : r > 0 ? "warming" : "wary";
+}
+const REGARD_STYLE = {
+  hostile: "You want this one GONE — cold, cutting, no pleasantries, the shortest answers you have.",
+  sour: "They have been rude to you before — keep it short, unhelpful, and unimpressed.",
+  wary: "",   // the baseline; the world blurb already carries it
+  warming: "They have been decent to you — a little openness under the weariness.",
+  friendly: "You like this one — warmth under the weariness, and you use their name.",
+};
+
 /** The wanderer's name, if this utterance introduces one. Exported for its tests. */
 export function nameIn(said) {
   for (const rx of NAME_RX) {
@@ -122,8 +157,9 @@ export class TownChat {
   /** Put those memories back, each turn marked PRIOR — an earlier visit, not this
    *  conversation. The prompt treats the two differently: prior turns are what she
    *  REMEMBERS about you; this session's turns are what you are saying now. */
-  restore(data) {
-    if (!data?.logs?.length) return;
+  restore(data, hoursAway = 0) {
+    if (!data) return;
+    if (!data.logs?.length && !data.facts?.length) return;
     let n = 0;
     for (const [k, log] of data.logs) {
       if (!Array.isArray(log) || !log.length) continue;
@@ -131,8 +167,13 @@ export class TownChat {
         .filter((t) => t.text).slice(-LOG_KEEP));
       n++;
     }
+    // Grudges (and fondness) FADE slower than gossip: one step toward indifference per
+    // full day away — never a reset. Names don't fade at all; a name is a name.
+    const soften = Math.floor(Math.max(0, hoursAway) / 24);
     for (const [k, f] of data.facts || []) {
-      if (f && typeof f === "object") this.facts.set(k, { ...f });
+      if (!f || typeof f !== "object") continue;
+      const r = f.regard || 0;
+      this.facts.set(k, { ...f, regard: r > 0 ? Math.max(0, r - soften) : Math.min(0, r + soften) });
     }
     if (n) console.info(`[chat] ${n} villager${n > 1 ? "s" : ""} remember${n > 1 ? "" : "s"} talking to you`);
   }
@@ -193,12 +234,17 @@ export class TownChat {
     const log = this.logOf(v);
     log.push({ who: "you", text: said });
     if (log.length > LOG_KEEP) log.splice(0, log.length - LOG_KEEP);
-    // Introductions become FACTS she keeps, not lines that scroll away.
+    // Introductions become FACTS she keeps, not lines that scroll away — and every
+    // utterance moves her REGARD before she answers, so rudeness costs you this very
+    // reply, not some later one.
+    const k = this.keyOf(v);
+    const f = { ...this.facts.get(k) };
     const introduced = nameIn(said);
-    if (introduced) {
-      this.facts.set(this.keyOf(v), { ...this.facts.get(this.keyOf(v)), name: introduced });
-    }
-    const known = this.facts.get(this.keyOf(v))?.name;
+    if (introduced) f.name = introduced;
+    f.regard = Math.max(-4, Math.min(4, (f.regard || 0) + regardShift(said)));
+    this.facts.set(k, f);
+    const known = f.name;
+    const regard = regardWord(f.regard);
     // YOUR words enter the town's memory like anyone else's. This single call is C1's
     // whole thesis: what you say here can resurface in ambient talk later.
     this.townVoice.hear(said);
@@ -227,6 +273,7 @@ export class TownChat {
         + (now ? `So far today: ${now} ` : "")
         + `The wanderer just said to you: "${said.replace(/"/g, "'")}". `
         + `Your mood is ${mood}. ${MOOD_STYLE[mood] || ""} `
+        + (REGARD_STYLE[regard] ? `Toward this wanderer you are ${regard}: ${REGARD_STYLE[regard]} ` : "")
         + `Answer them with ONE short line and no more — you are busy, and you speak as a `
         + `person of this town, never as a helper or a guide. If they ask something outside `
         + `your world, answer as a tired townsperson would. Plain frontier speech in real `
@@ -251,7 +298,7 @@ export class TownChat {
       log.push({ who: "them", text: clean });
       if (log.length > LOG_KEEP) log.splice(0, log.length - LOG_KEEP);
       this.townVoice.hear(clean);                    // her answer is heard by the town too
-      console.info(`[chat] you: "${said}" -> ${nameOf(v)} the ${v.role.name} (${mood}): "${clean}"`);
+      console.info(`[chat] you: "${said}" -> ${nameOf(v)} the ${v.role.name} (${mood}, ${regard}): "${clean}"`);
       if (wav) this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
     } catch {
       console.info(`[chat] you: "${said}" -> ${v.role.name}: NO REPLY (error)`);
@@ -259,7 +306,13 @@ export class TownChat {
     } finally {
       this.busy = false;
       this.hooks.onThinking?.(false);
-      if (this.open) { this.render(); this.input.focus(); }
+      if (this.open) {
+        // The header carries her disposition once it has one — feedback that words land.
+        const rw = regardWord(this.facts.get(this.keyOf(v))?.regard);
+        this.whoEl.textContent = `${nameOf(v)} · the ${v.role.name}${rw !== "wary" ? ` · ${rw}` : ""}`;
+        this.render();
+        this.input.focus();
+      }
     }
   }
 }

@@ -124,3 +124,19 @@ test("introductions become facts: nameIn hears a name and refuses a verb", async
   assert.equal(nameIn("i'm fine"), null);
   assert.equal(nameIn("hello there"), null);
 });
+
+test("C3 regard: rudeness costs, courtesy pays, one outburst is a mark not a verdict", async () => {
+  const { regardShift, regardWord } = await import("./chat.js");
+  // The playtest lines that demanded this, verbatim:
+  assert.equal(regardShift("well screw you too"), -1);
+  assert.equal(regardShift("your mom is lame"), -1);
+  assert.equal(regardShift("thanks for the help. my name is john snow by the way."), 1);
+  assert.equal(regardShift("hey whats up"), 0);
+  // Clamped per message: a torrent of insults in one breath is still one step.
+  assert.equal(regardShift("stupid dumb worthless idiot"), -1);
+  // And the ladder reads right at both ends.
+  assert.equal(regardWord(-4), "hostile");
+  assert.equal(regardWord(-1), "sour");
+  assert.equal(regardWord(0), "wary");
+  assert.equal(regardWord(3), "friendly");
+});
