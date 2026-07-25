@@ -584,7 +584,9 @@ export class Sfx {
    * can arrive mid-fight without costing frame time — the thing Stage 1's gate checks.
    * @returns {Promise<number>} duration in seconds, or 0 if it couldn't be played.
    */
-  async playClip(arrayBuffer, x, z, volume = 1) {
+  /** `rate` shifts pitch and speed together after synthesis — the cheap monster-maker:
+   *  0.85 turns a narrator into a growl, 1.12 into something quick and sharp. */
+  async playClip(arrayBuffer, x, z, volume = 1, rate = 1) {
     if (!this.on || !arrayBuffer) return 0;
     let buf;
     try {
@@ -594,6 +596,7 @@ export class Sfx {
     }
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
+    src.playbackRate.value = rate;
     const { input, gain } = this.place(x, z, 200);
     const g = this.ctx.createGain();
     g.gain.value = (gain ?? 1) * volume;

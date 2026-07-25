@@ -217,13 +217,17 @@ export class Raids {
    */
   arm(st) {
     st.armed = true;
+    let crier = null;
     for (const id of st.ids) {
       const e = world.entities.get(id);
       if (!e || e.hp <= 0) continue;
       e.noAggroPlayer = false;
       e.aggro = true;
       e.aggroT = 99;
+      if (!crier) crier = e;
     }
+    // The town rises with ONE voice — the first defender screams for all of them.
+    if (crier) this.mobs.onWarcry?.(crier, "arm");
   }
 
   /** Have you started this one? Inside their walls, or blood already drawn on their people. */

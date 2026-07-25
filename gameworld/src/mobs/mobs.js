@@ -925,6 +925,7 @@ export class Mobs {
         e.aggro = true;
         e.aggroT = MOB.loseInterest;
         this.alert(e);
+        this.onWarcry?.(e, "aggro");     // sometimes the pack ANNOUNCES you (warcry.js)
       }
 
       // Being thrown overrides everything: no steering, no lunging, just flying. But not
@@ -1104,6 +1105,7 @@ export class Mobs {
         if (!foe && e.charger && e.atkCd <= 0 && dist > MOB.attackRange * 2.5 && dist < MOB.chargeRange) {
           e.windT = MOB.chargeWind;
           e.atkCd = MOB.attackCd * 2.2;
+          this.onWarcry?.(e, "charge");  // the scream IS the telegraph (warcry.js)
           // The wind-up is the only warning you get before the one attack that can reach you
           // from off screen. The glow only works if you happen to be looking at it; the sound
           // works wherever you are facing, which is the whole reason it exists.
