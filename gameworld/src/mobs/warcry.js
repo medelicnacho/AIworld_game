@@ -80,6 +80,10 @@ export class WarCries {
     this.globalCd = 0;
     this.factionCd = new Map([[0, 0], [1, 0], [2, 0]]);
     this.hailCd = 0;
+    // THE TOWN OUTRANKS THE ARSENAL. main wires this to "is any voice system mid-request"
+    // — while a villager is speaking (or the town is dreaming), the baker stands down.
+    // The model has one thread; conversation gets it first, rehearsal takes the gaps.
+    this.holdWhile = null;
   }
 
   /** Deeds join every faction's corpus — all three armies hear of the wanderer, and the
@@ -107,6 +111,7 @@ export class WarCries {
     // The field never synthesizes — it is either already baked, or it is quiet.
     this.bakeT -= dt;
     if (this.baking || this.bakeT > 0) return;
+    if (this.holdWhile?.()) return;
     if (this.bridge.state !== "online") return;
     const s = sanctuaryOf(player.x, player.z, 0);
     if (!s || isHostileSanctuary(s)) return;

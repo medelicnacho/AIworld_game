@@ -1504,6 +1504,10 @@ function trySleep() {
   }, 1000);
 }
 
+// The bake queue yields to every LIVE voice: a villager mid-line, a chat reply being
+// written, the town dreaming through a sleep. One model thread; conversation first.
+warcries.holdWhile = () => townVoice.busy || townChat.busy || sleeping;
+
 const clickEl = document.getElementById("click");
 let paused = true, everPlayed = false, inSafe = false, dead = false;
 // Time left before regen resumes. Dealing damage counts as fighting, not just taking it.

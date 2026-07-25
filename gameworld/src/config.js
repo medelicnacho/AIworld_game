@@ -49,7 +49,10 @@ export const VOICE = {
 export const WARCRY = {
   enabled: true,
   cachePerFaction: 8,     // baked cries kept warm per war-colour — overlap needs variety
-  bakeEvery: 2.0,         // seconds between top-up synth calls while resting in a town
+  // 7, not 2: the model has ONE thread, and a baker firing every 2s occupied it for
+  // minutes — every town murmur queued behind the arsenal until it timed out, and the
+  // town went MUTE while its armies rehearsed. The gaps are where the town speaks.
+  bakeEvery: 7,
   // RETUNED for the warband feel (asked for in play): the first budget produced a lone
   // soloist every nine seconds; a war party is a WALL of voices. Lead cries still gate on
   // cooldowns — what overlaps is the ECHO: packmates answering the lead, staggered.
