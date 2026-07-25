@@ -149,10 +149,16 @@ function voiceOf(v) {
 // town (heard lines join its sources). So a run of grim talk genuinely darkens the next
 // speaker's register, and a warm exchange lifts it: mood is downstream of conversation,
 // which is the only place it could come from and still be called emergent.
+// Extended with the war-torn vocabulary (2026-07-25): the world rewrite put burned camps,
+// refugees and the wounded into the talk, and a lexicon that couldn't see those words was
+// scoring a war-torn conversation as neutral — mood half-blind to what was being said.
 const DARK = new Set(["cold", "war", "worse", "short", "ash", "fell", "shook", "took",
-  "strange", "borrowed", "bad", "gone", "dead", "winter", "bites", "hard", "nothing"]);
+  "strange", "borrowed", "bad", "gone", "dead", "winter", "bites", "hard", "nothing",
+  "burned", "burnt", "wounded", "refugees", "limped", "blood", "bleeding", "rot",
+  "grim", "broken", "lost", "death", "storm", "grey", "empty", "closed"]);
 const WARM = new Set(["fire", "fed", "soup", "salt", "held", "home", "warm", "good",
-  "easy", "clear", "spring", "gold"]);
+  "easy", "clear", "spring", "gold", "bloom", "mend", "mended", "safe", "shelter",
+  "calm", "bread"]);
 
 /** One word the prompt can carry: what the recent drift feels like. Exported for tests. */
 export function moodOf(fragments) {
@@ -166,6 +172,19 @@ export function moodOf(fragments) {
   const m = n ? score / n : 0;
   return m <= -0.5 ? "bleak" : m < 0 ? "uneasy" : m > 0.5 ? "bright" : m > 0 ? "warm" : "steady";
 }
+
+// A mood is an INSTRUCTION, not a label. Handed the bare word "bleak", the model reached
+// for poetry — "consumed by endless, brutal strife" — but tired people don't orate, they
+// say "west road's closed again." Each mood ships with its register, and bleak's is the
+// one that matters: TERSE, tired, pessimistic. Doom is right for a war-torn land; ornate
+// doom is a narrator, and nobody in this town is a narrator.
+const MOOD_STYLE = {
+  bleak: "Bleak means terse, tired, and pessimistic — short flat words, no poetry.",
+  uneasy: "Uneasy means watchful and clipped.",
+  steady: "Steady means plain and matter-of-fact.",
+  warm: "Warm means dry, quiet good humour.",
+  bright: "Bright means quick and light on your feet.",
+};
 
 /**
  * Is a reply just the previous line wearing a different hat? A small model, handed a
@@ -315,20 +334,21 @@ export class TownVoice {
       // the word that turns the same prompt into a different person on a different day.
       const mood = moodOf(this.drift.current(5));
       const who = `You are the town ${v.role.name} — ${TRADE[v.role.name] || "you live and work here"}. `;
+      const moodLine = `Your mood is ${mood}. ${MOOD_STYLE[mood] || ""} `;
       const prompt = reply
         ? WORLD + who + `The ${reply.name} works nearby and just said aloud: `
-          + `"${reply.text}". Your mood is ${mood}. `
+          + `"${reply.text}". ` + moodLine
           + `Answer with ONE short line of your own — agree, push back, add news, or turn `
           + `the subject, but NEVER repeat or rephrase their words. Plain frontier speech `
-          + `in real words only, chatting while you both work. No humming or sound `
-          + `effects, no stage directions.`
+          + `in real words only, chatting while you both work. Avoid stock filler like `
+          + `"I reckon". No humming or sound effects, no stage directions.`
         : WORLD + who + `You are talking quietly to yourself while you work. `
-          + `Your mood is ${mood}. Your drifting thoughts just now: ${frags}. `
+          + moodLine + `Your drifting thoughts just now: ${frags}. `
           + `If it comes naturally, let your line touch on `
           + `${TOPICS[(this.rng() * TOPICS.length) | 0]}. `
           + `Say ONE short line to yourself — plain frontier speech in real words only. `
-          + `No greetings, no questions, no humming or sound effects, no stage `
-          + `directions, never address anyone.`;
+          + `Avoid stock filler like "I reckon". No greetings, no questions, no humming `
+          + `or sound effects, no stage directions, never address anyone.`;
       const res = await this.bridge.line(prompt, {
         words: VOICE.lineWords, voice: model, lengthScale: pace,
       });
