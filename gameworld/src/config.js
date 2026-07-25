@@ -431,9 +431,13 @@ export const ABILITY = {
 // Dash Strike: a committed line through a fight. Untouchable while it travels, so it is
 // both an escape and an opening — but the hitbox is NARROW, so it only catches what you
 // actually pass through. Aim is the cost; the short cooldown is the reward for aiming well.
+// EVERY spell below lost one second of cooldown in the same pass that steepened mob HP:
+// fights got longer, so the toolkit comes back sooner. A flat second is deliberately shaped —
+// it means the most on the short, woven spells (Chain, Nova) and almost nothing on the big
+// panic buttons (Timewarp), so rotations get busier without emergencies getting cheap.
 export const DASH = {
   price: 120,
-  cd: 4,
+  cd: 3,
   speed: 46,
   time: 0.26,           // ~12 units of travel
   radius: 2.6,          // how close a mob must be to the line you cut
@@ -447,7 +451,7 @@ export const DASH = {
 export const WHIRL = {
   price: 260,
   minTier: 1,           // stocked from the first ring out
-  cd: 13,
+  cd: 12,
   leapSpeed: 24,
   leapUp: 9.5,
   leapTime: 0.55,       // airtime cap; landing early triggers the slam early
@@ -463,21 +467,21 @@ export const WHIRL = {
 // --- New spells (WoW / LoL / Overwatch flavoured), sold by the Adept -------------------
 // Timewarp: stamp your position/HP now; 5s later you SNAP back to it with all cooldowns
 // reset (Zilean's Chronoshift crossed with a Recall). A panic button and a burst enabler.
-export const TIMEWARP = { price: 340, minTier: 1, cd: 40, window: 5 };
+export const TIMEWARP = { price: 340, minTier: 1, cd: 39, window: 5 };
 // Cataclysm Orb: lob a red ball that bursts and leaves a burning pool doing heavy DoT.
 // Rank 2 the pool SLOWS, rank 3 it ROOTS.
 export const ORB = {
-  price: 240, minTier: 0, cd: 11, speed: 27, up: 5, range: 66,
+  price: 240, minTier: 0, cd: 10, speed: 27, up: 5, range: 66,
   burstRadius: 6, burstDamage: 130,
   poolRadius: 5.5, poolDps: 78, poolLife: 5, poolTick: 0.3,
   slowMul: 0.5, slowT: 1.2, rootT: 1.1,
 };
 // Frost Nova: instant ring around you — damage + a hard slow. Rank 2 roots instead.
-export const NOVA = { price: 175, minTier: 0, cd: 9, radius: 11, damage: 95, slowMul: 0.5, slowT: 3, rootT: 1.6 };
+export const NOVA = { price: 175, minTier: 0, cd: 8, radius: 11, damage: 95, slowMul: 0.5, slowT: 3, rootT: 1.6 };
 // Chain Lightning: arcs from the nearest foe to the next, damage falling each jump.
-export const CHAIN = { price: 210, minTier: 1, cd: 8, range: 34, jumps: 5, jumpRange: 15, damage: 130, falloff: 0.8 };
+export const CHAIN = { price: 210, minTier: 1, cd: 7, range: 34, jumps: 5, jumpRange: 15, damage: 130, falloff: 0.8 };
 // Sprint: a burst of movement speed on demand (a movement spell, the first of several).
-export const SPRINT = { price: 150, minTier: 0, cd: 11, dur: 4, mult: 1.7 };
+export const SPRINT = { price: 150, minTier: 0, cd: 10, dur: 4, mult: 1.7 };
 
 
 // Haste — the Adept's answer to the smith's plating. Where armour makes you harder to
@@ -495,7 +499,7 @@ export const HASTE = {
 // bigger numbers but a better VERSION of what you already know how to use.
 export const RANK2 = {
   fireringPrice: 210,
-  fireringCd: 12,        // 16 -> 12
+  fireringCd: 11,        // one better than rank 1's 15, as before
   dashPrice: 230,
   dashCharges: 2,        // hold two, spend both, then wait two cooldowns
 };
@@ -504,7 +508,7 @@ export const RANK2 = {
 // the first real power spike, and it should feel like one on the walk home from buying it.
 export const FIRERING = {
   price: 90,
-  cd: 16,
+  cd: 15,
   radius: 15,
   damage: 150,          // still clears an early camp; no longer deletes a boss
   knock: 13,
@@ -729,12 +733,16 @@ export const MOB = {
   // player (run out ahead of your bed) feels it far sooner, which is the whole point of a
   // frontier. Turn these DOWN to soften the deep; they are the difficulty dial now.
   //
-  // REBALANCED after play: the deep was bullet-sponge tanky AND toothless -- HP raced away
-  // while damage crawled, so a fight was long and safe, the worst combination. The two ramps
-  // are now nearly swapped. Player HP is a flat 100 (only armour makes you tankier), so mob
-  // damage has to climb hard to matter against a plated build, and HP should climb GENTLY so
-  // depth is lethal, not tedious.
-  ramp: 0.09,           // HP — halved: deep mobs die in a few shots, not a magazine
+  // REBALANCED TWICE. First pass halved this to 0.09: the deep was bullet-sponge tanky AND
+  // toothless — long fights that were also safe, the worst combination. That reasoning is now
+  // stale: hard mode has since doubled incoming damage, so a long fight is genuinely dangerous.
+  // Second pass (after play with a full Iron set): a geared, leveled character melts regular
+  // mobs, because the flat exponential only matches an ON-PACE player — gear puts you ahead of
+  // pace permanently. So the ramp comes back UP: rings 1-2 barely move (a few % — the early
+  // game keeps its feel), but by the rings a geared player hunts in, mobs carry roughly twice
+  // the health they did, and it keeps compounding from there. The floor (MOB.hp) is untouched —
+  // the CURVE is the dial for "strong players kill too fast", never the base.
+  ramp: 0.17,           // HP acceleration — the deep keeps pace with a geared character
   rampDamage: 0.38,     // damage — accelerates hard, so the deep still bites despite the lower base
   rampCrowd: 0.14,      // more bodies, sooner — reaches the population cap faster
 
