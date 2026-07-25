@@ -97,14 +97,21 @@ class Hub:
 
     # --- generation -----------------------------------------------------------
 
-    def synth(self, text: str, voice: str) -> bytes:
+    def synth(self, text: str, voice: str, length_scale: float = 1.0,
+              volume: float = 1.0) -> bytes:
+        # length_scale/volume used to be silently dropped here (Voice(model=voice) alone),
+        # which flattened every speaker of the same model into one person. Pace is HOW the
+        # game gives fourteen villagers individuality out of eight model files, so it has
+        # to survive the trip. Clamped: a caller asking for 10x slow is a bug, not a wish.
         if not self.tts:
             raise RuntimeError("no piper voices -- run scripts/get_voices.sh")
+        ls = min(2.0, max(0.5, float(length_scale or 1.0)))
+        vol = min(2.0, max(0.0, float(volume or 1.0)))
         with self.tts_lock:
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 path = f.name
             try:
-                self.tts.synth_to(text, Voice(model=voice), path)
+                self.tts.synth_to(text, Voice(model=voice, length_scale=ls, volume=vol), path)
                 return Path(path).read_bytes()
             finally:
                 Path(path).unlink(missing_ok=True)
@@ -250,7 +257,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "empty"}, 400)
             try:
                 t0 = time.perf_counter()
-                wav = hub.synth(text, body.get("voice") or DEFAULT_VOICE)
+                wav = hub.synth(text, body.get("voice") or DEFAULT_VOICE,
+                                body.get("length_scale") or 1.0,
+                                body.get("volume") or 1.0)
             except Exception as e:                                  # noqa: BLE001
                 return self._json({"error": str(e)}, 503)
             return self._bytes(wav, "audio/wav",
@@ -265,7 +274,9 @@ class Handler(BaseHTTPRequestHandler):
                 t0 = time.perf_counter()
                 text = hub.generate(prompt, words)
                 t1 = time.perf_counter()
-                wav = hub.synth(text, body.get("voice") or DEFAULT_VOICE)
+                wav = hub.synth(text, body.get("voice") or DEFAULT_VOICE,
+                                body.get("length_scale") or 1.0,
+                                body.get("volume") or 1.0)
                 t2 = time.perf_counter()
             except Exception as e:                                  # noqa: BLE001
                 return self._json({"error": str(e)}, 503)
