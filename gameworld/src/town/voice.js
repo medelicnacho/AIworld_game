@@ -20,6 +20,7 @@
 import { VOICE } from "../config.js";
 import { player } from "../state.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
+import { servesYou } from "../prog/factions.js";
 import { mulberry32 } from "../rng.js";
 import { Drift } from "./drift.js";
 import { deeds } from "../world/events.js";
@@ -445,9 +446,12 @@ export class TownVoice {
     if (this.lastLine && (this.lastLine.t -= dt) <= 0) this.lastLine = null;
     if (this.busy || !VOICE.enabled) return;
     const s = sanctuaryOf(player.x, player.z, 0);
-    // V1's venue: the one neutral, non-city town — where you wake, where speech should be
-    // learned. Leaving resets toward the settle-in delay so re-entry doesn't fire instantly.
-    if (!s || !s.neutral || s.city) {
+    // WIDENED from the starter town to EVERY town that serves you (your colour's towns,
+    // every neutral city) before the first long playthrough — a world where only spawn
+    // talks reads as a world of mannequins with one living square. Honest caveat, chosen
+    // knowingly: all towns still share ONE memory pool, so a Reach villager may murmur
+    // something first said at spawn. News travels; per-town memory is the next step.
+    if (!s || !servesYou(s)) {
       this.cooldown = Math.max(this.cooldown, VOICE.firstDelay);
       return;
     }

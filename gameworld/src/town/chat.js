@@ -18,6 +18,7 @@
 import { VOICE } from "../config.js";
 import { player } from "../state.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
+import { servesYou } from "../prog/factions.js";
 import { WORLD, TRADE, MOOD_STYLE, voiceOf, cleanLine, nameOf } from "./voice.js";
 
 const LOG_KEEP = 8;      // turns remembered per villager (session memory — C2 persists it)
@@ -210,7 +211,7 @@ export class TownChat {
   tryOpen() {
     if (this.open) { this.close(); return true; }
     const s = sanctuaryOf(player.x, player.z, 0);
-    if (!s || !s.neutral || s.city) return false;
+    if (!s || !servesYou(s)) return false;         // any town that serves you will talk
     if (this.bridge.state !== "online" || !this.bridge.info?.llm) return false;
     let best = null, bd = VOICE.range;
     for (const v of this.villagers.list) {
