@@ -21,22 +21,19 @@ export const VOICE = {
   firstDelay: 3,       // settle-in: entering town never triggers an instant greeting
   range: 26,           // a villager this close to you may speak; further is stage-whisper
   volume: 0.85,
-  cacheMax: 32,        // synthesized fragments kept (Piper is CPU-bound on the lab side)
-  // THE SETTLED LINE — the model layer, when the lab has one up (health.llm). Most slots
-  // stay Markov murmurs; this fraction settle into one clear LLM sentence grown from the
-  // drift. Kept a MINORITY on purpose: the half-formed murmur is what makes the rare
-  // clear line feel like surfacing, and at ~4-6s a line is also the expensive one.
-  lineChance: 0.25,
+  // EVERY audible line is the model's (decided in play: voiced raw Markov sounded like
+  // what it is). The chain still runs underneath — it feeds each prompt as "drifting
+  // thoughts" and sets the speaker's MOOD — but it is subconscious now: nobody hears it
+  // raw, and without ollama the town is simply quiet.
   lineWords: 14,       // short — a person muttering at a workbench, not giving a speech
-  // THE CONVERSATION. A settled line hangs in the air for convoWindow seconds; while it
-  // does, the next settled slot is far more likely (lineChanceReply) and is prompted as an
-  // ANSWER from a different villager. convoMax caps the exchange — three turns is a chat
-  // between people working, five is a radio play. Heard lines join the drift sources at
-  // heardWeight (above seed weight: what was said out loud looms larger than the town's
-  // standing preoccupations), FIFO-capped at heardMax so old talk fades from the murmur.
+  // THE CONVERSATION. A spoken line hangs in the air for convoWindow seconds; while it
+  // does, the next speaker is a DIFFERENT villager prompted to ANSWER it. convoMax caps
+  // the exchange — three turns is a chat between people working, five is a radio play.
+  // Heard lines join the drift sources at heardWeight (above seed weight: what was said
+  // out loud looms larger than the town's standing preoccupations), FIFO-capped at
+  // heardMax so old talk fades — and through the drift they move the town's MOOD.
   convoWindow: 45,
   convoMax: 3,
-  lineChanceReply: 0.65,
   heardWeight: 1.6,
   heardMax: 12,
 };

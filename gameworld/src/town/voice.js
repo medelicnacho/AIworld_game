@@ -86,6 +86,29 @@ function voiceOf(v) {
   };
 }
 
+// MOOD, read off the subconscious. Nobody sets a villager's mood — it is scored from the
+// words the drift has been churning lately, and the drift includes what has been SAID in
+// town (heard lines join its sources). So a run of grim talk genuinely darkens the next
+// speaker's register, and a warm exchange lifts it: mood is downstream of conversation,
+// which is the only place it could come from and still be called emergent.
+const DARK = new Set(["cold", "war", "worse", "short", "ash", "fell", "shook", "took",
+  "strange", "borrowed", "bad", "gone", "dead", "winter", "bites", "hard", "nothing"]);
+const WARM = new Set(["fire", "fed", "soup", "salt", "held", "home", "warm", "good",
+  "easy", "clear", "spring", "gold"]);
+
+/** One word the prompt can carry: what the recent drift feels like. Exported for tests. */
+export function moodOf(fragments) {
+  let score = 0, n = 0;
+  for (const f of fragments) {
+    for (const w of f.toLowerCase().split(/\s+/)) {
+      if (DARK.has(w)) { score -= 1; n += 1; }
+      else if (WARM.has(w)) { score += 1; n += 1; }
+    }
+  }
+  const m = n ? score / n : 0;
+  return m <= -0.5 ? "bleak" : m < 0 ? "uneasy" : m > 0.5 ? "bright" : m > 0 ? "warm" : "steady";
+}
+
 /**
  * Scrub a model line before it reaches a MOUTH. gemma, asked for a murmur, sometimes
  * delivers one literally — "Mmm, hmm, mmmm" — or emits stage directions ("*sighs*",
@@ -134,9 +157,6 @@ export class TownVoice {
     this.drift.learn(SEEDS.map((text) => ({ text, weight: 1 })));
     this.cooldown = VOICE.firstDelay;
     this.busy = false;
-    // WAV bytes by fragment text. Piper is CPU-bound and serialized on the lab side, so a
-    // fragment the chain wanders back to should never cost a second synthesis.
-    this.cache = new Map();
     // THE CONVERSATION. The last settled line hangs in the air for a while; the next
     // settled speaker replies to it instead of soliloquising — villagers chatting across
     // the square. Capped at a few turns so the town talks, but never becomes a podcast.
@@ -157,33 +177,21 @@ export class TownVoice {
       this.cooldown = Math.max(this.cooldown, VOICE.firstDelay);
       return;
     }
-    if (this.bridge.state !== "online") return;
+    // THE DRIFT WENT BACK UNDERGROUND (decided in play, 2026-07-25). Voicing raw Markov
+    // was tried and it sounded like what it is; the lab's original shape won: everything
+    // AUDIBLE is deliberate LLM speech, and the chain is purely subconscious — it feeds
+    // the prompt (drifting thoughts), it sets the MOOD, and nobody ever hears it raw.
+    // Which also means: no model, no voices. The town without ollama is simply quiet.
+    if (this.bridge.state !== "online" || !this.bridge.info?.llm) return;
     this.cooldown -= dt;
     if (this.cooldown > 0) return;
 
     const v = this.pickSpeaker(s);
     if (!v) { this.cooldown = 4; return; }          // nobody close enough — retry soon
 
-    const text = this.drift.step();
-    // A one-word fragment isn't a murmur, and an immediate repeat reads as a broken record.
-    if (!text || text.indexOf(" ") < 0 || this.drift.current(3).slice(0, -1).includes(text)) {
-      this.cooldown = 2;
-      return;
-    }
-
-    // THE TWO-LAYER VOICE (the lab's architecture, arriving in the game). Mostly the drift
-    // is muttered raw — that is the subconscious, and it stays Markov (D3). Occasionally,
-    // when the lab has a model up, a villager SETTLES: the LLM is asked to say one line
-    // grown from the recent drift, in its own plain voice. The contrast is the point —
-    // the half-formed murmur is what makes the rare clear line feel like surfacing.
-    // No model running -> lineChance is dead weight and every slot is a murmur (D8).
-    //
-    // A line hanging in the air raises the odds the next slot ANSWERS it — a conversation
-    // has rhythm, and a reply that arrives a minute later is not a reply.
-    const chance = this.lastLine ? VOICE.lineChanceReply : VOICE.lineChance;
-    const settled = this.bridge.info?.llm && this.rng() < chance;
+    this.drift.step();                              // churn the subconscious; spoken by no one
     this.busy = true;
-    (settled ? this.sayLine(v) : this.say(v, text)).finally(() => {
+    this.sayLine(v).finally(() => {
       this.busy = false;
       this.cooldown = VOICE.cooldown + this.rng() * VOICE.jitter;
     });
@@ -204,28 +212,6 @@ export class TownVoice {
     return (this.lastLine && other) ? other : best;
   }
 
-  async say(v, text) {
-    try {
-      const { model, pace } = voiceOf(v);
-      // The cache key carries the whole voice, not just the words — the same fragment in
-      // the smith's mouth and a keeper's is two different sounds and must be two entries.
-      const key = `${model}|${pace.toFixed(2)}|${text}`;
-      let wav = this.cache.get(key);
-      if (!wav) {
-        wav = await this.bridge.speak(text, model, pace);
-        if (!wav) return;
-        if (this.cache.size >= VOICE.cacheMax) {
-          this.cache.delete(this.cache.keys().next().value);   // oldest-in, first-out
-        }
-        this.cache.set(key, wav);
-      }
-      const dur = await this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
-      if (dur) this.onLine?.(v.role.name, text, dur, false);
-    } catch {
-      // The murmur is an enhancement, never a dependency (D8). Silence is the baseline.
-    }
-  }
-
   /** The settled line: drift fragments -> the model -> one clear sentence, spoken in the
    *  villager's own cast voice. Slow (seconds) by nature — the busy flag holds the town's
    *  one speaking slot for the duration, which is also why it can never stack. Uncached
@@ -243,17 +229,20 @@ export class TownVoice {
       // the previous utterance made prompt. (The lab's whole thesis, one town wide.)
       const reply = this.lastLine && this.lastLine.turns < VOICE.convoMax
         && this.lastLine.name !== v.role.name ? this.lastLine : null;
+      // The MOOD is read off the same drift the thoughts come from — one word, but it is
+      // the word that turns the same prompt into a different person on a different day.
+      const mood = moodOf(this.drift.current(5));
       const prompt = reply
         ? `You are the ${v.role.name} of a small frontier town, working near the `
-          + `${reply.name}, who just said aloud: "${reply.text}". Your own drifting `
-          + `thoughts: ${frags}. Answer them with ONE short line — plain frontier speech `
-          + `in real words only, chatting while you both work. No humming or sound `
-          + `effects, no stage directions.`
+          + `${reply.name}, who just said aloud: "${reply.text}". Your mood is ${mood}. `
+          + `Your own drifting thoughts: ${frags}. Answer them with ONE short line — `
+          + `plain frontier speech in real words only, chatting while you both work. `
+          + `No humming or sound effects, no stage directions.`
         : `You are the ${v.role.name} of a small frontier town, talking quietly `
-          + `to yourself while you work. Your drifting thoughts just now: ${frags}. `
-          + `Say ONE short line to yourself — plain frontier speech in real words only. `
-          + `No greetings, no questions, no humming or sound effects, no stage directions, `
-          + `never address anyone.`;
+          + `to yourself while you work. Your mood is ${mood}. Your drifting thoughts `
+          + `just now: ${frags}. Say ONE short line to yourself — plain frontier speech `
+          + `in real words only. No greetings, no questions, no humming or sound effects, `
+          + `no stage directions, never address anyone.`;
       const res = await this.bridge.line(prompt, {
         words: VOICE.lineWords, voice: model, lengthScale: pace,
       });

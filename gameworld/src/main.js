@@ -988,11 +988,8 @@ async function speakLine(prompt, words = 16) {
 // The starter town murmurs (VOICE.md V1). Subtitled per D9 — a line nobody heard is a line
 // that didn't ship — with the speaker's trade named, because "who said that" is the first
 // thing a voice makes you ask.
-const townVoice = new TownVoice(bridge, villagers, sfx, (name, text, dur, settled) => {
-  // The trailing ellipsis is doing real work: the same words read as a failed sentence
-  // without it and as muttering with it. A SETTLED line (the model speaking clearly)
-  // keeps its own punctuation — the typography is the tell for which layer you heard.
-  subtitle = settled ? `${name} · ${text}` : `${name} · ${text}…`;
+const townVoice = new TownVoice(bridge, villagers, sfx, (name, text, dur) => {
+  subtitle = `${name} · ${text}`;
   subtitleT = Math.max(3, dur + 0.8);
 });
 const shakeRng = mulberry32(0x51AE);

@@ -33,3 +33,14 @@ test("smart quotes and emoji go; a mostly-broken line goes entirely", () => {
 test("too short after scrubbing means silence, not a two-word bark", () => {
   assert.equal(cleanLine("Mmm. Salt."), null);
 });
+
+test("mood is read off the drift, and heard darkness genuinely darkens it", async () => {
+  const { moodOf } = await import("./voice.js");
+  assert.equal(moodOf(["the war took the cold dead winter"]), "bleak");
+  assert.equal(moodOf(["the fire fed the soup and the salt held"]), "bright");
+  assert.equal(moodOf(["the rings go on past counting"]), "steady");
+  // Mixed talk leans where its words lean — mood is arithmetic over the subconscious,
+  // not a dial anyone sets.
+  assert.equal(moodOf(["the fire held", "the winter took the roads", "cold wind bites"]),
+    "uneasy");
+});
