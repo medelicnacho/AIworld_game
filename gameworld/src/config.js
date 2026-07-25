@@ -107,13 +107,30 @@ export const WARCRY = {
   // and Vale's is the quick high one — three armies, never one actor doing all the parts.
   // Costs 3x the synths, which persistence makes a one-time price (they wake from disk).
   tauntBakeEvery: 2,      // piper-only: no model contention, so it can fill briskly
+  // BATTLE CHATTER — the voices that keep going once a fight is UNDERWAY. The first cut
+  // only spoke at the three punchy moments (noticing you, winding up, arming), so a long
+  // fight fell silent after its opening line. These two kinds fill the middle:
+  //   fight  a mob hunting YOU, mid-brawl, running its mouth
+  //   war    two clans fighting EACH OTHER — the faction war, finally audible
+  // Both sit UNDER the telegraph cries in priority: they share the one-voice-at-a-time
+  // gate so nothing turns to mush, but they never set the faction cooldown, so a charge
+  // scream is never blocked by chatter. And no warband echoes — an echo is for the
+  // dramatic beat, not for the tenth line of a scrap.
+  fightCd: 4.5,           // battlefield-wide gap between in-combat lines
+  fightChance: 0.55,
+  fightMobCd: 11,         // one fighter shuts up this long after speaking
+  warCd: 6,               // clan-vs-clan chatter is rarer — it is not aimed at you
+  warChance: 0.45,
+  warMobCd: 14,
+  warHearRange: 70,       // clan brawls further than this stay a rumour, not a soundtrack
   // Per war-colour: piper model, synth pace, and a post-synth playbackRate — the cheap
   // monster-maker: Iron growls low and slow, Vale yips high and quick.
   voices: {
-    // Iron retuned in play: 0.85 rate made a growl but ATE THE WORDS — a threat you
-    // can't parse is just noise. The northern voice is gruff on its own; slow it down
-    // for weight (pace) and barely shift the pitch. Menace must stay legible.
-    0: { model: "en_GB-northern_english_male-medium.onnx", pace: 1.02, rate: 0.94 },  // Iron
+    // Iron, third pass: the northern voice was the thing that was hard to follow, not
+    // just the pitch — so the model changes to joe (open, clear American) and the pace
+    // goes back up to fast and hard. Rate stays a shade under natural for weight without
+    // mush. Menace must stay legible; this is legible AND quick.
+    0: { model: "en_US-joe-medium.onnx", pace: 0.86, rate: 0.96 },   // Iron
     1: { model: "en_US-ryan-medium.onnx", pace: 0.85, rate: 1.02 },                   // Ash
     2: { model: "en_US-amy-medium.onnx", pace: 0.8, rate: 1.12 },                     // Vale
   },

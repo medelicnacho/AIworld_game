@@ -102,3 +102,30 @@ test("the taunt floor: an army with taunts loaded is NEVER silent, even unbaked"
   w.cry({ faction: 1, x: 0, z: 0 }, "arm");
   assert.equal(played.length, 0, "each clan taunts in its own voice or not at all");
 });
+
+test("battle chatter yields to telegraphs: it never blocks a charge scream", () => {
+  played.length = 0;
+  const w = new WarCries(offline, fakeSfx);
+  for (const c of [0, 1]) w.taunts.get(c).push({ text: "I know kung fu!", wav: new ArrayBuffer(4) });
+  // Mid-fight chatter fires...
+  let spoke = 0;
+  for (let i = 0; i < 60 && !spoke; i++) { w.cry({ faction: 0, x: 0, z: 0 }, "fight"); spoke = played.length; }
+  assert.equal(spoke, 1, "a fighter eventually runs its mouth");
+  // ...and must NOT have armed the faction cooldown, so a telegraph can still land.
+  assert.equal(w.factionCd.get(0), 0, "chatter never claims the telegraph budget");
+  w.globalCd = 0;                                  // one voice at a time, then:
+  w.cry({ faction: 0, x: 0, z: 0 }, "charge");
+  assert.equal(played.length, 2, "the charge scream is never blocked by chatter");
+});
+
+test("clan-vs-clan war chatter has its own slower clock", () => {
+  played.length = 0;
+  const w = new WarCries(offline, fakeSfx);
+  w.taunts.get(2).push({ text: "You smell of poo!", wav: new ArrayBuffer(4) });
+  let spoke = 0;
+  for (let i = 0; i < 80 && !spoke; i++) { w.cry({ faction: 2, x: 0, z: 0 }, "war"); spoke = played.length; }
+  assert.equal(spoke, 1, "clans at war are audible");
+  w.globalCd = 0;
+  w.cry({ faction: 2, x: 0, z: 0 }, "war");
+  assert.equal(played.length, 1, "but the war clock holds them apart");
+});

@@ -919,6 +919,23 @@ export class Mobs {
         this.onWarcry?.(e, "hail");
       }
 
+      // THE FIGHT KEEPS TALKING. One cry when a pack notices you was an opening line and
+      // then silence for the whole scrap; these are the voices in the middle of it. Two
+      // sources, one per-mob clock so nobody becomes a parrot:
+      //   hunting YOU and close enough to matter  -> "fight"
+      //   brawling ANOTHER CLAN within earshot    -> "war", the faction war made audible
+      // Budgets live in warcry.js; this only decides who is in a position to speak.
+      if (e.cryT > 0) e.cryT -= dt;
+      if (!(e.cryT > 0)) {
+        if (e.aggro && !alliedToPlayer && dist < MOB.noticeRange * 1.4) {
+          e.cryT = WARCRY.fightMobCd;
+          this.onWarcry?.(e, "fight");
+        } else if (warFoe && dist < WARCRY.warHearRange) {
+          e.cryT = WARCRY.warMobCd;
+          this.onWarcry?.(e, "war");
+        }
+      }
+
       // Defenders watch further than a wild mob (e.notice): a garrison that only reacts when
       // you brush against it isn't defending anything.
       const noticeR = e.notice || MOB.noticeRange;

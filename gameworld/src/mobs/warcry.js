@@ -88,6 +88,8 @@ export class WarCries {
     this.globalCd = 0;
     this.factionCd = new Map([[0, 0], [1, 0], [2, 0]]);
     this.hailCd = 0;
+    this.fightCd = 0;
+    this.warCd = 0;
     // THE TOWN OUTRANKS THE ARSENAL. main wires this to "is any voice system mid-request"
     // — while a villager is speaking (or the town is dreaming), the baker stands down.
     // The model has one thread; conversation gets it first, rehearsal takes the gaps.
@@ -168,6 +170,8 @@ export class WarCries {
     if (!WARCRY.enabled) return;
     this.globalCd = Math.max(0, this.globalCd - dt);
     this.hailCd = Math.max(0, this.hailCd - dt);
+    this.fightCd = Math.max(0, this.fightCd - dt);
+    this.warCd = Math.max(0, this.warCd - dt);
     for (const [c, t] of this.factionCd) this.factionCd.set(c, Math.max(0, t - dt));
     this.catchUpOnDeeds();
 
@@ -358,6 +362,23 @@ export class WarCries {
       this.hailCd = WARCRY.hailCd;
       this.sfx.playClip(wav, e.x, e.z, WARCRY.hailVolume, 1);
       console.info(`[warcry] colour ${colour} (hail): "${text}"`);
+      return;
+    }
+    // BATTLE CHATTER (fight / war): shares the one-voice gate so a fight never turns to
+    // mush, keeps its own slower clock, and deliberately does NOT set the faction cooldown
+    // — a charge telegraph must never be blocked by someone running their mouth. No echoes.
+    if (kind === "fight" || kind === "war") {
+      const isWar = kind === "war";
+      if (this.globalCd > 0) return;
+      if ((isWar ? this.warCd : this.fightCd) > 0) return;
+      if (this.rng() >= (isWar ? WARCRY.warChance : WARCRY.fightChance)) return;
+      const pick = this.pickLine(colour);
+      if (!pick) return;
+      this.globalCd = WARCRY.globalCd;
+      if (isWar) this.warCd = WARCRY.warCd; else this.fightCd = WARCRY.fightCd;
+      const { rate } = WARCRY.voices[colour];
+      this.sfx.playClip(pick.wav, e.x, e.z, WARCRY.volume, rate);
+      console.info(`[warcry] colour ${colour} (${kind}): "${pick.text}"`);
       return;
     }
     if (this.globalCd > 0 || this.factionCd.get(colour) > 0) return;
