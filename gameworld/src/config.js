@@ -93,7 +93,7 @@ export const WARCRY = {
     "I poo and pee on your face!",
     "You're a homo sapien!",
     "Go back to stupid school!",
-    "I am going to pwn you, noob!",
+    "I am going to own you, noob!",
     "Super ultra power boost!",
     "You smell of poo!",
     "You're going to get some dirt in your eye!",
