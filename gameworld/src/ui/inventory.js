@@ -563,10 +563,10 @@ export class Inventory {
         </div>
         <div class="opts">
           <label for="opt-vol">Volume</label>
-          <input id="opt-vol" type="range" min="0" max="1" step="0.05"
+          <input id="opt-vol" type="range" min="0" max="2" step="0.05"
                  value="${this.hooks.volume?.() ?? 1}">
           <span class="optval vol-val">${Math.round((this.hooks.volume?.() ?? 1) * 100)}%</span>
-          <span class="opthint">all game audio</span>
+          <span class="opthint">all game audio — past 100% is boost</span>
         </div>
         <footer>${foot}</footer>
       </div>`;

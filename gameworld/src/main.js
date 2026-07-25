@@ -89,7 +89,7 @@ const kickAudio = () => { music.start(); music.resume(); };
 // between sessions. Audio you cannot turn down is audio that gets muted entirely.
 const VOL_KEY = "gw.volume";
 function setVolume(v) {
-  v = Math.max(0, Math.min(1, v));
+  v = Math.max(0, Math.min(2, v));   // up to 200%: the sfx limiter absorbs the push
   sfx.setVolume(v);
   music.setMaster(v);
   try { localStorage.setItem(VOL_KEY, String(v)); } catch { /* private mode; play on */ }

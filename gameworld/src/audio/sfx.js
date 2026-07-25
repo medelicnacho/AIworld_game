@@ -57,9 +57,11 @@ export class Sfx {
   get on() { return this.ctx && !this.muted; }
 
   /** The one global fader for every effect and every voice — they all route through the
-   *  master. 0.9 is the mix's headroom; the player's dial scales it. */
+   *  master. 0.9 is the mix's headroom; the player's dial scales it, and may push PAST
+   *  100% — laptop speakers in a loud room are real — because the limiter downstream was
+   *  built for exactly this: it squashes the peaks instead of letting them clip. */
   setVolume(v) {
-    this.volume = Math.max(0, Math.min(1, v));
+    this.volume = Math.max(0, Math.min(2, v));
     if (this.master) this.master.gain.value = 0.9 * this.volume;
   }
 

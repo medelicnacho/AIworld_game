@@ -76,9 +76,12 @@ export class Music {
 
   /** Fade each channel toward the volume its place deserves. The bed is on everywhere; the town
    *  track and the outside track are each faded in only in their own place. */
-  /** The global fader, shared with sfx: scales the soundtrack under its own balance. */
+  /** The global fader, shared with sfx: scales the soundtrack under its own balance.
+   *  Boost past 100% is allowed — each element clamps at the browser's hard ceiling of
+   *  1.0 in fade(), so the soundtrack gains real headroom (base sits at 0.24) and simply
+   *  levels off where HTMLMedia tops out. */
   setMaster(v) {
-    this.volume = this.base * Math.max(0, Math.min(1, v));
+    this.volume = this.base * Math.max(0, Math.min(2, v));
     this.applyVolumes(0);
   }
 
@@ -107,6 +110,7 @@ export class Music {
   }
 
   fade(el, target, ms) {
+    target = Math.min(1, target);          // HTMLMedia's hard ceiling; boost stops here
     const from = el.volume;
     const t0 = performance.now();
     clearInterval(el._fade);
