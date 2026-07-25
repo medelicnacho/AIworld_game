@@ -44,3 +44,16 @@ test("mood is read off the drift, and heard darkness genuinely darkens it", asyn
   assert.equal(moodOf(["the fire held", "the winter took the roads", "cold wind bites"]),
     "uneasy");
 });
+
+test("a paraphrase is not a reply — the parrot guard", async () => {
+  const { tooSimilar } = await import("./voice.js");
+  assert.equal(tooSimilar(
+    "Cold wind bites, and the road ain't clear now.",
+    "Aye, the cold wind bites and the road is not clear."), true);
+  assert.equal(tooSimilar(
+    "Cold wind bites, and the road ain't clear now.",
+    "Iron holds the west roads, let them freeze on them."), false);
+  assert.equal(tooSimilar(
+    "The soup wants salt.",
+    "The soup wants salt again, always salt."), true);
+});

@@ -31,7 +31,18 @@ import { Drift } from "./drift.js";
 // Junction words carry the wandering; clause shape carries the coherence. V3 replaces
 // much of this with memories the player caused; the shape is already the lab's, so that
 // upgrade is data, not code.
+// THE WORLD, in one breath — the context every speaker stands in. The starter town is
+// neutral ground, so its people are not partisans; the war is the weather they live under,
+// which is exactly how neutral civilians talk about one.
+const WORLD = "You live in a small neutral town on a frontier at war: three clans — "
+  + "Ash, Iron, and Vale — fight each other for the rings of wild land beyond the walls, "
+  + "and your town serves travellers from all three sides. ";
+
 const SEEDS = [
+  "ash riders were seen past the ridge",
+  "iron holds the west roads this season",
+  "vale runners move quick through the fallows",
+  "three banners, and none of them ours",
   "the rain is back on the walls",
   "the roads are worse this year",
   "the deep keeps what it takes",
@@ -63,6 +74,15 @@ const CAST = {
   smith: { model: "en_GB-northern_english_male-medium.onnx", pace: 1.1 },  // bleak, gruff
   adept: { model: "en_GB-alan-medium.onnx", pace: 1.18 },       // slow; knows more than it says
 };
+// What each trade DOES, said outright — a 1b model handed only a job title will happily
+// have the smith out gathering herbs. One clause of identity keeps hands on the right work.
+const TRADE = {
+  Herbalist: "you tend herbs and mend the hurt",
+  Smith: "you work iron at the forge",
+  Adept: "you deal in spells and strange goods",
+  Keeper: "you keep the town — gates, gardens, errands",
+};
+
 const KEEPER_MODELS = [
   "en_US-amy-medium.onnx",
   "en_US-joe-medium.onnx",
@@ -107,6 +127,24 @@ export function moodOf(fragments) {
   }
   const m = n ? score / n : 0;
   return m <= -0.5 ? "bleak" : m < 0 ? "uneasy" : m > 0.5 ? "bright" : m > 0 ? "warm" : "steady";
+}
+
+/**
+ * Is a reply just the previous line wearing a different hat? A small model, handed a
+ * quoted line and asked to answer it, loves to paraphrase it back — which reads as two
+ * people repeating each other, the opposite of a conversation. Measured as word overlap
+ * against the SHORTER line; above the bar, the reply is discarded and the villager holds
+ * their tongue. Silence reads as someone who had nothing to add — which is true.
+ * Exported for tests.
+ */
+export function tooSimilar(a, b) {
+  const setOf = (t) => new Set(t.toLowerCase().split(/\s+/)
+    .map((w) => w.replace(/[^a-z]/g, "")).filter((w) => w.length > 2));
+  const A = setOf(a), B = setOf(b);
+  if (!A.size || !B.size) return false;
+  let shared = 0;
+  for (const w of A) if (B.has(w)) shared++;
+  return shared / Math.min(A.size, B.size) > 0.6;
 }
 
 /**
@@ -232,17 +270,19 @@ export class TownVoice {
       // The MOOD is read off the same drift the thoughts come from — one word, but it is
       // the word that turns the same prompt into a different person on a different day.
       const mood = moodOf(this.drift.current(5));
+      const who = `You are the town ${v.role.name} — ${TRADE[v.role.name] || "you live and work here"}. `;
       const prompt = reply
-        ? `You are the ${v.role.name} of a small frontier town, working near the `
-          + `${reply.name}, who just said aloud: "${reply.text}". Your mood is ${mood}. `
-          + `Your own drifting thoughts: ${frags}. Answer them with ONE short line — `
-          + `plain frontier speech in real words only, chatting while you both work. `
-          + `No humming or sound effects, no stage directions.`
-        : `You are the ${v.role.name} of a small frontier town, talking quietly `
-          + `to yourself while you work. Your mood is ${mood}. Your drifting thoughts `
-          + `just now: ${frags}. Say ONE short line to yourself — plain frontier speech `
-          + `in real words only. No greetings, no questions, no humming or sound effects, `
-          + `no stage directions, never address anyone.`;
+        ? WORLD + who + `The ${reply.name} works nearby and just said aloud: `
+          + `"${reply.text}". Your mood is ${mood}. `
+          + `Answer with ONE short line of your own — agree, push back, add news, or turn `
+          + `the subject, but NEVER repeat or rephrase their words. Plain frontier speech `
+          + `in real words only, chatting while you both work. No humming or sound `
+          + `effects, no stage directions.`
+        : WORLD + who + `You are talking quietly to yourself while you work. `
+          + `Your mood is ${mood}. Your drifting thoughts just now: ${frags}. `
+          + `Say ONE short line to yourself — plain frontier speech in real words only. `
+          + `No greetings, no questions, no humming or sound effects, no stage `
+          + `directions, never address anyone.`;
       const res = await this.bridge.line(prompt, {
         words: VOICE.lineWords, voice: model, lengthScale: pace,
       });
@@ -252,6 +292,10 @@ export class TownVoice {
       // text goes back through /speak for a fresh mouth. Unscathed lines keep their WAV.
       const clean = cleanLine(res.text);
       if (!clean) return;                        // unusable — quiet beats gargling
+      // A reply that parrots the line it answers is discarded whole. This is the hard
+      // guard behind the prompt's "never repeat" — small models agree to that and then
+      // paraphrase anyway, and a paraphrase spoken aloud reads as a broken record.
+      if (reply && tooSimilar(reply.text, clean)) return;
       let wav = res.audio;
       if (clean !== res.text.trim()) {
         wav = await this.bridge.speak(clean, model, pace);
