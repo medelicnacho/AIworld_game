@@ -497,7 +497,25 @@ export class TownVoice {
    *  villager's own cast voice. Slow (seconds) by nature — the busy flag holds the town's
    *  one speaking slot for the duration, which is also why it can never stack. Uncached
    *  on purpose: a settled line should never come around twice. */
+  /**
+   * PRE-EMPTED BY THE PLAYER. Opening a chat calls this: the in-flight ambient request is
+   * aborted client-side, and — the part that matters even when the server has already
+   * finished generating — the GENERATION COUNTER advances, so a result that lands after
+   * the interrupt is discarded instead of played. A villager who kept mumbling her queued
+   * line while you stood there waiting to talk to her read as ignoring you; now the
+   * moment you press G, whatever she was about to say is simply never said.
+   * (Honest limit: the lab's model finishes the aborted generation server-side — the
+   * thread frees in a few seconds — so a first chat reply can still take a beat. What
+   * this guarantees is that nothing STALE ever plays, and nothing new queues ahead of you.)
+   */
+  interrupt() {
+    this.gen = (this.gen || 0) + 1;
+    try { this.ctrl?.abort(); } catch { /* already settled */ }
+  }
+
   async sayLine(v) {
+    const gen = this.gen = (this.gen || 0) + 1;
+    this.ctrl = new AbortController();
     try {
       const { model, pace } = voiceOf(v);
       const frags = this.drift.current(3).map((f) => `"${f}"`).join(", ");
@@ -532,8 +550,9 @@ export class TownVoice {
           + `Avoid stock filler like "I reckon". No greetings, no questions, no humming `
           + `or sound effects, no stage directions, never address anyone.`;
       const res = await this.bridge.line(prompt, {
-        words: VOICE.lineWords, voice: model, lengthScale: pace,
+        words: VOICE.lineWords, voice: model, lengthScale: pace, signal: this.ctrl.signal,
       });
+      if (gen !== this.gen) return;              // pre-empted: this line was never said
       if (!res?.text) return;
       // THE TRANSCRIPT. Every line the model produces is logged — spoken OR rejected,
       // with which guard killed it and why — because a voice layer can only be tuned
@@ -563,9 +582,9 @@ export class TownVoice {
       const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
       let wav = res.audio;
       if (gist(clean) !== gist(res.text)) {
-        wav = await this.bridge.speak(clean, model, pace);
+        wav = await this.bridge.speak(clean, model, pace, this.ctrl.signal);
       }
-      if (!wav) return;
+      if (gen !== this.gen || !wav) return;      // pre-empted mid-resynth: never played
       const dur = await this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
       if (!dur) return;
       this.onLine?.(v.role.name, clean, dur, true);

@@ -102,13 +102,16 @@ export class Bridge {
    * resolves null, which every caller already copes with. Generous on purpose — a slow
    * model on a busy CPU is normal, a minute of nothing is not.
    */
-  async _post(path, body, timeoutMs = 45000) {
+  async _post(path, body, timeoutMs = 45000, signal = null) {
     try {
       const res = await fetch(this.url + path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
+        // A caller may hand in its own abort (the chat interrupting an ambient line);
+        // the deadline still applies either way.
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
       });
       return res.ok ? res : null;
     } catch { return null; }
@@ -124,8 +127,8 @@ export class Bridge {
    * Generate a spoken line: prompt -> model -> voice.
    * @returns {Promise<{text:string, audio:ArrayBuffer|null, ms:object}|null>}
    */
-  async line(prompt, { words = 18, voice, lengthScale = 1 } = {}) {
-    const res = await this._post("/line", { prompt, words, voice, length_scale: lengthScale });
+  async line(prompt, { words = 18, voice, lengthScale = 1, signal = null } = {}) {
+    const res = await this._post("/line", { prompt, words, voice, length_scale: lengthScale }, 45000, signal);
     if (!res) return null;
     let data;
     try { data = await res.json(); } catch { return null; }
@@ -142,8 +145,8 @@ export class Bridge {
 
   /** Voice an exact string (no model involved). `lengthScale` >1 is slower/heavier,
    *  <1 faster/lighter — the axis that makes two speakers of one model two people. */
-  async speak(text, voice, lengthScale = 1) {
-    const res = await this._post("/speak", { text, voice, length_scale: lengthScale });
+  async speak(text, voice, lengthScale = 1, signal = null) {
+    const res = await this._post("/speak", { text, voice, length_scale: lengthScale }, 45000, signal);
     if (!res) return null;
     try { return await res.arrayBuffer(); } catch { return null; }
   }

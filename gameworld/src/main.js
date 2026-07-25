@@ -1023,7 +1023,14 @@ const SKY_DAY = new THREE.Color(0x8fb6d8);
 const SKY_NIGHT = new THREE.Color(0x131c33);
 
 const townChat = new TownChat(bridge, villagers, townVoice, sfx, {
-  onOpen: () => setPaused(true),
+  onOpen: () => {
+    // The player pressed G: whatever the ambient voice was mid-generating is aborted and
+    // its result discarded — she must never mumble her queued line AT you while you wait
+    // to talk to her — and the arsenal drops its in-flight bake so the model frees fast.
+    townVoice.interrupt();
+    warcries.interrupt();
+    setPaused(true);
+  },
   onClose: () => resumeFromShop(),
   onThinking: (b) => { speaking = b; },
 });
