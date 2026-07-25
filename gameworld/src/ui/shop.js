@@ -44,9 +44,10 @@ export const GOODS = {
         if (player.potions >= VILLAGE.potionCap) return false;
         player.potions++;
       } },
-    { id: "grenade", name: "Firebomb", price: 45, repeat: true,
-      desc: "Refills one grenade charge.",
-      apply: (game) => { game.grenades.refill(1); } },
+    // REMOVED: "Firebomb", the buy-a-grenade-charge refill. Grenade supply refills on KILLS
+    // (see GRENADE config / grenades.refill in the kill path), so a shop that also sold
+    // charges was a second faucet for something fighting already pays out — a line you bought
+    // once, forgot, and that changed no decision. Using the grenade is rewarded by using it.
   ],
   smith: [
     { id: "w_shotgun", name: "Scattergun", price: WEAPONS.shotgun.price, once: true,
