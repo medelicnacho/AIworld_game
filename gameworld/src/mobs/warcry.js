@@ -114,9 +114,19 @@ export class WarCries {
     const shortHails = [0, 1, 2].filter((c) => this.hails.get(c).length < WARCRY.hailPerFaction);
     if (!shortCries.length && !shortHails.length) return;
     this.bakeT = WARCRY.bakeEvery;
-    // Cries first — the war is louder than courtesy — then the hails fill in.
-    if (shortCries.length) this.bakeOne(shortCries[(this.rng() * shortCries.length) | 0]);
-    else this.bakeHail(shortHails[(this.rng() * shortHails.length) | 0]);
+    // Bake whichever SHELF is emptier, by fill fraction — never one kind to completion
+    // first. "Cries first, then hails" starved the hails behind twenty-four slow bakes:
+    // three minutes in town before the first ally could say hello. Courtesy and war fill
+    // side by side now.
+    const cryFill = ([0, 1, 2].reduce((n, c) => n + this.cache.get(c).length, 0))
+      / (3 * WARCRY.cachePerFaction);
+    const hailFill = ([0, 1, 2].reduce((n, c) => n + this.hails.get(c).length, 0))
+      / (3 * WARCRY.hailPerFaction);
+    if (shortHails.length && (hailFill <= cryFill || !shortCries.length)) {
+      this.bakeHail(shortHails[(this.rng() * shortHails.length) | 0]);
+    } else {
+      this.bakeOne(shortCries[(this.rng() * shortCries.length) | 0]);
+    }
   }
 
   async bakeHail(colour) {
@@ -124,7 +134,11 @@ export class WarCries {
     try {
       const { model } = WARCRY.voices[colour];
       let text = null;
-      if (this.bridge.info?.llm) {
+      // FAST-TRACK THE FIRST GREETINGS: the opening hail per faction skips the model and
+      // speaks the rotation directly (~1.5s instead of ~6) — an ally who can say "Hail,
+      // soldier" within seconds of you reaching town beats a poet who needs three minutes.
+      // Later bakes upgrade the shelf with clan-flavoured lines.
+      if (this.hails.get(colour).length >= 1 && this.bridge.info?.llm) {
         const who = CRY_IDENTITY[colour];
         const res = await this.bridge.line(
           `You are a soldier of the ${who.name} clan on a war-torn frontier — ${who.creed}. `

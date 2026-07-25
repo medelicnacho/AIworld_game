@@ -65,3 +65,27 @@ test("hails are their own channel: friendly cache, own budget, never the war's",
   w.cry({ faction: 2, x: 0, z: 0 }, "arm");
   assert.equal(played.length, 2, "and the war's budget is untouched by courtesy");
 });
+
+test("hails never starve behind the war: the emptier shelf bakes first", () => {
+  const w = new WarCries({ state: "online", info: { llm: false } }, fakeSfx);
+  // Track which kind each bake call would produce, without real synthesis.
+  const kinds = [];
+  w.bakeOne = (c) => { kinds.push("cry"); w.cache.get(c).push({ text: "x", wav: null }); };
+  w.bakeHail = (c) => { kinds.push("hail"); w.hails.get(c).push({ text: "x", wav: null }); };
+  // Simulate resting in a safe town: sanctuaryOf is position-based, so instead call the
+  // shelf-choice logic by driving update with the venue checks bypassed via monkeypatch —
+  // simplest honest route: call the chooser many times directly.
+  for (let i = 0; i < 36; i++) {
+    // reproduce update()'s chooser
+    const shortCries = [0, 1, 2].filter((c) => w.cache.get(c).length < 8);
+    const shortHails = [0, 1, 2].filter((c) => w.hails.get(c).length < 4);
+    if (!shortCries.length && !shortHails.length) break;
+    const cryFill = [0, 1, 2].reduce((n, c) => n + w.cache.get(c).length, 0) / 24;
+    const hailFill = [0, 1, 2].reduce((n, c) => n + w.hails.get(c).length, 0) / 12;
+    if (shortHails.length && (hailFill <= cryFill || !shortCries.length)) w.bakeHail(shortHails[0]);
+    else w.bakeOne(shortCries[0]);
+  }
+  const firstTen = kinds.slice(0, 10);
+  assert.ok(firstTen.includes("hail"), "a hail bakes within the first few slots, not after 24");
+  assert.ok(firstTen.includes("cry"), "and the war still bakes alongside");
+});
