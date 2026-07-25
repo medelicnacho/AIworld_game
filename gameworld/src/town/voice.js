@@ -40,16 +40,47 @@ import { Drift } from "./drift.js";
 // spent an afternoon philosophising about the turning of the rings. A made-up term in a
 // prompt is a vacuum the model will fill with the nearest cliché; define it once and the
 // talk snaps to geography: distances, roads, who holds what.
-const WORLD = "You live in a small neutral town on a frontier at war. The wild country "
-  + "beyond the walls stretches out in ever-harsher bands of land people call the rings "
-  + "— the further out the ring, the deadlier it gets. Three clans — Ash, Iron, and Vale "
-  + "— war over that land, and your town serves travellers from all three sides. ";
+const WORLD = "You live in a small neutral town in a war-torn land. The wild country "
+  + "beyond the walls stretches out in ever-harsher bands people call the rings — the "
+  + "further out the ring, the deadlier it gets — and three clans, Ash, Iron, and Vale, "
+  + "have torn it apart fighting each other for it: burned camps, closed roads, fields "
+  + "gone back to the wild. Your town is neutral ground, the last safe walls for anyone "
+  + "from any side, and everything the war breaks eventually limps through your gate. ";
+
+// WHAT A TOWN IN A WAR-TORN LAND TALKS ABOUT. Left to itself the corpus collapsed into
+// ABSTRACT doom — rot and hungry rings, a village waiting to die — because the mood loop
+// amplifies whatever the talk already is and nothing was feeding it particulars. The fix
+// is not cheerfulness, it is SPECIFICITY: a war-torn land is full of concrete things —
+// the wounded, the refugees, the roads you can no longer take, whose camp burned. One
+// topic is rolled per soliloquy as a nudge ("if it comes naturally..."), which keeps the
+// talk orbiting the war's damage without scripting a word of it — and concrete subjects
+// carry their own variety of feeling, which is what breaks the doom spiral.
+const TOPICS = [
+  "who limped through the gate today, and whose colours they wore",
+  "refugees from a village the war reached",
+  "the caravan that never arrived",
+  "a camp burned two rings out — Ash, Iron, or Vale, nobody agrees whose",
+  "which roads are closed to fighting this season",
+  "the wounded the herbalist has been tending",
+  "young folk leaving to take a clan's coin, and the ones who came back",
+  "what farms out in the rings looked like before the war",
+  "prices, now the war has swallowed the good land",
+  "which clan is winning this season, as far as anyone can tell",
+  "the wanderer who drinks here between fights",
+  "how quiet the far roads have gone",
+];
 
 const SEEDS = [
   "ash riders were seen past the ridge",
   "iron holds the west roads this season",
   "vale runners move quick through the fallows",
   "three banners, and none of them ours",
+  "an iron caravan paid in coin and bad news",
+  "more refugees at the gate this morning",
+  "the fields out past the fallows are burned black",
+  "the west road is closed to fighting again",
+  "clan folk in the square, watching each other",
+  "the herbalist ran out of clean linen yesterday",
   "the rain is back on the walls",
   "the roads are worse this year",
   "the deep keeps what it takes",
@@ -293,6 +324,8 @@ export class TownVoice {
           + `effects, no stage directions.`
         : WORLD + who + `You are talking quietly to yourself while you work. `
           + `Your mood is ${mood}. Your drifting thoughts just now: ${frags}. `
+          + `If it comes naturally, let your line touch on `
+          + `${TOPICS[(this.rng() * TOPICS.length) | 0]}. `
           + `Say ONE short line to yourself — plain frontier speech in real words only. `
           + `No greetings, no questions, no humming or sound effects, no stage `
           + `directions, never address anyone.`;
@@ -322,8 +355,12 @@ export class TownVoice {
       }
       console.info(`[voice] ${v.role.name} (${mood}${reply ? ` ← ${reply.name}` : ""}): "${clean}"`
         + `${clean !== res.text.trim() ? `   [scrubbed from: "${res.text.trim()}"]` : ""}`);
+      // Re-synthesize ONLY when scrubbing changed what would be SAID — letters, not
+      // typography. Comparing raw strings re-synthesized ~70% of lines over a curly
+      // apostrophe Piper never even pronounces differently.
+      const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
       let wav = res.audio;
-      if (clean !== res.text.trim()) {
+      if (gist(clean) !== gist(res.text)) {
         wav = await this.bridge.speak(clean, model, pace);
       }
       if (!wav) return;
