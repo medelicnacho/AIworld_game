@@ -287,15 +287,28 @@ export class TownVoice {
         words: VOICE.lineWords, voice: model, lengthScale: pace,
       });
       if (!res?.text) return;
+      // THE TRANSCRIPT. Every line the model produces is logged — spoken OR rejected,
+      // with which guard killed it and why — because a voice layer can only be tuned
+      // against what it actually says, and subtitles evaporate in seconds. One line per
+      // utterance, greppable on "[voice]", same rule as the raid breadcrumbs.
+      //
       // The line was already synthesized server-side from the RAW text — so if scrubbing
       // changed anything, that audio contains the porridge and is discarded; the clean
       // text goes back through /speak for a fresh mouth. Unscathed lines keep their WAV.
       const clean = cleanLine(res.text);
-      if (!clean) return;                        // unusable — quiet beats gargling
+      if (!clean) {                              // unusable — quiet beats gargling
+        console.info(`[voice] ✂ scrubbed to silence — ${v.role.name} tried: "${res.text}"`);
+        return;
+      }
       // A reply that parrots the line it answers is discarded whole. This is the hard
       // guard behind the prompt's "never repeat" — small models agree to that and then
       // paraphrase anyway, and a paraphrase spoken aloud reads as a broken record.
-      if (reply && tooSimilar(reply.text, clean)) return;
+      if (reply && tooSimilar(reply.text, clean)) {
+        console.info(`[voice] ✂ parrot — ${v.role.name} answered "${reply.text}" with "${clean}"`);
+        return;
+      }
+      console.info(`[voice] ${v.role.name} (${mood}${reply ? ` ← ${reply.name}` : ""}): "${clean}"`
+        + `${clean !== res.text.trim() ? `   [scrubbed from: "${res.text.trim()}"]` : ""}`);
       let wav = res.audio;
       if (clean !== res.text.trim()) {
         wav = await this.bridge.speak(clean, model, pace);
