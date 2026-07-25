@@ -34,9 +34,16 @@ import { Drift } from "./drift.js";
 // THE WORLD, in one breath — the context every speaker stands in. The starter town is
 // neutral ground, so its people are not partisans; the war is the weather they live under,
 // which is exactly how neutral civilians talk about one.
-const WORLD = "You live in a small neutral town on a frontier at war: three clans — "
-  + "Ash, Iron, and Vale — fight each other for the rings of wild land beyond the walls, "
-  + "and your town serves travellers from all three sides. ";
+//
+// "The rings" must be GLOSSED, not just named: handed the bare phrase, the model decided
+// they were spinning objects, and — because heard lines feed the drift — the whole town
+// spent an afternoon philosophising about the turning of the rings. A made-up term in a
+// prompt is a vacuum the model will fill with the nearest cliché; define it once and the
+// talk snaps to geography: distances, roads, who holds what.
+const WORLD = "You live in a small neutral town on a frontier at war. The wild country "
+  + "beyond the walls stretches out in ever-harsher bands of land people call the rings "
+  + "— the further out the ring, the deadlier it gets. Three clans — Ash, Iron, and Vale "
+  + "— war over that land, and your town serves travellers from all three sides. ";
 
 const SEEDS = [
   "ash riders were seen past the ridge",
