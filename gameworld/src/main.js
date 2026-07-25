@@ -12,6 +12,7 @@ import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
 import { Villagers } from "./town/villagers.js";
 import { TownVoice } from "./town/voice.js";
+import { TownChat } from "./town/chat.js";
 import { Raids } from "./town/raid.js";
 import { Shop, GOODS, statLine } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
@@ -973,24 +974,21 @@ const bridge = new Bridge();
 bridge.connect();
 let subtitle = "", subtitleT = 0, speaking = false;
 
-async function speakLine(prompt, words = 16) {
-  if (speaking || bridge.state !== "online") return;
-  speaking = true;
-  const res = await bridge.line(prompt, { words });
-  speaking = false;
-  if (!res) return;
-  subtitle = res.text;
-  subtitleT = 4 + res.text.length * 0.05;
-  const dur = await sfx.playClip(res.audio, player.x, player.z);
-  if (dur) subtitleT = Math.max(subtitleT, dur + 0.6);
-}
-
 // The starter town murmurs (VOICE.md V1). Subtitled per D9 — a line nobody heard is a line
 // that didn't ship — with the speaker's trade named, because "who said that" is the first
 // thing a voice makes you ask.
 const townVoice = new TownVoice(bridge, villagers, sfx, (name, text, dur) => {
   subtitle = `${name} · ${text}`;
   subtitleT = Math.max(3, dur + 0.8);
+});
+
+// TALKING BACK (VOICE.md C1): G near a villager. The chat pauses the WORLD but not the
+// SOUND — the reply has to be audible while the sim stands still, so setPaused() below
+// leaves the audio context running whenever the chat owns the pause.
+const townChat = new TownChat(bridge, villagers, townVoice, sfx, {
+  onOpen: () => setPaused(true),
+  onClose: () => resumeFromShop(),
+  onThinking: (b) => { speaking = b; },
 });
 const shakeRng = mulberry32(0x51AE);
 let bossTimer = 6;
@@ -1381,16 +1379,18 @@ attachInput(renderer.domElement, {
     tradeMsgT = 2;
     sfx.healDone();
   },
-  bridgeTest: () => {
-    const ring = RINGS[ringAt(player.x, player.z)].name;
-    speakLine(`You walk beside a traveller in ${ring}, ${Math.round(Math.hypot(player.x, player.z))} metres from where they began. Murmur one short thought about this place.`);
-  },
+  // G: talk to the nearest villager (town/chat.js). Replaces the old dev speak-test —
+  // the chat IS that test grown up: typed line in, spoken line out, in a real character.
+  chat: () => townChat.tryOpen(),
   // Clicking the world starts the game, lock or no lock. tryLock() keeps chasing the mouse
   // capture separately; not getting it costs you comfortable looking, not the ability to play.
   startPlaying: () => {
     // Return false to REFUSE — the click handler then also skips grabbing the mouse, so the
     // lock cannot unpause us behind a picker or a panel.
     if (dead || shop.open || inventory.open || choosing) return false;   // pick a difficulty first
+    // Clicking the world with a chat open means "done talking" — close it; its onClose
+    // runs the resume, so falling through here would double-handle one click.
+    if (townChat.open) { townChat.close(); return false; }
     music.start();
     sfx.unlock();
     if (paused) { lockTries = 0; setPaused(false); }
@@ -1477,15 +1477,16 @@ function setPaused(p) {
   document.body.classList.toggle("running", !p);
   // Pausing IS opening the inventory — the paused moment is exactly when you want to
   // rearrange your kit, and it saves inventing another key for it.
-  if (p && everPlayed && !shop.open) inventory.show();
+  if (p && everPlayed && !shop.open && !townChat.open) inventory.show();
   else inventory.hide();
-  // Shopping pauses the WORLD but not the soundtrack: you are standing in a town talking to
-  // someone, and the town's music cutting out is the tell that you've left the game. A real
-  // pause (Escape to the menu) still silences everything.
-  music.setPaused(p && !shop.open);
-  sfx.setPaused(p);
+  // Shopping — and talking to a villager — pauses the WORLD but not the soundtrack: you
+  // are standing in a town talking to someone, and the music cutting out is the tell that
+  // you've left the game. The chat also keeps SFX running, because the villager's spoken
+  // reply has to be audible while the sim stands still. A real pause silences everything.
+  music.setPaused(p && !shop.open && !townChat.open);
+  sfx.setPaused(p && !townChat.open);
   if (!p) { everPlayed = true; return; }
-  if (everPlayed) clickEl.innerHTML = "PAUSED &nbsp;·&nbsp; click to resume";
+  if (everPlayed && !townChat.open) clickEl.innerHTML = "PAUSED &nbsp;·&nbsp; click to resume";
 }
 
 /** Distance to the nearest town gate — the HUD half of the minimap marker. */

@@ -40,7 +40,7 @@ import { Drift } from "./drift.js";
 // spent an afternoon philosophising about the turning of the rings. A made-up term in a
 // prompt is a vacuum the model will fill with the nearest cliché; define it once and the
 // talk snaps to geography: distances, roads, who holds what.
-const WORLD = "You live in a small neutral town in a war-torn land. The wild country "
+export const WORLD = "You live in a small neutral town in a war-torn land. The wild country "
   + "beyond the walls stretches out in ever-harsher bands people call the rings — the "
   + "further out the ring, the deadlier it gets — and three clans, Ash, Iron, and Vale, "
   + "have torn it apart fighting each other for it: burned camps, closed roads, fields "
@@ -114,7 +114,7 @@ const CAST = {
 };
 // What each trade DOES, said outright — a 1b model handed only a job title will happily
 // have the smith out gathering herbs. One clause of identity keeps hands on the right work.
-const TRADE = {
+export const TRADE = {
   Herbalist: "you tend herbs and mend the hurt",
   Smith: "you work iron at the forge",
   Adept: "you deal in spells and strange goods",
@@ -131,7 +131,7 @@ const KEEPER_MODELS = [
 /** A villager's voice, stable for as long as the villager exists. Keepers hash their walk
  *  angle (fixed at populate time) into a model and a pace nudge, so the same body keeps
  *  the same voice for the whole session instead of re-rolling per murmur. */
-function voiceOf(v) {
+export function voiceOf(v) {
   const cast = CAST[v.role.key];
   if (cast) return cast;
   const h = Math.abs(Math.floor(v.ang * 10430.378)) >>> 0;      // angle bits as a hash
@@ -178,7 +178,7 @@ export function moodOf(fragments) {
 // say "west road's closed again." Each mood ships with its register, and bleak's is the
 // one that matters: TERSE, tired, pessimistic. Doom is right for a war-torn land; ornate
 // doom is a narrator, and nobody in this town is a narrator.
-const MOOD_STYLE = {
+export const MOOD_STYLE = {
   bleak: "Bleak means terse, tired, and pessimistic — short flat words, no poetry.",
   uneasy: "Uneasy means watchful and clipped.",
   steady: "Steady means plain and matter-of-fact.",
@@ -266,6 +266,21 @@ export class TownVoice {
     // into the town's drift sources at above-seed weight, so what was SAID aloud starts
     // surfacing, warped, in later murmurs. Speech feeding the subconscious feeding speech.
     this.heard = [];
+  }
+
+  /** Something was SAID in this town — by a villager, or by YOU (the chat feeds through
+   *  here too: player input is just another utterance, the lab's founding rule). It joins
+   *  the drift sources at above-seed weight, FIFO-capped so old talk fades. */
+  hear(text) {
+    this.heard.push({ text, weight: VOICE.heardWeight });
+    if (this.heard.length > VOICE.heardMax) this.heard.shift();
+    this.drift.learn(SEEDS.map((t) => ({ text: t, weight: 1 })).concat(this.heard));
+  }
+
+  /** The town's mood right now, read off the recent drift — for anyone else (the chat)
+   *  building a prompt about one of its people. */
+  currentMood() {
+    return moodOf(this.drift.current(5));
   }
 
   update(dt) {
@@ -395,9 +410,7 @@ export class TownVoice {
       // ...and HEARING WRITES MEMORY: spoken words join the drift sources at above-seed
       // weight, capped FIFO so old talk fades. From here on, murmurs can echo — warped,
       // half-remembered — what somebody actually said. The loop the lab exists to prove.
-      this.heard.push({ text: clean, weight: VOICE.heardWeight });
-      if (this.heard.length > VOICE.heardMax) this.heard.shift();
-      this.drift.learn(SEEDS.map((text) => ({ text, weight: 1 })).concat(this.heard));
+      this.hear(clean);
     } catch {
       // Same rule as the murmur: the model is an enhancement, never a dependency.
     }

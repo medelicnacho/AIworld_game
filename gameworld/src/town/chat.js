@@ -1,0 +1,172 @@
+// TALKING TO A VILLAGER (VOICE.md C1) — press G near one, type, be answered aloud.
+//
+// The design rule that keeps this from being a chatbot: a villager is not an assistant,
+// she is a busy woman at a workbench. She answers in ONE short line, in her own register,
+// through the same scrubber every spoken line passes, and goes back to her work. Ask her
+// about calculus and she says something tired about the war, because that is who she is.
+// The one-line cap is not a cost limit — it is what keeps her a person. (The lab ships a
+// literal detector for the failure mode this guards against: drift.py GENERIC_ASSISTANT.)
+//
+// And the founding rule, applied to YOU: player input is just another utterance. What you
+// type goes through townVoice.hear() exactly like a villager's spoken line — into the
+// town's drift memory — so what you tell the Herbalist can surface, warped, in the
+// Keeper's ambient muttering ten minutes later. That moment is the entire pitch.
+//
+// This is also, deliberately, a dry run of Santāna's whole interface (typed line in,
+// spoken line out, a visible thinking state) on characters where the stakes are low.
+
+import { VOICE } from "../config.js";
+import { player } from "../state.js";
+import { sanctuaryOf } from "../world/sanctuary.js";
+import { WORLD, TRADE, MOOD_STYLE, voiceOf, cleanLine } from "./voice.js";
+
+const LOG_KEEP = 8;      // turns remembered per villager (session memory — C2 persists it)
+const LOG_PROMPT = 4;    // turns actually shown to the model
+
+export class TownChat {
+  /**
+   * @param bridge    net/bridge.js
+   * @param villagers town/villagers.js
+   * @param townVoice town/voice.js — the ambient system; the chat borrows its ears (hear),
+   *                  its mood, and stays out of its way (its busy flag pauses murmurs)
+   * @param sfx       audio/sfx.js
+   * @param hooks     { onOpen, onClose, onThinking } — main.js owns pause/resume/HUD
+   */
+  constructor(bridge, villagers, townVoice, sfx, hooks) {
+    this.bridge = bridge;
+    this.villagers = villagers;
+    this.townVoice = townVoice;
+    this.sfx = sfx;
+    this.hooks = hooks;
+    this.open = false;
+    this.busy = false;
+    this.target = null;
+    // Conversation memory per VILLAGER, keyed stably (role + fixed walk angle) so it
+    // survives the villager list being rebuilt. Session-lifetime in C1; C2 saves it.
+    this.logs = new Map();
+    this.el = document.getElementById("chat");
+    this.el.innerHTML = `
+      <div class="who"></div>
+      <div class="lines"></div>
+      <div class="row"><input type="text" maxlength="140" placeholder="say something… (Enter to send · Esc to leave)"><button>say</button></div>`;
+    this.whoEl = this.el.querySelector(".who");
+    this.linesEl = this.el.querySelector(".lines");
+    this.input = this.el.querySelector("input");
+    this.sendBtn = this.el.querySelector("button");
+    // Keys typed into the chat must NEVER reach the game — the controller listens on
+    // window, and without this a typed "w" walks you away from the person you're talking
+    // to. stopPropagation at the input, where the event begins.
+    this.input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.code === "Enter") this.send();
+      if (e.code === "Escape") this.close();
+    });
+    this.sendBtn.addEventListener("click", () => this.send());
+  }
+
+  keyOf(v) { return `${v.s.id}|${v.role.name}|${v.ang.toFixed(3)}`; }
+  logOf(v) {
+    const k = this.keyOf(v);
+    let log = this.logs.get(k);
+    if (!log) this.logs.set(k, (log = []));
+    return log;
+  }
+
+  /** G was pressed. Open on the nearest villager if the venue allows; else do nothing —
+   *  the same venue rule as the ambient voice (the neutral starter town, model up). */
+  tryOpen() {
+    if (this.open) { this.close(); return true; }
+    const s = sanctuaryOf(player.x, player.z, 0);
+    if (!s || !s.neutral || s.city) return false;
+    if (this.bridge.state !== "online" || !this.bridge.info?.llm) return false;
+    let best = null, bd = VOICE.range;
+    for (const v of this.villagers.list) {
+      if (v.s !== s || v.role.faction) continue;
+      const d = Math.hypot(v.x - player.x, v.z - player.z);
+      if (d < bd) { bd = d; best = v; }
+    }
+    if (!best) return false;
+    this.target = best;
+    this.open = true;
+    this.whoEl.textContent = `the ${best.role.name}`;
+    this.render();
+    this.el.classList.add("show");
+    this.hooks.onOpen?.();
+    if (document.pointerLockElement) document.exitPointerLock();
+    setTimeout(() => this.input.focus(), 50);
+    return true;
+  }
+
+  close() {
+    if (!this.open) return;
+    this.open = false;
+    this.busy = false;
+    this.hooks.onThinking?.(false);
+    this.el.classList.remove("show");
+    this.input.blur();
+    this.hooks.onClose?.();
+  }
+
+  render(thinking = false) {
+    const log = this.target ? this.logOf(this.target) : [];
+    this.linesEl.innerHTML = log.map((t) =>
+      `<div class="${t.who}"><b>${t.who === "you" ? "You" : this.target.role.name}</b> ${t.text}</div>`)
+      .join("") + (thinking ? `<div class="them"><b>${this.target.role.name}</b> <i>…</i></div>` : "");
+    this.linesEl.scrollTop = this.linesEl.scrollHeight;
+  }
+
+  async send() {
+    if (!this.open || this.busy) return;
+    const said = this.input.value.trim();
+    if (!said) { this.close(); return; }
+    this.input.value = "";
+    const v = this.target;
+    const log = this.logOf(v);
+    log.push({ who: "you", text: said });
+    if (log.length > LOG_KEEP) log.splice(0, log.length - LOG_KEEP);
+    // YOUR words enter the town's memory like anyone else's. This single call is C1's
+    // whole thesis: what you say here can resurface in ambient talk later.
+    this.townVoice.hear(said);
+    this.busy = true;
+    this.hooks.onThinking?.(true);
+    this.render(true);
+    try {
+      const { model, pace } = voiceOf(v);
+      const mood = this.townVoice.currentMood();
+      const recent = log.slice(-LOG_PROMPT - 1, -1)
+        .map((t) => `${t.who === "you" ? "The wanderer" : "You"} said: "${t.text}"`).join(" ");
+      const prompt = WORLD
+        + `You are the town ${v.role.name} — ${TRADE[v.role.name] || "you live and work here"}. `
+        + `A wanderer — an armed traveller the town knows by sight — has stopped to talk `
+        + `to you while you work. ${recent ? `So far: ${recent} ` : ""}`
+        + `The wanderer just said to you: "${said.replace(/"/g, "'")}". `
+        + `Your mood is ${mood}. ${MOOD_STYLE[mood] || ""} `
+        + `Answer them with ONE short line and no more — you are busy, and you speak as a `
+        + `person of this town, never as a helper or a guide. If they ask something outside `
+        + `your world, answer as a tired townsperson would. Plain frontier speech in real `
+        + `words only. No stage directions, no lists, no advice unless it is town advice.`;
+      const res = await this.bridge.line(prompt, {
+        words: VOICE.lineWords, voice: model, lengthScale: pace,
+      });
+      const clean = res?.text ? cleanLine(res.text) : null;
+      if (!clean) {                                  // she looks at you and says nothing
+        log.push({ who: "them", text: "…" });
+        return;
+      }
+      const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
+      let wav = res.audio;
+      if (gist(clean) !== gist(res.text)) wav = await this.bridge.speak(clean, model, pace);
+      log.push({ who: "them", text: clean });
+      if (log.length > LOG_KEEP) log.splice(0, log.length - LOG_KEEP);
+      this.townVoice.hear(clean);                    // her answer is heard by the town too
+      console.info(`[chat] you: "${said}" -> ${v.role.name} (${mood}): "${clean}"`);
+      if (wav) this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
+    } catch {
+      log.push({ who: "them", text: "…" });          // the lab hiccuped; she just works on
+    } finally {
+      this.busy = false;
+      this.hooks.onThinking?.(false);
+      if (this.open) { this.render(); this.input.focus(); }
+    }
+  }
+}
