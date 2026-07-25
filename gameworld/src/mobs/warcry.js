@@ -1,12 +1,15 @@
 // WAR-CRIES — the three armies find their voices.
 //
-// This is the one place raw Markov IS voiced, and deliberately: a scream is not
-// conversation. The town's drift went underground because half-formed murmurs sounded
-// broken; a half-formed BATTLE CRY sounds exactly like a battle cry — grammar is not what
-// a charging soldier is known for. Each war-colour keeps its own drift corpus, seeded
-// with its identity (Iron endures, Ash burns, Vale runs) and FED FROM THE DEED FEED —
-// so after you sack a camp, the cries coming at you can carry warped fragments of your
-// own legend. Your reputation, screamed back at you across a battlefield.
+// COHERENT AT BAKE, FREE AT PLAY: because cries are synthesized at rest and only replayed
+// in combat, the model can WRITE them — a clan creed, the wanderer's latest deed, one
+// brutal line — at zero combat cost. The Markov corpus (seeded with each identity, fed
+// from the deed feed) remains the no-model fallback, so an army is never mute for lack
+// of ollama. Either way: sack a camp, and the cries coming at you can be ABOUT the
+// camp-burner. Your reputation, screamed back at you across a battlefield.
+//
+// AND IT IS A WARBAND, not a soloist: a lead cry gates on tight cooldowns, but nearby
+// packmates ECHO it — staggered, overlapping, each throat pitched differently — so a
+// noticed pack sounds like a group of warriors taking up a shout.
 //
 // The engineering rule that makes it shippable: NO SYNTHESIS IN COMBAT. Cries are baked
 // in town — the quiet place, the natural pre-bake station — into a per-faction cache of
@@ -14,12 +17,20 @@
 // empty simply doesn't scream yet; silence is the baseline everywhere in this project.
 
 import { WARCRY } from "../config.js";
-import { player } from "../state.js";
+import { player, nearby } from "../state.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
 import { isHostileSanctuary } from "../prog/factions.js";
 import { mulberry32 } from "../rng.js";
 import { Drift } from "../town/drift.js";
+import { cleanLine } from "../town/voice.js";
 import { deeds } from "../world/events.js";
+
+// Who is doing the screaming — each clan's creed, for the model that writes its cries.
+const CRY_IDENTITY = {
+  0: { name: "Iron", creed: "you outlast what should have killed you; grim, unbreakable" },
+  1: { name: "Ash", creed: "you hit first and hit hardest; ferocious, hungry" },
+  2: { name: "Vale", creed: "you are never where the blow lands; swift, mocking" },
+};
 
 // Per war-colour identity, as short imperatives that splice well. The shared scaffold
 // words ("them", "the", "down") let the order-2 chain cross phrases at joints that still
@@ -62,11 +73,13 @@ export class WarCries {
   }
 
   /** Deeds join every faction's corpus — all three armies hear of the wanderer, and the
-   *  chain splices your legend into their screaming. */
+   *  chain splices your legend into their screaming. The freshest deed is also kept whole
+   *  for the model, which weaves it into cries with actual grammar. */
   catchUpOnDeeds() {
     const { events, cursor } = deeds.since(this.newsCursor);
     if (!events.length) return;
     this.newsCursor = cursor;
+    this.lastDeed = events[events.length - 1].text;
     for (const [c, d] of this.corpora) {
       d.learn(CRY_SEEDS[c].map((text) => ({ text, weight: 1 }))
         .concat(events.map((e) => ({ text: e.text, weight: 1.3 }))));
@@ -95,6 +108,32 @@ export class WarCries {
   async bakeOne(colour) {
     this.baking = true;
     try {
+      const { model, pace } = WARCRY.voices[colour];
+      // COHERENCE COSTS NOTHING HERE — baking happens at rest, so the model can write the
+      // cry (a Markov splice screamed at you read as noise, not menace). The clan's creed
+      // shapes it, and the wanderer's freshest deed gives it a TARGET: sack a camp and
+      // the next batch of cries can be about the camp-burner specifically. Markov remains
+      // the no-model fallback, so an army is never mute for lack of ollama.
+      if (this.bridge.info?.llm) {
+        const who = CRY_IDENTITY[colour];
+        const word = this.lastDeed ? ` The lone wanderer you all hunt is out there; word is ${this.lastDeed}.` : "";
+        const res = await this.bridge.line(
+          `You are a war-crier of the ${who.name} clan on a war-torn frontier — ${who.creed}.${word} `
+          + `Shout ONE battle cry, three to eight words, plain and brutal. `
+          + `No stage directions, no quotes, just the cry itself.`,
+          { words: 8, voice: model, lengthScale: pace });
+        const clean = res?.text ? cleanLine(res.text, 1) : null;
+        if (clean && clean.split(" ").length <= 9) {
+          const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
+          let wav = res.audio;
+          if (gist(clean) !== gist(res.text)) wav = await this.bridge.speak(clean, model, pace);
+          if (wav) {
+            this.stash(colour, clean, wav);
+            return;
+          }
+        }
+      }
+      // The Markov fallback: half-formed, but an army with no model still screams.
       const drift = this.corpora.get(colour);
       let text = null;
       for (let i = 0; i < 4 && !text; i++) {
@@ -102,18 +141,20 @@ export class WarCries {
         if (f && f.indexOf(" ") > 0 && f.split(" ").length <= 6) text = f;
       }
       if (!text) return;
-      const { model, pace } = WARCRY.voices[colour];
       const wav = await this.bridge.speak(`${text}!`, model, pace);
-      if (!wav) return;
-      const bin = this.cache.get(colour);
-      bin.push({ text, wav });
-      if (bin.length > WARCRY.cachePerFaction) bin.shift();
-      console.info(`[warcry] baked for colour ${colour}: "${text}!"`);
+      if (wav) this.stash(colour, text, wav);
     } catch {
       // A failed bake is a quieter army, nothing more.
     } finally {
       this.baking = false;
     }
+  }
+
+  stash(colour, text, wav) {
+    const bin = this.cache.get(colour);
+    bin.push({ text, wav });
+    if (bin.length > WARCRY.cachePerFaction) bin.shift();
+    console.info(`[warcry] baked for colour ${colour}: "${text}"`);
   }
 
   /**
@@ -136,5 +177,22 @@ export class WarCries {
     const { rate } = WARCRY.voices[colour];
     this.sfx.playClip(wav, e.x, e.z, WARCRY.volume, rate);
     console.info(`[warcry] colour ${colour} (${kind}): "${text}!"`);
+
+    // THE WARBAND ANSWERS. Packmates near the crier take up the cry — staggered, from
+    // their own positions, each throat pitched a little differently so one cached WAV
+    // reads as several voices. Echoes ride OUTSIDE the cooldowns: they are part of this
+    // volley, not new cries. This is the difference between a soloist and a war party.
+    let echoes = 0;
+    for (const o of nearby(e.x, e.z, 34)) {
+      if (echoes >= WARCRY.echoes) break;
+      if (o === e || o.kind !== "mob" || o.hp <= 0 || ((o.faction || 0) % 3) !== colour) continue;
+      const pick = bin[(this.rng() * bin.length) | 0];
+      const delay = WARCRY.echoDelayMin + this.rng() * (WARCRY.echoDelayMax - WARCRY.echoDelayMin);
+      const throat = rate * (0.94 + this.rng() * 0.12);
+      setTimeout(() => {
+        if (o.hp > 0) this.sfx.playClip(pick.wav, o.x, o.z, WARCRY.volume * WARCRY.echoVolume, throat);
+      }, delay * 1000);
+      echoes++;
+    }
   }
 }

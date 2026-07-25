@@ -48,12 +48,22 @@ export const VOICE = {
 //   a playground.
 export const WARCRY = {
   enabled: true,
-  cachePerFaction: 5,     // baked cries kept warm per war-colour
-  bakeEvery: 2.5,         // seconds between top-up synth calls while resting in a town
-  globalCd: 4,            // one cry per battlefield per this many seconds
-  factionCd: 9,           // and one per faction — two armies may answer each other
-  aggroChance: 0.5,       // a pack noticing you SOMETIMES announces it
-  chargeChance: 0.85,     // a charge nearly always screams — it is the audio telegraph
+  cachePerFaction: 8,     // baked cries kept warm per war-colour — overlap needs variety
+  bakeEvery: 2.0,         // seconds between top-up synth calls while resting in a town
+  // RETUNED for the warband feel (asked for in play): the first budget produced a lone
+  // soloist every nine seconds; a war party is a WALL of voices. Lead cries still gate on
+  // cooldowns — what overlaps is the ECHO: packmates answering the lead, staggered.
+  globalCd: 1.2,          // a breath between LEAD cries on the battlefield
+  factionCd: 3,           // and per faction, so two armies still answer each other
+  aggroChance: 0.8,       // a pack noticing you usually announces it
+  chargeChance: 0.9,      // a charge nearly always screams — it is the audio telegraph
+  // THE WARBAND: when a lead cry fires, up to this many nearby packmates answer it,
+  // staggered and overlapping, each throat pitched slightly differently. This is where
+  // "a group of warriors" lives — one voice raises the cry, the band takes it up.
+  echoes: 2,
+  echoDelayMin: 0.35,
+  echoDelayMax: 1.4,
+  echoVolume: 0.9,
   volume: 1.1,
   // Per war-colour: piper model, synth pace, and a post-synth playbackRate — the cheap
   // monster-maker: Iron growls low and slow, Vale yips high and quick.
