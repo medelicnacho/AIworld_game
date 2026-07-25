@@ -38,6 +38,42 @@ export const VOICE = {
   heardMax: 12,
 };
 
+// WAR-CRIES — the factions' voices on the field. Every constraint here is a lesson the
+// town's voice already paid for, applied to combat:
+//   EVENT-DRIVEN, never ambient: a cry fires on aggro, on a charge wind-up, on a garrison
+//   arming — moments that carry information. A cry IS a telegraph; chatter is noise.
+//   PRE-BAKED, never live: synthesis happens in town, where it's quiet; combat plays
+//   cached WAVs instantly. Piper mid-fight would stutter the exact frames that kill you.
+//   BUDGETED: cooldowns per battlefield and per faction. One scream is a scream; five is
+//   a playground.
+export const WARCRY = {
+  enabled: true,
+  cachePerFaction: 5,     // baked cries kept warm per war-colour
+  bakeEvery: 2.5,         // seconds between top-up synth calls while resting in a town
+  globalCd: 4,            // one cry per battlefield per this many seconds
+  factionCd: 9,           // and one per faction — two armies may answer each other
+  aggroChance: 0.5,       // a pack noticing you SOMETIMES announces it
+  chargeChance: 0.85,     // a charge nearly always screams — it is the audio telegraph
+  volume: 1.1,
+  // Per war-colour: piper model, synth pace, and a post-synth playbackRate — the cheap
+  // monster-maker: Iron growls low and slow, Vale yips high and quick.
+  voices: {
+    0: { model: "en_GB-northern_english_male-medium.onnx", pace: 0.92, rate: 0.85 },  // Iron
+    1: { model: "en_US-ryan-medium.onnx", pace: 0.85, rate: 1.02 },                   // Ash
+    2: { model: "en_US-amy-medium.onnx", pace: 0.8, rate: 1.12 },                     // Vale
+  },
+};
+
+// DAY AND NIGHT — 20 minutes each, with soft ~90s dawns and dusks. Night is visual only
+// for now (the frontier does not yet get meaner in the dark); its real cargo is SLEEP:
+// resting in a safe town skips to dawn, and the skip is when the town CONSOLIDATES — the
+// day's heard talk is digested into standing lore (see town/voice.js consolidate()).
+export const DAYNIGHT = {
+  dayLen: 1200,
+  nightLen: 1200,
+  edge: 90,               // seconds of dawn/dusk ramp
+};
+
 // Shown in the corner of the screen, always. This exists because a build-staleness bug wore
 // a gameplay bug's clothes for hours: the packaged dist/ (and an itch upload of it) kept the
 // old garrison-ambush code long after src/ was fixed, and every report of "still broken" was

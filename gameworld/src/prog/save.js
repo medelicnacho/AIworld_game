@@ -73,6 +73,9 @@ export function snapshot(ctx) {
     town: ctx.townVoice && ctx.townChat
       ? { voice: ctx.townVoice.dump(), chat: ctx.townChat.dump() }
       : null,
+    // Where the sun was. Without this every reload is dawn, and a world whose clock
+    // resets when you blink is a stage set, not a place.
+    worldT: ctx.dayNight ? ctx.dayNight.t : null,
   };
 }
 
@@ -141,6 +144,9 @@ export function restore(data, ctx) {
   // The town's memory of you comes back FADED by real time away (data.at is the save's
   // wall-clock). Defensive at every step: an old save has no town field, and a save with
   // one must never be able to break the load — memory is flavour, the character is not.
+  if (typeof data.worldT === "number" && ctx.dayNight) {
+    ctx.dayNight.t = Math.max(0, data.worldT) % ctx.dayNight.cycle;
+  }
   if (data.town && ctx.townVoice && ctx.townChat) {
     try {
       const hoursAway = data.at ? Math.max(0, (Date.now() - data.at) / 3.6e6) : 0;

@@ -41,6 +41,8 @@ import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyL
 import { save as saveGame, load as loadSave, restore as restoreSave, hasSave, wipe as wipeSave } from "./prog/save.js";
 import { mulberry32 } from "./rng.js";
 import { deeds } from "./world/events.js";
+import { WarCries } from "./mobs/warcry.js";
+import { DayNight } from "./world/daynight.js";
 import { setDifficulty, diff } from "./prog/difficulty.js";
 
 const FIXED_DT = 1 / 60;
@@ -57,7 +59,8 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xbcd8f0, 0x4a4a44, 0.85));
+const hemi = new THREE.HemisphereLight(0xbcd8f0, 0x4a4a44, 0.85);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2dd, 1.15);
 sun.position.set(0.5, 1, 0.3);
 scene.add(sun);
@@ -991,6 +994,16 @@ const townVoice = new TownVoice(bridge, villagers, sfx, (name, text, dur) => {
 // TALKING BACK (VOICE.md C1): G near a villager. The chat pauses the WORLD but not the
 // SOUND — the reply has to be audible while the sim stands still, so setPaused() below
 // leaves the audio context running whenever the chat owns the pause.
+// The armies' voices (mobs/warcry.js): baked in town, screamed in the field.
+const warcries = new WarCries(bridge, sfx);
+mobs.onWarcry = (e, kind) => warcries.cry(e, kind);
+
+// The world's clock (world/daynight.js). main drives the lights off daylight() below —
+// sim state is not render state, and time is sim state.
+const dayNight = new DayNight();
+const SKY_DAY = new THREE.Color(0x8fb6d8);
+const SKY_NIGHT = new THREE.Color(0x131c33);
+
 const townChat = new TownChat(bridge, villagers, townVoice, sfx, {
   onOpen: () => setPaused(true),
   onClose: () => resumeFromShop(),
@@ -1262,6 +1275,7 @@ const saveCtx = {
   get game() { return gameCtx; },
   get townVoice() { return townVoice; },
   get townChat() { return townChat; },
+  get dayNight() { return dayNight; },
   slots: SLOTS,
   recomputeGear,
 };
@@ -1401,6 +1415,7 @@ attachInput(renderer.domElement, {
   // G: talk to the nearest villager (town/chat.js). Replaces the old dev speak-test —
   // the chat IS that test grown up: typed line in, spoken line out, in a real character.
   chat: () => townChat.tryOpen(),
+  sleep: () => trySleep(),
   // Clicking the world starts the game, lock or no lock. tryLock() keeps chasing the mouse
   // capture separately; not getting it costs you comfortable looking, not the ability to play.
   startPlaying: () => {
@@ -1447,6 +1462,29 @@ addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
   minimap.resize();      // the map is sized from the window, so it has to follow it
 });
+
+const sleepEl = document.getElementById("sleep");
+let sleeping = false;
+/**
+ * SLEEP (Z, inside a safe town). The fade is not decoration — the dark is when the town
+ * DREAMS: consolidate() digests the day's talk into standing lore, with the model if one
+ * is up and mechanically if not, deadline-capped so the town always wakes. Then dawn, a
+ * full heal (a bed is the one rest this game gives), and the save — a night is a chapter.
+ */
+function trySleep() {
+  if (sleeping || dead || paused || choosing) return;
+  if (!inSafe) { tradeMsg = "sleep needs a safe town's walls"; tradeMsgT = 2; return; }
+  sleeping = true;
+  sleepEl.classList.add("show");
+  setTimeout(async () => {
+    try { await townVoice.consolidate(bridge); } catch { /* the town wakes regardless */ }
+    dayNight.skipToDawn();
+    player.hp = player.maxHp;
+    saveNow();
+    sleepEl.classList.remove("show");
+    sleeping = false;
+  }, 1000);
+}
 
 const clickEl = document.getElementById("click");
 let paused = true, everPlayed = false, inSafe = false, dead = false;
@@ -1772,7 +1810,17 @@ function frame(now) {
   mobs.update(dt, hurtPlayer);
   villagers.update(dt);
   townVoice.update(dt);    // fire-and-forget inside; never awaited from the loop
+  warcries.update(dt);     // bakes in town, ticks its budgets everywhere
   raids.update(dt);
+  // The sun does its slow work. Sky, fog, and both lights ride one number.
+  dayNight.advance(dt);
+  {
+    const dl = dayNight.daylight();
+    SKY.copy(SKY_NIGHT).lerp(SKY_DAY, dl);
+    scene.fog.color.copy(SKY);
+    sun.intensity = 0.08 + 1.07 * dl;
+    hemi.intensity = 0.22 + 0.63 * dl;
+  }
   // Only traders get a plate: labelling every keeper would turn a town into a wall of text.
   hpBars.draw(mobs.entities());
   // Floating damage numbers for your hits (mob + boss), then clear the frame's events.
@@ -1923,7 +1971,7 @@ function frame(now) {
     bossLine + bossStatus +
     `${nearestGate()}\n` +
     `${RINGS[ring].name}  (tier ${tier})   ${Math.round(fromSpawn)}m out` +
-    `   next ring ${Math.max(0, Math.ceil(toNextRing))}m\n` +
+    `   next ring ${Math.max(0, Math.ceil(toNextRing))}m   · ${dayNight.phase()}\n` +
     `xyz  ${player.x.toFixed(1)} ${player.y.toFixed(1)} ${player.z.toFixed(1)}\n` +
     // Pitch is on the debug HUD because "the view is stuck pointing up" was impossible to
     // diagnose without it — nothing in the game reported where you were looking, so the one

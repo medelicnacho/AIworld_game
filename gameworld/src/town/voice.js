@@ -312,6 +312,11 @@ export class TownVoice {
     // into the town's drift sources at above-seed weight, so what was SAID aloud starts
     // surfacing, warped, in later murmurs. Speech feeding the subconscious feeding speech.
     this.heard = [];
+    // LORE — what the town has DECIDED to remember. Written only by sleep (consolidate):
+    // each night digests the day's heard talk into one line of standing memory. Unlike
+    // heard[], lore does not decay on absence — it is the town's long-term self, capped
+    // and slow, the first game-side echo of the lab's consolidation machinery.
+    this.lore = [];
     // THE NEWS. This reader's place in the deed feed, and the freshest deed to arrive —
     // held for a couple of speaking slots so the first murmurs after you walk in are
     // ABOUT what you did out there, not about the weather.
@@ -340,9 +345,17 @@ export class TownVoice {
     if (this.heard.length > VOICE.heardMax) {
       this.heard.splice(0, this.heard.length - VOICE.heardMax);
     }
-    this.drift.learn(SEEDS.map((t) => ({ text: t, weight: 1 })).concat(this.heard));
+    this.learnAll();
     this.news = headlines[headlines.length - 1].text;
     this.newsSlots = 2;
+  }
+
+  /** The drift's full diet, in one place: the town's standing seeds, its slow lore, and
+   *  the day's talk. Three callers used to build this by hand; they disagreed eventually. */
+  learnAll() {
+    this.drift.learn(SEEDS.map((t) => ({ text: t, weight: 1 }))
+      .concat(this.lore)
+      .concat(this.heard));
   }
 
   /** Something was SAID in this town — by a villager, or by YOU (the chat feeds through
@@ -351,7 +364,7 @@ export class TownVoice {
   hear(text) {
     this.heard.push({ text, weight: VOICE.heardWeight });
     if (this.heard.length > VOICE.heardMax) this.heard.shift();
-    this.drift.learn(SEEDS.map((t) => ({ text: t, weight: 1 })).concat(this.heard));
+    this.learnAll();
   }
 
   /** The town's mood right now, read off the recent drift — for anyone else (the chat)
@@ -360,9 +373,50 @@ export class TownVoice {
     return moodOf(this.drift.current(5));
   }
 
+  /**
+   * SLEEP DIGESTS THE DAY (the lab's consolidation, first game-side echo). Called from the
+   * dark of the sleep fade: the day's heard talk is compressed into ONE line of standing
+   * lore — with the model when it's up ("how will the town remember this day"), or
+   * mechanically without it (the loudest thing said becomes lore verbatim). Either way
+   * heard[] is cleared: yesterday's echoes become a preoccupation, not a recording. The
+   * fade gives the model a few free seconds; past the deadline, the mechanical memory
+   * wins and the town wakes on time.
+   */
+  async consolidate(bridge) {
+    if (!this.heard.length) return null;
+    const material = [...this.heard].sort((a, b) => b.weight - a.weight);
+    let lore = null;
+    if (bridge?.state === "online" && bridge.info?.llm) {
+      try {
+        const texts = material.slice(0, 8).map((h) => `"${h.text}"`).join(", ");
+        const res = await Promise.race([
+          bridge.line(
+            `Overnight, a small neutral town in a war-torn land digests the day's talk: `
+            + `${texts}. Write ONE short line — how the town will remember this day. `
+            + `Plain frontier speech, no greetings, no names of who said what.`,
+            { words: 12, voice: "en_US-kristin-medium.onnx" }),
+          new Promise((r) => setTimeout(() => r(null), 9000)),
+        ]);
+        lore = res?.text ? cleanLine(res.text) : null;
+      } catch { /* the mechanical memory below */ }
+    }
+    if (!lore) lore = material[0].text;
+    this.lore.push({ text: lore, weight: 1.2 });
+    if (this.lore.length > 10) this.lore.shift();
+    this.heard = [];
+    this.news = null;
+    this.newsSlots = 0;
+    this.learnAll();
+    console.info(`[voice] the town sleeps on it — new lore: "${lore}"`);
+    return lore;
+  }
+
   /** What the town remembers hearing, as plain data — for the save (VOICE.md C2). */
   dump() {
-    return { heard: this.heard.map((h) => ({ ...h })) };
+    return {
+      heard: this.heard.map((h) => ({ ...h })),
+      lore: this.lore.map((l) => ({ ...l })),
+    };
   }
 
   /**
@@ -379,7 +433,8 @@ export class TownVoice {
       .map((h) => ({ text: String(h.text || ""), weight: (h.weight || 1) * rot }))
       .filter((h) => h.text && h.weight >= 0.5)
       .slice(-VOICE.heardMax);
-    this.drift.learn(SEEDS.map((t) => ({ text: t, weight: 1 })).concat(this.heard));
+    this.lore = (data.lore || []).filter((l) => l && l.text).slice(-10);
+    this.learnAll();
     if (this.heard.length) {
       console.info(`[voice] the town remembers ${this.heard.length} things it heard`
         + `${hoursAway > 1 ? ` (faded by ${Math.round(hoursAway)}h away)` : ""}`);

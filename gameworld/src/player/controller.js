@@ -108,6 +108,7 @@ export function attachInput(canvas, hooks = {}) {
       if (slot !== undefined) hooks.ability?.(slot);
     }
     if (e.code === "KeyG" && !e.repeat) hooks.chat?.();   // talk to the nearest villager
+    if (e.code === "KeyZ" && !e.repeat) hooks.sleep?.();  // rest in a safe town: skip to dawn
 
     // Double-tap a movement key to roll that way. Timestamps are per-key, so tapping
     // W then D reads as two separate first-taps rather than a double-tap.
