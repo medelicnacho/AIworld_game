@@ -112,15 +112,19 @@ test("dialogue floor: 'Mara.' is an answer in chat, still noise as a murmur", as
   assert.notEqual(nameOf(v), nameOf({ ...v, uid: 4 }), "but two bodies are two people");
 });
 
-test("introductions become facts: nameIn hears a name and refuses a verb", async () => {
+test("introductions become facts: nameIn hears a name and refuses a state of being", async () => {
   const { nameIn } = await import("./chat.js");
   // The playtest lines that motivated this, verbatim:
-  assert.equal(nameIn("hey my names dilhead jones whats your name"), "Dilhead Jones");
-  assert.equal(nameIn("thanks for the help. my name is john snow by the way."), "John Snow");
-  assert.equal(nameIn("im dilhead jones"), "Dilhead Jones");
-  assert.equal(nameIn("call me Rook"), "Rook");
-  // And the traps: mid-sentence "i'm X" is speech, not an introduction.
+  assert.equal(nameIn("hey my names dilhead jones whats your name").name, "Dilhead Jones");
+  assert.equal(nameIn("thanks for the help. my name is john snow by the way.").name, "John Snow");
+  assert.equal(nameIn("im dilhead jones").name, "Dilhead Jones");
+  assert.equal(nameIn("im dilhead jones").explicit, false, "a bare 'im X' is a guess");
+  assert.equal(nameIn("call me Rook").explicit, true, "'call me' means it");
+  // And the traps. The second one is canon: an apology once became a christening, and
+  // the herbalist called the player "Really Sorry", warmly, for the rest of the day.
   assert.equal(nameIn("im going to go kill some noobs"), null);
+  assert.equal(nameIn("i want to help any way i can to make up for what i said to you im really sorry"), null);
+  assert.equal(nameIn("im dead serious"), null);
   assert.equal(nameIn("i'm fine"), null);
   assert.equal(nameIn("hello there"), null);
 });
@@ -139,4 +143,19 @@ test("C3 regard: rudeness costs, courtesy pays, one outburst is a mark not a ver
   assert.equal(regardWord(-1), "sour");
   assert.equal(regardWord(0), "wary");
   assert.equal(regardWord(3), "friendly");
+});
+
+test("the playtest's actual abuse now costs regard, and a false name is unlearned", async () => {
+  const { regardShift } = await import("./chat.js");
+  assert.equal(regardShift("my name is dilhead jones you fat hoe don't tell me to move"), -1);
+  assert.equal(regardShift("ur got a nasty ass face"), -1);
+  const { TownChat } = await import("./chat.js");
+  // restore() drops a stored name made of states-of-being — the "Really Sorry" haunting.
+  const chat = Object.create(TownChat.prototype);
+  chat.facts = new Map();
+  chat.logs = new Map();
+  chat.restore({ logs: [], facts: [["k1", { name: "Really Sorry", regard: 3 }],
+    ["k2", { name: "Dilhead Jones", regard: -2 }]] }, 0);
+  assert.equal(chat.facts.get("k1").name, undefined, "the apology-name is unlearned");
+  assert.equal(chat.facts.get("k2").name, "Dilhead Jones", "a real name survives");
 });

@@ -37,13 +37,25 @@ const clip = (t) => (t.length > CLIP ? t.slice(0, CLIP - 3) + "..." : t);
 // beside the log, and stated to the model as things she KNOWS — memory that cannot fall
 // out of a context window. Deliberately conservative patterns: mis-hearing "i'm going"
 // as an introduction would be worse than missing one.
+// `explicit` marks the patterns where the player is unambiguously naming themselves.
+// The bare "im X" form is a GUESS — "...im really sorry" once christened the player
+// "Really Sorry", and the herbalist warmly used it for the rest of the day — so a guess
+// may only fill an empty name, never overwrite a known one.
 const NAME_RX = [
-  /\bmy name(?:'s|s| is)\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)/i,
-  /\bcall me\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)/i,
-  /\b(?:i am|i'm|im)\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)\s*[.!]?$/i,   // whole-utterance only
+  { rx: /\bmy name(?:'s|s| is)\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)/i, explicit: true },
+  { rx: /\bcall me\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)/i, explicit: true },
+  { rx: /\b(?:i am|i'm|im)\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)\s*[.!]?$/i, explicit: false },
 ];
+// EVERY captured word is checked, and the list leans long: the states of being a person
+// declares about themselves ("im really sorry", "im dead serious", "im so tired") must
+// never become who they ARE. Missing a real name is recoverable — "my name is" always
+// works; wearing an apology as a name is a haunting.
 const NOT_NAMES = new Set(["going", "gonna", "here", "sure", "fine", "sorry", "just",
-  "back", "leaving", "staying", "done", "good", "okay", "ok", "not", "so", "the"]);
+  "back", "leaving", "staying", "done", "good", "okay", "ok", "not", "so", "the",
+  "really", "very", "truly", "honestly", "actually", "serious", "dead", "tired",
+  "hungry", "lost", "glad", "happy", "sad", "angry", "mad", "busy", "ready", "afraid",
+  "scared", "new", "old", "alone", "kidding", "joking", "confused", "curious", "broke",
+  "hurt", "well", "home", "away", "outta", "sick", "cold", "warm", "rich", "poor"]);
 
 // REGARD (VOICE.md C3) — what she thinks of YOU, earned one utterance at a time. The
 // playtest that demanded it: "screw you too" and "your mom is lame" cost the player
@@ -52,8 +64,13 @@ const NOT_NAMES = new Set(["going", "gonna", "here", "sure", "fine", "sorry", "j
 // stored beside her other facts, it survives the save — and grudges FADE slower than
 // gossip: a day away softens one step, it never resets. Scored by lexicon, not by the
 // model, for the same reason mood is: a dial the sim owns is a dial the sim can trust.
+// Expanded from the playtest, whose abuse was more inventive than the first list — "fat
+// hoe" and "nasty ass face" sailed past a lexicon that knew only "stupid" and "lame",
+// so the worst session on record never cost a single step of regard.
 const RUDE = new Set(["screw", "stupid", "idiot", "shut", "dumb", "lame", "suck", "ugly",
-  "fool", "fools", "hate", "damn", "worthless", "trash", "loser", "shrew", "hag"]);
+  "fool", "fools", "hate", "damn", "worthless", "trash", "loser", "shrew", "hag",
+  "ass", "fat", "nasty", "hoe", "bitch", "shit", "fuck", "fucking", "crap", "bastard",
+  "jerk", "freak", "pig", "coward", "wench", "crone", "moron", "clown"]);
 const KIND = new Set(["please", "thanks", "thank", "sorry", "appreciate", "kind",
   "lovely", "good", "beautiful", "wonderful", "friend", "helpful"]);
 
@@ -80,14 +97,18 @@ const REGARD_STYLE = {
   friendly: "You like this one — warmth under the weariness, and you use their name.",
 };
 
-/** The wanderer's name, if this utterance introduces one. Exported for its tests. */
+/** The wanderer's name if this utterance introduces one: { name, explicit } or null.
+ *  Exported for its tests. */
 export function nameIn(said) {
-  for (const rx of NAME_RX) {
+  for (const { rx, explicit } of NAME_RX) {
     const m = said.match(rx);
     if (!m) continue;
     const words = m[1].trim().split(/\s+/).slice(0, 2);
-    if (NOT_NAMES.has(words[0].toLowerCase())) continue;
-    return words.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+    if (words.some((w) => NOT_NAMES.has(w.toLowerCase()))) continue;
+    return {
+      name: words.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" "),
+      explicit,
+    };
   }
   return null;
 }
@@ -168,12 +189,18 @@ export class TownChat {
       n++;
     }
     // Grudges (and fondness) FADE slower than gossip: one step toward indifference per
-    // full day away — never a reset. Names don't fade at all; a name is a name.
+    // full day away — never a reset. Names don't fade at all; a name is a name — unless
+    // an old save christened the player with a state of being ("Really Sorry", by a
+    // pattern since fixed), in which case the false name is quietly unlearned here.
     const soften = Math.floor(Math.max(0, hoursAway) / 24);
     for (const [k, f] of data.facts || []) {
       if (!f || typeof f !== "object") continue;
       const r = f.regard || 0;
-      this.facts.set(k, { ...f, regard: r > 0 ? Math.max(0, r - soften) : Math.min(0, r + soften) });
+      const clean = { ...f, regard: r > 0 ? Math.max(0, r - soften) : Math.min(0, r + soften) };
+      if (clean.name && clean.name.split(" ").some((w) => NOT_NAMES.has(w.toLowerCase()))) {
+        delete clean.name;
+      }
+      this.facts.set(k, clean);
     }
     if (n) console.info(`[chat] ${n} villager${n > 1 ? "s" : ""} remember${n > 1 ? "" : "s"} talking to you`);
   }
@@ -240,7 +267,7 @@ export class TownChat {
     const k = this.keyOf(v);
     const f = { ...this.facts.get(k) };
     const introduced = nameIn(said);
-    if (introduced) f.name = introduced;
+    if (introduced && (introduced.explicit || !f.name)) f.name = introduced.name;
     f.regard = Math.max(-4, Math.min(4, (f.regard || 0) + regardShift(said)));
     this.facts.set(k, f);
     const known = f.name;
