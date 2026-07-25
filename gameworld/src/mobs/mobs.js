@@ -12,7 +12,7 @@
 // drives this same locomotion layer with a substrate brain, and none of it has to change.
 
 import * as THREE from "three";
-import { MOB, PLAYER, RAID } from "../config.js";
+import { MOB, PLAYER, RAID, WARCRY } from "../config.js";
 import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
 import { groundY, solidAt, tierAt, ringPressure } from "../world/gen.js";
@@ -909,6 +909,15 @@ export class Mobs {
       // player-directed attack below is already gated on aggro or on `!foe`.
       const alliedToPlayer = isMyAlly(e.faction);
       if (alliedToPlayer && !foe) e.aggro = false;
+      // YOUR OWN COLOURS KNOW YOU. Walk up to an allied soldier and he may hail you —
+      // "Hail, soldier" — once, then holds his peace a long while. The battlefield-wide
+      // courtesy budget lives in warcry.js; this is only the per-man memory of having
+      // already said hello.
+      if (e.hailT > 0) e.hailT -= dt;
+      if (alliedToPlayer && dist < WARCRY.hailRange && !(e.hailT > 0)) {
+        e.hailT = WARCRY.hailMobCd;
+        this.onWarcry?.(e, "hail");
+      }
 
       // Defenders watch further than a wild mob (e.notice): a garrison that only reacts when
       // you brush against it isn't defending anything.

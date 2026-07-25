@@ -53,6 +53,14 @@ const CRY_SEEDS = {
   ],
 };
 
+// What an ally says when you walk past — the no-model fallback rotation. The model
+// version adds clan flavour; these are the floor, and the floor is exactly what was
+// asked for: hail soldier, greetings warrior.
+const HAIL_SEEDS = [
+  "Hail, soldier.", "Hail, friend.", "Greetings, warrior.", "Well met, friend.",
+  "Good hunting out there.", "The colours hold.", "Walk safe, soldier.",
+];
+
 export class WarCries {
   constructor(bridge, sfx) {
     this.bridge = bridge;
@@ -65,11 +73,13 @@ export class WarCries {
       this.corpora.set(c, d);
     }
     this.cache = new Map([[0, []], [1, []], [2, []]]);   // colour -> [{text, wav}]
+    this.hails = new Map([[0, []], [1, []], [2, []]]);   // the friendly cache
     this.newsCursor = 0;           // this reader's place in the deed feed
     this.bakeT = 0;
     this.baking = false;
     this.globalCd = 0;
     this.factionCd = new Map([[0, 0], [1, 0], [2, 0]]);
+    this.hailCd = 0;
   }
 
   /** Deeds join every faction's corpus — all three armies hear of the wanderer, and the
@@ -89,6 +99,7 @@ export class WarCries {
   update(dt) {
     if (!WARCRY.enabled) return;
     this.globalCd = Math.max(0, this.globalCd - dt);
+    this.hailCd = Math.max(0, this.hailCd - dt);
     for (const [c, t] of this.factionCd) this.factionCd.set(c, Math.max(0, t - dt));
     this.catchUpOnDeeds();
 
@@ -99,10 +110,52 @@ export class WarCries {
     if (this.bridge.state !== "online") return;
     const s = sanctuaryOf(player.x, player.z, 0);
     if (!s || isHostileSanctuary(s)) return;
-    const short = [0, 1, 2].filter((c) => this.cache.get(c).length < WARCRY.cachePerFaction);
-    if (!short.length) return;
+    const shortCries = [0, 1, 2].filter((c) => this.cache.get(c).length < WARCRY.cachePerFaction);
+    const shortHails = [0, 1, 2].filter((c) => this.hails.get(c).length < WARCRY.hailPerFaction);
+    if (!shortCries.length && !shortHails.length) return;
     this.bakeT = WARCRY.bakeEvery;
-    this.bakeOne(short[(this.rng() * short.length) | 0]);
+    // Cries first — the war is louder than courtesy — then the hails fill in.
+    if (shortCries.length) this.bakeOne(shortCries[(this.rng() * shortCries.length) | 0]);
+    else this.bakeHail(shortHails[(this.rng() * shortHails.length) | 0]);
+  }
+
+  async bakeHail(colour) {
+    this.baking = true;
+    try {
+      const { model } = WARCRY.voices[colour];
+      let text = null;
+      if (this.bridge.info?.llm) {
+        const who = CRY_IDENTITY[colour];
+        const res = await this.bridge.line(
+          `You are a soldier of the ${who.name} clan on a war-torn frontier — ${who.creed}. `
+          + `A sworn ally, the lone wanderer who fights beside your colours, walks past your `
+          + `post. Greet them in ONE short hail, two to six words — like "Hail, soldier" or `
+          + `"Well met, warrior". No stage directions, no quotes, just the hail.`,
+          { words: 6, voice: model, lengthScale: 1.0 });
+        const clean = res?.text ? cleanLine(res.text, 1) : null;
+        if (clean && clean.split(" ").length <= 7 && res.audio) {
+          const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
+          let wav = res.audio;
+          if (gist(clean) !== gist(res.text)) wav = await this.bridge.speak(clean, model, 1.0);
+          if (wav) { this.stashHail(colour, clean, wav); return; }
+        }
+      }
+      // No model: the rotation the feature was asked for with, verbatim.
+      text = HAIL_SEEDS[(this.rng() * HAIL_SEEDS.length) | 0];
+      const wav = await this.bridge.speak(text, model, 1.0);
+      if (wav) this.stashHail(colour, text, wav);
+    } catch {
+      // A failed bake is a quieter camp, nothing more.
+    } finally {
+      this.baking = false;
+    }
+  }
+
+  stashHail(colour, text, wav) {
+    const bin = this.hails.get(colour);
+    bin.push({ text, wav });
+    if (bin.length > WARCRY.hailPerFaction) bin.shift();
+    console.info(`[warcry] baked hail for colour ${colour}: "${text}"`);
   }
 
   async bakeOne(colour) {
@@ -142,7 +195,7 @@ export class WarCries {
       }
       if (!text) return;
       const wav = await this.bridge.speak(`${text}!`, model, pace);
-      if (wav) this.stash(colour, text, wav);
+      if (wav) this.stash(colour, `${text}!`, wav);
     } catch {
       // A failed bake is a quieter army, nothing more.
     } finally {
@@ -165,6 +218,19 @@ export class WarCries {
   cry(e, kind = "aggro") {
     if (!WARCRY.enabled || !e) return;
     const colour = (e.faction || 0) % 3;
+    // A HAIL is its own channel: friendly cache, natural pitch, no echoes — a greeting is
+    // a voice, not a warband — and its own battlefield cooldown, so courtesy never eats
+    // the war's budget (or vice versa).
+    if (kind === "hail") {
+      if (this.hailCd > 0 || this.rng() >= WARCRY.hailChance) return;
+      const bin = this.hails.get(colour);
+      if (!bin.length) return;
+      const { text, wav } = bin[(this.rng() * bin.length) | 0];
+      this.hailCd = WARCRY.hailCd;
+      this.sfx.playClip(wav, e.x, e.z, WARCRY.hailVolume, 1);
+      console.info(`[warcry] colour ${colour} (hail): "${text}"`);
+      return;
+    }
     if (this.globalCd > 0 || this.factionCd.get(colour) > 0) return;
     const chance = kind === "charge" ? WARCRY.chargeChance
       : kind === "arm" ? 1 : WARCRY.aggroChance;
@@ -176,7 +242,7 @@ export class WarCries {
     this.factionCd.set(colour, WARCRY.factionCd);
     const { rate } = WARCRY.voices[colour];
     this.sfx.playClip(wav, e.x, e.z, WARCRY.volume, rate);
-    console.info(`[warcry] colour ${colour} (${kind}): "${text}!"`);
+    console.info(`[warcry] colour ${colour} (${kind}): "${text}"`);
 
     // THE WARBAND ANSWERS. Packmates near the crier take up the cry — staggered, from
     // their own positions, each throat pitched a little differently so one cached WAV

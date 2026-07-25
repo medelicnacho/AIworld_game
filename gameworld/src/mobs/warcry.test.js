@@ -46,3 +46,22 @@ test("deeds reach every corpus — your legend joins their screaming", () => {
   assert.ok(words.has("wanderer") || words.has("sacked"),
     "the deed's words entered the war vocabulary");
 });
+
+test("hails are their own channel: friendly cache, own budget, never the war's", () => {
+  played.length = 0;
+  const w = new WarCries(offline, fakeSfx);
+  w.hails.get(2).push({ text: "Hail, soldier.", wav: new ArrayBuffer(4) });
+  w.cache.get(2).push({ text: "run them down!", wav: new ArrayBuffer(4) });
+  // Force the chance roll aside: hailChance gates are probabilistic, so drive till it lands.
+  let greeted = 0;
+  for (let i = 0; i < 50 && !greeted; i++) {
+    w.cry({ faction: 2, x: 0, z: 0 }, "hail");
+    greeted = played.length;
+  }
+  assert.equal(greeted, 1, "an ally eventually says hello");
+  assert.equal(played[0].rate, 1, "a greeting is a voice, not a monster");
+  w.cry({ faction: 2, x: 0, z: 0 }, "hail");
+  assert.equal(played.length, 1, "the courtesy cooldown holds");
+  w.cry({ faction: 2, x: 0, z: 0 }, "arm");
+  assert.equal(played.length, 2, "and the war's budget is untouched by courtesy");
+});

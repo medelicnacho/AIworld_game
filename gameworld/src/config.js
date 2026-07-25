@@ -65,6 +65,17 @@ export const WARCRY = {
   echoDelayMax: 1.4,
   echoVolume: 0.9,
   volume: 1.1,
+  // HAILS — the same machinery pointed the other way: YOUR colour's soldiers greet you.
+  // "Hail, soldier." "Well met, warrior." A camp that only screams at enemies and says
+  // nothing to its own reads as a texture; one that knows you're on its side reads as an
+  // army you belong to. One hail per mob per long cooldown, one per battlefield window,
+  // spoken at natural pitch — a greeting is a voice, not a monster.
+  hailPerFaction: 4,
+  hailChance: 0.7,
+  hailCd: 14,             // battlefield-wide gap between hails
+  hailMobCd: 150,         // one soldier greets you once, then holds his peace a while
+  hailRange: 11,          // walk this close to an ally before he bothers
+  hailVolume: 0.95,
   // Per war-colour: piper model, synth pace, and a post-synth playbackRate — the cheap
   // monster-maker: Iron growls low and slow, Vale yips high and quick.
   voices: {
