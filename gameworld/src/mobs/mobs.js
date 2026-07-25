@@ -194,31 +194,17 @@ export class Mobs {
    * the base kind. With several affixes the tint cycles slowly between their hues rather
    * than blending them — a blend of orange and blue is just grey, and grey names nothing.
    */
-  colorOf(e, now) {
+  colorOf(e) {
     if (e.hurtT > 0) return this.COL_HURT;
-    // The wind-up telegraph is a VIBRATION now (see render()), not a colour swap — so a
-    // caster or charger keeps its faction colour the whole time and you never lose track of
-    // whose side it is on while it is about to fire.
+    // ONE BODY, ONE COLOUR, and the colour is the FACTION — full stop. Every scheme that
+    // borrowed the body for a second message failed the same way in play: the cast-glow
+    // made casters change colour, affix tints made stars wear a stranger's colours, and an
+    // anchored affix *cycle* just read as a mob flashing through colours. Whose side it is
+    // on is the one question the body answers, because it is the one question you ask at a
+    // glance in a war of three colours. Everything else has its own channel: SHAPE says
+    // what it is, the JUDDER says it's about to fire, SCALE and the brighter tint say it's
+    // a star, and the kill feed names its affixes.
     const base = this.factionCols[(e.faction || 0) % this.factionCols.length];
-    const n = e.affixes?.length || 0;
-    if (n > 0) {
-      // AFFIXES NO LONGER STEAL THE BODY. An affixed star used to wear its affix colour
-      // outright — which meant the "special" mobs were the one thing on the field NOT
-      // wearing their faction's colour, and the war stopped being readable exactly where
-      // reading it mattered most. Now the cycle is ANCHORED: faction colour → affix →
-      // faction colour → next affix — allegiance is the home key the tint keeps returning
-      // to, and the affix is a flourish on top rather than a new identity.
-      const seq = [base];
-      for (const id of e.affixes) seq.push(this.affixColor(id));
-      const span = 0.9;                       // seconds per step in the cycle
-      const t = (now / (span * 1000)) % seq.length;
-      const a = seq[Math.floor(t)];
-      const b = seq[(Math.floor(t) + 1) % seq.length];
-      const f = t % 1;
-      // Hold each colour, then snap across quickly: readable as "blue AND burning", not mud.
-      return this._affixCol.copy(a).lerp(b, Math.max(0, Math.min(1, (f - 0.75) * 4)));
-    }
-    // Shape already says WHAT it is; colour says WHOSE side it's on. Elites glow brighter.
     if (e.elite) return this._factionElite.copy(base).lerp(this._white, 0.4);
     return base;
   }
@@ -255,7 +241,7 @@ export class Mobs {
       }
       this._m.compose(this._p.set(vx, e.y, vz), this._q, this._s.set(sc, sc, sc));
       mesh.setMatrixAt(i, this._m);
-      mesh.setColorAt(i, this.colorOf(e, now));
+      mesh.setColorAt(i, this.colorOf(e));
       idx[shape] = i + 1;
     }
     for (const k of Object.keys(this.meshes)) {
