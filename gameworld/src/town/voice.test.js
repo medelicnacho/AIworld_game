@@ -111,3 +111,16 @@ test("dialogue floor: 'Mara.' is an answer in chat, still noise as a murmur", as
   assert.deepEqual(voiceOf(v), voiceOf(walked), "nor change her voice");
   assert.notEqual(nameOf(v), nameOf({ ...v, uid: 4 }), "but two bodies are two people");
 });
+
+test("introductions become facts: nameIn hears a name and refuses a verb", async () => {
+  const { nameIn } = await import("./chat.js");
+  // The playtest lines that motivated this, verbatim:
+  assert.equal(nameIn("hey my names dilhead jones whats your name"), "Dilhead Jones");
+  assert.equal(nameIn("thanks for the help. my name is john snow by the way."), "John Snow");
+  assert.equal(nameIn("im dilhead jones"), "Dilhead Jones");
+  assert.equal(nameIn("call me Rook"), "Rook");
+  // And the traps: mid-sentence "i'm X" is speech, not an introduction.
+  assert.equal(nameIn("im going to go kill some noobs"), null);
+  assert.equal(nameIn("i'm fine"), null);
+  assert.equal(nameIn("hello there"), null);
+});

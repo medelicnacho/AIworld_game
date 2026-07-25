@@ -30,6 +30,33 @@ const LOG_PROMPT = 2;    // turns actually shown to the model
 const CLIP = 90;         // longest remembered turn, in characters, as the model hears it
 const clip = (t) => (t.length > CLIP ? t.slice(0, CLIP - 3) + "..." : t);
 
+// A NAME IS A FACT, NOT A LINE OF DIALOGUE. The playtest that forced this: the player
+// introduced themselves, the villager used the name five replies straight — then one
+// close-and-reopen later denied ever hearing it, because the name lived only in a
+// transcript the cheap-memory window had scrolled past. Facts get extracted ONCE, stored
+// beside the log, and stated to the model as things she KNOWS — memory that cannot fall
+// out of a context window. Deliberately conservative patterns: mis-hearing "i'm going"
+// as an introduction would be worse than missing one.
+const NAME_RX = [
+  /\bmy name(?:'s|s| is)\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)/i,
+  /\bcall me\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)/i,
+  /\b(?:i am|i'm|im)\s+([a-z][a-z']+(?:\s+[a-z][a-z']+)?)\s*[.!]?$/i,   // whole-utterance only
+];
+const NOT_NAMES = new Set(["going", "gonna", "here", "sure", "fine", "sorry", "just",
+  "back", "leaving", "staying", "done", "good", "okay", "ok", "not", "so", "the"]);
+
+/** The wanderer's name, if this utterance introduces one. Exported for its tests. */
+export function nameIn(said) {
+  for (const rx of NAME_RX) {
+    const m = said.match(rx);
+    if (!m) continue;
+    const words = m[1].trim().split(/\s+/).slice(0, 2);
+    if (NOT_NAMES.has(words[0].toLowerCase())) continue;
+    return words.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+  }
+  return null;
+}
+
 export class TownChat {
   /**
    * @param bridge    net/bridge.js
@@ -51,6 +78,9 @@ export class TownChat {
     // Conversation memory per VILLAGER, keyed stably (role + fixed walk angle) so it
     // survives the villager list being rebuilt. Session-lifetime in C1; C2 saves it.
     this.logs = new Map();
+    // What each villager KNOWS about you — facts, not transcript. { name } for now;
+    // regard (C3) will live here too. Saved and restored beside the logs.
+    this.facts = new Map();
     this.el = document.getElementById("chat");
     this.el.innerHTML = `
       <div class="who"></div>
@@ -83,7 +113,10 @@ export class TownChat {
 
   /** Every villager's memory of talking to you, as plain data — for the save (C2). */
   dump() {
-    return { logs: [...this.logs.entries()].slice(-12) };   // the last dozen acquaintances
+    return {
+      logs: [...this.logs.entries()].slice(-12),   // the last dozen acquaintances
+      facts: [...this.facts.entries()].slice(-24),
+    };
   }
 
   /** Put those memories back, each turn marked PRIOR — an earlier visit, not this
@@ -97,6 +130,9 @@ export class TownChat {
       this.logs.set(k, log.map((t) => ({ who: t.who, text: String(t.text || ""), prior: true }))
         .filter((t) => t.text).slice(-LOG_KEEP));
       n++;
+    }
+    for (const [k, f] of data.facts || []) {
+      if (f && typeof f === "object") this.facts.set(k, { ...f });
     }
     if (n) console.info(`[chat] ${n} villager${n > 1 ? "s" : ""} remember${n > 1 ? "" : "s"} talking to you`);
   }
@@ -157,6 +193,12 @@ export class TownChat {
     const log = this.logOf(v);
     log.push({ who: "you", text: said });
     if (log.length > LOG_KEEP) log.splice(0, log.length - LOG_KEEP);
+    // Introductions become FACTS she keeps, not lines that scroll away.
+    const introduced = nameIn(said);
+    if (introduced) {
+      this.facts.set(this.keyOf(v), { ...this.facts.get(this.keyOf(v)), name: introduced });
+    }
+    const known = this.facts.get(this.keyOf(v))?.name;
     // YOUR words enter the town's memory like anyone else's. This single call is C1's
     // whole thesis: what you say here can resurface in ambient talk later.
     this.townVoice.hear(said);
@@ -176,8 +218,11 @@ export class TownChat {
         .map((t) => `${t.who === "you" ? "The wanderer" : "You"} said: "${clip(t.text)}"`).join(" ");
       const prompt = WORLD
         + `You are ${nameOf(v)}, the town ${v.role.name} — ${TRADE[v.role.name] || "you live and work here"}. `
-        + `A wanderer — an armed traveller the town knows by sight — has stopped to talk `
-        + `to you while you work. `
+        + (known
+          ? `The wanderer ${known} — an armed traveller you know by name — has stopped to `
+            + `talk to you while you work. `
+          : `A wanderer — an armed traveller the town knows by sight — has stopped to talk `
+            + `to you while you work. `)
         + (past ? `You have spoken with this wanderer before; you remember ${past}. ` : "")
         + (now ? `So far today: ${now} ` : "")
         + `The wanderer just said to you: "${said.replace(/"/g, "'")}". `
