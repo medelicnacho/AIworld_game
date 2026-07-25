@@ -225,7 +225,11 @@ export class Shop {
       if (id) { this.buy(id); return; }
       const joinId = e.target?.closest?.("[data-join]")?.dataset?.join;
       if (joinId) {
-        if (join(joinId)) { sfx.levelUp(); this.flash = `you ride with ${factionById(joinId).name}`; }
+        if (join(joinId)) {
+          sfx.levelUp();
+          this.flash = `you ride with ${factionById(joinId).name}`;
+          this.game.onFactionChange?.();     // the map's loyalties just changed
+        }
         this.render();
         return;
       }
@@ -235,7 +239,11 @@ export class Shop {
       if (switchId) {
         if (this.confirmSwitch !== switchId) { this.confirmSwitch = switchId; this.render(); return; }
         this.confirmSwitch = null;
-        if (join(switchId)) { sfx.levelUp(); this.flash = `you ride with ${factionById(switchId).name} now`; }
+        if (join(switchId)) {
+          sfx.levelUp();
+          this.flash = `you ride with ${factionById(switchId).name} now`;
+          this.game.onFactionChange?.();     // the map's loyalties just changed
+        }
         this.render();
         return;
       }

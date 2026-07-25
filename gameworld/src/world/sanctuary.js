@@ -80,9 +80,10 @@ export function cityRadius(t) {
   return RADIUS * (SETTLE.cityScale + SETTLE.cityGrow * t);
 }
 
-/** How many ordinary towns a tier holds: doubling per tier, capped. */
+/** How many ordinary towns a tier holds: 6, 9, 12... — always a multiple of three, so the
+ *  faction colours (dealt round-robin in tierSettlements) come out even in every ring. */
 export function townCount(t) {
-  return t === 0 ? SETTLE.townsBase : Math.min(SETTLE.townCap, 2 ** t);
+  return t === 0 ? SETTLE.townsBase : Math.min(SETTLE.townCap, 3 + 3 * t);
 }
 
 function build(key, x, z, radius, rng, city) {
@@ -130,10 +131,17 @@ export function tierSettlements(t) {
   } else {
     const lo = tierStart(t), w = tierWidth(t);
     const n = townCount(t);
+    // Colours are DEALT, not rolled. A random roll can hand a whole ring to one faction,
+    // and a player hunting their own colour finds nothing. Round-robin from a seeded start
+    // guarantees every ring holds all three — the offset just stops faction 0 from always
+    // sitting at the same bearing in every tier.
+    const facOff = Math.floor(rng() * 3);
     for (let i = 0; i < n; i++) {
       const ang = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / n) * 0.7;
       const r = lo + w * (0.2 + rng() * 0.6);
-      out.push(build(`t${t}-${i}`, Math.cos(ang) * r, Math.sin(ang) * r, RADIUS, rng, false));
+      const town = build(`t${t}-${i}`, Math.cos(ang) * r, Math.sin(ang) * r, RADIUS, rng, false);
+      town.faction = (i + facOff) % 3;
+      out.push(town);
     }
     if (t >= SETTLE.cityFromTier) {
       const ang = rng() * Math.PI * 2;

@@ -12,7 +12,7 @@
 // drives this same locomotion layer with a substrate brain, and none of it has to change.
 
 import * as THREE from "three";
-import { MOB, PLAYER } from "../config.js";
+import { MOB, PLAYER, RAID } from "../config.js";
 import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
 import { groundY, solidAt, tierAt, ringPressure } from "../world/gen.js";
@@ -21,7 +21,7 @@ import { sanctuaryOf } from "../world/sanctuary.js";
 import { guardNear } from "../town/guards.js";
 import { mulberry32 } from "../rng.js";
 import { AFFIXES, rollAffixes, runAffix, affixHidden, affixLabel } from "./affixes.js";
-import { isMyAlly } from "../prog/factions.js";
+import { isMyAlly, isHostileSanctuary } from "../prog/factions.js";
 
 const HURT_FLASH = 0.12;
 
@@ -438,7 +438,9 @@ export class Mobs {
     if (!MOB.factionWar) return null;
     let best = null, bd = range;
     for (const o of nearby(e.x, e.z, range)) {
-      if (o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction) continue;
+      // Defenders are also not war TARGETS: their deaths must all belong to the raid (the
+      // sack counts kills), and a garrison whittled by passing camps would sack itself.
+      if (o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction || o.defender) continue;
       const d = Math.hypot(o.x - e.x, o.z - e.z);
       if (d < bd) { bd = d; best = o; }
     }
@@ -626,6 +628,9 @@ export class Mobs {
     if (e.hp <= 0) {
       // Death hook runs BEFORE despawn, while the entity still has a position to explode at.
       runAffix(e, "onDeath", this.fx);
+      // A town defender fell to the PLAYER (this choke point is player+guard damage, and
+      // guards never target defenders) — the raid layer counts these toward the sack.
+      if (e.defender) this.onDefenderKill?.(e);
       sfx.killThud(e.x, e.z, e.elite);     // the reward note — heavier for a star
       this.deathPop(e.x, e.y, e.z, this.factionColor(e));
       // faction rides along so the reward path can tell whether this was the colour your
@@ -707,9 +712,12 @@ export class Mobs {
     const lunged = [];
     const babies = [];
     const seenPacks = new Set();
-    // Standing on holy ground ends the hunt. Computed once: sanctuaryOf() is memoised but
-    // it is still a per-frame question, not a per-mob one.
-    const playerSafe = sanctuaryOf(player.x, player.z, 0) !== null;
+    // Standing on holy ground ends the hunt — but a RIVAL faction's town is not holy ground
+    // for you (isHostileSanctuary): its defenders hunt an intruder inside their own walls.
+    // Wild mobs still can't follow you in (the ward in tryMove bars them from the ground),
+    // so a rival town is a refuge from the frontier — just never from its owners.
+    const inSanct = sanctuaryOf(player.x, player.z, 0);
+    const playerSafe = inSanct !== null && !isHostileSanctuary(inSanct);
 
     for (const e of nearby(player.x, player.z, MOB.despawn)) {
       if (e.kind !== "mob") continue;
@@ -721,6 +729,26 @@ export class Mobs {
 
       if (e.hurtT > 0) e.hurtT -= dt;
       if (e.atkCd > 0) e.atkCd -= dt;
+
+      // THE HERBALIST'S PULSE: while the fight is on, every few seconds the whole garrison
+      // gets a slice of its health back. This is what makes the healer the PRIORITY target —
+      // ignore them and the town never actually gets closer to falling.
+      if (e.champion === "herbalist") {
+        e.healCd = (e.healCd ?? RAID.healEvery) - dt;
+        if (e.healCd <= 0 && e.aggro) {
+          e.healCd = RAID.healEvery;
+          let healed = false;
+          for (const o of nearby(e.x, e.z, RAID.healRadius)) {
+            if (o.kind !== "mob" || o.faction !== e.faction || o.hp <= 0 || o.hp >= o.maxHp) continue;
+            o.hp = Math.min(o.maxHp, o.hp + o.maxHp * RAID.healFrac);
+            healed = true;
+          }
+          if (healed) {
+            this.deathPop(e.x, e.y + 1.2, e.z, 0x5fd66a);   // a green burst: the tell you learn
+            sfx.cast(e.x, e.z);
+          }
+        }
+      }
       if (e.slowT > 0) e.slowT -= dt;
       if (e.rootT > 0) e.rootT -= dt;
       if (e.flies) e.wobble += dt;       // the hover bob, independent of any wandering
@@ -764,13 +792,15 @@ export class Mobs {
       // The target that OVERRIDES you: a gate guard, or — the war — the nearest enemy-faction
       // mob. You still win priority when you're the closest threat and have been noticed, so
       // walking into a melee pulls them onto you; otherwise the two camps fight each other.
-      const guard = guardNear(e.x, e.z);
+      // Town DEFENDERS never fight gate guards (theirs or anyone's) and sit out the faction
+      // war below — they hold their town against YOU, and nothing else distracts them.
+      const guard = e.defender ? null : guardNear(e.x, e.z, undefined, e.faction);
       // The war target is the expensive part (a spatial scan), so it's THROTTLED: recompute
       // the nearest enemy only every ~0.2s (staggered per mob), and between recomputes just
       // re-validate the cached one. Combat doesn't need frame-perfect target picking, and this
       // is what keeps a big battle from scanning n² enemies every frame.
       let warFoe = null;
-      if (MOB.factionWar && !guard) {
+      if (MOB.factionWar && !guard && !e.defender) {
         e.warThink = (e.warThink || 0) - dt;
         if (e.warThink <= 0) {
           e.warThink = 0.2 + this.rng() * 0.2;
@@ -796,13 +826,16 @@ export class Mobs {
       const alliedToPlayer = isMyAlly(e.faction);
       if (alliedToPlayer && !foe) e.aggro = false;
 
+      // Defenders watch further than a wild mob (e.notice): a garrison that only reacts when
+      // you brush against it isn't defending anything.
+      const noticeR = e.notice || MOB.noticeRange;
       if (e.aggro) {
         e.aggroT -= dt;
-        if (dist < MOB.noticeRange) e.aggroT = MOB.loseInterest;   // contact refreshes it
+        if (dist < noticeR) e.aggroT = MOB.loseInterest;   // contact refreshes it
         // The leash is on HOME, not on you. Run far enough and they turn back — they have
         // somewhere to be, and it isn't wherever you happen to be standing.
         if (homeD > MOB.leashRange || e.aggroT <= 0) e.aggro = false;
-      } else if (!alliedToPlayer && dist < MOB.noticeRange) {
+      } else if (!alliedToPlayer && dist < noticeR) {
         e.aggro = true;
         e.aggroT = MOB.loseInterest;
         this.alert(e);
@@ -916,12 +949,20 @@ export class Mobs {
         const cdx = ctx - e.x, cdz = ctz - e.z;
         const cdist = Math.hypot(cdx, cdz) || 1;
         const cux = cdx / cdist, cuz = cdz / cdist;
+        // THE ADEPT'S BARRAGE: after the opening shot, the remaining fireballs stream out on
+        // a short clock. Each aims at where you are NOW — five balls you dodge by MOVING,
+        // and the answer the barrage teaches is line of sight, not luck.
+        if (e.burstLeft > 0) {
+          e.burstT -= dt;
+          if (e.burstT <= 0) { this.fire(e); e.burstLeft--; e.burstT = RAID.burstGap; }
+        }
         if (e.castT > 0) {
           // Winding up: rooted and glowing. Standing still IS the tell.
           e.castT -= dt;
           if (e.castT <= 0) {
             this.fire(e, foeMob);
             e.castCd = MOB.castCd;
+            if (e.champion === "adept") { e.burstLeft = RAID.burst - 1; e.burstT = RAID.burstGap; }
           }
         } else {
           if (e.castCd > 0) e.castCd -= dt;

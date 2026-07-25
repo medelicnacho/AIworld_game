@@ -76,7 +76,10 @@ export const RING_WIDEN = 0.25;
 // tier 1 outward that grows as you go. So the frontier gets denser AND grander.
 export const SETTLE = {
   townsBase: 1,           // tier 0: the spawn town, alone
-  townCap: 10,
+  // Town count per tier is 3 + 3t (see townCount) — always a MULTIPLE OF THREE, so the three
+  // faction colours deal out evenly and every ring is guaranteed all three: wherever you
+  // stand, your people are nearby, and so are your enemies. The map itself is the war.
+  townCap: 18,
   cityFromTier: 1,
   cityScale: 1.55,        // city radius = RADIUS * (cityScale + cityGrow * tier)
   cityGrow: 0.32,
@@ -627,6 +630,39 @@ export const GUARD = {
   // Within this of a guard you earn NOTHING. Otherwise the best way to play is to stand
   // behind the line and let the town farm the frontier for you.
   deadZone: 38,
+};
+
+// THE RAID. A rival faction's town is already "cold, not hostile" — it refuses to serve you,
+// and fighting is allowed on its ground (isHostileSanctuary). This makes that refusal mean
+// something: the town's people take up arms against an intruder, and killing EVERY defender
+// sacks the town — a boss-sized reputation payout and a fountain of loot across the streets.
+//
+// The defenders are a designed encounter, not a mob camp. Three champions each teach a
+// different threat: the ADEPT is artillery (a five-fireball barrage — break line of sight or
+// eat all five), the HERBALIST is the priority target (an AoE heal pulse on the defenders —
+// kill order becomes a decision), and the QUARTERMASTER is the boss (a charge you already
+// know to fear, and the most health in town). Soldiers fill out the line.
+export const RAID = {
+  engage: 90,            // defenders muster when you come this close to a rival town
+  notice: 44,            // and they see an intruder from further than a wild mob would
+  soldiers: 4,           // the line infantry, plain mobs of the town's colour
+  soldierHp: 1.5,
+  adeptHp: 3,            // champions are multiples of the ring's base mob health
+  herbHp: 3.5,
+  qmHp: 7,               // the mini-boss; the fight ends on them or starts with them
+  qmDamage: 1.4,
+  champScale: 1.25,      // champions read bigger; the QM bigger still
+  qmScale: 1.45,
+  burst: 5,              // the adept's barrage: this many fireballs...
+  burstGap: 0.16,        // ...this far apart — a stream you dodge by moving, not by luck
+  healEvery: 3.5,        // herbalist pulse cadence
+  healRadius: 14,
+  healFrac: 0.10,        // each pulse restores this fraction of every defender's max HP
+  loot: 14,              // the sack fountain: field-table rolls, so mostly grays — the
+                         // spectacle is the point, and reagents will take gray slots later
+  rebuild: 600,          // seconds a sacked town stays quiet: ~10 minutes. Long enough that
+                         // you move ON to the next town instead of farming this one — which
+                         // pushes you outward, where the better rewards already live
 };
 
 export const LOOT = {

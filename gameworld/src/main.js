@@ -6,12 +6,13 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY, RAID } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
 import { Villagers } from "./town/villagers.js";
 import { Guards } from "./town/guards.js";
+import { Raids } from "./town/raid.js";
 import { Shop, GOODS, statLine } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
 import { Inventory } from "./ui/inventory.js";
@@ -846,6 +847,7 @@ const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
 const villagers = new Villagers(scene);
 const guards = new Guards(scene);
+const raids = new Raids(mobs, (s) => sackTown(s));
 const plates = new Nameplates(document.getElementById("plates"), camera);
 const hpBars = new HealthBars(document.getElementById("hpbars"), camera);
 const dmgText = new DamageText(document.getElementById("dmg"), camera);
@@ -868,6 +870,9 @@ const gameCtx = {
   timewarpReady,
   timewarpCd,
   applyStats: () => applyLevelStats(),   // gear changes re-derive the same way levels do
+  // Joining or switching factions redraws the whole map's loyalties: which towns serve you,
+  // which ones muster defenders against you. Both caches must let go of the old world.
+  onFactionChange: () => { villagers.refresh(); raids.reset(); },
   equipArmor: (id) => buyArmor(id),      // smith buys a fixed piece by config id
   sellGear: (uid) => sellGear(uid),      // sell one bag piece at a vendor
   sellAllCommon: () => sellAllCommon(),  // "sell all gray" button
@@ -1050,6 +1055,31 @@ function rewardBoss(ring, x, z) {
   // The relic falls where the boss did — you have to walk into the arena to take it, which
   // is a last small decision if anything else is still alive.
   if (x !== undefined) dropBossLoot(x, z, ring);
+}
+
+/**
+ * THE SACK. The last defender of a rival town has fallen. Pays like a boss: raiding and
+ * boss-hunting are two equal roads up the reputation ladder, on purpose — one is found by
+ * pushing out, the other by reading the map. The loot FOUNTAIN scatters field-table rolls
+ * (mostly grays — the spectacle is the point) across the whole town, so victory looks like
+ * victory and the streets are worth walking even after the fight. Reagents will take over
+ * gray slots in this same fountain later; the roll is table-driven for exactly that reason.
+ */
+function sackTown(s) {
+  const ring = tierAt(s.x, s.z);
+  const rep = gainRep(repForBoss(ring));
+  const xp = bossValue(ring, player.level);
+  const lv = award(xp);
+  player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult);
+  killFeed = `⚑ TOWN SACKED ⚑  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
+  if (lv) levelUp();
+  const innerR = Math.max(6, (s.rMin || 20) - 6);
+  for (let i = 0; i < RAID.loot; i++) {
+    const a = shakeRng() * Math.PI * 2;
+    const r = 3 + shakeRng() * innerR;
+    dropGear(s.x + Math.cos(a) * r, s.z + Math.sin(a) * r, ring);
+  }
+  sfx.levelUp();
 }
 
 /**
@@ -1658,6 +1688,7 @@ function frame(now) {
   gun.update(dt);
   mobs.update(dt, hurtPlayer);
   villagers.update(dt);
+  raids.update(dt);
   // Guard kills award nothing at all -- guards.update handles their kills internally and
   // never pays. The reward() dead-zone check remains, but only for YOUR OWN kills made while
   // standing at the gate; a guard dropping a mob out on the frontier no longer pays you.

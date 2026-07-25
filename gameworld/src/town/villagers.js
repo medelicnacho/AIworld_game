@@ -15,21 +15,28 @@ import { groundY } from "../world/gen.js";
 import { sanctuariesNear } from "../world/sanctuary.js";
 import { GOODS } from "../ui/shop.js";
 import { mulberry32 } from "../rng.js";
+import { isHostileSanctuary } from "../prog/factions.js";
 
 // Who lives here. What they actually SELL is a table in ui/shop.js (GOODS), keyed by these
 // role keys — stock is data, so adding wares never touches this file or the game loop.
 export const ROLES = [
   { key: "herbalist", name: "Herbalist", color: 0x63d1a0 },
   { key: "smith", name: "Smith", color: 0xd8b06a },
-  { key: "adept", name: "Adept", color: 0x14141c },   // black: the one who sells abilities
+  // Arcane purple, no longer black — iron's war colour IS black now, and two different people
+  // wearing the same colour in one town teaches a lie.
+  { key: "adept", name: "Adept", color: 0x7a5cd6 },
   { key: "keeper", name: "Keeper", color: 0x8fa6c4 },
   // QUARTERMASTERS. One per faction, and they are the only people in the world who can take
   // you into one or sell you its kit. A TOWN gets the one whose colour it flies; a CITY keeps
   // all three, which is what makes cities the neutral ground you can always fall back to —
   // and why the choice of who to join happens there.
-  { key: "qm_ash", name: "Ash Quartermaster", color: 0xe8804a, faction: "ash" },
-  { key: "qm_vale", name: "Vale Quartermaster", color: 0x5fd6b4, faction: "vale" },
-  { key: "qm_iron", name: "Iron Quartermaster", color: 0x8fa8d8, faction: "iron" },
+  //
+  // They wear their faction's WAR colours — the exact colours the mobs fly (FACTION_COLORS:
+  // blue/green/black). In a city the three desks side by side read as three armies' embassies,
+  // and the colour you have learned to fight (or fight beside) is the colour at the desk.
+  { key: "qm_ash", name: "Ash Quartermaster", color: 0x3f6fd1, faction: "ash" },
+  { key: "qm_vale", name: "Vale Quartermaster", color: 0x4fae5a, faction: "vale" },
+  { key: "qm_iron", name: "Iron Quartermaster", color: 0x26262c, faction: "iron" },
 ];
 
 /** The three quartermaster role keys, in faction order. */
@@ -61,18 +68,22 @@ export class Villagers {
   populate(s) {
     const rng = mulberry32(Number(s.id.split(",").reduce((a, b) => a * 31 + Number(b), 7)) >>> 0);
     const folk = [];
+    // A RIVAL faction's town shows you no shopkeepers — its herbalist, adept and
+    // quartermaster have taken up arms and stand in the streets as the town's defenders
+    // (town/raid.js). Only keepers remain: civilians, who were never for talking to anyway.
+    const hostile = isHostileSanctuary(s);
     // Every refuge has a herbalist, a smith and an adept — a sanctuary you can't resupply
     // or re-arm at is just scenery — plus keepers so it reads as a place people live.
-    const roles = ["herbalist", "smith", "adept"];
+    const roles = hostile ? [] : ["herbalist", "smith", "adept"];
     // A city is bigger, so it holds more people AND a second set of traders — walking a
     // city to find the one adept would be a chore rather than a place.
-    if (s.city) roles.push("herbalist", "smith", "adept");
+    if (s.city && !hostile) roles.push("herbalist", "smith", "adept");
     // Whose desk is here. NEUTRAL ground — every city, and the spawn town — keeps all three
     // quarters, because that is what neutral means and it is where you go to pick a side.
     // A town that flies a colour keeps only its own.
     const neutral = s.city || s.neutral;
     if (neutral) roles.push(...QM);
-    else if (s.faction !== null && s.faction !== undefined) roles.push(QM[s.faction % QM.length]);
+    else if (!hostile && s.faction !== null && s.faction !== undefined) roles.push(QM[s.faction % QM.length]);
     const want = Math.round(VILLAGE.perSanctuary * (s.r / 46));
     while (roles.length < want) roles.push("keeper");
 
@@ -112,6 +123,11 @@ export class Villagers {
     }
     this.built.set(s.id, folk);
   }
+
+  /** Which towns are hostile depends on WHOSE colours you wear, so populated towns must be
+   *  rebuilt when the player joins or switches factions — otherwise the old faction's view
+   *  of who serves you keeps walking around. */
+  refresh() { this.built.clear(); }
 
   /** Only the ones with something to sell are worth labelling. A quartermaster always is —
    *  their stock is generated rather than listed in GOODS, and even a rival's desk is worth
