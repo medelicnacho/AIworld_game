@@ -489,6 +489,13 @@
       #health, #ammo, #xp, #rep { opacity: 0; transition: opacity .2s; }
       body.running #health, body.running #ammo, body.running #xp, body.running #rep { opacity: 1; }
       /* "Move outward" nudge — shows when your zone has greyed out (little/no xp). */
+      /* The sleep nudge: a quiet line while you stand in a safe town after dark. Teaches
+         the ONE key the night wants without a tutorial — and only when it's usable. */
+      #sleephint { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%);
+        font: 600 12px/1.4 ui-sans-serif, system-ui, sans-serif; color: #b9c6da;
+        text-shadow: 0 2px 6px #000b; letter-spacing: .08em; opacity: 0;
+        transition: opacity .4s; pointer-events: none; }
+      #sleephint.show { opacity: .85; }
       #alert { position: absolute; left: 50%; top: 74px; transform: translateX(-50%);
         opacity: 0; transition: opacity .3s; pointer-events: none; text-align: center;
         font: 700 15px/1.4 ui-sans-serif, system-ui, sans-serif; color: #ffe08a;
@@ -510,6 +517,7 @@
       <div id="rep"></div>
       <div id="xp"></div>
       <div id="alert"></div>
+      <div id="sleephint">🌙 night in town &nbsp;·&nbsp; press <b>Z</b> to sleep</div>
       <div id="levelbanner"></div>
       <div id="bar"></div>
       <div id="buildtag"></div>

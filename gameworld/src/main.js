@@ -1599,6 +1599,7 @@ const repEl = document.getElementById("rep");
 // a turn-in, a boss — announces itself on the bar the moment it lands.
 let lastRep = -1, repFlashT = 0;
 const alertEl = document.getElementById("alert");
+const sleepHintEl = document.getElementById("sleephint");
 let acc = 0, last = performance.now(), fps = 60;
 const AUTOSAVE_EVERY = 25;      // seconds; the backstop under the event-driven saves
 let autosaveT = AUTOSAVE_EVERY;
@@ -2109,6 +2110,8 @@ function frame(now) {
   const greyMult = xpLevelMult(tier, player.level);
   const greying = !inSafeZone && greyMult < 0.6;
   alertEl.classList.toggle("show", greying);
+  // The night's one affordance, surfaced exactly when it's usable: safe walls, dark sky.
+  sleepHintEl.classList.toggle("show", inSafe && dayNight.daylight() < 0.35 && !sleeping && !dead);
   if (greying) {
     alertEl.textContent = greyMult <= 0
       ? "➤ These lands hold no more for you — travel to the next ring for XP"
