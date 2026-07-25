@@ -21,7 +21,14 @@ import { sanctuaryOf } from "../world/sanctuary.js";
 import { WORLD, TRADE, MOOD_STYLE, voiceOf, cleanLine } from "./voice.js";
 
 const LOG_KEEP = 8;      // turns remembered per villager (session memory — C2 persists it)
-const LOG_PROMPT = 4;    // turns actually shown to the model
+// CHEAPER MEMORY (tuned after the wedge): every remembered turn is re-processed by the
+// model on EVERY reply, and on a CPU that cost compounds — by turn six a conversation had
+// crept to ~8s per answer. The model now sees only the last exchange (plus C2's two
+// remembered prior turns), each clipped to its gist; the PANEL keeps the full history,
+// because the player's memory is free — it is only the model's that is billed per token.
+const LOG_PROMPT = 2;    // turns actually shown to the model
+const CLIP = 90;         // longest remembered turn, in characters, as the model hears it
+const clip = (t) => (t.length > CLIP ? t.slice(0, CLIP - 3) + "..." : t);
 
 export class TownChat {
   /**
@@ -162,9 +169,9 @@ export class TownChat {
       // saying now). Collapsing them read as one endless conversation; a person who met
       // you yesterday doesn't resume mid-sentence, she recognises you.
       const past = log.filter((t) => t.prior).slice(-2)
-        .map((t) => `${t.who === "you" ? "they said" : "you answered"} "${t.text}"`).join(", and ");
+        .map((t) => `${t.who === "you" ? "they said" : "you answered"} "${clip(t.text)}"`).join(", and ");
       const now = log.filter((t) => !t.prior).slice(-LOG_PROMPT - 1, -1)
-        .map((t) => `${t.who === "you" ? "The wanderer" : "You"} said: "${t.text}"`).join(" ");
+        .map((t) => `${t.who === "you" ? "The wanderer" : "You"} said: "${clip(t.text)}"`).join(" ");
       const prompt = WORLD
         + `You are the town ${v.role.name} — ${TRADE[v.role.name] || "you live and work here"}. `
         + `A wanderer — an armed traveller the town knows by sight — has stopped to talk `
