@@ -9,10 +9,10 @@ import { setDifficulty, difficultyId, diff } from "./difficulty.js";
 import { applyLevelStats, loseLevel } from "./xp.js";
 import { player } from "../state.js";
 
-test("hard is the untouched baseline — every dial at 1.0, no death mercy", () => {
+test("hard hits twice as hard, but only its incoming — dealing and death stay baseline", () => {
   const h = DIFFICULTY.hard;
-  assert.equal(h.incoming, 1.0, "hard takes full damage");
-  assert.equal(h.playerDmg, 1.0, "hard deals baseline damage");
+  assert.equal(h.incoming, 2.0, "hard takes DOUBLE damage — the sting is the whole point of hard");
+  assert.equal(h.playerDmg, 1.0, "hard deals baseline damage — it does not touch what you hit for");
   assert.equal(h.deathLoss, 1.0, "hard loses a level on death");
   assert.equal(DEFAULT_DIFFICULTY, "hard", "the default is the real game");
 });
@@ -57,11 +57,17 @@ test("easy actually lowers the numbers it promises", () => {
   setDifficulty("hard");
 });
 
-test("incoming multiplier softens damage but never heals — it is a fraction, not a sign flip", () => {
+test("incoming is always a POSITIVE multiplier — it scales damage, never heals or negates", () => {
+  // The one invariant that has to hold no matter how the dials are tuned: incoming is a
+  // positive number, so it can amplify (hard) or soften (easy) but can never flip the sign and
+  // turn a hit into a heal. Direction is checked separately (easy < hard); this pins safety.
   for (const id of Object.keys(DIFFICULTY)) {
     setDifficulty(id);
-    assert.ok(diff().incoming > 0 && diff().incoming <= 1,
-      `${id} incoming must reduce, never negate or amplify (${diff().incoming})`);
+    assert.ok(diff().incoming > 0,
+      `${id} incoming must stay positive — a zero or negative would heal on hit (${diff().incoming})`);
   }
+  setDifficulty("easy");
+  assert.ok(diff().incoming <= 1, "easy must still SOFTEN, never amplify");
   setDifficulty("hard");
+  assert.ok(diff().incoming > 1, "hard must AMPLIFY — that is what makes it hard");
 });

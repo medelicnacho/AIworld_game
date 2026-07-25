@@ -2,14 +2,16 @@
 
 export const WORLD_SEED = 1337;
 
-// DIFFICULTY. Chosen once on the start screen and remembered in the save. HARD is the whole
-// game as designed — the frontier that bites, the level lost on death, telegraphs that are
-// always lethal. EASY exists for someone who has never held a mouse-look shooter: it turns
-// every dial toward mercy at ONE place each, so the game stays the same game, just softer.
+// DIFFICULTY. Chosen once on the start screen and remembered in the save. HARD is the harshest
+// the frontier gets — everything out there hits TWICE as hard as the raw numbers say, the level
+// is lost on death, and every telegraph is unforgiving. EASY exists for someone who has never
+// held a mouse-look shooter: it turns every dial toward mercy at ONE place each, so the game
+// stays the same game, just far softer.
 //
 //   incoming    every point of damage you take, at the one choke point (damagePlayer). The
 //               single biggest lever, and it covers mobs, meteors, the beam, burning ground
-//               and your own grenades without any of them knowing it exists.
+//               and your own grenades without any of them knowing it exists. Above 1.0 it
+//               AMPLIFIES (hard doubles the hurt); below 1.0 it softens (easy).
 //   playerDmg   everything you deal, folded into dmgMult where levels and gear already live.
 //   deathLoss   the level lost on death, as a multiplier: 0 means death costs you nothing but
 //               the walk back, which is the right training-wheels setting.
@@ -17,13 +19,18 @@ export const WORLD_SEED = 1337;
 export const DIFFICULTY = {
   hard: {
     id: "hard", label: "Hard",
-    blurb: "The frontier as it was built. Death costs a level. Every telegraph is lethal.",
-    incoming: 1.0, playerDmg: 1.0, deathLoss: 1.0, grace: 1.0,
+    blurb: "The frontier at its meanest. Everything hits twice as hard. Death costs a level. "
+      + "Every telegraph is lethal.",
+    // incoming 2.0: mobs (and meteors, beams, burning ground) do DOUBLE damage. playerDmg and
+    // deathLoss stay at the original baseline — hard raises the sting, not what you deal.
+    incoming: 2.0, playerDmg: 1.0, deathLoss: 1.0, grace: 1.0,
   },
   easy: {
     id: "easy", label: "Easy",
-    blurb: "For a first shooter. You take a third of the damage, hit harder, and keep your "
+    blurb: "For a first shooter. You take far less damage, hit harder, and keep your "
       + "level when you fall.",
+    // Unchanged in ABSOLUTE terms (0.34) so a first-timer's experience is exactly as gentle as
+    // before — it just reads as an even bigger gap now that hard hits twice as hard.
     incoming: 0.34, playerDmg: 1.6, deathLoss: 0, grace: 2.2,
   },
 };
@@ -669,11 +676,13 @@ export const DROP = {
 // substrate — the emergent layer arrives at M3 and lands on settlements, not on things you
 // kill in three seconds.
 export const MOB = {
-  // A touch lower than before, since the first level read as a little hard in general — but
-  // the real "levels 1-3 too hard" fix is the early-game GRACE bonus on the PLAYER (see
-  // config GRACE and applyLevelStats), which makes a fresh, gearless character strong and
-  // fades out by ~level 8, so the game ramps up as you level and gear rather than at the door.
-  hp: 76,
+  // DOUBLED from 76 — mobs were dying a touch too fast to feel like a fight, so every one now
+  // takes twice as long to bring down. This is the base the ring-growth and elite factors
+  // multiply on top of, so ALL mobs (field, elite, swarm, splits) got twice the health at once.
+  // The early game stays fair because the GRACE bonus below still front-loads the PLAYER: a
+  // fresh, gearless character is strong and fades out by ~level 8, so the longer fights land as
+  // the world gets meaner rather than at the door.
+  hp: 152,
   damage: 8,
   speed: 3.1,
   // They live their own lives until you give them a reason. Notice range is SHORT, and the
