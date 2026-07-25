@@ -123,17 +123,20 @@ export const WARCRY = {
   warChance: 0.45,
   warMobCd: 14,
   warHearRange: 70,       // clan brawls further than this stay a rumour, not a soundtrack
-  // Per war-colour: piper model, synth pace, and a post-synth playbackRate — the cheap
-  // monster-maker: Iron growls low and slow, Vale yips high and quick.
+  // ALL THREE CLANS SHOUT IN VALE'S VOICE (decided by ear, 2026-07-25). Iron's northern
+  // growl was hard to follow and its American replacement was no better; the quick high
+  // one carries over gunfire and stays legible at speed, so the whole war speaks with it.
+  // The rows stay per-faction so any clan can be handed its own throat back in one line —
+  // identical rows simply mean one army's worth of voice, everywhere.
   voices: {
-    // Iron, third pass: the northern voice was the thing that was hard to follow, not
-    // just the pitch — so the model changes to joe (open, clear American) and the pace
-    // goes back up to fast and hard. Rate stays a shade under natural for weight without
-    // mush. Menace must stay legible; this is legible AND quick.
-    0: { model: "en_US-joe-medium.onnx", pace: 0.86, rate: 0.96 },   // Iron
-    1: { model: "en_US-ryan-medium.onnx", pace: 0.85, rate: 1.02 },                   // Ash
-    2: { model: "en_US-amy-medium.onnx", pace: 0.8, rate: 1.12 },                     // Vale
+    0: { model: "en_US-amy-medium.onnx", pace: 0.8, rate: 1.12 },   // Iron
+    1: { model: "en_US-amy-medium.onnx", pace: 0.8, rate: 1.12 },   // Ash
+    2: { model: "en_US-amy-medium.onnx", pace: 0.8, rate: 1.12 },   // Vale
   },
+  // Bump whenever `voices` changes. Baked WAVs are keyed by it, so audio in the browser's
+  // store that was spoken in a retired throat is swept instead of played — otherwise a
+  // voice change is inaudible until the caches happen to roll over.
+  voiceRev: 2,
 };
 
 // DAY AND NIGHT — 20 minutes each, with soft ~90s dawns and dusks. Night is visual only

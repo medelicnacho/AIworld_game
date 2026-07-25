@@ -125,12 +125,20 @@ export class WarCries {
         new Promise((res) => { const r = store.getAllKeys(); r.onsuccess = () => res(r.result); r.onerror = () => res([]); }),
         new Promise((res) => { const r = store.getAll(); r.onsuccess = () => res(r.result); r.onerror = () => res([]); }),
       ]);
-      let n = 0;
+      let n = 0, swept = 0;
+      const store2 = () => db.transaction("wavs", "readwrite").objectStore("wavs");
       for (let i = 0; i < keys.length; i++) {
         const key = String(keys[i]);
         const { text, wav } = vals[i] || {};
+        const [rev, kind, colour] = key.split("|");
+        // Audio baked in a voice the game no longer uses is deleted, not played — a
+        // retired throat lingering in storage is how a "changed the voices" edit fails
+        // to change anything the player hears.
+        if (rev !== String(WARCRY.voiceRev)) {
+          try { store2().delete(keys[i]); swept++; } catch { /* best effort */ }
+          continue;
+        }
         if (!text || !wav) continue;
-        const [kind, colour] = key.split("|");
         if (kind === "taunt") {
           // Only lines still in the config list — re-toning the taunts retires old audio.
           const bin = this.taunts.get(Number(colour) % 3);
@@ -148,6 +156,7 @@ export class WarCries {
           }
         }
       }
+      if (swept) console.info(`[warcry] swept ${swept} lines in a retired voice`);
       if (n) console.info(`[warcry] ${n} lines woke from the last session's arsenal`);
     } catch { /* an empty arsenal bakes fresh; never fatal */ }
   }
@@ -227,7 +236,7 @@ export class WarCries {
       const wav = await this.bridge.speak(text, model, pace);
       if (wav) {
         bin.push({ text, wav });
-        this.persist(`taunt|${colour}|${text}`, text, wav);
+        this.persist(`${WARCRY.voiceRev}|taunt|${colour}|${text}`, text, wav);
         console.info(`[warcry] taunt loaded for colour ${colour} `
           + `${bin.length}/${WARCRY.taunts.length}: "${text}"`);
       }
@@ -286,7 +295,7 @@ export class WarCries {
     const bin = this.hails.get(colour);
     bin.push({ text, wav });
     if (bin.length > WARCRY.hailPerFaction) bin.shift();
-    this.persist(`hail|${colour}|${text}`, text, wav);
+    this.persist(`${WARCRY.voiceRev}|hail|${colour}|${text}`, text, wav);
     console.info(`[warcry] baked hail for colour ${colour}: "${text}"`);
   }
 
@@ -339,7 +348,7 @@ export class WarCries {
     const bin = this.cache.get(colour);
     bin.push({ text, wav });
     if (bin.length > WARCRY.cachePerFaction) bin.shift();
-    this.persist(`cry|${colour}|${text}`, text, wav);
+    this.persist(`${WARCRY.voiceRev}|cry|${colour}|${text}`, text, wav);
     console.info(`[warcry] baked for colour ${colour}: "${text}"`);
   }
 
