@@ -86,6 +86,37 @@ function voiceOf(v) {
   };
 }
 
+/**
+ * Scrub a model line before it reaches a MOUTH. gemma, asked for a murmur, sometimes
+ * delivers one literally — "Mmm, hmm, mmmm" — or emits stage directions ("*sighs*",
+ * "(hums softly)"), smart quotes, emoji. Piper dutifully phonemizes all of it into
+ * porridge ("mbmmmbnmn..."). So: strip the theatrics, drop any word that could not be
+ * spoken (no vowel, consonant mashes, letter-stutters), and if what remains is not a
+ * mostly-intact short sentence, return null — the villager stays quiet, which is always
+ * better than gargling. Exported for its tests.
+ */
+export function cleanLine(raw) {
+  if (!raw) return null;
+  const t = raw
+    .replace(/\*[^*]*\*/g, " ")          // *sighs*
+    .replace(/\([^)]*\)/g, " ")          // (hums softly)
+    .replace(/["“”‘’'`]/g, " ")
+    .replace(/[^\x20-\x7E]/g, " ")       // emoji, smart punctuation, anything non-ASCII
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = t.split(" ").filter(Boolean);
+  const speakable = words.filter((w) => {
+    const core = w.replace(/[^a-zA-Z]/g, "");
+    if (!core) return false;
+    if (!/[aeiouy]/i.test(core)) return false;                   // "mbmmm": no vowel
+    if (/[bcdfghjklmnpqrstvwxz]{5,}/i.test(core)) return false;  // consonant mash
+    if (/(.)\1\1/i.test(core)) return false;                     // mmm / hmmm / ummm
+    return true;
+  });
+  if (speakable.length < 3 || speakable.length < words.length * 0.7) return null;
+  return speakable.join(" ");
+}
+
 export class TownVoice {
   /**
    * @param bridge    net/bridge.js — used only for speak(); state checked, never assumed
@@ -106,9 +137,18 @@ export class TownVoice {
     // WAV bytes by fragment text. Piper is CPU-bound and serialized on the lab side, so a
     // fragment the chain wanders back to should never cost a second synthesis.
     this.cache = new Map();
+    // THE CONVERSATION. The last settled line hangs in the air for a while; the next
+    // settled speaker replies to it instead of soliloquising — villagers chatting across
+    // the square. Capped at a few turns so the town talks, but never becomes a podcast.
+    this.lastLine = null;      // { name, text, t, turns }
+    // HEARING WRITES MEMORY — the lab's one loop, closed. Every settled line is pushed
+    // into the town's drift sources at above-seed weight, so what was SAID aloud starts
+    // surfacing, warped, in later murmurs. Speech feeding the subconscious feeding speech.
+    this.heard = [];
   }
 
   update(dt) {
+    if (this.lastLine && (this.lastLine.t -= dt) <= 0) this.lastLine = null;
     if (this.busy || !VOICE.enabled) return;
     const s = sanctuaryOf(player.x, player.z, 0);
     // V1's venue: the one neutral, non-city town — where you wake, where speech should be
@@ -137,7 +177,11 @@ export class TownVoice {
     // grown from the recent drift, in its own plain voice. The contrast is the point —
     // the half-formed murmur is what makes the rare clear line feel like surfacing.
     // No model running -> lineChance is dead weight and every slot is a murmur (D8).
-    const settled = this.bridge.info?.llm && this.rng() < VOICE.lineChance;
+    //
+    // A line hanging in the air raises the odds the next slot ANSWERS it — a conversation
+    // has rhythm, and a reply that arrives a minute later is not a reply.
+    const chance = this.lastLine ? VOICE.lineChanceReply : VOICE.lineChance;
+    const settled = this.bridge.info?.llm && this.rng() < chance;
     this.busy = true;
     (settled ? this.sayLine(v) : this.say(v, text)).finally(() => {
       this.busy = false;
@@ -146,15 +190,18 @@ export class TownVoice {
   }
 
   /** The nearest villager of THIS town close enough to be heard clearly. Quartermasters
-   *  are excluded: they are the faction characters, and their voices are cast in V2. */
+   *  are excluded: they are the faction characters, and their voices are cast in V2.
+   *  Mid-conversation, the LAST speaker is passed over when anyone else is in range — a
+   *  reply in the same voice is a monologue wearing two hats. */
   pickSpeaker(s) {
-    let best = null, bd = VOICE.range;
+    let best = null, bd = VOICE.range, other = null, od = VOICE.range;
     for (const v of this.villagers.list) {
       if (v.s !== s || v.role.faction) continue;
       const d = Math.hypot(v.x - player.x, v.z - player.z);
       if (d < bd) { bd = d; best = v; }
+      if (d < od && v.role.name !== this.lastLine?.name) { od = d; other = v; }
     }
-    return best;
+    return (this.lastLine && other) ? other : best;
   }
 
   async say(v, text) {
@@ -187,16 +234,54 @@ export class TownVoice {
     try {
       const { model, pace } = voiceOf(v);
       const frags = this.drift.current(3).map((f) => `"${f}"`).join(", ");
-      const prompt = `You are the ${v.role.name} of a small frontier town, talking quietly `
-        + `to yourself while you work. Your drifting thoughts just now: ${frags}. `
-        + `Murmur ONE short line aloud — plain frontier speech, no greetings, `
-        + `no questions, never address anyone.`;
+      // "Say", never "murmur" — ask a model to murmur and it will hand you "Mmm, hmm,
+      // mmmm" to synthesize. The register comes from the framing; the WORDS must be words.
+      //
+      // A line still hanging in the air turns this slot into a REPLY: the last speaker's
+      // words go in as what was just heard, and the soliloquy rules relax — you may
+      // address them, you may ask something back. That is all a conversation is here:
+      // the previous utterance made prompt. (The lab's whole thesis, one town wide.)
+      const reply = this.lastLine && this.lastLine.turns < VOICE.convoMax
+        && this.lastLine.name !== v.role.name ? this.lastLine : null;
+      const prompt = reply
+        ? `You are the ${v.role.name} of a small frontier town, working near the `
+          + `${reply.name}, who just said aloud: "${reply.text}". Your own drifting `
+          + `thoughts: ${frags}. Answer them with ONE short line — plain frontier speech `
+          + `in real words only, chatting while you both work. No humming or sound `
+          + `effects, no stage directions.`
+        : `You are the ${v.role.name} of a small frontier town, talking quietly `
+          + `to yourself while you work. Your drifting thoughts just now: ${frags}. `
+          + `Say ONE short line to yourself — plain frontier speech in real words only. `
+          + `No greetings, no questions, no humming or sound effects, no stage directions, `
+          + `never address anyone.`;
       const res = await this.bridge.line(prompt, {
         words: VOICE.lineWords, voice: model, lengthScale: pace,
       });
-      if (!res?.audio || !res.text) return;
-      const dur = await this.sfx.playClip(res.audio, v.x, v.z, VOICE.volume);
-      if (dur) this.onLine?.(v.role.name, res.text, dur, true);
+      if (!res?.text) return;
+      // The line was already synthesized server-side from the RAW text — so if scrubbing
+      // changed anything, that audio contains the porridge and is discarded; the clean
+      // text goes back through /speak for a fresh mouth. Unscathed lines keep their WAV.
+      const clean = cleanLine(res.text);
+      if (!clean) return;                        // unusable — quiet beats gargling
+      let wav = res.audio;
+      if (clean !== res.text.trim()) {
+        wav = await this.bridge.speak(clean, model, pace);
+      }
+      if (!wav) return;
+      const dur = await this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
+      if (!dur) return;
+      this.onLine?.(v.role.name, clean, dur, true);
+      // The line now hangs in the air for the next speaker to answer...
+      this.lastLine = {
+        name: v.role.name, text: clean, t: VOICE.convoWindow,
+        turns: (reply ? reply.turns : 0) + 1,
+      };
+      // ...and HEARING WRITES MEMORY: spoken words join the drift sources at above-seed
+      // weight, capped FIFO so old talk fades. From here on, murmurs can echo — warped,
+      // half-remembered — what somebody actually said. The loop the lab exists to prove.
+      this.heard.push({ text: clean, weight: VOICE.heardWeight });
+      if (this.heard.length > VOICE.heardMax) this.heard.shift();
+      this.drift.learn(SEEDS.map((text) => ({ text, weight: 1 })).concat(this.heard));
     } catch {
       // Same rule as the murmur: the model is an enhancement, never a dependency.
     }

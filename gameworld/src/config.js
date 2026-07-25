@@ -28,6 +28,17 @@ export const VOICE = {
   // clear line feel like surfacing, and at ~4-6s a line is also the expensive one.
   lineChance: 0.25,
   lineWords: 14,       // short — a person muttering at a workbench, not giving a speech
+  // THE CONVERSATION. A settled line hangs in the air for convoWindow seconds; while it
+  // does, the next settled slot is far more likely (lineChanceReply) and is prompted as an
+  // ANSWER from a different villager. convoMax caps the exchange — three turns is a chat
+  // between people working, five is a radio play. Heard lines join the drift sources at
+  // heardWeight (above seed weight: what was said out loud looms larger than the town's
+  // standing preoccupations), FIFO-capped at heardMax so old talk fades from the murmur.
+  convoWindow: 45,
+  convoMax: 3,
+  lineChanceReply: 0.65,
+  heardWeight: 1.6,
+  heardMax: 12,
 };
 
 // Shown in the corner of the screen, always. This exists because a build-staleness bug wore
