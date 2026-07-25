@@ -106,8 +106,10 @@ export class Villagers {
     // stand shoulder to shoulder but spaced so they never overlap: findable, comparable, and
     // the same spot every time.
     // The town's tint (small faction towns only): civilians wear the colour, vendors keep
-    // their trades, the quartermaster turns red. See TOWN_TINT above.
-    const townCol = (!neutral && !hostile && s.faction !== null && s.faction !== undefined)
+    // their trades, the quartermaster turns red. See TOWN_TINT above. HOSTILE towns tint
+    // too — walking into a rival town full of gray strangers taught nothing; its civilians
+    // wearing the enemy's colour is exactly the "whose ground is this" read the tint is for.
+    const townCol = (!neutral && s.faction !== null && s.faction !== undefined)
       ? TOWN_TINT[FACTIONS[s.faction % FACTIONS.length].ally] : null;
     const qmRoles = roles.filter((k) => QM.includes(k));
     const qmCount = qmRoles.length;
