@@ -93,7 +93,12 @@ test("hails never starve behind the war: the emptier shelf bakes first", () => {
 test("the taunt floor: an army with taunts loaded is NEVER silent, even unbaked", () => {
   played.length = 0;
   const w = new WarCries(offline, fakeSfx);
-  w.taunts.push({ text: "I will kill you!", wav: new ArrayBuffer(4) });
+  w.taunts.get(0).push({ text: "I will kill you!", wav: new ArrayBuffer(4) });
   w.cry({ faction: 0, x: 0, z: 0 }, "arm");        // cry cache empty — floor answers
   assert.equal(played.length, 1, "the hardcoded floor speaks when nothing is baked");
+  // ...and a clan with no floor of its OWN stays quiet rather than borrowing a throat.
+  played.length = 0;
+  w.globalCd = 0; w.factionCd.set(1, 0);
+  w.cry({ faction: 1, x: 0, z: 0 }, "arm");
+  assert.equal(played.length, 0, "each clan taunts in its own voice or not at all");
 });

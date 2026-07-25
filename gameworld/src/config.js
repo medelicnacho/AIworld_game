@@ -91,12 +91,22 @@ export const WARCRY = {
     "Your mom is lame!",
     "You like doodoo!",
     "I poo and pee on your face!",
+    "You're a homo sapien!",
+    "Go back to stupid school!",
+    "I am going to pwn you, noob!",
+    "Super ultra power boost!",
+    "You smell of poo!",
+    "You're going to get some dirt in your eye!",
+    "I know kung fu!",
     "Run home, little wanderer!",
     "Crawl back to your walls!",
   ],
   tauntChance: 0.5,       // odds a cry slot uses the floor instead of a baked line
-  tauntBakeEvery: 3,      // piper-only synths are light; the floor fills fast
-  tauntVoice: { model: "en_US-ryan-medium.onnx", pace: 0.88 },
+  // EVERY CLAN TAUNTS IN ITS OWN THROAT: taunts bake per faction through the same
+  // `voices` table the war-cries use, so Iron's "I know kung fu" is the northern growl
+  // and Vale's is the quick high one — three armies, never one actor doing all the parts.
+  // Costs 3x the synths, which persistence makes a one-time price (they wake from disk).
+  tauntBakeEvery: 2,      // piper-only: no model contention, so it can fill briskly
   // Per war-colour: piper model, synth pace, and a post-synth playbackRate — the cheap
   // monster-maker: Iron growls low and slow, Vale yips high and quick.
   voices: {

@@ -74,7 +74,14 @@ export class WarCries {
     }
     this.cache = new Map([[0, []], [1, []], [2, []]]);   // colour -> [{text, wav}]
     this.hails = new Map([[0, []], [1, []], [2, []]]);   // the friendly cache
-    this.taunts = [];              // the hardcoded floor — filled first, kept forever
+    // The hardcoded floor — filled first, kept forever, and PER FACTION: each clan
+    // taunts in its own throat, through the same voices table the war-cries use.
+    this.taunts = new Map([[0, []], [1, []], [2, []]]);
+    // BAKED AUDIO SURVIVES THE PAGE. Every reload used to dump every WAV — in a dev loop
+    // that reloads constantly, the armies were forever starting mute. IndexedDB holds the
+    // baked bytes; a fresh session wakes with yesterday's arsenal and improves it.
+    this.db = null;
+    this.loadPersisted();
     this.newsCursor = 0;           // this reader's place in the deed feed
     this.bakeT = 0;
     this.baking = false;
@@ -85,6 +92,62 @@ export class WarCries {
     // — while a villager is speaking (or the town is dreaming), the baker stands down.
     // The model has one thread; conversation gets it first, rehearsal takes the gaps.
     this.holdWhile = null;
+  }
+
+  async openDb() {
+    if (typeof indexedDB === "undefined") return null;    // headless tests, old browsers
+    if (this.db !== null) return this.db;
+    this.db = await new Promise((res) => {
+      const req = indexedDB.open("gw-voice", 1);
+      req.onupgradeneeded = () => req.result.createObjectStore("wavs");
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => res(null);
+    });
+    return this.db;
+  }
+
+  async persist(key, text, wav) {
+    try {
+      const db = await this.openDb();
+      if (!db) return;
+      db.transaction("wavs", "readwrite").objectStore("wavs").put({ text, wav }, key);
+    } catch { /* storage full or blocked — the session cache still works */ }
+  }
+
+  async loadPersisted() {
+    try {
+      const db = await this.openDb();
+      if (!db) return;
+      const store = db.transaction("wavs", "readonly").objectStore("wavs");
+      const [keys, vals] = await Promise.all([
+        new Promise((res) => { const r = store.getAllKeys(); r.onsuccess = () => res(r.result); r.onerror = () => res([]); }),
+        new Promise((res) => { const r = store.getAll(); r.onsuccess = () => res(r.result); r.onerror = () => res([]); }),
+      ]);
+      let n = 0;
+      for (let i = 0; i < keys.length; i++) {
+        const key = String(keys[i]);
+        const { text, wav } = vals[i] || {};
+        if (!text || !wav) continue;
+        const [kind, colour] = key.split("|");
+        if (kind === "taunt") {
+          // Only lines still in the config list — re-toning the taunts retires old audio.
+          const bin = this.taunts.get(Number(colour) % 3);
+          if (bin && WARCRY.taunts.includes(text) && !bin.some((t) => t.text === text)) {
+            bin.push({ text, wav });
+            n++;
+          }
+        } else if (kind === "cry" || kind === "hail") {
+          const bins = kind === "cry" ? this.cache : this.hails;
+          const cap = kind === "cry" ? WARCRY.cachePerFaction : WARCRY.hailPerFaction;
+          const bin = bins.get(Number(colour) % 3);
+          if (bin && bin.length < cap && !bin.some((t) => t.text === text)) {
+            bin.push({ text, wav });
+            n++;
+          }
+        }
+      }
+      if (n) console.info(`[warcry] ${n} lines woke from the last session's arsenal`);
+    } catch { /* an empty arsenal bakes fresh; never fatal */ }
   }
 
   /** Deeds join every faction's corpus — all three armies hear of the wanderer, and the
@@ -114,15 +177,21 @@ export class WarCries {
     if (this.baking || this.bakeT > 0) return;
     if (this.holdWhile?.()) return;
     if (this.bridge.state !== "online") return;
-    const s = sanctuaryOf(player.x, player.z, 0);
-    if (!s || isHostileSanctuary(s)) return;
-    // THE FLOOR FILLS FIRST: hardcoded taunts are piper-only (fast, no model), and once
-    // in they never leave — the guarantee that combat always has SOMETHING to shout.
-    if (this.taunts.length < WARCRY.taunts.length) {
+    // THE FLOOR FILLS FIRST, AND FILLS ANYWHERE: hardcoded taunts are piper-only — no
+    // model to contend for — so they bake in the field too. Gating them to town once left
+    // a reloaded session shouting its single loaded line ("I will kill you!") for a whole
+    // fight. The model-backed shelves below still wait for a town's quiet.
+    const shortTaunts = [0, 1, 2].filter((c) => this.taunts.get(c).length < WARCRY.taunts.length);
+    if (shortTaunts.length) {
+      // Emptiest clan first, so all three find a voice early instead of one army getting
+      // the whole script while the other two stand there mute.
+      shortTaunts.sort((a, b) => this.taunts.get(a).length - this.taunts.get(b).length);
       this.bakeT = WARCRY.tauntBakeEvery;
-      this.bakeTaunt();
+      this.bakeTaunt(shortTaunts[0]);
       return;
     }
+    const s = sanctuaryOf(player.x, player.z, 0);
+    if (!s || isHostileSanctuary(s)) return;
     const shortCries = [0, 1, 2].filter((c) => this.cache.get(c).length < WARCRY.cachePerFaction);
     const shortHails = [0, 1, 2].filter((c) => this.hails.get(c).length < WARCRY.hailPerFaction);
     if (!shortCries.length && !shortHails.length) return;
@@ -142,15 +211,21 @@ export class WarCries {
     }
   }
 
-  async bakeTaunt() {
+  async bakeTaunt(colour) {
     this.baking = true;
     try {
-      const text = WARCRY.taunts[this.taunts.length];
-      const { model, pace } = WARCRY.tauntVoice;
+      const bin = this.taunts.get(colour);
+      // The next line this clan has not learned yet — order preserved, so the config list
+      // reads as the order they pick them up.
+      const text = WARCRY.taunts.find((t) => !bin.some((b) => b.text === t));
+      if (!text) return;
+      const { model, pace } = WARCRY.voices[colour];
       const wav = await this.bridge.speak(text, model, pace);
       if (wav) {
-        this.taunts.push({ text, wav });
-        console.info(`[warcry] taunt loaded ${this.taunts.length}/${WARCRY.taunts.length}: "${text}"`);
+        bin.push({ text, wav });
+        this.persist(`taunt|${colour}|${text}`, text, wav);
+        console.info(`[warcry] taunt loaded for colour ${colour} `
+          + `${bin.length}/${WARCRY.taunts.length}: "${text}"`);
       }
     } catch { /* a missing taunt is a quieter floor */ } finally {
       this.baking = false;
@@ -161,9 +236,9 @@ export class WarCries {
    *  and always the floor when the baked shelf is still empty. */
   pickLine(colour) {
     const bin = this.cache.get(colour);
-    const floor = this.taunts.length
-      && (this.rng() < WARCRY.tauntChance || !bin.length);
-    if (floor) return this.taunts[(this.rng() * this.taunts.length) | 0];
+    const floor = this.taunts.get(colour);
+    const useFloor = floor.length && (this.rng() < WARCRY.tauntChance || !bin.length);
+    if (useFloor) return floor[(this.rng() * floor.length) | 0];
     return bin.length ? bin[(this.rng() * bin.length) | 0] : null;
   }
 
@@ -207,6 +282,7 @@ export class WarCries {
     const bin = this.hails.get(colour);
     bin.push({ text, wav });
     if (bin.length > WARCRY.hailPerFaction) bin.shift();
+    this.persist(`hail|${colour}|${text}`, text, wav);
     console.info(`[warcry] baked hail for colour ${colour}: "${text}"`);
   }
 
@@ -259,6 +335,7 @@ export class WarCries {
     const bin = this.cache.get(colour);
     bin.push({ text, wav });
     if (bin.length > WARCRY.cachePerFaction) bin.shift();
+    this.persist(`cry|${colour}|${text}`, text, wav);
     console.info(`[warcry] baked for colour ${colour}: "${text}"`);
   }
 
