@@ -18,7 +18,7 @@
 import { VOICE } from "../config.js";
 import { player } from "../state.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
-import { WORLD, TRADE, MOOD_STYLE, voiceOf, cleanLine } from "./voice.js";
+import { WORLD, TRADE, MOOD_STYLE, voiceOf, cleanLine, nameOf } from "./voice.js";
 
 const LOG_KEEP = 8;      // turns remembered per villager (session memory — C2 persists it)
 // CHEAPER MEMORY (tuned after the wedge): every remembered turn is re-processed by the
@@ -115,7 +115,7 @@ export class TownChat {
     if (!best) return false;
     this.target = best;
     this.open = true;
-    this.whoEl.textContent = `the ${best.role.name}`;
+    this.whoEl.textContent = `${nameOf(best)} · the ${best.role.name}`;
     this.render();
     this.el.classList.add("show");
     this.hooks.onOpen?.();
@@ -141,8 +141,8 @@ export class TownChat {
   render(thinking = false) {
     const log = this.target ? this.logOf(this.target) : [];
     this.linesEl.innerHTML = log.map((t) =>
-      `<div class="${t.who}${t.prior ? " prior" : ""}"><b>${t.who === "you" ? "You" : this.target.role.name}</b> ${t.text}</div>`)
-      .join("") + (thinking ? `<div class="them"><b>${this.target.role.name}</b> <i>…</i></div>` : "");
+      `<div class="${t.who}${t.prior ? " prior" : ""}"><b>${t.who === "you" ? "You" : nameOf(this.target)}</b> ${t.text}</div>`)
+      .join("") + (thinking ? `<div class="them"><b>${nameOf(this.target)}</b> <i>…</i></div>` : "");
     this.linesEl.scrollTop = this.linesEl.scrollHeight;
   }
 
@@ -173,7 +173,7 @@ export class TownChat {
       const now = log.filter((t) => !t.prior).slice(-LOG_PROMPT - 1, -1)
         .map((t) => `${t.who === "you" ? "The wanderer" : "You"} said: "${clip(t.text)}"`).join(" ");
       const prompt = WORLD
-        + `You are the town ${v.role.name} — ${TRADE[v.role.name] || "you live and work here"}. `
+        + `You are ${nameOf(v)}, the town ${v.role.name} — ${TRADE[v.role.name] || "you live and work here"}. `
         + `A wanderer — an armed traveller the town knows by sight — has stopped to talk `
         + `to you while you work. `
         + (past ? `You have spoken with this wanderer before; you remember ${past}. ` : "")
@@ -187,7 +187,7 @@ export class TownChat {
       const res = await this.bridge.line(prompt, {
         words: VOICE.lineWords, voice: model, lengthScale: pace,
       });
-      const clean = res?.text ? cleanLine(res.text) : null;
+      const clean = res?.text ? cleanLine(res.text, 1) : null;   // "Mara." is an answer
       if (!clean) {                                  // she looks at you and says nothing
         // Failures land in the transcript too — the wedge that motivated this was
         // invisible precisely because only successes were ever logged.
@@ -201,7 +201,7 @@ export class TownChat {
       log.push({ who: "them", text: clean });
       if (log.length > LOG_KEEP) log.splice(0, log.length - LOG_KEEP);
       this.townVoice.hear(clean);                    // her answer is heard by the town too
-      console.info(`[chat] you: "${said}" -> ${v.role.name} (${mood}): "${clean}"`);
+      console.info(`[chat] you: "${said}" -> ${nameOf(v)} the ${v.role.name} (${mood}): "${clean}"`);
       if (wav) this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
     } catch {
       console.info(`[chat] you: "${said}" -> ${v.role.name}: NO REPLY (error)`);

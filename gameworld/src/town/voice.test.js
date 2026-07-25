@@ -94,3 +94,14 @@ test("C2: the town's memory survives a save round-trip, and time away FADES it",
   d.restore({ heard: [{ bad: true }] }, 1);
   assert.equal(d.heard.length, 0);
 });
+
+test("dialogue floor: 'Mara.' is an answer in chat, still noise as a murmur", async () => {
+  const { cleanLine, nameOf } = await import("./voice.js");
+  // The glitch this pins: asking a villager her name produced a short, correct reply the
+  // 3-word ambient floor scrubbed to silence — she read as broken for answering properly.
+  assert.equal(cleanLine("Mara.", 1), "Mara.");
+  assert.equal(cleanLine("Mara.", 3), null);
+  // And the name itself is stable: same body, same name, every ask.
+  const v = { ang: 2.184, role: { key: "keeper", name: "Keeper" } };
+  assert.equal(nameOf(v), nameOf({ ...v }));
+});

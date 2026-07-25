@@ -213,7 +213,7 @@ export function tooSimilar(a, b) {
  * mostly-intact short sentence, return null — the villager stays quiet, which is always
  * better than gargling. Exported for its tests.
  */
-export function cleanLine(raw) {
+export function cleanLine(raw, minWords = 3) {
   if (!raw) return null;
   const t = raw
     .replace(/[’‘]/g, "'")               // curly apostrophes become straight ones FIRST —
@@ -237,8 +237,28 @@ export function cleanLine(raw) {
     if (/(.)\1\1/i.test(core)) return false;                     // mmm / hmmm / ummm
     return true;
   });
-  if (speakable.length < 3 || speakable.length < words.length * 0.7) return null;
+  // minWords is the REGISTER floor, and it depends on who is listening. An ambient murmur
+  // under three words is noise (the default). But in DIALOGUE, "Mara." is a complete
+  // answer from a terse townsperson — the chat passes 1, and asking a villager her name
+  // stops reading as her glitching into silence.
+  if (speakable.length < minWords || speakable.length < words.length * 0.7) return null;
   return speakable.join(" ");
+}
+
+// NAMES. Villagers had only trades, so "what's your name" made the model invent one — a
+// different one per asking, when it wasn't answering so short the scrubber ate it. A name
+// is hashed from the same fixed walk-angle the voice is, so a body keeps ONE name for as
+// long as it exists — ask twice, get the same woman.
+const NAMES = [
+  "Mara", "Edda", "Bram", "Cole", "Tess", "Hale", "June", "Petra",
+  "Otto", "Finn", "Sage", "Rook", "Ivy", "Dora", "Gil", "Hetty",
+  "Jonas", "Kell", "Lena", "Moss", "Nell", "Orin", "Rue", "Silas",
+];
+
+/** A villager's given name, stable for as long as the villager exists. */
+export function nameOf(v) {
+  const h = Math.abs(Math.floor(v.ang * 7919.77)) >>> 0;
+  return NAMES[h % NAMES.length];
 }
 
 export class TownVoice {
