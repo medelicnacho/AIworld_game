@@ -207,7 +207,13 @@ test("hostile ground: only a town you are NOT welcome in counts as hostile", () 
   const ashTown = { faction: 0 };   // FACTIONS[0] is Ash
   const valeTown = { faction: 1 };
 
+  // UNALIGNED FIRST: before you pick a side, NO town is hostile — "hostile" now empties a
+  // town and muster a war-camp against you, and that must never happen to a newcomer who
+  // has not yet chosen. Cold (no shop) and hostile (a raid) are different temperatures.
   fresh();
+  assert.equal(isHostileSanctuary(ashTown), false, "the war is none of yours before you join");
+  assert.equal(isHostileSanctuary(valeTown), false, "...whatever colour the town flies");
+
   join("ash");
   assert.equal(isHostileSanctuary(ashTown), false, "your own town is a refuge, not a battlefield");
   assert.equal(isHostileSanctuary(city), false, "neutral cities are refuges");

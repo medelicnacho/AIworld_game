@@ -651,9 +651,11 @@ export const RAID = {
   // group in the town's colour that fights the faction war for real. Yours fight beside you;
   // a rival's are the raid. The mix is the mob vocabulary you already know: melee bodies,
   // casters, and chargers, so reading a garrison is the same skill as reading the field.
-  melee: 4,
-  ranged: 3,
-  chargers: 2,
+  // A rival town holds NO civilians at all — every body on hostile ground is a combatant —
+  // so the group is sized like a war-camp, not a patrol.
+  melee: 7,
+  ranged: 5,
+  chargers: 3,
   soldierHp: 1.5,
   adeptHp: 3,            // champions are multiples of the ring's base mob health
   herbHp: 3.5,

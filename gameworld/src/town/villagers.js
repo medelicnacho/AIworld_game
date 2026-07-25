@@ -76,22 +76,24 @@ export class Villagers {
   populate(s) {
     const rng = mulberry32(Number(s.id.split(",").reduce((a, b) => a * 31 + Number(b), 7)) >>> 0);
     const folk = [];
-    // A RIVAL faction's town shows you no shopkeepers — its herbalist, adept and
-    // quartermaster have taken up arms and stand in the streets as the town's defenders
-    // (town/raid.js). Only keepers remain: civilians, who were never for talking to anyway.
+    // A RIVAL faction's town has NO villagers at all. Its people ARE the garrison
+    // (town/raid.js): a war-camp of fighters in the town's colour, led by the three
+    // champions in their trade colours. A civilian idly strolling through a raid read as
+    // someone who forgot to fight — every body on hostile ground is now a combatant.
     const hostile = isHostileSanctuary(s);
+    if (hostile) { this.built.set(s.id, []); return; }
     // Every refuge has a herbalist, a smith and an adept — a sanctuary you can't resupply
     // or re-arm at is just scenery — plus keepers so it reads as a place people live.
-    const roles = hostile ? [] : ["herbalist", "smith", "adept"];
+    const roles = ["herbalist", "smith", "adept"];
     // A city is bigger, so it holds more people AND a second set of traders — walking a
     // city to find the one adept would be a chore rather than a place.
-    if (s.city && !hostile) roles.push("herbalist", "smith", "adept");
+    if (s.city) roles.push("herbalist", "smith", "adept");
     // Whose desk is here. NEUTRAL ground — every city, and the spawn town — keeps all three
     // quarters, because that is what neutral means and it is where you go to pick a side.
     // A town that flies a colour keeps only its own.
     const neutral = s.city || s.neutral;
     if (neutral) roles.push(...QM);
-    else if (!hostile && s.faction !== null && s.faction !== undefined) roles.push(QM[s.faction % QM.length]);
+    else if (s.faction !== null && s.faction !== undefined) roles.push(QM[s.faction % QM.length]);
     const want = Math.round(VILLAGE.perSanctuary * (s.r / 46));
     while (roles.length < want) roles.push("keeper");
 
@@ -106,9 +108,7 @@ export class Villagers {
     // stand shoulder to shoulder but spaced so they never overlap: findable, comparable, and
     // the same spot every time.
     // The town's tint (small faction towns only): civilians wear the colour, vendors keep
-    // their trades, the quartermaster turns red. See TOWN_TINT above. HOSTILE towns tint
-    // too — walking into a rival town full of gray strangers taught nothing; its civilians
-    // wearing the enemy's colour is exactly the "whose ground is this" read the tint is for.
+    // their trades, the quartermaster turns red. See TOWN_TINT above.
     const townCol = (!neutral && s.faction !== null && s.faction !== undefined)
       ? TOWN_TINT[FACTIONS[s.faction % FACTIONS.length].ally] : null;
     const qmRoles = roles.filter((k) => QM.includes(k));

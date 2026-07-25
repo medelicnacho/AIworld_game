@@ -43,8 +43,9 @@ test("the garrison is a BIG group with all three jobs in it", () => {
   assert.ok(RAID.melee >= 2, "a line of melee bodies");
   assert.ok(RAID.ranged >= 2, "casters behind them");
   assert.ok(RAID.chargers >= 1, "and at least one charger to fear");
-  assert.ok(RAID.melee + RAID.ranged + RAID.chargers >= 8,
-    "the garrison must read as a big group, not a patrol");
+  assert.ok(RAID.melee + RAID.ranged + RAID.chargers >= 12,
+    "the garrison must read as a WAR-CAMP — a rival town holds no civilians, so its "
+    + "fighters have to fill the streets a population used to");
 });
 
 test("the sack is a RAID, not a faucet: rebuild long, loot real, champions ranked", () => {

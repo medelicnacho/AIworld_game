@@ -327,6 +327,12 @@ export function servesYou(sanctuary) {
  * "who will sell to me" can never give different answers about the same town.
  */
 export function isHostileSanctuary(sanctuary) {
+  // THE WAR IS NONE OF YOURS until you pick a side. Before the raid existed, "hostile" only
+  // meant "your dash works here and the shop is closed" — harmless to a newcomer. Now it
+  // means an emptied town and a war-camp that hunts you, so it must NEVER apply to the
+  // unaligned: a level-1 player wandering into their first coloured town gets a cold
+  // shoulder, not an execution. Choosing a faction is the act that arms the map.
+  if (!player.faction) return false;
   return !!sanctuary && !servesYou(sanctuary);
 }
 
