@@ -221,6 +221,19 @@ export function tooSimilar(a, b) {
  * mostly-intact short sentence, return null — the villager stays quiet, which is always
  * better than gargling. Exported for its tests.
  */
+// THE REGISTER TRIPWIRE — the lab's GENERIC_ASSISTANT detector (services/drift.py),
+// ported as a gate. The failure it caught live, ambient, in play: "The arrival of
+// refugees simply exacerbates existing resource constraints" — a townsperson possessed
+// by a policy memo. One of these words is human; two in one short line is the assistant
+// voice surfacing, and the line dies. This is the one register this project must never
+// drift into, and now the mouth itself refuses it.
+const ASSISTANT_WORDS = new Set(["certainly", "however", "additionally", "furthermore",
+  "overall", "ultimately", "assist", "assistance", "provide", "ensure", "explore",
+  "delve", "insights", "perspective", "highlights", "options", "recommend", "solution",
+  "solutions", "moreover", "significant", "individuals", "resources", "constraints",
+  "exacerbates", "impacts", "numerous", "various", "regarding", "facilitate",
+  "utilize", "prioritize", "implement"]);
+
 export function cleanLine(raw, minWords = 3) {
   if (!raw) return null;
   const t = raw
@@ -250,6 +263,11 @@ export function cleanLine(raw, minWords = 3) {
   // answer from a terse townsperson — the chat passes 1, and asking a villager her name
   // stops reading as her glitching into silence.
   if (speakable.length < minWords || speakable.length < words.length * 0.7) return null;
+  let assistant = 0;
+  for (const w of speakable) {
+    if (ASSISTANT_WORDS.has(w.toLowerCase().replace(/[^a-z]/g, ""))) assistant++;
+  }
+  if (assistant >= 2) return null;    // the register this project must never drift into
   return speakable.join(" ");
 }
 
@@ -309,7 +327,13 @@ export class TownVoice {
     const { events, cursor } = deeds.since(this.newsCursor);
     if (!events.length) return;
     this.newsCursor = cursor;
-    for (const e of events.slice(-3)) {           // a traveller brings headlines, not a ledger
+    // A traveller brings HEADLINES, not a ledger — and a headline is the BIGGEST story,
+    // not the latest. Taking the last three by recency once dropped two boss kills and a
+    // faction oath in favour of the skirmish that happened after them. Top three by
+    // weight, retold in the order they happened.
+    const headlines = [...events].sort((a, b) => b.weight - a.weight).slice(0, 3)
+      .sort((a, b) => a.id - b.id);
+    for (const e of headlines) {
       this.heard.push({ text: e.text, weight: e.weight });
       console.info(`[voice] the town hears news: "${e.text}"`);
     }
@@ -317,7 +341,7 @@ export class TownVoice {
       this.heard.splice(0, this.heard.length - VOICE.heardMax);
     }
     this.drift.learn(SEEDS.map((t) => ({ text: t, weight: 1 })).concat(this.heard));
-    this.news = events[events.length - 1].text;
+    this.news = headlines[headlines.length - 1].text;
     this.newsSlots = 2;
   }
 

@@ -159,3 +159,32 @@ test("the playtest's actual abuse now costs regard, and a false name is unlearne
   assert.equal(chat.facts.get("k1").name, undefined, "the apology-name is unlearned");
   assert.equal(chat.facts.get("k2").name, "Dilhead Jones", "a real name survives");
 });
+
+test("headlines are the BIGGEST stories, not the latest three", async () => {
+  const { deeds } = await import("../world/events.js");
+  const { TownVoice } = await import("./voice.js");
+  const tv = new TownVoice({ state: "offline", info: null }, { list: [] }, {}, null);
+  tv.newsCursor = deeds.since(0).cursor;
+  // The playtest ordering that dropped the bosses: oath, two bosses, then small stuff last.
+  deeds.push("the wanderer swore to Vale and wears their colours now", 2.0);
+  deeds.push("the wanderer felled a great beast out in the Fallows", 2.2);
+  deeds.push("the wanderer felled a great beast out in the Reach", 2.2);
+  deeds.push("the wanderer cut down a camp adept out in the Fallows", 1.6);
+  deeds.push("the wanderer cut down a camp quartermaster out in the Fallows", 1.6);
+  tv.catchUpOnNews();
+  const texts = tv.heard.map((h) => h.text);
+  assert.ok(texts.some((t) => t.includes("Fallows") && t.includes("beast")), "boss one made the news");
+  assert.ok(texts.some((t) => t.includes("Reach")), "boss two made the news");
+  assert.ok(texts.some((t) => t.includes("swore to Vale")), "the oath made the news");
+  assert.ok(!texts.some((t) => t.includes("adept")), "the skirmish did not outrank them");
+});
+
+test("the assistant register dies at the mouth — the lab's drift detector, as a gate", async () => {
+  const { cleanLine } = await import("./voice.js");
+  // Caught live, ambient, in play — a townsperson possessed by a policy memo:
+  assert.equal(cleanLine("The arrival of refugees simply exacerbates existing resource constraints."), null);
+  assert.equal(cleanLine("We should explore various options to facilitate solutions."), null);
+  // One bureaucratic word in a human sentence is still human.
+  assert.equal(cleanLine("However you slice it, the road is closed."),
+    "However you slice it, the road is closed.");
+});
