@@ -113,7 +113,7 @@ test("battle chatter yields to telegraphs: it never blocks a charge scream", () 
   assert.equal(spoke, 1, "a fighter eventually runs its mouth");
   // ...and must NOT have armed the faction cooldown, so a telegraph can still land.
   assert.equal(w.factionCd.get(0), 0, "chatter never claims the telegraph budget");
-  w.globalCd = 0;                                  // one voice at a time, then:
+  assert.equal(w.globalCd, 0, "nor the one-voice gate — a telegraph cuts through noise");
   w.cry({ faction: 0, x: 0, z: 0 }, "charge");
   assert.equal(played.length, 2, "the charge scream is never blocked by chatter");
 });
@@ -125,7 +125,6 @@ test("clan-vs-clan war chatter has its own slower clock", () => {
   let spoke = 0;
   for (let i = 0; i < 80 && !spoke; i++) { w.cry({ faction: 2, x: 0, z: 0 }, "war"); spoke = played.length; }
   assert.equal(spoke, 1, "clans at war are audible");
-  w.globalCd = 0;
   w.cry({ faction: 2, x: 0, z: 0 }, "war");
   assert.equal(played.length, 1, "but the war clock holds them apart");
 });

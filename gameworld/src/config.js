@@ -116,12 +116,18 @@ export const WARCRY = {
   // gate so nothing turns to mush, but they never set the faction cooldown, so a charge
   // scream is never blocked by chatter. And no warband echoes — an echo is for the
   // dramatic beat, not for the tenth line of a scrap.
-  fightCd: 4.5,           // battlefield-wide gap between in-combat lines
-  fightChance: 0.55,
-  fightMobCd: 11,         // one fighter shuts up this long after speaking
-  warCd: 6,               // clan-vs-clan chatter is rarer — it is not aimed at you
-  warChance: 0.45,
-  warMobCd: 14,
+  // RETUNED to be RELENTLESS (asked for in play): the first pass spoke once every few
+  // seconds and a brawl still felt half-mute. A fight should be a wall of shouting — so
+  // every fighter runs its mouth on a short personal clock, and the only battlefield
+  // limit is a narrow gap that keeps voices from landing on the same instant. With six
+  // mobs on you that lands roughly two lines a second, overlapping, from six directions.
+  chatterGap: 0.5,        // battlefield-wide minimum between chatter lines
+  fightCd: 0.6,           // in-combat lines can come almost back to back
+  fightChance: 0.9,
+  fightMobCd: 3.5,        // one fighter shuts up only this long after speaking
+  warCd: 1.6,             // clan-vs-clan is rarer than shouting at YOU, but still steady
+  warChance: 0.8,
+  warMobCd: 5,
   warHearRange: 70,       // clan brawls further than this stay a rumour, not a soundtrack
   // ALL THREE CLANS SHOUT IN VALE'S VOICE (decided by ear, 2026-07-25). Iron's northern
   // growl was hard to follow and its American replacement was no better; the quick high

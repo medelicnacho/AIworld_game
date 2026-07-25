@@ -90,6 +90,7 @@ export class WarCries {
     this.hailCd = 0;
     this.fightCd = 0;
     this.warCd = 0;
+    this.chatterCd = 0;
     // THE TOWN OUTRANKS THE ARSENAL. main wires this to "is any voice system mid-request"
     // — while a villager is speaking (or the town is dreaming), the baker stands down.
     // The model has one thread; conversation gets it first, rehearsal takes the gaps.
@@ -181,6 +182,7 @@ export class WarCries {
     this.hailCd = Math.max(0, this.hailCd - dt);
     this.fightCd = Math.max(0, this.fightCd - dt);
     this.warCd = Math.max(0, this.warCd - dt);
+    this.chatterCd = Math.max(0, this.chatterCd - dt);
     for (const [c, t] of this.factionCd) this.factionCd.set(c, Math.max(0, t - dt));
     this.catchUpOnDeeds();
 
@@ -378,12 +380,16 @@ export class WarCries {
     // — a charge telegraph must never be blocked by someone running their mouth. No echoes.
     if (kind === "fight" || kind === "war") {
       const isWar = kind === "war";
-      if (this.globalCd > 0) return;
+      // Chatter rides its OWN narrow gap instead of the telegraph budget: voices may
+      // very nearly overlap (that is the wall of shouting), and — because it no longer
+      // touches globalCd at all — a charge scream can cut straight through the noise
+      // the instant it is due, which is exactly what a telegraph must be able to do.
+      if (this.chatterCd > 0) return;
       if ((isWar ? this.warCd : this.fightCd) > 0) return;
       if (this.rng() >= (isWar ? WARCRY.warChance : WARCRY.fightChance)) return;
       const pick = this.pickLine(colour);
       if (!pick) return;
-      this.globalCd = WARCRY.globalCd;
+      this.chatterCd = WARCRY.chatterGap;
       if (isWar) this.warCd = WARCRY.warCd; else this.fightCd = WARCRY.fightCd;
       const { rate } = WARCRY.voices[colour];
       this.sfx.playClip(pick.wav, e.x, e.z, WARCRY.volume, rate);
