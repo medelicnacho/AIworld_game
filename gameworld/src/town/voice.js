@@ -128,13 +128,20 @@ const KEEPER_MODELS = [
   "en_US-ryan-medium.onnx",
 ];
 
-/** A villager's voice, stable for as long as the villager exists. Keepers hash their walk
- *  angle (fixed at populate time) into a model and a pace nudge, so the same body keeps
- *  the same voice for the whole session instead of re-rolling per murmur. */
+/**
+ * The identity hash. Everything a villager IS — name, voice, pace, chat memory — hangs
+ * off uid, the permanent index populate() dealt them. It HASHED THE WALK ANGLE once,
+ * believing it fixed; strollers update it every frame, so a villager's name changed as
+ * she walked ("Nell" at one bench, "Sage" at the next — the same woman), and her memory
+ * of you was keyed to moments of her stroll. One body, one number, forever.
+ */
+const identOf = (v) => Math.imul((v.uid ?? 0) + 1, 2654435761) >>> 0;
+
+/** A villager's voice, stable for as long as the villager exists. */
 export function voiceOf(v) {
   const cast = CAST[v.role.key];
   if (cast) return cast;
-  const h = Math.abs(Math.floor(v.ang * 10430.378)) >>> 0;      // angle bits as a hash
+  const h = identOf(v);
   return {
     model: KEEPER_MODELS[h % KEEPER_MODELS.length],
     // WIDENED from 0.94..1.18: with four models and a narrow band, two keepers on the same
@@ -246,19 +253,19 @@ export function cleanLine(raw, minWords = 3) {
 }
 
 // NAMES. Villagers had only trades, so "what's your name" made the model invent one — a
-// different one per asking, when it wasn't answering so short the scrubber ate it. A name
-// is hashed from the same fixed walk-angle the voice is, so a body keeps ONE name for as
-// long as it exists — ask twice, get the same woman.
+// different one per asking, when it wasn't answering so short the scrubber ate it. Hashed
+// off uid like the voice, so a body keeps ONE name for as long as it exists — ask twice,
+// or tomorrow, and meet the same woman.
 const NAMES = [
   "Mara", "Edda", "Bram", "Cole", "Tess", "Hale", "June", "Petra",
   "Otto", "Finn", "Sage", "Rook", "Ivy", "Dora", "Gil", "Hetty",
   "Jonas", "Kell", "Lena", "Moss", "Nell", "Orin", "Rue", "Silas",
 ];
 
-/** A villager's given name, stable for as long as the villager exists. */
+/** A villager's given name, stable for as long as the villager exists. A different
+ *  multiplier than the voice hash, so name and voice deal independently. */
 export function nameOf(v) {
-  const h = Math.abs(Math.floor(v.ang * 7919.77)) >>> 0;
-  return NAMES[h % NAMES.length];
+  return NAMES[(Math.imul((v.uid ?? 0) + 1, 40503) >>> 0) % NAMES.length];
 }
 
 export class TownVoice {

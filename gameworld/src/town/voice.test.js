@@ -101,7 +101,13 @@ test("dialogue floor: 'Mara.' is an answer in chat, still noise as a murmur", as
   // 3-word ambient floor scrubbed to silence — she read as broken for answering properly.
   assert.equal(cleanLine("Mara.", 1), "Mara.");
   assert.equal(cleanLine("Mara.", 3), null);
-  // And the name itself is stable: same body, same name, every ask.
-  const v = { ang: 2.184, role: { key: "keeper", name: "Keeper" } };
-  assert.equal(nameOf(v), nameOf({ ...v }));
+  // And identity is STABLE ON uid, untouched by the stroll: the same body mid-walk keeps
+  // its name and voice; a different body gets its own. (The bug this pins: identity once
+  // hashed the walk angle, so a villager's name changed as she walked her circuit.)
+  const { voiceOf } = await import("./voice.js");
+  const v = { uid: 3, ang: 2.184, role: { key: "keeper", name: "Keeper" } };
+  const walked = { ...v, ang: 4.9 };
+  assert.equal(nameOf(v), nameOf(walked), "walking must never rename her");
+  assert.deepEqual(voiceOf(v), voiceOf(walked), "nor change her voice");
+  assert.notEqual(nameOf(v), nameOf({ ...v, uid: 4 }), "but two bodies are two people");
 });

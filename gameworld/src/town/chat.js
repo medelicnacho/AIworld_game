@@ -71,7 +71,9 @@ export class TownChat {
     this.sendBtn.addEventListener("click", () => this.send());
   }
 
-  keyOf(v) { return `${v.s.id}|${v.role.name}|${v.ang.toFixed(3)}`; }
+  // uid, not the walk angle: the angle CHANGES as a villager strolls, which shattered
+  // her memory of you across the moments of her circuit — every G a stranger again.
+  keyOf(v) { return `${v.s.id}|${v.uid ?? v.role.name}`; }
   logOf(v) {
     const k = this.keyOf(v);
     let log = this.logs.get(k);
@@ -187,7 +189,10 @@ export class TownChat {
       const res = await this.bridge.line(prompt, {
         words: VOICE.lineWords, voice: model, lengthScale: pace,
       });
-      const clean = res?.text ? cleanLine(res.text, 1) : null;   // "Mara." is an answer
+      // "Mara." is an answer (floor 1) — and a leading self-label is stage furniture:
+      // the model sometimes writes "Edda: My name's Edda...", theatre-script style.
+      let clean = res?.text ? cleanLine(res.text, 1) : null;
+      if (clean) clean = clean.replace(new RegExp(`^${nameOf(v)}\\s*[:,-]\\s+`, "i"), "").trim() || clean;
       if (!clean) {                                  // she looks at you and says nothing
         // Failures land in the transcript too — the wedge that motivated this was
         // invisible precisely because only successes were ever logged.

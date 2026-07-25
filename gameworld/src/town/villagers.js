@@ -134,6 +134,13 @@ export class Villagers {
       }
       folk.push({
         role: ROLES[ri], ri, s,
+        // WHO this body is, permanently. populate() is deterministic per town, so the
+        // index survives every rebuild (faction switches, walking away and back, reloads)
+        // — which makes it the one field identity may hang from. It exists because names,
+        // voices and chat memory once hashed the walk angle instead, believing it fixed;
+        // strollers update it every frame, so a villager's NAME changed as she walked her
+        // circuit and her memory of you shattered across the moments of her stroll.
+        uid: folk.length,
         col: col !== null ? new THREE.Color(col) : null,
         ang,
         rad: isQm ? QM_RAD : 4 + rng() * Math.max(4, s.rMin - 9),
