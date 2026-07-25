@@ -42,7 +42,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from services.llm import OllamaLLM          # noqa: E402
 from services.tts import PiperTTS, Voice    # noqa: E402
 
-DEFAULT_MODEL = "gemma3:1b"    # Stage 0: 1.99s to speech vs 4.68s at 4b, on CPU
+# 4b, revised from 1b (2026-07-25). Stage 0 picked 1b for latency (1.99s to speech vs
+# 4.68s) when speed-to-first-word was the open question. The town voice changed the
+# calculus: one line per ~15s cadence tolerates ~3s warm generation easily, and measured
+# side by side on the same reply prompt, 1b failed 2 of 3 runs by echoing the INSTRUCTIONS
+# as speech ('Turn the subject.') while 4b stayed in role and in register 3 of 3. A model
+# that needs guardrails lost to a model that needs an editor. Revisit only if CPU
+# contention with the renderer shows up as frame dips while villagers speak.
+DEFAULT_MODEL = "gemma3:4b"
 DEFAULT_VOICE = "en_US-lessac-medium.onnx"
 ALLOW_ORIGIN = "http://localhost:5173"
 STREAM_HZ = 10
