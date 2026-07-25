@@ -40,6 +40,7 @@ import { Bridge } from "./net/bridge.js";
 import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, xpLevelMult } from "./prog/xp.js";
 import { save as saveGame, load as loadSave, restore as restoreSave, hasSave, wipe as wipeSave } from "./prog/save.js";
 import { mulberry32 } from "./rng.js";
+import { deeds } from "./world/events.js";
 import { setDifficulty, diff } from "./prog/difficulty.js";
 
 const FIXED_DT = 1 / 60;
@@ -874,7 +875,12 @@ const gameCtx = {
   applyStats: () => applyLevelStats(),   // gear changes re-derive the same way levels do
   // Joining or switching factions redraws the whole map's loyalties: which towns serve you,
   // which ones muster defenders against you. Both caches must let go of the old world.
-  onFactionChange: () => { villagers.refresh(); raids.reset(); },
+  onFactionChange: () => {
+    villagers.refresh();
+    raids.reset();
+    const f = myFaction();
+    if (f) deeds.push(`the wanderer swore to ${f.name} and wears their colours now`, 2.0);
+  },
   equipArmor: (id) => buyArmor(id),      // smith buys a fixed piece by config id
   sellGear: (uid) => sellGear(uid),      // sell one bag piece at a vendor
   sellAllCommon: () => sellAllCommon(),  // "sell all gray" button
@@ -1061,6 +1067,8 @@ function rewardBoss(ring, x, z) {
   const rep = gainRep(repForBoss(ring));
   killFeed = `◆ BOSS DOWN ◆  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) levelUp();
+  // News travels with the traveller (world/events.js): told the way a townsperson would.
+  deeds.push(`the wanderer felled a great beast out in ${RINGS[Math.min(ring, RINGS.length - 1)].name}`, 2.2);
   // The relic falls where the boss did — you have to walk into the arena to take it, which
   // is a last small decision if anything else is still alive.
   if (x !== undefined) dropBossLoot(x, z, ring);
@@ -1082,6 +1090,11 @@ function sackTown(s) {
   player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult);
   killFeed = `⚑ TOWN SACKED ⚑  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) levelUp();
+  {
+    const f = factionOfTown(s);
+    deeds.push(`the wanderer sacked ${f ? `a ${f} camp` : "a camp"} out in `
+      + `${RINGS[Math.min(ringAt(s.x, s.z), RINGS.length - 1)].name}`, 2.0);
+  }
   const innerR = Math.max(6, (s.rMin || 20) - 6);
   for (let i = 0; i < RAID.loot; i++) {
     const a = shakeRng() * Math.PI * 2;
@@ -1111,6 +1124,8 @@ function champFalls(e) {
   player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult * xpFrac);
   const name = (CHAMPION_NAME[e.champion] || "Champion").toUpperCase();
   killFeed = `☠ ${name} SLAIN  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
+  deeds.push(`the wanderer cut down a camp ${(CHAMPION_NAME[e.champion] || "champion").toLowerCase()} `
+    + `out in ${RINGS[Math.min(ring, RINGS.length - 1)].name}`, 1.6);
   if (lv) levelUp();
   const n = e.champion === "qm" ? RAID.champLootQm : RAID.champLoot;
   for (let i = 0; i < n; i++) {
@@ -1180,6 +1195,8 @@ const deathSubEl = document.getElementById("death-sub");
 function onDeath() {
   if (dead) return;
   dead = true;
+  deeds.push(`the wanderer fell out in ${RINGS[Math.min(ringAt(player.x, player.z), RINGS.length - 1)].name} `
+    + `and came back walking`, 1.8);
   const lost = loseLevel();
   // COMMIT IT, this instant. Every other save can wait; this one cannot. The whole weight of
   // dying rests on the level being genuinely gone, and a player who works out that closing the

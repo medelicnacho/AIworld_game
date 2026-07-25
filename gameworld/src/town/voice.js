@@ -22,6 +22,7 @@ import { player } from "../state.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 import { Drift } from "./drift.js";
+import { deeds } from "../world/events.js";
 
 // The starter town's shared vocabulary — what its people have on their minds. REWRITTEN
 // for the order-2 chain (VOICE.md rung 2): every phrase is one clean clause, and the
@@ -293,6 +294,31 @@ export class TownVoice {
     // into the town's drift sources at above-seed weight, so what was SAID aloud starts
     // surfacing, warped, in later murmurs. Speech feeding the subconscious feeding speech.
     this.heard = [];
+    // THE NEWS. This reader's place in the deed feed, and the freshest deed to arrive —
+    // held for a couple of speaking slots so the first murmurs after you walk in are
+    // ABOUT what you did out there, not about the weather.
+    this.newsCursor = 0;
+    this.news = null;
+    this.newsSlots = 0;
+  }
+
+  /** Deeds become town knowledge the moment you arrive — news travels WITH the traveller.
+   *  Each lands in heard[] at its own weight (a boss outranks gossip), and the freshest
+   *  becomes the standing topic for the next couple of murmurs. */
+  catchUpOnNews() {
+    const { events, cursor } = deeds.since(this.newsCursor);
+    if (!events.length) return;
+    this.newsCursor = cursor;
+    for (const e of events.slice(-3)) {           // a traveller brings headlines, not a ledger
+      this.heard.push({ text: e.text, weight: e.weight });
+      console.info(`[voice] the town hears news: "${e.text}"`);
+    }
+    if (this.heard.length > VOICE.heardMax) {
+      this.heard.splice(0, this.heard.length - VOICE.heardMax);
+    }
+    this.drift.learn(SEEDS.map((t) => ({ text: t, weight: 1 })).concat(this.heard));
+    this.news = events[events.length - 1].text;
+    this.newsSlots = 2;
   }
 
   /** Something was SAID in this town — by a villager, or by YOU (the chat feeds through
@@ -346,6 +372,8 @@ export class TownVoice {
       this.cooldown = Math.max(this.cooldown, VOICE.firstDelay);
       return;
     }
+    // News lands whether or not the model is up — memory is model-free; only mouths need it.
+    this.catchUpOnNews();
     // THE DRIFT WENT BACK UNDERGROUND (decided in play, 2026-07-25). Voicing raw Markov
     // was tried and it sounded like what it is; the lab's original shape won: everything
     // AUDIBLE is deliberate LLM speech, and the chain is purely subconscious — it feeds
@@ -359,6 +387,7 @@ export class TownVoice {
     if (!v) { this.cooldown = 4; return; }          // nobody close enough — retry soon
 
     this.drift.step();                              // churn the subconscious; spoken by no one
+    if (this.newsSlots > 0) this.newsSlots--;       // fresh news headlines a couple of slots
     this.busy = true;
     this.sayLine(v).finally(() => {
       this.busy = false;
@@ -413,7 +442,9 @@ export class TownVoice {
         : WORLD + who + `You are talking quietly to yourself while you work. `
           + moodLine + `Your drifting thoughts just now: ${frags}. `
           + `If it comes naturally, let your line touch on `
-          + `${TOPICS[(this.rng() * TOPICS.length) | 0]}. `
+          + `${this.newsSlots > 0 && this.news
+            ? `the news everyone has heard: ${this.news}`
+            : TOPICS[(this.rng() * TOPICS.length) | 0]}. `
           + `Say ONE short line to yourself — plain frontier speech in real words only. `
           + `Avoid stock filler like "I reckon". No greetings, no questions, no humming `
           + `or sound effects, no stage directions, never address anyone.`;
