@@ -2,6 +2,42 @@
 
 export const WORLD_SEED = 1337;
 
+// VOICE.md V1 — the murmuring starter town. Every number here is the silence budget: the
+// point of the feature is how RARELY it fires. Local-only by nature (the bridge refuses to
+// connect in built copies), so none of this exists for an itch player.
+export const VOICE = {
+  enabled: true,
+  // WHICH voice a villager gets lives in town/voice.js's CAST table (per ROLE — a smith
+  // sounds like a smith in every town, the way trade colours already work). Models are
+  // always passed explicitly: the bridge's server-side default is lessac, and lessac is
+  // Santāna's (VOICE.md D7).
+  // The cadence, tuned by ear against both extremes. The original silence budget
+  // (34/18 — a murmur every ~34-52s) played as "way too slow": the town read as mute and
+  // the feature as broken. The test cadence (5/4) read as a lobby. This sits between,
+  // nearer the fast end — a voice every ~12-20s: often enough that the town is audibly
+  // inhabited while you shop, rare enough that two villagers never talk over each other.
+  cooldown: 12,        // seconds between murmurs, plus up to `jitter` more
+  jitter: 8,           // one voice every ~12-20s
+  firstDelay: 3,       // settle-in: entering town never triggers an instant greeting
+  range: 26,           // a villager this close to you may speak; further is stage-whisper
+  volume: 0.85,
+  cacheMax: 32,        // synthesized fragments kept (Piper is CPU-bound on the lab side)
+  // THE SETTLED LINE — the model layer, when the lab has one up (health.llm). Most slots
+  // stay Markov murmurs; this fraction settle into one clear LLM sentence grown from the
+  // drift. Kept a MINORITY on purpose: the half-formed murmur is what makes the rare
+  // clear line feel like surfacing, and at ~4-6s a line is also the expensive one.
+  lineChance: 0.25,
+  lineWords: 14,       // short — a person muttering at a workbench, not giving a speech
+};
+
+// Shown in the corner of the screen, always. This exists because a build-staleness bug wore
+// a gameplay bug's clothes for hours: the packaged dist/ (and an itch upload of it) kept the
+// old garrison-ambush code long after src/ was fixed, and every report of "still broken" was
+// actually "still running the old copy". A tag on screen ends that class of confusion — if
+// the screen doesn't say this exact string, the fix being tested isn't in the build being
+// played. Bump it whenever behaviour changes meaningfully.
+export const BUILD_TAG = "garrison-v4 07-25";
+
 // DIFFICULTY. Chosen once on the start screen and remembered in the save. HARD is the harshest
 // the frontier gets — everything out there hits TWICE as hard as the raw numbers say, the level
 // is lost on death, and every telegraph is unforgiving. EASY exists for someone who has never
@@ -569,12 +605,20 @@ export const STATS = {
   // stamHp is kept as the SLOPE AT ZERO, so the first points are worth exactly what they
   // were and the early game is untouched (stam 27: 316 -> 283 hp). stamK sets where it
   // bends; stamHpCap is the ceiling it approaches but never reaches.
-  //   stam  10 -> 174 (was 180) ·  27 -> 283 (was 316) ·  90 -> 567 (was 820)
-  //   stam 187 -> 813 (was 1596) · 265 -> 934 (was 2220) · 600 -> 1177 (was 4900)
+  //
+  // BENT EARLIER (2026-07-25). The soft cap fixed the shape but left the ceiling too high:
+  // a farmed survival kit still tripled the health bar, and a boss volley the design promises
+  // is always lethal was something a geared player could simply eat. The lever is stamK and
+  // stamHpCap TOGETHER, because the slope at zero is stamHpCap/stamK — hold that ratio at
+  // stamHp and the first points keep their exact value while the ceiling comes down. So the
+  // nerf lands entirely where the problem was: a fresh character does not feel it, and a
+  // full Sworn set gains ~28% less health than it did.
+  //   stam  10 -> 173 (was 174) ·  27 -> 273 (was 283) ·  90 -> 496 (was 567)
+  //   stam 187 -> 654 (was 813) · 265 -> 722 (was 934) · 600 -> 844 (was 1177)
   baseHp: 100,
   stamHp: 8,
-  stamK: 180,             // stamina at which you have half the cap
-  stamHpCap: 1440,        // = stamHp * stamK, so the curve's slope at 0 is exactly stamHp
+  stamK: 110,             // stamina at which you have half the cap
+  stamHpCap: 880,         // = stamHp * stamK, so the curve's slope at 0 is exactly stamHp
   // Armour curve: DR = armor / (armor + armorK + armorPerTier*attackerTier). Tuned so the
   // old shop feel roughly ports -- 1 Heavy Plating (+45) ~13% at tier 0, 5 ~43%, 10 ~60%,
   // close to the old 0.9^n at low-mid stacks but SANE at high stacks and weaker at depth.
@@ -613,29 +657,6 @@ export const VILLAGE = {
   potionCd: 18,          // an emergency, not a rotation — but usable more than once a fight now
 };
 
-// Gate guards: a standing detachment outside every gate, permanently in a scrap with
-// whatever has wandered up. Better than a turret in every way that matters — it is a fight
-// to walk past rather than a wall of fire, it pulls mobs OFF you, and it makes a town look
-// like somewhere people are holding rather than somewhere the architecture is.
-export const GUARD = {
-  count: 4,
-  spread: 7,            // how far they fan out from the gate
-  post: 11,             // how far they will stray from their post
-  range: 26,            // engagement range
-  fireRate: 0.85,
-  damage: 55,
-  damagePerTier: 0.9,   // mob HP compounds; a fixed number would be decoration by tier 3
-  hp: 320,
-  hpPerTier: 0.9,
-  regen: 9,             // per second, when nothing is on them
-  respawn: 18,          // seconds after falling
-  taunt: 22,            // mobs this close to a guard fight the GUARD instead of you
-  meleeRange: 3.0,
-  soundRange: 46,       // guard shots are silent past this — a town you are not at is quiet
-  // Within this of a guard you earn NOTHING. Otherwise the best way to play is to stand
-  // behind the line and let the town farm the frontier for you.
-  deadZone: 38,
-};
 
 // THE RAID. A rival faction's town is already "cold, not hostile" — it refuses to serve you,
 // and fighting is allowed on its ground (isHostileSanctuary). This makes that refusal mean
@@ -648,7 +669,11 @@ export const GUARD = {
 // kill order becomes a decision), and the QUARTERMASTER is the boss (a charge you already
 // know to fear, and the most health in town). Soldiers fill out the line.
 export const RAID = {
-  engage: 90,            // the garrison musters when you come this close to a faction town
+  // Musters at 150, not 90: at 90 a town was in plain sight for a hundred metres before its
+  // people existed, so every approach began with an empty town — which reads as a spawn bug,
+  // not a quiet moment. 150 puts the garrison on its feet beyond the minimap's rim and about
+  // as far as walls resolve by eye, so a town is simply never seen unmanned.
+  engage: 150,           // the garrison musters when you come this close to a faction town
   notice: 44,            // and it sees an intruder from further than a wild mob would
   // THE GARRISON — every faction town has one, yours included, bunched at the gate: a big
   // group in the town's colour that fights the faction war for real. Yours fight beside you;
@@ -660,9 +685,11 @@ export const RAID = {
   ranged: 5,
   chargers: 3,
   soldierHp: 1.5,
-  // THE AMBUSH. A rival town looks nearly empty — a single ranged SENTINEL keeps watch. Kill
-  // the lookout and the whole garrison springs from the town at once: the sack begins on your
-  // terms, when you drop the one mob you can see, so the trap is sprung by a choice you made.
+  // NO AMBUSH. Every town is fully manned from the moment it musters — you can see a rival's
+  // war-camp, count it, and decide against it from outside the wall. What waits is not WHETHER
+  // they exist but whether they have turned on you: a rival garrison holds its posts until you
+  // cross the wall or draw first blood (town/raid.js arm()). The sack still begins on your
+  // terms; you can just see what you are choosing now.
   adeptHp: 6,            // champions are multiples of the ring's base mob health — now the
   herbHp: 7,             // three of them are proper mini-bosses, not just bigger soldiers,
   qmHp: 14,              // the QM most of all: the wall the whole raid ends on
@@ -676,6 +703,22 @@ export const RAID = {
   healFrac: 0.10,        // each pulse restores this fraction of every defender's max HP
   loot: 14,              // the sack fountain: field-table rolls, so mostly grays — the
                          // spectacle is the point, and reagents will take gray slots later
+  // THE CHAMPIONS ARE MINI-BOSSES, AND MINI-BOSSES PAY. Each pays out ON ITS OWN DEATH —
+  // rep, xp, points and a loot burst, as a fraction of what a real boss is worth — and the
+  // death is DURABLE: a fallen champion stays out of every re-muster until the rebuild
+  // clock runs. Before this they paid nothing and were rebuilt on every approach, so the
+  // hardest fights in a raid were also the only worthless ones, killable forever for
+  // nothing. The fractions ladder with the fight: the QM is the wall, so the QM is the prize.
+  // QUARTERED from the first cut (0.25/0.3/0.6): three champions paid more standing than the
+  // boss they were fractions of, which made raiding strictly better than the real fight the
+  // ladder is supposed to be about. A full raid's champions now sum to ~0.29 of a boss —
+  // seasoning on the sack's payout, not a second boss hiding in a town.
+  champRep: { adept: 0.0625, herbalist: 0.075, qm: 0.15 },
+  // XP and points keep the original fractions — the fight is still the fight, and only the
+  // STANDING was outbidding bosses. Two dials, because they answer different complaints.
+  champXp: { adept: 0.25, herbalist: 0.3, qm: 0.6 },
+  champLoot: 4,          // pieces the adept and herbalist each burst on death
+  champLootQm: 7,        // the quartermaster's burst — a boss-sized moment, boss-sized pile
   rebuild: 600,          // seconds a sacked town stays quiet: ~10 minutes. Long enough that
                          // you move ON to the next town instead of farming this one — which
                          // pushes you outward, where the better rewards already live
@@ -857,6 +900,14 @@ export const MOB = {
   // mob as a target the way it treats you, and brawls it in melee.
   factions: 3,           // how many warring colours exist
   factionWar: true,      // toggle the whole behaviour
+  // How far a town's colour reaches into the field. Camps pitched inside a town's claim fly
+  // that town's colour instead of rolling their own (prog/factions territoryColorAt), so the
+  // bodies outside a gate are the same army as the bodies inside it. ~3x a town's radius:
+  // wide enough that the approach to a town is unmistakably its ground, narrow enough that
+  // the gaps between towns stay unclaimed — and unclaimed ground is where the colours still
+  // meet and fight, which is the only place the field war can actually happen. Raise this and
+  // the map tidies into blocs; lower it and the war goes back to being confetti.
+  territory: 140,
   warRange: 17,          // a mob engages an enemy-faction mob within this
   factionDamage: 0.65,   // mob-vs-mob hits for this fraction of their damage-to-you
 

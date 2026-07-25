@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {
   FACTIONS, REP_TIERS, JOIN_LEVEL, factionById, repForBoss, gainRep, tierOf, repProgress,
   FACTION_GEAR, stockFor, lockedFor, join, isMyAlly, allyColor, servesYou, repForTurnIn, isHostileSanctuary,
+  territoryColorAt,
 } from "./factions.js";
 import { RARITY } from "./gear.js";
 import { player } from "../state.js";
@@ -226,4 +227,31 @@ test("hostile ground: only a town you are NOT welcome in counts as hostile", () 
     assert.notEqual(servesYou(s), isHostileSanctuary(s),
       "a town cannot be both a shop that serves you and a place you may fight");
   }
+});
+
+test("the ground outside a gate flies the same colour as the garrison inside it", async () => {
+  // The bug this pins: camps rolled their colour at random, so the bodies standing outside an
+  // Iron town could be Ash or Vale. Whose land you are on has to be readable from the field.
+  const { tierSettlements } = await import("../world/sanctuary.js");
+  for (const s of tierSettlements(1)) {
+    if (s.city || s.neutral) continue;
+    const garrison = FACTIONS[s.faction % FACTIONS.length].ally;
+    for (const [dx, dz] of [[60, 0], [0, 60], [-55, -55]]) {
+      assert.equal(territoryColorAt(s.x + dx, s.z + dz), garrison,
+        `${FACTIONS[s.faction % FACTIONS.length].name}'s ground must fly its own colour`);
+    }
+  }
+});
+
+test("...but the gaps between towns stay unclaimed, or the field war has nowhere to happen", () => {
+  // A claim wide enough to swallow the whole ring would tidy the map into blocs and delete
+  // the one place camps of different colours can still meet each other.
+  let claimed = 0, free = 0;
+  for (let i = 0; i < 1200; i++) {
+    const a = (i / 1200) * Math.PI * 2, r = 300 + (i % 37) * 8;
+    if (territoryColorAt(Math.cos(a) * r, Math.sin(a) * r) >= 0) claimed++; else free++;
+  }
+  assert.ok(claimed > 0, "towns must actually hold ground");
+  assert.ok(free / (claimed + free) > 0.15,
+    `no-man's-land must survive; only ${((free / (claimed + free)) * 100).toFixed(0)}% is free`);
 });

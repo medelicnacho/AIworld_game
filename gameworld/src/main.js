@@ -6,12 +6,12 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY, RAID } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY, RAID, BUILD_TAG } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
 import { Villagers } from "./town/villagers.js";
-import { Guards } from "./town/guards.js";
+import { TownVoice } from "./town/voice.js";
 import { Raids } from "./town/raid.js";
 import { Shop, GOODS, statLine } from "./ui/shop.js";
 import { ICONS } from "./ui/icons.js";
@@ -21,7 +21,7 @@ import { HealthBars } from "./ui/healthbars.js";
 import { DamageText } from "./ui/damagetext.js";
 import { armorDR } from "./prog/stats.js";
 import { rollGear, vendorPiece, sellValue, RARITY } from "./prog/gear.js";
-import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, isHostileSanctuary } from "./prog/factions.js";
+import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, isHostileSanctuary, servesYou, factionOfTown } from "./prog/factions.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY, solidAt } from "./world/gen.js";
@@ -846,8 +846,7 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
 const villagers = new Villagers(scene);
-const guards = new Guards(scene);
-const raids = new Raids(mobs, (s) => sackTown(s));
+const raids = new Raids(mobs, (s) => sackTown(s), (e) => champFalls(e));
 const plates = new Nameplates(document.getElementById("plates"), camera);
 // The name a raid champion wears on its red plate — the same trade its friendly-town self runs.
 const CHAMPION_NAME = { adept: "Adept", herbalist: "Herbalist", qm: "Quartermaster" };
@@ -985,6 +984,17 @@ async function speakLine(prompt, words = 16) {
   const dur = await sfx.playClip(res.audio, player.x, player.z);
   if (dur) subtitleT = Math.max(subtitleT, dur + 0.6);
 }
+
+// The starter town murmurs (VOICE.md V1). Subtitled per D9 — a line nobody heard is a line
+// that didn't ship — with the speaker's trade named, because "who said that" is the first
+// thing a voice makes you ask.
+const townVoice = new TownVoice(bridge, villagers, sfx, (name, text, dur, settled) => {
+  // The trailing ellipsis is doing real work: the same words read as a failed sentence
+  // without it and as muttering with it. A SETTLED line (the model speaking clearly)
+  // keeps its own punctuation — the typography is the tell for which layer you heard.
+  subtitle = settled ? `${name} · ${text}` : `${name} · ${text}…`;
+  subtitleT = Math.max(3, dur + 0.8);
+});
 const shakeRng = mulberry32(0x51AE);
 let bossTimer = 6;
 
@@ -1027,9 +1037,6 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
 const hurtPlayer = (mob) => damagePlayer(mob.damage, mob.x, mob.z);
 
 function reward(res) {
-  // Standing behind the guns must never pay. Without this the optimal way to play is to let
-  // the town farm the frontier for you, which is both boring and unbeatable.
-  if (guards.inDeadZone()) { killFeed = "no reward near the gate guards"; return; }
   player.points += Math.round((LOOT.base + LOOT.perTier * res.ring)
     * (res.elite ? LOOT.eliteMult : 1));
   const xp = killValue(res.ring, res.elite, player.level);
@@ -1087,6 +1094,36 @@ function sackTown(s) {
     dropGear(s.x + Math.cos(a) * r, s.z + Math.sin(a) * r, ring);
   }
   sfx.levelUp();
+}
+
+/**
+ * A raid champion fell — the mini-boss payout, ON the kill, WHERE it died. Each pays a
+ * fraction of a true boss (RAID.champRep, laddered so the QM — the wall — is the prize),
+ * bursts a pile of gear at its feet, and its death is durable (raid.js `fallen`): the same
+ * champion cannot be farmed by walking out of range and back. Fires exactly once per head
+ * per rebuild — raid.js guarantees it — so everything here can pay full price without
+ * checking anything.
+ */
+function champFalls(e) {
+  const ring = tierAt(e.x, e.z);
+  // Two fractions on purpose: standing is deliberately thin (champRep — the ladder must run
+  // through real bosses), while xp and points still pay like the mini-boss the fight is.
+  const repFrac = RAID.champRep[e.champion] ?? 0.0625;
+  const xpFrac = RAID.champXp[e.champion] ?? 0.25;
+  const rep = gainRep(Math.round(repForBoss(ring) * repFrac));
+  const xp = Math.round(bossValue(ring, player.level) * xpFrac);
+  const lv = award(xp);
+  player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult * xpFrac);
+  const name = (CHAMPION_NAME[e.champion] || "Champion").toUpperCase();
+  killFeed = `☠ ${name} SLAIN  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
+  if (lv) levelUp();
+  const n = e.champion === "qm" ? RAID.champLootQm : RAID.champLoot;
+  for (let i = 0; i < n; i++) {
+    const a = shakeRng() * Math.PI * 2;
+    const r = 1.5 + shakeRng() * 5;
+    dropGear(e.x + Math.cos(a) * r, e.z + Math.sin(a) * r, ring);
+  }
+  sfx.equip("rare");
 }
 
 /**
@@ -1464,13 +1501,30 @@ function nearestGate() {
     if (d < bd) { bd = d; best = s; }
   }
   if (!best) return "no town within 700m";
-  return inSafe ? "✦ SANCTUARY" : `town gate ${Math.round(bd)}m`;
+  if (inSafe) return "✦ SANCTUARY";
+  // Whose gate it is, not just how far. The map carries this as colour (ui/minimap townFlag);
+  // saying it in words too is what makes the colour learnable in the first place.
+  const whose = best.city || best.neutral ? "neutral"
+    : isHostileSanctuary(best) ? "RIVAL"
+    : servesYou(best) ? "yours"
+    : factionOfTown(best) || "neutral";
+  return `town gate ${Math.round(bd)}m (${whose})`;
 }
+
+// The one question hours of "still broken" reports finally came down to: WHICH BUILD IS ON
+// SCREEN. Stamped once at boot; if the corner doesn't say config.js's current BUILD_TAG,
+// the copy being played predates the fix being tested.
+document.getElementById("buildtag").textContent = BUILD_TAG;
+console.info(`[build] ${BUILD_TAG}`);
 
 const hud = document.getElementById("stats");
 const healthEl = document.getElementById("health");
 const ammoEl = document.getElementById("ammo");
 const xpEl = document.getElementById("xp");
+const repEl = document.getElementById("rep");
+// The rep bar's gain-flash: brightened while this runs down, so every point of standing —
+// a turn-in, a boss — announces itself on the bar the moment it lands.
+let lastRep = -1, repFlashT = 0;
 const alertEl = document.getElementById("alert");
 let acc = 0, last = performance.now(), fps = 60;
 const AUTOSAVE_EVERY = 25;      // seconds; the backstop under the event-driven saves
@@ -1700,11 +1754,8 @@ function frame(now) {
   gun.update(dt);
   mobs.update(dt, hurtPlayer);
   villagers.update(dt);
+  townVoice.update(dt);    // fire-and-forget inside; never awaited from the loop
   raids.update(dt);
-  // Guard kills award nothing at all -- guards.update handles their kills internally and
-  // never pays. The reward() dead-zone check remains, but only for YOUR OWN kills made while
-  // standing at the gate; a guard dropping a mob out on the frontier no longer pays you.
-  guards.update(dt, mobs);
   // Only traders get a plate: labelling every keeper would turn a town into a wall of text.
   hpBars.draw(mobs.entities());
   // Floating damage numbers for your hits (mob + boss), then clear the frame's events.
@@ -1949,6 +2000,27 @@ function frame(now) {
   const xpPct = Math.round(levelProgress() * 100);
   xpEl.innerHTML = `<div class="xp-fill" style="width:${xpPct}%"></div>`
     + `<div class="xp-txt">LVL ${player.level} · ${player.xp}/${xpToNext(player.level)} XP</div>`;
+
+  // Reputation, directly above XP, in your faction's colour. Only exists once you have
+  // sworn — and it flashes when standing lands, so a turn-in reads on the bar, not just in
+  // a number buried on a vendor screen.
+  {
+    const f = myFaction();
+    if (!f) { repEl.style.display = "none"; lastRep = -1; }
+    else {
+      repEl.style.display = "";
+      const rep = player.rep || 0;
+      if (lastRep >= 0 && rep > lastRep) repFlashT = 0.8;
+      lastRep = rep;
+      repFlashT = Math.max(0, repFlashT - dt);
+      repEl.classList.toggle("flash", repFlashT > 0);
+      const pr = repProgress(rep);
+      const pct = Math.round(pr.frac * 100);
+      repEl.innerHTML = `<div class="rep-fill" style="width:${pct}%;background:${f.color}"></div>`
+        + `<div class="rep-txt" style="color:${f.color}">${f.name.toUpperCase()} · ${pr.name.toUpperCase()}`
+        + `${pr.need ? ` ${pr.have}/${pr.need}` : ""} REP</div>`;
+    }
+  }
 
   // Nudge outward once the ground you're on has greyed for your level (kills barely pay).
   const greyMult = xpLevelMult(tier, player.level);

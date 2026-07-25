@@ -46,15 +46,16 @@ export class Nameplates {
       d.style.left = `${(this.v.x * 0.5 + 0.5) * w}px`;
       d.style.top = `${(-this.v.y * 0.5 + 0.5) * h}px`;
       d.style.opacity = String(Math.max(0.25, 1 - dist / RANGE));
-      // Three KINDS of marker, readable at a glance without reading the word: a green ally
-      // dot ("do not shoot"), a red champion tag ("kill this one"), and a plain trader name.
+      // Three KINDS of marker: a green ally dot ("do not shoot"), a red champion NAME
+      // ("kill this one"), and a plain trader name. The champion plate is the word alone —
+      // it had the same dot as allies, and a symbol that means "friend" on one body and
+      // "target" on another is worse than no symbol: on a champion the red NAME already
+      // carries the whole message.
       const cls = it.ally ? "plate ally" : it.champion ? "plate champion" : "plate";
       if (d.className !== cls) d.className = cls;
       const html = it.ally
         ? `<span class="dot"></span>${it.label}`
-        : it.champion
-          ? `<span class="dot"></span>${it.label}`
-          : `${it.label}${it.sub ? `<span>${it.sub}</span>` : ""}`;
+        : `${it.label}${!it.champion && it.sub ? `<span>${it.sub}</span>` : ""}`;
       if (d.dataset.html !== html) { d.innerHTML = html; d.dataset.html = html; }
     }
     for (let i = n; i < MAX; i++) {

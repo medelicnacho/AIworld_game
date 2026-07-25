@@ -116,8 +116,8 @@ export class Bridge {
    * Generate a spoken line: prompt -> model -> voice.
    * @returns {Promise<{text:string, audio:ArrayBuffer|null, ms:object}|null>}
    */
-  async line(prompt, { words = 18, voice } = {}) {
-    const res = await this._post("/line", { prompt, words, voice });
+  async line(prompt, { words = 18, voice, lengthScale = 1 } = {}) {
+    const res = await this._post("/line", { prompt, words, voice, length_scale: lengthScale });
     if (!res) return null;
     let data;
     try { data = await res.json(); } catch { return null; }
@@ -132,9 +132,10 @@ export class Bridge {
     return { text: data.text, audio, ms: data.ms };
   }
 
-  /** Voice an exact string (no model involved). */
-  async speak(text, voice) {
-    const res = await this._post("/speak", { text, voice });
+  /** Voice an exact string (no model involved). `lengthScale` >1 is slower/heavier,
+   *  <1 faster/lighter — the axis that makes two speakers of one model two people. */
+  async speak(text, voice, lengthScale = 1) {
+    const res = await this._post("/speak", { text, voice, length_scale: lengthScale });
     if (!res) return null;
     try { return await res.arrayBuffer(); } catch { return null; }
   }

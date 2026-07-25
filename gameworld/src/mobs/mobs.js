@@ -17,11 +17,10 @@ import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
 import { groundY, solidAt, tierAt, ringPressure } from "../world/gen.js";
 import { sfx } from "../audio/sfx.js";
-import { sanctuaryOf } from "../world/sanctuary.js";
-import { guardNear } from "../town/guards.js";
+import { sanctuaryOf, boundaryAt, gateArc } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 import { AFFIXES, rollAffixes, runAffix, affixHidden, affixLabel } from "./affixes.js";
-import { isMyAlly, isHostileSanctuary } from "../prog/factions.js";
+import { isMyAlly, isHostileSanctuary, territoryColorAt } from "../prog/factions.js";
 
 const HURT_FLASH = 0.12;
 
@@ -427,8 +426,13 @@ export class Mobs {
     const isSwarm = this.rng() < MOB.swarmPackChance;
     const [lo, hi] = isSwarm ? MOB.swarmSize : MOB.packSize;
     const n = lo + Math.floor(this.rng() * (hi - lo + 1));
-    // The whole camp shares one faction — a camp is a side in the war.
-    const faction = Math.floor(this.rng() * MOB.factions);
+    // The whole camp shares one faction — a camp is a side in the war. WHOSE side is the
+    // land's to say: inside a town's claim the camp flies that town's colour, so the bodies
+    // outside a gate are the same army as the bodies inside it. Only unclaimed ground rolls.
+    // The roll is drawn either way so the RNG stream does not depend on where you are standing.
+    const roll = Math.floor(this.rng() * MOB.factions);
+    const held = territoryColorAt(hx, hz);
+    const faction = held >= 0 ? held : roll;
     for (let i = 0; i < n; i++) {
       const ang = this.rng() * Math.PI * 2;
       const r = this.rng() * MOB.homeWander * (isSwarm ? 0.5 : 1);
@@ -446,7 +450,9 @@ export class Mobs {
     if (!MOB.factionWar) return null;
     let best = null, bd = range;
     for (const o of nearby(e.x, e.z, range)) {
-      if (o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction) continue;
+      // o.defender: town fighters are out of the war (see the attention block) — a garrison
+      // the field could whittle down is a garrison that is sometimes not there.
+      if (o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction || o.defender) continue;
       const d = Math.hypot(o.x - e.x, o.z - e.z);
       if (d < bd) { bd = d; best = o; }
     }
@@ -687,6 +693,34 @@ export class Mobs {
   }
 
   /**
+   * THE WALL IS REAL FOR EVERY BODY, on every path a body can take — walking, lunging,
+   * charging, being THROWN. May this creature end up at (nx, nz)?
+   *
+   *   wild mobs    may never end up inside a sanctuary (leaving one is always allowed —
+   *                blocking the way OUT would trap a body that got in by bug or knockback).
+   *   defenders    own their town's interior, but the boundary is crossed at the GATE or
+   *                not at all, in either direction. They used to be simply exempt, which
+   *                let a garrison chase you straight through the masonry — and a wall one
+   *                side respects and the other phases through isn't a wall, it's a picture
+   *                of one.
+   *
+   * One function, called by every mover, because the moment two copies of "can I stand
+   * there" exist they will disagree — that is exactly how the knockback and the lunge came
+   * to punch through walls the walk respected.
+   */
+  wallOk(e, nx, nz) {
+    const from = sanctuaryOf(e.x, e.z, 1.5);
+    const to = sanctuaryOf(nx, nz, 1.5);
+    if (to === from) return true;                 // no boundary crossed
+    if (!e.defender) return !to;                  // wild: out fine, in never
+    const s = to || from;                         // whichever wall is being crossed
+    // Through the gateway only: bearing from the town's centre, against the gate's arc. A
+    // shade generous (×1.6) so a defender squeezing out after you never snags on the jamb.
+    const d = Math.abs(((Math.atan2(nz - s.z, nx - s.x) - s.gate + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    return d < gateArc(boundaryAt(s, s.gate)) * 1.6;
+  }
+
+  /**
    * Terrain-aware move. A heightfield has no obstacles except STEEPNESS, so "pathing" here
    * means refusing to walk up a cliff and veering along it — which reads as following
    * contours and funnelling through passes, with no navmesh existing anywhere.
@@ -694,19 +728,13 @@ export class Mobs {
   tryMove(e, vx, vz, dt) {
     if (Math.hypot(vx, vz) < 1e-4) return;
     const here = groundY(e.x, e.z);
-    // Hostiles cannot enter a sanctuary AT ALL — not blocked by the wall, barred from the
-    // ground. The wall makes it read as a refuge; this makes it be one. A safe zone that
-    // leaks through the gateway would be worse than none, because you'd stop trusting it.
-    // Town DEFENDERS are exempt: the sanctuary is their home. Without this, a garrison
-    // that stepped outside the walls to answer a siege could never walk back in.
-    const ward = (e.defender || sanctuaryOf(e.x, e.z, 2)) ? null : true;
     for (const turn of [0, MOB.avoidArc * 0.5, -MOB.avoidArc * 0.5, MOB.avoidArc,
                         -MOB.avoidArc, MOB.avoidArc * 1.6, -MOB.avoidArc * 1.6]) {
       const c = Math.cos(turn), s = Math.sin(turn);
       const dx = (vx * c - vz * s) * dt;
       const dz = (vx * s + vz * c) * dt;
       if (groundY(e.x + dx, e.z + dz) - here <= MOB.maxClimb
-          && !(ward && sanctuaryOf(e.x + dx, e.z + dz, 1.5))) {
+          && this.wallOk(e, e.x + dx, e.z + dz)) {
         e.x += dx; e.z += dz;
         e.heading = Math.atan2(dx, dz);
         return;
@@ -723,6 +751,14 @@ export class Mobs {
     // ring-0 stragglers were still holding the budget. Despawn far mobs, and drop the pack
     // homes with them so packs.size reflects only what's actually around you.
     for (const e of [...this.entities()]) {
+      // DEFENDERS ARE NEVER SWEPT BY DISTANCE. A garrison lives and dies as a TOWN'S —
+      // town/raid.js despawns it whole when its town leaves range, in one stroke. Sweeping
+      // individuals here (even on a long leash) is how towns ended up HALF-manned: a few
+      // bodies slipped past whatever cutoff was chosen, the bookkeeping saw "some alive"
+      // and did nothing, and the first kill collapsed the stale state into a full re-muster
+      // — the recurring "two champions, then everyone appears" glitch. The only ways a
+      // defender leaves the world are dying and its whole town standing down.
+      if (e.defender) continue;
       if (Math.hypot(e.x - player.x, e.z - player.z) > MOB.despawn) this.despawn(e.id);
     }
     for (const [id, p] of this.packs) {
@@ -756,7 +792,18 @@ export class Mobs {
 
       const dx = player.x - e.x, dz = player.z - e.z;
       const dist = Math.hypot(dx, dz) || 1;
-      if (dist > MOB.despawn) { this.despawn(e.id); continue; }
+      // THE BUG THAT WORE FIVE DISGUISES. This is a DUPLICATE of the distance sweep at the
+      // top of update() — and for days it was the only one of the two that still culled
+      // DEFENDERS. The garrison musters when you are ~150-208 from a town's centre; walking
+      // in, every defender passes through the (105, ~132] band where nearby()'s buckets
+      // still yield it but this line deleted it. Spawned, then silently unspawned as you
+      // approached — leaving 1-2 arbitrary survivors at the gate, and killing those
+      // collapsed the stale raid state into a full next-frame re-muster: "the town only
+      // has two mobs and killing them spawns everything". No death fired, so no counter
+      // moved, and reloading AT a town (the only way anyone ever verified) hid it, because
+      // a reload musters with every body already inside 105. Defenders leave the world by
+      // DYING or by their town's atomic eviction (raid.js) — never by this line.
+      if (dist > MOB.despawn) { if (!e.defender) this.despawn(e.id); continue; }
 
       if (e.hurtT > 0) e.hurtT -= dt;
       if (e.atkCd > 0) e.atkCd -= dt;
@@ -819,23 +866,25 @@ export class Mobs {
       // loitering at the gate waiting for you to step out.
       if (playerSafe) { e.aggro = false; e.aggroT = 0; e.lungeT = 0; }
 
-      // A gate guard within taunt range becomes the target INSTEAD of you. That is the
-      // whole reason the detachment exists: it can only take pressure off you by being the
-      // better thing to hit. It also holds while you are INSIDE the walls — which is what
-      // makes a town read as a place under siege rather than a place with a fence.
-      // The target that OVERRIDES you: a gate guard, or — the war — the nearest enemy-faction
-      // mob. You still win priority when you're the closest threat and have been noticed, so
-      // walking into a melee pulls them onto you; otherwise the two camps fight each other.
-      // Town DEFENDERS are never taunted onto gate guards — but they DO fight the faction
-      // war below: a garrison that watches an enemy camp walk past its gate isn't guarding
-      // anything, and a siege the garrison answers is the war made visible at a town.
-      const guard = e.defender ? null : guardNear(e.x, e.z);
+      // The target that OVERRIDES you — the war: the nearest enemy-faction mob. You still
+      // win priority when you're the closest threat and have been noticed, so walking into
+      // a melee pulls them onto you; otherwise the two camps fight each other.
+      //
+      // TOWN FIGHTERS ARE OUT OF THE WAR, both directions (see enemyMobNear for the other
+      // half). A garrison that brawled passing camps was a garrison that could be DEAD —
+      // worn away by the frontier before you ever arrived, so towns stood empty and the
+      // "always manned" promise quietly broke. Guards exist for exactly one fight: yours.
+      // The field war is fought by the field.
+      //
+      // (The old hitscan gate guards are gone from the game entirely — a town's only
+      // fighters are its garrison, and its only fight is with you.)
+      //
       // The war target is the expensive part (a spatial scan), so it's THROTTLED: recompute
       // the nearest enemy only every ~0.2s (staggered per mob), and between recomputes just
       // re-validate the cached one. Combat doesn't need frame-perfect target picking, and this
       // is what keeps a big battle from scanning n² enemies every frame.
       let warFoe = null;
-      if (MOB.factionWar && !guard) {
+      if (MOB.factionWar && !e.defender) {
         e.warThink = (e.warThink || 0) - dt;
         if (e.warThink <= 0) {
           e.warThink = 0.2 + this.rng() * 0.2;
@@ -850,8 +899,8 @@ export class Mobs {
       }
       if (warFoe && !playerSafe && dist < MOB.noticeRange
           && dist < Math.hypot(warFoe.x - e.x, warFoe.z - e.z)) warFoe = null;
-      const foe = guard || warFoe;
-      const foeMob = foe && foe === warFoe ? warFoe : null;   // is the override an enemy MOB?
+      const foe = warFoe;
+      const foeMob = warFoe;                                  // the override is always an enemy MOB now
       if (foe) { e.aggro = true; e.aggroT = MOB.loseInterest; }
 
       // YOUR OWN ARMY does not fight you. It still wars with enemy camps (foeMob above), but
@@ -878,12 +927,17 @@ export class Mobs {
         this.alert(e);
       }
 
-      // Being thrown overrides everything: no steering, no lunging, just flying.
+      // Being thrown overrides everything: no steering, no lunging, just flying. But not
+      // through masonry — this was the one mover with NO wall check at all, so a shove at
+      // the right angle would put a wild mob inside the walls (and the evictor would then
+      // march it politely back out, which is two bugs wearing one trenchcoat).
       if (e.kT > 0) {
         e.kT -= dt;
         const f = Math.max(0, e.kT / MOB.knockTime);
-        e.x += e.kx * f * dt;
-        e.z += e.kz * f * dt;
+        const knx = e.x + e.kx * f * dt;
+        const knz = e.z + e.kz * f * dt;
+        if (this.wallOk(e, knx, knz)) { e.x = knx; e.z = knz; }
+        else e.kT = 0;                            // splat: the wall keeps the momentum
         e.lungeT = 0;
         e.y = this.restY(e);
         reindex(e);
@@ -899,9 +953,9 @@ export class Mobs {
         // were getting inside: they committed from outside and flew straight through.
         const lx = e.x + e.lx * MOB.lungeSpeed * dt;
         const lz = e.z + e.lz * MOB.lungeSpeed * dt;
-        // Defenders lunge freely INSIDE their own walls — the wall-stop exists to keep wild
-        // mobs from committing their way through a gateway, not to disarm the garrison.
-        if (!e.defender && sanctuaryOf(lx, lz, 1.5)) {
+        // wallOk: defenders lunge freely inside their own walls, wild mobs can't commit
+        // their way through a gateway, and NOBODY lunges through masonry.
+        if (!this.wallOk(e, lx, lz)) {
           e.lungeT = 0;                       // stopped at the wall
         } else {
           e.x = lx;
@@ -948,9 +1002,9 @@ export class Mobs {
           e.rushT -= dt;
           const nx = e.x + e.rushX * MOB.chargeSpeed * dt;
           const nz = e.z + e.rushZ * MOB.chargeSpeed * dt;
-          // The garrison's chargers rush inside their own town; only WILD chargers stop at
-          // the walls. Without this the quartermaster's whole signature attack never fires.
-          if (e.defender || !sanctuaryOf(nx, nz, 1.5)) { e.x = nx; e.z = nz; }
+          // wallOk: the garrison's chargers rush freely inside their own town (the QM's
+          // signature attack), wild chargers stop at the walls, nobody rushes THROUGH one.
+          if (this.wallOk(e, nx, nz)) { e.x = nx; e.z = nz; }
           // Re-aim the rumble at the BODY every step. It crosses most of the gap between you
           // while it runs, and the whole point of the sound is to answer "where is it now"
           // while you are turned away mid-dodge.
@@ -1055,9 +1109,8 @@ export class Mobs {
           // works wherever you are facing, which is the whole reason it exists.
           sfx.chargeWind(e.x, e.z, MOB.chargeWind);
         } else if (!foe && e.bold && dist <= MOB.attackRange * 1.7 && e.atkCd <= 0) {
-          // No lunge at a guard: a lunge writes position directly and would shove the mob
-          // straight through the line. Damage to guards comes from PRESSING them — the
-          // guard counts what is standing on it — so the brawl stays where it started.
+          // The lunge is for YOU alone — never mid-brawl (!foe): a lunge writes position
+          // directly, and aimed at another mob it would shove the fight across the field.
           e.lungeT = MOB.lungeTime;
           e.lx = ux; e.lz = uz;
           e.atkCd = MOB.attackCd;
@@ -1106,9 +1159,10 @@ export class Mobs {
       }
 
       if (e.flies) {
-        // Flight ignores terrain entirely — that IS the advantage. Sanctuaries still hold.
+        // Flight ignores terrain entirely — that IS the advantage. Sanctuaries still hold:
+        // the wall (10 high) out-tops the flight lane (8.5), so wallOk is the truth here too.
         const nx = e.x + vx * dt, nz = e.z + vz * dt;
-        if (!sanctuaryOf(nx, nz, 1.5)) {
+        if (this.wallOk(e, nx, nz)) {
           e.x = nx; e.z = nz;
           if (Math.hypot(vx, vz) > 1e-4) e.heading = Math.atan2(vx * dt, vz * dt);
         }

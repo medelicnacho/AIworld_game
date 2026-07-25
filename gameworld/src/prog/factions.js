@@ -25,6 +25,8 @@
 // belongs to the author, and none of the machinery cares what they are called.
 
 import { player } from "../state.js";
+import { MOB } from "../config.js";
+import { sanctuariesNear } from "../world/sanctuary.js";
 
 /**
  * The three. `enemy` is the mob colour they are sworn against — it indexes the same faction
@@ -334,6 +336,31 @@ export function isHostileSanctuary(sanctuary) {
   // shoulder, not an execution. Choosing a faction is the act that arms the map.
   if (!player.faction) return false;
   return !!sanctuary && !servesYou(sanctuary);
+}
+
+/**
+ * THE WAR-COLOUR OF WHOEVER HOLDS THIS GROUND, or -1 for no-man's-land.
+ *
+ * Camps used to roll their colour at random, which meant the ring around an Iron town could
+ * be pitched with Ash and Vale camps — the bodies outside a town's gate wearing colours the
+ * town's own people don't. That reads as the war being decorative: three hues sprinkled over
+ * the map rather than three armies holding ground.
+ *
+ * A town now claims the land around it, and camps inside that claim fly its colour. What this
+ * buys is a map you can read from the field: the colour of the first camp you meet tells you
+ * whose territory you have walked into, long before a wall comes over the horizon. The gaps
+ * BETWEEN claims stay random, and that is deliberate — unclaimed ground is where camps of
+ * different colours still meet and fight each other, so the war has a front line instead of
+ * being evenly spread confetti.
+ */
+export function territoryColorAt(x, z) {
+  let best = null, bd = MOB.territory;
+  for (const s of sanctuariesNear(x, z, MOB.territory)) {
+    if (s.city || s.neutral || s.faction === null || s.faction === undefined) continue;
+    const d = Math.hypot(s.x - x, s.z - z);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best ? FACTIONS[best.faction % FACTIONS.length].ally : -1;
 }
 
 /** Which faction flies over this town, by name. Null for neutral ground. */

@@ -13,9 +13,8 @@ import { RINGS } from "../config.js";
 import { player } from "../state.js";
 import { heightAt, ringAt, tierStart } from "../world/gen.js";
 import { sanctuariesNear, boundaryAt, gateArc } from "../world/sanctuary.js";
-import { servesYou } from "../prog/factions.js";
+import { servesYou, isHostileSanctuary, isMyAlly, FACTIONS } from "../prog/factions.js";
 import { Villagers } from "../town/villagers.js";
-import { isMyAlly } from "../prog/factions.js";
 
 const RANGE = 130;        // world units from centre to rim — UNCHANGED as the map grows, so
                           // a bigger map means a CLOSER look rather than a wider one. With a
@@ -30,6 +29,43 @@ const REBAKE_TIME = 0.6;
 // fixed size is wrong on both ends: 180 was cramped on a desktop and 280 would swallow a
 // laptop screen. Bounded at both ends so it can never become a postage stamp or a wall.
 const MAP_MIN = 200, MAP_MAX = 360, MAP_FRAC = 0.28;
+
+/**
+ * WHAT COLOUR A TOWN FLIES ON THE MAP.
+ *
+ * Every settlement used to be drawn the same green — the colour that means "refuge" — while
+ * two out of every three would fight you the moment you stepped inside. The map was telling
+ * you the opposite of the truth, and the faction system it was hiding is the whole point of
+ * choosing a side. Whether a town is yours is now the FIRST thing you can see about it, from
+ * across the map, before you are close enough for its garrison to muster.
+ *
+ * Three states, because there are exactly three answers a player needs:
+ *   green   it serves you — your own colour, a neutral city, the spawn town. Walk in.
+ *   red     a rival's. Its war-camp is standing right there and it will answer if you start.
+ *   its own colour — before you have sworn to anyone, nothing in the world is hostile yet,
+ *           so the map teaches you the board instead: which town belongs to which faction,
+ *           so the choice you make at the quartermaster is an informed one.
+ */
+// And its NAME, written inside its own walls. The colour answers "do I fight here"; the name
+// answers "which of the three is this" — a different question, and the one you are asking when
+// you are hunting one colour in particular and every other camp on the ring belongs to somebody
+// whose war is not yours. Two channels, because a red shape and a red shape are the same shape.
+function townFlag(s) {
+  const f = (s.faction === null || s.faction === undefined)
+    ? null : FACTIONS[s.faction % FACTIONS.length];
+  const name = f ? `${f.name} Camp` : s.city ? "Free City" : "Free Town";
+  if (servesYou(s)) return { name, wall: "#4fbf6a", fill: "rgba(79,191,106,0.20)" };
+  if (isHostileSanctuary(s)) return { name, wall: "#e0553f", fill: "rgba(224,85,63,0.20)" };
+  if (!f) return { name, wall: "#c9d2e0", fill: "rgba(201,210,224,0.16)" };
+  return { name, wall: f.color, fill: hexToFill(f.color, 0.18) };
+}
+
+/** "#5b9dff" -> "rgba(91,157,255,0.18)". The faction colours are authored as hex strings for
+ *  text, and a wall needs the same hue at low alpha behind it. */
+function hexToFill(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
 
 export class Minimap {
   constructor(canvas) {
@@ -268,6 +304,7 @@ export class Minimap {
 
     // Sanctuaries — the thing most worth being able to find on a map, and the GATE most of
     // all: a doorway you have to run the whole perimeter to find is tedium, not challenge.
+    const names = [];
     for (const s of sanctuariesNear(player.x, player.z, RANGE * 1.4)) {
       const pt = (lx, lz) => {
         const p = this.toMap(s.x + lx - player.x, s.z + lz - player.z);
@@ -280,12 +317,13 @@ export class Minimap {
         if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       });
       ctx.closePath();
-      ctx.fillStyle = "rgba(79,191,106,0.20)";
+      const flag = townFlag(s);
+      ctx.fillStyle = flag.fill;
       ctx.fill();
 
       // Outline drawn edge by edge with the gate arc LEFT OUT, so the opening reads as a
       // gap in the wall rather than needing a legend to explain it.
-      ctx.strokeStyle = "#4fbf6a";
+      ctx.strokeStyle = flag.wall;
       ctx.lineWidth = 1.6;
       const arc = gateArc(boundaryAt(s, s.gate));
       for (let i = 0; i < s.corners.length; i++) {
@@ -316,6 +354,12 @@ export class Minimap {
       ctx.strokeStyle = "#4a3a00";
       ctx.lineWidth = 1.2;
       ctx.stroke();
+
+      // The name is DEFERRED, not drawn here — a garrison stands in the middle of its own
+      // town, so writing the name now would put it under fifteen mob dots. Same rule the
+      // trader labels already follow: words go on top of markers, never under them.
+      const [cx, cy] = pt(0, 0);
+      if (Math.hypot(cx - R, cy - R) < R - 12) names.push({ cx, cy, flag });
     }
 
     // Mobs — red for a threat, GOLD for an elite, GREEN for your own army (an ally).
@@ -328,6 +372,20 @@ export class Minimap {
       ctx.fillStyle = ally ? "#5fe08a" : e.elite ? "#ffd24a" : "#ff6b6b";
       ctx.fill();
     }
+
+    // Camp names, over the dots. Whose camp it is survives the garrison standing on top of it.
+    ctx.font = "bold 10px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = "round";
+    for (const n of names) {
+      ctx.strokeStyle = "rgba(8,12,18,0.9)";
+      ctx.strokeText(n.flag.name, n.cx, n.cy);
+      ctx.fillStyle = n.flag.wall;
+      ctx.fillText(n.flag.name, n.cx, n.cy);
+    }
+    ctx.textBaseline = "alphabetic";   // the compass and vendor labels assume the default
 
 
     // Traders, on top of the dots so a label is never buried under a mob marker.

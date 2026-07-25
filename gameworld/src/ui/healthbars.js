@@ -12,6 +12,7 @@
 // have started.
 
 import * as THREE from "three";
+import { MOB } from "../config.js";
 
 const MAX = 28;
 const RANGE = 34;
@@ -50,7 +51,14 @@ export class HealthBars {
     let n = 0;
     for (const { e, d } of near) {
       if (n >= MAX) break;
-      this.v.set(e.x, e.y + (e.flies ? -1.9 : 2.0), e.z);
+      // The bar clears the top of the MODEL, whatever its size. The offset used to be a
+      // flat +2.0 — right for a 1.6-tall mob, but a champion (×1.9–2.5) or a star (×1.55)
+      // is far taller, so the bar sat INSIDE the chest where it could barely be seen. The
+      // drawn size is (eliteScale × e.scale) — the same product the renderer uses, so the
+      // bar and the body can never disagree. At scale 1 this is exactly the old 2.0.
+      // (Flyers keep their bar slung below — the body is already high overhead.)
+      const sc = (e.elite ? MOB.eliteScale : 1) * (e.scale || 1);
+      this.v.set(e.x, e.y + (e.flies ? -1.9 : 0.4 + 1.6 * sc), e.z);
       this.v.project(this.camera);
       if (this.v.z > 1) continue;                          // behind the camera
 

@@ -46,13 +46,27 @@
       #health .hp-lvl { font-size: 12px; font-weight: 800; letter-spacing: .16em; color: #ffe08a;
         margin-bottom: 3px; }
       /* XP bar — a long thin BLUE bar sitting directly on top of the ability bar. */
+      /* overflow VISIBLE, not hidden: the bar's floating label lives above the box, and
+         overflow:hidden was silently clipping it to nothing. The fill rounds itself. */
       #xp { position: absolute; left: 50%; transform: translateX(-50%); bottom: 94px;
         width: min(720px, 92vw); height: 6px; background: #0a1220cc;
-        border: 1px solid #1c3050; border-radius: 4px; overflow: hidden; }
+        border: 1px solid #1c3050; border-radius: 4px; }
       #xp .xp-fill { height: 100%; background: linear-gradient(90deg, #2f8fff, #7fd0ff);
-        box-shadow: 0 0 10px #4aa8ffbb; transition: width .25s linear; }
-      #xp .xp-txt { position: absolute; right: 2px; bottom: 9px; font-size: 10px; font-weight: 700;
+        box-shadow: 0 0 10px #4aa8ffbb; transition: width .25s linear; border-radius: 3px; }
+      #xp .xp-txt { position: absolute; right: 2px; bottom: 19px; font-size: 10px; font-weight: 700;
         letter-spacing: .1em; color: #9fccffcc; text-shadow: 0 2px 5px #000c; }
+      /* Reputation bar — a second thin bar DIRECTLY above the XP bar, in your faction's
+         colour. XP is who you are; reputation is who you are WITH someone — the two long
+         climbs of the game, stacked, so both are read in the same glance. Hidden until a
+         faction is joined (main.js), because a bar for a ladder you are not on is noise. */
+      #rep { position: absolute; left: 50%; transform: translateX(-50%); bottom: 104px;
+        width: min(720px, 92vw); height: 5px; background: #0a1220cc;
+        border: 1px solid #1c3050; border-radius: 4px; }
+      #rep .rep-fill { height: 100%; transition: width .25s linear, filter .3s;
+        box-shadow: 0 0 8px #0006 inset; border-radius: 3px; }
+      #rep.flash .rep-fill { filter: brightness(1.9); }
+      #rep .rep-txt { position: absolute; left: 2px; bottom: 8px; font-size: 10px; font-weight: 700;
+        letter-spacing: .1em; text-shadow: 0 2px 5px #000c; }
       #crosshair {
         position: absolute; left: 50%; top: 50%; width: 3px; height: 3px;
         margin: -1.5px 0 0 -1.5px; background: #eef; border-radius: 50%;
@@ -306,10 +320,14 @@
       .geartip .tt-hint { color: #7f8fab; font-size: 10.5px; margin-top: 5px; }
       /* On a narrow window the three columns stack instead of squeezing. */
       @media (max-width: 720px) { #inv .char { grid-template-columns: 1fr; } }
-      #points { position: absolute; left: 50%; bottom: 106px; transform: translateX(-50%);
+      #points { position: absolute; left: 50%; bottom: 124px; transform: translateX(-50%);
         font: 600 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #ffd45e;
         text-shadow: 0 2px 6px #000b; letter-spacing: .06em; }
       #points small { color: #b9c6da; font-weight: 400; font-size: 10px; letter-spacing: .12em; }
+      /* The build tag: tiny, permanent, bottom-left corner. Its whole job is answering
+         "which copy of the game am I actually running" without opening devtools. */
+      #buildtag { position: absolute; left: 8px; bottom: 6px; font: 600 10px ui-monospace, monospace;
+        color: #9fb2ccaa; text-shadow: 0 1px 3px #000a; letter-spacing: .06em; pointer-events: none; }
       #bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
         display: flex; gap: 8px; }
       #bar .sep { width: 1px; margin: 6px 6px; background: #33415a88; }
@@ -424,8 +442,8 @@
          Adept / Herbalist / Quartermaster read out of a war-camp the instant they're on screen. */
       .plate.champion { color: #ff6a5a; border-color: rgba(210,60,60,0.6);
         text-shadow: 0 0 9px rgba(210,60,60,0.7); letter-spacing: .1em; font-size: 13px; }
-      .plate.champion .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-        background: #ff4a3c; box-shadow: 0 0 8px #ff4a3c; margin-right: 5px; vertical-align: middle; }
+      /* No dot on a champion — the red NAME is the whole tag. A symbol shared with the green
+         ally marker made "friend" and "target" wear the same shape. */
       #levelbanner {
         position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%) scale(0.7);
         font-size: 52px; font-weight: 800; letter-spacing: .06em; text-align: center;
@@ -442,8 +460,8 @@
         100% { opacity: 0; transform: translate(-50%,-58%) scale(1.0); }
       }
       body.running #crosshair { opacity: .9; }
-      #health, #ammo, #xp { opacity: 0; transition: opacity .2s; }
-      body.running #health, body.running #ammo, body.running #xp { opacity: 1; }
+      #health, #ammo, #xp, #rep { opacity: 0; transition: opacity .2s; }
+      body.running #health, body.running #ammo, body.running #xp, body.running #rep { opacity: 1; }
       /* "Move outward" nudge — shows when your zone has greyed out (little/no xp). */
       #alert { position: absolute; left: 50%; top: 74px; transform: translateX(-50%);
         opacity: 0; transition: opacity .3s; pointer-events: none; text-align: center;
@@ -461,10 +479,12 @@
       <div id="points"></div>
       <div id="health"></div>
       <div id="ammo"></div>
+      <div id="rep"></div>
       <div id="xp"></div>
       <div id="alert"></div>
       <div id="levelbanner"></div>
       <div id="bar"></div>
+      <div id="buildtag"></div>
       <div id="plates"></div>
       <div id="hpbars"></div>
       <div id="dmg"></div>
