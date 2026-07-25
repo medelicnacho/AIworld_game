@@ -72,6 +72,26 @@ export class TownChat {
     return log;
   }
 
+  /** Every villager's memory of talking to you, as plain data — for the save (C2). */
+  dump() {
+    return { logs: [...this.logs.entries()].slice(-12) };   // the last dozen acquaintances
+  }
+
+  /** Put those memories back, each turn marked PRIOR — an earlier visit, not this
+   *  conversation. The prompt treats the two differently: prior turns are what she
+   *  REMEMBERS about you; this session's turns are what you are saying now. */
+  restore(data) {
+    if (!data?.logs?.length) return;
+    let n = 0;
+    for (const [k, log] of data.logs) {
+      if (!Array.isArray(log) || !log.length) continue;
+      this.logs.set(k, log.map((t) => ({ who: t.who, text: String(t.text || ""), prior: true }))
+        .filter((t) => t.text).slice(-LOG_KEEP));
+      n++;
+    }
+    if (n) console.info(`[chat] ${n} villager${n > 1 ? "s" : ""} remember${n > 1 ? "" : "s"} talking to you`);
+  }
+
   /** G was pressed. Open on the nearest villager if the venue allows; else do nothing —
    *  the same venue rule as the ambient voice (the neutral starter town, model up). */
   tryOpen() {
@@ -110,7 +130,7 @@ export class TownChat {
   render(thinking = false) {
     const log = this.target ? this.logOf(this.target) : [];
     this.linesEl.innerHTML = log.map((t) =>
-      `<div class="${t.who}"><b>${t.who === "you" ? "You" : this.target.role.name}</b> ${t.text}</div>`)
+      `<div class="${t.who}${t.prior ? " prior" : ""}"><b>${t.who === "you" ? "You" : this.target.role.name}</b> ${t.text}</div>`)
       .join("") + (thinking ? `<div class="them"><b>${this.target.role.name}</b> <i>…</i></div>` : "");
     this.linesEl.scrollTop = this.linesEl.scrollHeight;
   }
@@ -133,12 +153,20 @@ export class TownChat {
     try {
       const { model, pace } = voiceOf(v);
       const mood = this.townVoice.currentMood();
-      const recent = log.slice(-LOG_PROMPT - 1, -1)
+      // Two kinds of history, told apart in the prompt: PRIOR turns (an earlier visit —
+      // what she REMEMBERS about you, C2) and this conversation's turns (what you are
+      // saying now). Collapsing them read as one endless conversation; a person who met
+      // you yesterday doesn't resume mid-sentence, she recognises you.
+      const past = log.filter((t) => t.prior).slice(-2)
+        .map((t) => `${t.who === "you" ? "they said" : "you answered"} "${t.text}"`).join(", and ");
+      const now = log.filter((t) => !t.prior).slice(-LOG_PROMPT - 1, -1)
         .map((t) => `${t.who === "you" ? "The wanderer" : "You"} said: "${t.text}"`).join(" ");
       const prompt = WORLD
         + `You are the town ${v.role.name} — ${TRADE[v.role.name] || "you live and work here"}. `
         + `A wanderer — an armed traveller the town knows by sight — has stopped to talk `
-        + `to you while you work. ${recent ? `So far: ${recent} ` : ""}`
+        + `to you while you work. `
+        + (past ? `You have spoken with this wanderer before; you remember ${past}. ` : "")
+        + (now ? `So far today: ${now} ` : "")
         + `The wanderer just said to you: "${said.replace(/"/g, "'")}". `
         + `Your mood is ${mood}. ${MOOD_STYLE[mood] || ""} `
         + `Answer them with ONE short line and no more — you are busy, and you speak as a `

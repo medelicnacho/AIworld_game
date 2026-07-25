@@ -65,6 +65,14 @@ export function snapshot(ctx) {
     guns: [...gun.owned],
     loadout: [...gun.loadout],
     gun: gun.weapon.id,
+    // THE TOWN'S MEMORY OF YOU (VOICE.md C2): what it heard said — by its own people and
+    // by you — and each villager's memory of your conversations. The one exception to
+    // "only what is genuinely yours" — because being remembered is the point of the town,
+    // and a memory that dies with the tab is not a memory. Restored with decay: away an
+    // hour, it fades a little; away a week, the town has honestly forgotten.
+    town: ctx.townVoice && ctx.townChat
+      ? { voice: ctx.townVoice.dump(), chat: ctx.townChat.dump() }
+      : null,
   };
 }
 
@@ -129,6 +137,17 @@ export function restore(data, ctx) {
   recomputeGear();          // sums the worn set, then derives every level/gear stat
   applyLevelStats();
   player.hp = Math.max(1, Math.min(player.maxHp, data.hp ?? player.maxHp));
+
+  // The town's memory of you comes back FADED by real time away (data.at is the save's
+  // wall-clock). Defensive at every step: an old save has no town field, and a save with
+  // one must never be able to break the load — memory is flavour, the character is not.
+  if (data.town && ctx.townVoice && ctx.townChat) {
+    try {
+      const hoursAway = data.at ? Math.max(0, (Date.now() - data.at) / 3.6e6) : 0;
+      ctx.townVoice.restore(data.town.voice, hoursAway);
+      ctx.townChat.restore(data.town.chat);
+    } catch { /* a corrupt memory is forgotten, not fatal */ }
+  }
 }
 
 /** Write the slot. Never throws — a full or blocked disk must not interrupt play. */

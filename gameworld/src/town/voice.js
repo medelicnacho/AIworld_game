@@ -283,6 +283,32 @@ export class TownVoice {
     return moodOf(this.drift.current(5));
   }
 
+  /** What the town remembers hearing, as plain data — for the save (VOICE.md C2). */
+  dump() {
+    return { heard: this.heard.map((h) => ({ ...h })) };
+  }
+
+  /**
+   * Put remembered talk back — DECAYED by how long you were away. "Remembers you,
+   * fallibly" is the whole promise: what was said yesterday returns faded, and what was
+   * said last week is simply gone. Weight rots per hour away; entries that rot below a
+   * floor never come back. No decay while you PLAY — the FIFO cap handles forgetting
+   * in-session, and double-charging would empty the town's head by suppertime.
+   */
+  restore(data, hoursAway = 0) {
+    if (!data?.heard?.length) return;
+    const rot = Math.pow(0.92, Math.max(0, hoursAway));
+    this.heard = data.heard
+      .map((h) => ({ text: String(h.text || ""), weight: (h.weight || 1) * rot }))
+      .filter((h) => h.text && h.weight >= 0.5)
+      .slice(-VOICE.heardMax);
+    this.drift.learn(SEEDS.map((t) => ({ text: t, weight: 1 })).concat(this.heard));
+    if (this.heard.length) {
+      console.info(`[voice] the town remembers ${this.heard.length} things it heard`
+        + `${hoursAway > 1 ? ` (faded by ${Math.round(hoursAway)}h away)` : ""}`);
+    }
+  }
+
   update(dt) {
     if (this.lastLine && (this.lastLine.t -= dt) <= 0) this.lastLine = null;
     if (this.busy || !VOICE.enabled) return;

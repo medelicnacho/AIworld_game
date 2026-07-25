@@ -69,3 +69,28 @@ test("contractions SURVIVE the scrubber — a curly apostrophe is not a quote ma
   // While straight quotes used AS quotes still go.
   assert.equal(cleanLine("'The gate holds', she said."), "The gate holds she said.");
 });
+
+test("C2: the town's memory survives a save round-trip, and time away FADES it", async () => {
+  const { TownVoice } = await import("./voice.js");
+  const mk = () => new TownVoice({ state: "offline", info: null }, { list: [] }, {}, null);
+  const a = mk();
+  a.hear("the wanderer burned a vale camp");
+  a.hear("cake is for birthdays");
+  const data = a.dump();
+
+  // Back after a short break: both memories intact.
+  const b = mk();
+  b.restore(data, 0.5);
+  assert.equal(b.heard.length, 2, "a short absence forgets nothing");
+
+  // Back after a week: the town has honestly forgotten.
+  const c = mk();
+  c.restore(data, 24 * 7);
+  assert.equal(c.heard.length, 0, "a week away rots remembered talk to nothing");
+
+  // And a corrupt or absent memory never breaks the load.
+  const d = mk();
+  d.restore(null, 1);
+  d.restore({ heard: [{ bad: true }] }, 1);
+  assert.equal(d.heard.length, 0);
+});

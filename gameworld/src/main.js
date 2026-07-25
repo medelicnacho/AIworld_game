@@ -1243,6 +1243,8 @@ const saveCtx = {
   get abilities() { return abilities; },
   get gun() { return gun; },
   get game() { return gameCtx; },
+  get townVoice() { return townVoice; },
+  get townChat() { return townChat; },
   slots: SLOTS,
   recomputeGear,
 };
