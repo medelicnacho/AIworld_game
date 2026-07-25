@@ -25,22 +25,27 @@ test("the cap forgets the oldest — news goes stale, it does not accumulate", (
   assert.equal(f.events[f.events.length - 1].text, "event 199");
 });
 
-test("deeds reach the town's ears: news lands in heard[] at its own weight", () => {
+test("deeds reach EACH town's ears separately — your legend propagates town by town", () => {
   const tv = new TownVoice({ state: "offline", info: null }, { list: [] }, {}, null);
-  tv.newsCursor = deeds.since(0).cursor;          // start past anything other tests pushed
+  const a = tv.townState({ id: "t-news-a" });
+  const b = tv.townState({ id: "t-news-b" });
+  a.newsCursor = b.newsCursor = deeds.since(0).cursor;   // past anything other tests pushed
   deeds.push("the wanderer sacked a vale camp out in the Reach", 2.0);
   deeds.push("the wanderer felled a great beast out in the Fallows", 2.2);
-  tv.catchUpOnNews();
-  const texts = tv.heard.map((h) => h.text);
+  tv.catchUpOnNews(a);
+  const texts = a.heard.map((h) => h.text);
   assert.ok(texts.includes("the wanderer sacked a vale camp out in the Reach"));
-  assert.ok(texts.includes("the wanderer felled a great beast out in the Fallows"));
-  assert.equal(tv.heard.find((h) => h.text.includes("beast")).weight, 2.2,
+  assert.equal(a.heard.find((h) => h.text.includes("beast")).weight, 2.2,
     "a boss outranks gossip in the memory");
-  assert.equal(tv.news, "the wanderer felled a great beast out in the Fallows",
+  assert.equal(a.news, "the wanderer felled a great beast out in the Fallows",
     "the freshest deed becomes the standing topic");
-  assert.equal(tv.newsSlots, 2, "...for the next couple of murmurs");
-  // And catching up twice never re-hears the same news.
-  const n = tv.heard.length;
-  tv.catchUpOnNews();
-  assert.equal(tv.heard.length, n);
+  assert.equal(a.newsSlots, 2, "...for the next couple of murmurs");
+  // Catching up twice never re-hears the same news...
+  const n = a.heard.length;
+  tv.catchUpOnNews(a);
+  assert.equal(a.heard.length, n);
+  // ...but a DIFFERENT town still gets the story fresh on your first visit there.
+  tv.catchUpOnNews(b);
+  assert.ok(b.heard.some((h) => h.text.includes("beast")),
+    "the second town reacts to the same deed the first already digested");
 });

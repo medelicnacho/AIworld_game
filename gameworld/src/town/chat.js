@@ -19,7 +19,7 @@ import { VOICE } from "../config.js";
 import { player } from "../state.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
 import { servesYou } from "../prog/factions.js";
-import { WORLD, TRADE, MOOD_STYLE, voiceOf, cleanLine, nameOf } from "./voice.js";
+import { worldFor, TRADE, MOOD_STYLE, voiceOf, cleanLine, nameOf } from "./voice.js";
 
 const LOG_KEEP = 8;      // turns remembered per villager (session memory — C2 persists it)
 // CHEAPER MEMORY (tuned after the wedge): every remembered turn is re-processed by the
@@ -275,13 +275,13 @@ export class TownChat {
     const regard = regardWord(f.regard);
     // YOUR words enter the town's memory like anyone else's. This single call is C1's
     // whole thesis: what you say here can resurface in ambient talk later.
-    this.townVoice.hear(said);
+    this.townVoice.hear(said, v.s);
     this.busy = true;
     this.hooks.onThinking?.(true);
     this.render(true);
     try {
       const { model, pace } = voiceOf(v);
-      const mood = this.townVoice.currentMood();
+      const mood = this.townVoice.currentMood(v.s);
       // Two kinds of history, told apart in the prompt: PRIOR turns (an earlier visit —
       // what she REMEMBERS about you, C2) and this conversation's turns (what you are
       // saying now). Collapsing them read as one endless conversation; a person who met
@@ -290,7 +290,7 @@ export class TownChat {
         .map((t) => `${t.who === "you" ? "they said" : "you answered"} "${clip(t.text)}"`).join(", and ");
       const now = log.filter((t) => !t.prior).slice(-LOG_PROMPT - 1, -1)
         .map((t) => `${t.who === "you" ? "The wanderer" : "You"} said: "${clip(t.text)}"`).join(" ");
-      const prompt = WORLD
+      const prompt = worldFor(v.s)
         + `You are ${nameOf(v)}, the town ${v.role.name} — ${TRADE[v.role.name] || "you live and work here"}. `
         + (known
           ? `The wanderer ${known} — an armed traveller you know by name — has stopped to `
@@ -325,7 +325,7 @@ export class TownChat {
       if (gist(clean) !== gist(res.text)) wav = await this.bridge.speak(clean, model, pace);
       log.push({ who: "them", text: clean });
       if (log.length > LOG_KEEP) log.splice(0, log.length - LOG_KEEP);
-      this.townVoice.hear(clean);                    // her answer is heard by the town too
+      this.townVoice.hear(clean, v.s);               // her answer is heard by HER town
       console.info(`[chat] you: "${said}" -> ${nameOf(v)} the ${v.role.name} (${mood}, ${regard}): "${clean}"`);
       if (wav) this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
     } catch {

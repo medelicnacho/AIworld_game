@@ -70,29 +70,39 @@ test("contractions SURVIVE the scrubber — a curly apostrophe is not a quote ma
   assert.equal(cleanLine("'The gate holds', she said."), "The gate holds she said.");
 });
 
-test("C2: the town's memory survives a save round-trip, and time away FADES it", async () => {
+test("C2: every town's memory survives a save round-trip, separately, and fades apart", async () => {
   const { TownVoice } = await import("./voice.js");
   const mk = () => new TownVoice({ state: "offline", info: null }, { list: [] }, {}, null);
+  const spawn = { id: "t0-home" }, far = { id: "t3-7" };
   const a = mk();
-  a.hear("the wanderer burned a vale camp");
-  a.hear("cake is for birthdays");
+  a.hear("the wanderer burned a vale camp", spawn);
+  a.hear("cake is for birthdays", spawn);
+  a.hear("the far roads went quiet", far);
   const data = a.dump();
 
-  // Back after a short break: both memories intact.
+  // Back after a short break: each town kept ITS OWN memories — nothing leaked between.
   const b = mk();
   b.restore(data, 0.5);
-  assert.equal(b.heard.length, 2, "a short absence forgets nothing");
+  assert.equal(b.townState(spawn).heard.length, 2, "spawn remembers its two");
+  assert.equal(b.townState(far).heard.length, 1, "the far town remembers its one");
+  assert.ok(!b.townState(far).heard.some((h) => h.text.includes("cake")),
+    "and spawn's cake talk never reached the far town");
 
-  // Back after a week: the town has honestly forgotten.
+  // Back after a week: every town has honestly forgotten its heard talk.
   const c = mk();
   c.restore(data, 24 * 7);
-  assert.equal(c.heard.length, 0, "a week away rots remembered talk to nothing");
+  assert.equal(c.townState(spawn).heard.length, 0, "a week away rots remembered talk");
+
+  // An OLD single-pool save migrates to the starter town rather than being lost.
+  const d = mk();
+  d.restore({ heard: [{ text: "the gate held", weight: 1.6 }], lore: [] }, 0);
+  assert.equal(d.townState(spawn).heard.length, 1, "old saves land at spawn");
 
   // And a corrupt or absent memory never breaks the load.
-  const d = mk();
-  d.restore(null, 1);
-  d.restore({ heard: [{ bad: true }] }, 1);
-  assert.equal(d.heard.length, 0);
+  const e = mk();
+  e.restore(null, 1);
+  e.restore({ towns: [{ id: "x", heard: [{ bad: true }] }] }, 1);
+  assert.equal(e.townState({ id: "x" }).heard.length, 0);
 });
 
 test("dialogue floor: 'Mara.' is an answer in chat, still noise as a murmur", async () => {
@@ -164,15 +174,16 @@ test("headlines are the BIGGEST stories, not the latest three", async () => {
   const { deeds } = await import("../world/events.js");
   const { TownVoice } = await import("./voice.js");
   const tv = new TownVoice({ state: "offline", info: null }, { list: [] }, {}, null);
-  tv.newsCursor = deeds.since(0).cursor;
+  const st = tv.townState({ id: "t-headlines" });
+  st.newsCursor = deeds.since(0).cursor;
   // The playtest ordering that dropped the bosses: oath, two bosses, then small stuff last.
   deeds.push("the wanderer swore to Vale and wears their colours now", 2.0);
   deeds.push("the wanderer felled a great beast out in the Fallows", 2.2);
   deeds.push("the wanderer felled a great beast out in the Reach", 2.2);
   deeds.push("the wanderer cut down a camp adept out in the Fallows", 1.6);
   deeds.push("the wanderer cut down a camp quartermaster out in the Fallows", 1.6);
-  tv.catchUpOnNews();
-  const texts = tv.heard.map((h) => h.text);
+  tv.catchUpOnNews(st);
+  const texts = st.heard.map((h) => h.text);
   assert.ok(texts.some((t) => t.includes("Fallows") && t.includes("beast")), "boss one made the news");
   assert.ok(texts.some((t) => t.includes("Reach")), "boss two made the news");
   assert.ok(texts.some((t) => t.includes("swore to Vale")), "the oath made the news");
