@@ -89,6 +89,13 @@ export class Mobs {
     this.COL_CHARGER = new THREE.Color(0x6b4a2a);   // heavy brown: it comes at you
     this.COL_SWARM = new THREE.Color(0xc3d94a);     // pale: many, small, brief
     this.COL_HURT = new THREE.Color(0xff6655);
+    // Raid champions wear their TRADE colours (see colorOf): the same green/black/red the
+    // player already knows from friendly towns' herbalist, adept, and (red) quartermaster.
+    this.champCols = {
+      herbalist: new THREE.Color(0x63d1a0),
+      adept: new THREE.Color(0x14141c),
+      qm: new THREE.Color(0xd23c3c),
+    };
     this._affixCol = new THREE.Color();
     this._white = new THREE.Color(0xffffff);
     this._factionElite = new THREE.Color();
@@ -196,6 +203,14 @@ export class Mobs {
    */
   colorOf(e) {
     if (e.hurtT > 0) return this.COL_HURT;
+    // THE CHAMPIONS are people, not war-bodies, and they wear their TRADE colours — the same
+    // ones their shopkeeper selves wear in a friendly town: green herbalist, black adept,
+    // red quartermaster. This is what makes the raid's kill-order readable at a glance:
+    // "kill the green one first" only works if the green one is green.
+    if (e.champion) {
+      const c = this.champCols[e.champion];
+      if (c) return c;
+    }
     // ONE BODY, ONE COLOUR, and the colour is the FACTION — full stop. Every scheme that
     // borrowed the body for a second message failed the same way in play: the cast-glow
     // made casters change colour, affix tints made stars wear a stranger's colours, and an
@@ -763,7 +778,10 @@ export class Mobs {
       // If one is somehow inside anyway — a shape changed under it, a knockback, a bug I
       // haven't found — evict it rather than leaving a hostile loose in a safe zone. The
       // polygon is star-shaped, so straight out from the centre always leaves.
-      const inside = sanctuaryOf(e.x, e.z, 0);
+      // DEFENDERS are exempt: inside the walls is their post, not an accident. (This evictor
+      // was silently marching the whole garrison out of town, aggro cleared, brain skipped —
+      // which is why raided towns stood there politely not fighting back.)
+      const inside = e.defender ? null : sanctuaryOf(e.x, e.z, 0);
       if (inside) {
         const ox = e.x - inside.x, oz = e.z - inside.z;
         const od = Math.hypot(ox, oz) || 1;
