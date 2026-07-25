@@ -78,10 +78,16 @@ export class Inventory {
     // under the cursor would tear the slider out from under the mouse on the first pixel of
     // movement, so only the number beside it is updated.
     this.el.addEventListener("input", (e) => {
-      if (e.target?.id !== "opt-sens") return;
-      const v = setLook(Number(e.target.value));
-      const out = this.el.querySelector(".optval");
-      if (out) out.textContent = (v * 1000).toFixed(1);
+      if (e.target?.id === "opt-sens") {
+        const v = setLook(Number(e.target.value));
+        const out = this.el.querySelector(".sens-val");
+        if (out) out.textContent = (v * 1000).toFixed(1);
+      }
+      if (e.target?.id === "opt-vol") {
+        const v = this.hooks.setVolume?.(Number(e.target.value));
+        const out = this.el.querySelector(".vol-val");
+        if (out && v !== undefined) out.textContent = `${Math.round(v * 100)}%`;
+      }
     });
     this.el.addEventListener("dragstart", (e) => this.onDragStart(e));
     this.el.addEventListener("dragover", (e) => {
@@ -552,8 +558,15 @@ export class Inventory {
           <label for="opt-sens">Mouse sensitivity</label>
           <input id="opt-sens" type="range" min="${LOOK_MIN}" max="${LOOK_MAX}" step="0.0005"
                  value="${CAMERA.sensitivity}">
-          <span class="optval">${(CAMERA.sensitivity * 1000).toFixed(1)}</span>
+          <span class="optval sens-val">${(CAMERA.sensitivity * 1000).toFixed(1)}</span>
           <span class="opthint">or <b>[</b> <b>]</b> while playing</span>
+        </div>
+        <div class="opts">
+          <label for="opt-vol">Volume</label>
+          <input id="opt-vol" type="range" min="0" max="1" step="0.05"
+                 value="${this.hooks.volume?.() ?? 1}">
+          <span class="optval vol-val">${Math.round((this.hooks.volume?.() ?? 1) * 100)}%</span>
+          <span class="opthint">all game audio</span>
         </div>
         <footer>${foot}</footer>
       </div>`;

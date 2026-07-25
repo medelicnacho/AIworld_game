@@ -83,6 +83,22 @@ const music = new Music();
 // raw clicks/keys, and retry on every gesture until playback actually sticks. start()/resume()
 // are idempotent, so hammering them is safe.
 const kickAudio = () => { music.start(); music.resume(); };
+
+// THE GLOBAL FADER. One number scales every sound the game makes — effects and voices
+// (sfx master) and the soundtrack (music master) — set from the pause screen, remembered
+// between sessions. Audio you cannot turn down is audio that gets muted entirely.
+const VOL_KEY = "gw.volume";
+function setVolume(v) {
+  v = Math.max(0, Math.min(1, v));
+  sfx.setVolume(v);
+  music.setMaster(v);
+  try { localStorage.setItem(VOL_KEY, String(v)); } catch { /* private mode; play on */ }
+  return v;
+}
+{
+  const saved = parseFloat(localStorage.getItem(VOL_KEY) ?? "");
+  if (Number.isFinite(saved)) setVolume(saved);
+}
 addEventListener("pointerdown", kickAudio);
 addEventListener("keydown", kickAudio);
 const gun = new Gun(scene, camera);
@@ -878,6 +894,8 @@ const gameCtx = {
   applyStats: () => applyLevelStats(),   // gear changes re-derive the same way levels do
   // Joining or switching factions redraws the whole map's loyalties: which towns serve you,
   // which ones muster defenders against you. Both caches must let go of the old world.
+  volume: () => sfx.volume,
+  setVolume: (v) => setVolume(v),
   onFactionChange: () => {
     villagers.refresh();
     raids.reset();

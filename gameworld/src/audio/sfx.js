@@ -19,6 +19,7 @@ export class Sfx {
     this.master = null;
     this.noiseBuf = null;
     this.muted = false;
+    this.volume = 1;               // the global fader (set from the pause screen)
     // Seeded (D14), like every other random number in the game — used to rough up the
     // crackle so repeated pops never land in an identical pattern.
     this.rng = mulberry32(0xC4AC1E);
@@ -31,7 +32,7 @@ export class Sfx {
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.9;
+    this.master.gain.value = 0.9 * this.volume;
     // A limiter on the way out. Twenty overlapping explosions sum well past 1.0 and clip
     // into a scream; this squashes the peaks instead of letting the hardware do it badly.
     const limiter = this.ctx.createDynamicsCompressor();
@@ -54,6 +55,13 @@ export class Sfx {
   }
 
   get on() { return this.ctx && !this.muted; }
+
+  /** The one global fader for every effect and every voice — they all route through the
+   *  master. 0.9 is the mix's headroom; the player's dial scales it. */
+  setVolume(v) {
+    this.volume = Math.max(0, Math.min(1, v));
+    if (this.master) this.master.gain.value = 0.9 * this.volume;
+  }
 
   /**
    * A budget for loud, overlapping sounds. A wiped elite pack can ask for a dozen

@@ -28,6 +28,7 @@ const CROSS_MS = 1100;     // gate-crossing fade
 
 export class Music {
   constructor(volume = VOLUME) {
+    this.base = volume;            // the mix's own level; the player's dial scales it
     this.volume = volume;
     this.muted = false;
     this.started = false;
@@ -75,6 +76,12 @@ export class Music {
 
   /** Fade each channel toward the volume its place deserves. The bed is on everywhere; the town
    *  track and the outside track are each faded in only in their own place. */
+  /** The global fader, shared with sfx: scales the soundtrack under its own balance. */
+  setMaster(v) {
+    this.volume = this.base * Math.max(0, Math.min(1, v));
+    this.applyVolumes(0);
+  }
+
   applyVolumes(ms = CROSS_MS) {
     const live = this.started && !this.muted;
     for (const el of this.bed) this.fade(el, live ? this.volume * el._gain : 0, ms);
