@@ -32,13 +32,23 @@ export class Raids {
   constructor(mobs, onSack) {
     this.mobs = mobs;
     this.onSack = onSack;
-    // townId -> { ids:Set, total, killed, sackedT }. Kill attribution is EXACT: mobs.hit
-    // calls onDefenderKill on the death of anything flagged e.defender, so a garrison that
-    // merely despawned behind you (you walked away mid-raid) never counts as conquered.
+    // townId -> { ids:Set, total, killed, sackedT, sprung, ... }. Kill attribution is EXACT:
+    // mobs.hit calls onDefenderKill on the death of anything flagged e.defender, so a garrison
+    // that merely despawned behind you (you walked away mid-raid) never counts as conquered.
     this.state = new Map();
     mobs.onDefenderKill = (e) => {
       const st = this.state.get(e.defender);
-      if (st) st.killed++;
+      if (!st) return;
+      st.killed++;
+      // THE AMBUSH SPRINGS. Drop the lone sentinel and the whole garrison bursts out — spawned
+      // HERE, synchronously inside the kill, so the next raid.update never sees an empty town
+      // and mistakes the sprung trap for a finished one.
+      if (e.sentinel && !st.sprung) {
+        st.sprung = true;
+        const ids = this.spawnGarrison(st.s, st.packId, st.baseHp, true);
+        for (const id of ids) st.ids.add(id);
+        st.total += ids.size;
+      }
     };
   }
 
@@ -76,16 +86,10 @@ export class Raids {
     return e;
   }
 
-  /** The garrison: a big group BUNCHED AT THE GATE — melee, ranged and chargers — plus,
-   *  on hostile ground only, the three champions standing deeper in the streets. */
-  muster(s) {
-    const hostile = isHostileSanctuary(s);
-    const ring = tierAt(s.x, s.z);
-    // The same base a wild mob of this ring rolls (sans elite), so RAID.*Hp multipliers
-    // read as "times a local mob" everywhere balance is discussed.
-    const baseHp = MOB.hp * Math.pow(MOB.hpGrowth, ringPressure(ring, MOB.ramp));
-    const packId = this.mobs.nextPack++;
-    this.mobs.packs.set(packId, { x: s.x, z: s.z });
+  /** Spawn the full garrison — melee, ranged, chargers bunched at the gate, plus (against an
+   *  ENEMY) the three big champions. Returns the id set. Used for a friendly town's standing
+   *  garrison, and for the sprung ambush in a rival town. */
+  spawnGarrison(s, packId, baseHp, hostile) {
     const rng = this.mobs.rng;
     const ids = new Set();
     const innerR = Math.max(6, s.rMin - 8);
@@ -97,6 +101,7 @@ export class Raids {
       const e = this.spawnDefender(s, packId, ang, rad, baseHp * RAID.soldierHp, hostile);
       if (kind === "ranged") e.caster = true;
       if (kind === "charger") e.charger = true;
+      e.aggro = hostile; e.aggroT = hostile ? 99 : 0;   // sprung defenders come out swinging
       ids.add(e.id);
     };
     for (let i = 0; i < RAID.melee; i++) post("melee");
@@ -106,17 +111,54 @@ export class Raids {
     // The champions muster only against an ENEMY: in your own or a neutral-to-you town the
     // herbalist, adept and quartermaster are still shopkeepers (villagers.js), not fighters.
     if (hostile) {
-      const adept = this.spawnDefender(s, packId, rng() * Math.PI * 2, innerR * 0.5, baseHp * RAID.adeptHp, true);
-      adept.caster = true; adept.champion = "adept"; adept.scale = RAID.champScale;
-      const herb = this.spawnDefender(s, packId, rng() * Math.PI * 2, innerR * 0.5, baseHp * RAID.herbHp, true);
-      herb.champion = "herbalist"; herb.scale = RAID.champScale;
-      const qm = this.spawnDefender(s, packId, 0.6, innerR * 0.4, baseHp * RAID.qmHp, true);
-      qm.charger = true; qm.champion = "qm"; qm.scale = RAID.qmScale;
-      qm.damage *= RAID.qmDamage;
-      ids.add(adept.id); ids.add(herb.id); ids.add(qm.id);
+      const champ = (role, hp, scale) => {
+        const e = this.spawnDefender(s, packId, rng() * Math.PI * 2, innerR * 0.5, baseHp * hp, true);
+        e.champion = role; e.scale = scale; e.aggro = true; e.aggroT = 99;
+        ids.add(e.id);
+        return e;
+      };
+      champ("adept", RAID.adeptHp, RAID.champScale).caster = true;
+      champ("herbalist", RAID.herbHp, RAID.champScale);
+      const qm = champ("qm", RAID.qmHp, RAID.qmScale);
+      qm.charger = true; qm.damage *= RAID.qmDamage;
     }
+    return ids;
+  }
 
-    this.state.set(s.id, { ids, total: ids.size, killed: 0, sackedT: 0, hostile });
+  /**
+   * A town readies its defence when you come near.
+   *   YOUR / neutral-to-you town  the standing garrison, visible at the gate, no champions.
+   *   A RIVAL town                the AMBUSH: one lone ranged sentinel. The town looks empty
+   *                               until you drop the lookout, and spawnGarrison springs from
+   *                               the kill hook. So the raid starts the instant YOU choose to
+   *                               fire the first shot — not the moment you wander into range.
+   */
+  muster(s) {
+    const hostile = isHostileSanctuary(s);
+    const ring = tierAt(s.x, s.z);
+    // The same base a wild mob of this ring rolls (sans elite), so RAID.*Hp multipliers
+    // read as "times a local mob" everywhere balance is discussed.
+    const baseHp = MOB.hp * Math.pow(MOB.hpGrowth, ringPressure(ring, MOB.ramp));
+    const packId = this.mobs.nextPack++;
+    this.mobs.packs.set(packId, { x: s.x, z: s.z });
+    const innerR = Math.max(6, s.rMin - 8);
+
+    if (hostile) {
+      // The lookout: a ranged sentry near the gate, so it pecks at you and you must engage it.
+      const sentinel = this.spawnDefender(s, packId, s.gate, innerR * 0.7, baseHp * RAID.soldierHp, true);
+      sentinel.caster = true;
+      sentinel.sentinel = true;
+      this.state.set(s.id, {
+        s, packId, baseHp, ids: new Set([sentinel.id]),
+        total: 1, killed: 0, sackedT: 0, hostile: true, sprung: false,
+      });
+    } else {
+      const ids = this.spawnGarrison(s, packId, baseHp, false);
+      this.state.set(s.id, {
+        s, packId, baseHp, ids,
+        total: ids.size, killed: 0, sackedT: 0, hostile: false, sprung: true,
+      });
+    }
   }
 
   update(dt) {

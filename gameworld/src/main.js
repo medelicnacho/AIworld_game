@@ -849,6 +849,8 @@ const villagers = new Villagers(scene);
 const guards = new Guards(scene);
 const raids = new Raids(mobs, (s) => sackTown(s));
 const plates = new Nameplates(document.getElementById("plates"), camera);
+// The name a raid champion wears on its red plate — the same trade its friendly-town self runs.
+const CHAMPION_NAME = { adept: "Adept", herbalist: "Herbalist", qm: "Quartermaster" };
 const hpBars = new HealthBars(document.getElementById("hpbars"), camera);
 const dmgText = new DamageText(document.getElementById("dmg"), camera);
 let tradeMsg = "", tradeMsgT = 0;
@@ -1715,9 +1717,19 @@ function frame(now) {
   // closest handful, so a friendly horde does not become a wall of labels. The gun already
   // ignores them; this is the second half, telling you at a glance which ones NOT to shoot.
   const allyPlates = [];
+  // RAID CHAMPIONS get RED plates — the same name a friendly town's vendor wears, but marked
+  // as a threat, so "kill the Herbalist first" is a decision the labels actually let you make.
+  const champPlates = [];
   if (player.faction) {
     const near = [];
     for (const e of mobs.entities()) {
+      if (e.champion) {
+        const d = (e.x - player.x) ** 2 + (e.z - player.z) ** 2;
+        if (d < 46 * 46) champPlates.push({
+          x: e.x, y: e.y + 2.4 * (e.scale || 1), z: e.z, label: CHAMPION_NAME[e.champion], champion: true,
+        });
+        continue;
+      }
       if (!isMyAlly(e.faction)) continue;
       const d = (e.x - player.x) ** 2 + (e.z - player.z) ** 2;
       if (d < 34 * 34) near.push({ e, d });
@@ -1730,6 +1742,7 @@ function frame(now) {
   plates.draw([
     ...villagers.list.filter((v) => Villagers.sells(v))
       .map((v) => ({ x: v.x, y: v.y + 2.05, z: v.z, label: v.role.name, sub: "F to trade" })),
+    ...champPlates,
     ...allyPlates,
   ]);
 

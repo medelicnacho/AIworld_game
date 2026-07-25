@@ -660,12 +660,15 @@ export const RAID = {
   ranged: 5,
   chargers: 3,
   soldierHp: 1.5,
-  adeptHp: 3,            // champions are multiples of the ring's base mob health
-  herbHp: 3.5,
-  qmHp: 7,               // the mini-boss; the fight ends on them or starts with them
+  // THE AMBUSH. A rival town looks nearly empty — a single ranged SENTINEL keeps watch. Kill
+  // the lookout and the whole garrison springs from the town at once: the sack begins on your
+  // terms, when you drop the one mob you can see, so the trap is sprung by a choice you made.
+  adeptHp: 6,            // champions are multiples of the ring's base mob health — now the
+  herbHp: 7,             // three of them are proper mini-bosses, not just bigger soldiers,
+  qmHp: 14,              // the QM most of all: the wall the whole raid ends on
   qmDamage: 1.4,
-  champScale: 1.25,      // champions read bigger; the QM bigger still
-  qmScale: 1.45,
+  champScale: 1.9,       // champions read BIG — you should pick them out of the mob instantly
+  qmScale: 2.5,          // the QM towers over the garrison
   burst: 5,              // the adept's barrage: this many fireballs...
   burstGap: 0.16,        // ...this far apart — a stream you dodge by moving, not by luck
   healEvery: 3.5,        // herbalist pulse cadence

@@ -227,6 +227,25 @@ export function wallBlocks(x, z) {
 }
 
 /**
+ * How far a ray travels before a sanctuary WALL stops it, up to `maxDist`. Walls are
+ * collision-only geometry (wallBlocks) — invisible to the voxel raycast the gun uses — so
+ * without this a shot passes clean through a town wall as if it were a curtain. Marched
+ * rather than solved, because the boundary is a star polygon; the step is coarse (a wall is
+ * WALL_T thick) so it stays cheap, and wallBlocks itself early-outs the instant you are not
+ * near a settlement, so ordinary field shots pay almost nothing.
+ */
+export function wallRayDist(ox, oy, oz, dx, dy, dz, maxDist) {
+  const STEP = 0.5;
+  for (let t = STEP; t <= maxDist; t += STEP) {
+    const x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
+    // Above the parapet the shot clears the wall entirely — over the top is not through it.
+    if (y > groundY(x, z) + WALL_H) continue;
+    if (wallBlocks(x, z)) return t;
+  }
+  return maxDist;
+}
+
+/**
  * Builds and tears down sanctuary meshes around the player, and walks their residents.
  * Same streaming discipline as chunks: only what's near you exists as geometry.
  */

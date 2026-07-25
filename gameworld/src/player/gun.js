@@ -16,6 +16,7 @@ import { WEAPONS } from "../config.js";
 import { player } from "../state.js";
 import { raycastVoxel } from "../world/raycast.js";
 import { solidAt, groundY } from "../world/gen.js";
+import { wallRayDist, wallBlocks, WALL_H } from "../world/sanctuary.js";
 import { sfx } from "../audio/sfx.js";
 
 /** Ray-vs-sphere, nearest hit closer than `maxT`. Returns {id, t, tag} or null. */
@@ -351,8 +352,10 @@ export class Gun {
       const fwd = new THREE.Vector3();
       this.camera.getWorldDirection(fwd);
       const hit = raycastVoxel(o.x, o.y, o.z, fwd.x, fwd.y, fwd.z, w.range);
-      const struck = this.pierce(o, fwd, targets, hit.dist);
-      const end = Math.min(hit.dist, w.range);
+      // A town wall stops the beam where a voxel would — clamp to whichever is nearer.
+      const stop = Math.min(hit.dist, wallRayDist(o.x, o.y, o.z, fwd.x, fwd.y, fwd.z, Math.min(hit.dist, w.range)));
+      const struck = this.pierce(o, fwd, targets, stop);
+      const end = Math.min(stop, w.range);
       this.beamEnd.set(o.x + fwd.x * end, o.y + fwd.y * end, o.z + fwd.z * end);
       // Damage is per second, so the caller multiplies nothing — dt is already in here.
       const dmg = w.dps * (aiming ? w.aimMult : 1) * dt;
@@ -431,12 +434,21 @@ export class Gun {
         dir.addScaledVector(right, Math.cos(a) * r).addScaledVector(trueUp, Math.sin(a) * r).normalize();
       }
       const hit = raycastVoxel(o.x, o.y, o.z, dir.x, dir.y, dir.z, w.range);
-      const target = nearestTarget(o, dir, targets, hit.dist);
+      // A town wall stops the bullet where a voxel would. Whichever surface is nearer caps
+      // how far a target can be hit — no more shooting the garrison through their own wall.
+      const wallD = wallRayDist(o.x, o.y, o.z, dir.x, dir.y, dir.z, hit.dist);
+      const stop = Math.min(hit.dist, wallD);
+      const target = nearestTarget(o, dir, targets, stop);
       if (target) {
         struck.push({ id: target.id, tag: target.tag });
         const px = o.x + dir.x * target.t, py = o.y + dir.y * target.t, pz = o.z + dir.z * target.t;
         this.showTracer(p, mx, my, mz, px, py, pz);
         this.mark(px, py, pz, -dir.x, -dir.y, -dir.z);
+      } else if (wallD < hit.dist) {
+        // The wall caught it first: end the tracer and the scorch on the wall face.
+        const ex = o.x + dir.x * stop, ey = o.y + dir.y * stop, ez = o.z + dir.z * stop;
+        this.showTracer(p, mx, my, mz, ex, ey, ez);
+        this.mark(ex, ey, ez, -dir.x, -dir.y, -dir.z);
       } else {
         this.showTracer(p, mx, my, mz, hit.px, hit.py, hit.pz);
         if (hit.hit) this.mark(hit.px, hit.py, hit.pz, hit.nx, hit.ny, hit.nz);
@@ -502,7 +514,9 @@ export class Gun {
       s.vy += w.drop * dt;                 // arcs a little: flat enough to aim, slow enough to lead
       s.mesh.rotation.x += dt * 7; s.mesh.rotation.y += dt * 5;
       const nx = s.x + s.vx * dt, ny = s.y + s.vy * dt, nz = s.z + s.vz * dt;
-      if (s.t <= 0 || solidAt(nx, ny, nz) || ny <= groundY(nx, nz)) {
+      // A wall bursts the shell too — it detonates ON the wall rather than sailing through it.
+      const hitWall = ny < groundY(nx, nz) + WALL_H && wallBlocks(nx, nz);
+      if (s.t <= 0 || hitWall || solidAt(nx, ny, nz) || ny <= groundY(nx, nz)) {
         this.spawnBurst(s.x, s.y, s.z, w.blastRadius);
         onBurst?.(s.x, s.y, s.z);
         s.active = false;
