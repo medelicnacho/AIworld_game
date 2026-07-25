@@ -124,6 +124,10 @@ export class TownChat {
     this.hooks.onThinking?.(false);
     this.el.classList.remove("show");
     this.input.blur();
+    // A courtesy gap before the ambient voice resumes: the model is serialized on the lab
+    // side, and an ambient line firing the instant you close would hog it for seconds —
+    // right when you are likeliest to reopen and say one more thing.
+    this.townVoice.cooldown = Math.max(this.townVoice.cooldown, 8);
     this.hooks.onClose?.();
   }
 
@@ -178,6 +182,9 @@ export class TownChat {
       });
       const clean = res?.text ? cleanLine(res.text) : null;
       if (!clean) {                                  // she looks at you and says nothing
+        // Failures land in the transcript too — the wedge that motivated this was
+        // invisible precisely because only successes were ever logged.
+        console.info(`[chat] you: "${said}" -> ${v.role.name}: NO REPLY (${res ? "scrubbed to silence" : "bridge timeout/offline"})`);
         log.push({ who: "them", text: "…" });
         return;
       }
@@ -190,6 +197,7 @@ export class TownChat {
       console.info(`[chat] you: "${said}" -> ${v.role.name} (${mood}): "${clean}"`);
       if (wav) this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
     } catch {
+      console.info(`[chat] you: "${said}" -> ${v.role.name}: NO REPLY (error)`);
       log.push({ who: "them", text: "…" });          // the lab hiccuped; she just works on
     } finally {
       this.busy = false;

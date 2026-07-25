@@ -95,12 +95,20 @@ export class Bridge {
     } catch { return null; }
   }
 
-  async _post(path, body) {
+  /**
+   * A request that can hang is a request that can WEDGE its caller: the chat's busy flag
+   * held forever behind one stalled fetch was "the villager stopped answering", silently,
+   * with nothing logged. Every POST now carries a deadline; past it the fetch aborts and
+   * resolves null, which every caller already copes with. Generous on purpose — a slow
+   * model on a busy CPU is normal, a minute of nothing is not.
+   */
+  async _post(path, body, timeoutMs = 45000) {
     try {
       const res = await fetch(this.url + path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       return res.ok ? res : null;
     } catch { return null; }
