@@ -543,13 +543,25 @@ export class Mobs {
     }
   }
 
-  /** Shove a mob outward from a point. Survivors get thrown; the dead do not care. */
+  /** Break a charge dead — wind-up, rush, or recovery — and kill its sound. Any hard crowd
+   *  control (a knockback, a root) calls this: a charge is a COMMITTED attack, and the whole
+   *  point of committing is that it can be PUNISHED. A charger you knock back or freeze mid-run
+   *  should stop, not shrug it off and keep coming — that is the answer the telegraph promises. */
+  breakCharge(e) {
+    if (e.windT <= 0 && e.rushT <= 0 && e.recoverT <= 0) return;
+    e.windT = 0; e.rushT = 0; e.recoverT = 0;
+    if (e.rushVoice) { e.rushVoice.stop(); e.rushVoice = null; }
+  }
+
+  /** Shove a mob outward from a point. Survivors get thrown; the dead do not care. A shove
+   *  also STOPS a charge — you cannot both be flung backward and still be barreling forward. */
   push(e, fromX, fromZ, force) {
     const dx = e.x - fromX, dz = e.z - fromZ;
     const d = Math.hypot(dx, dz) || 1;
     e.kx = (dx / d) * force;
     e.kz = (dz / d) * force;
     e.kT = MOB.knockTime;
+    this.breakCharge(e);
   }
 
   // --- the world verbs affixes call through ctx.mobs ---------------------------
@@ -596,7 +608,14 @@ export class Mobs {
     for (const e of this.entities()) {
       if (Math.hypot(e.x - x, e.z - z) > radius) continue;
       if (slowT > e.slowT) { e.slowT = slowT; e.slowMul = slowMul; }
-      if (rootT > e.rootT) e.rootT = rootT;
+      if (rootT > e.rootT) {
+        e.rootT = rootT;
+        // A ROOT stops a charge dead, same as a knockback — pinning something in place while
+        // it charges through you would make the freeze useless against the one attack you
+        // most need to freeze. The charger block owns the body and never checks rootT on its
+        // own, so the break has to happen HERE, where the root is applied.
+        this.breakCharge(e);
+      }
     }
   }
 

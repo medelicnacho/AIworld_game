@@ -15,7 +15,7 @@ export const WORLD_SEED = 1337;
 //   playerDmg   everything you deal, folded into dmgMult where levels and gear already live.
 //   deathLoss   the level lost on death, as a multiplier: 0 means death costs you nothing but
 //               the walk back, which is the right training-wheels setting.
-//   grace       scales the early-game GRACE bonus, so easy stays kind well past level 8.
+//   grace       scales the early-game GRACE bonus, so easy stays kind well past level 12.
 export const DIFFICULTY = {
   hard: {
     id: "hard", label: "Hard",
@@ -316,15 +316,18 @@ export const STAT_INFO = {
   moveSpeed: { label: "Move Speed", kind: "pct", note: "faster movement" },
 };
 
-// Early-game GRACE. Levels 1-3 should be EASY: a fresh player has no gear and the whole point
-// of the first hour is to get some. This bonus is large at level 1 and fades to nothing by
-// `levels`, so a gearless newbie hits hard and shrugs off hits, and the challenge RAMPS UP as
-// you level and kit out instead of landing all at once at the door. The "more powerful at low
+// Early-game GRACE. The whole FIRST TEN LEVELS should be easy: a fresh player has no gear,
+// no spells, and no faction, and the point of that stretch is to earn all three without
+// being punished for not having them yet. This bonus is large at level 1 and fades to
+// nothing by `levels`, so a gearless newbie hits hard and shrugs off hits, and the real
+// challenge RAMPS UP as you level and kit out instead of landing all at once at the door.
+// It carries the early game against the doubled mob health and hard mode's doubled damage:
+// the numbers moved, so the newbie's cushion moved with them. The "more powerful at low
 // level" dial — turn it up to make the start kinder, down to make it bite sooner.
 export const GRACE = {
-  levels: 8,          // fully gone at this level
-  dmgBonus: 0.9,      // +90% damage at level 1, fading linearly to 0
-  mitigation: 0.45,   // -45% damage taken at level 1, fading to 0
+  levels: 12,         // fully gone here — so it still cushions all the way through level 10
+  dmgBonus: 1.4,      // +140% damage at level 1 (a fresh hit lands like 2.4x), fading to 0
+  mitigation: 0.62,   // -62% damage taken at level 1, fading to 0
 };
 
 // D9 — endless levels, and the economy that makes distance the real progression.
@@ -730,7 +733,7 @@ export const MOB = {
   // takes twice as long to bring down. This is the base the ring-growth and elite factors
   // multiply on top of, so ALL mobs (field, elite, swarm, splits) got twice the health at once.
   // The early game stays fair because the GRACE bonus below still front-loads the PLAYER: a
-  // fresh, gearless character is strong and fades out by ~level 8, so the longer fights land as
+  // fresh, gearless character is strong and fades out by ~level 12, so the longer fights land as
   // the world gets meaner rather than at the door.
   hp: 152,
   damage: 8,
