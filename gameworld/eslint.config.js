@@ -14,6 +14,7 @@ export default [
         innerWidth: "readonly", innerHeight: "readonly", devicePixelRatio: "readonly",
         navigator: "readonly", fetch: "readonly", Worker: "readonly", URL: "readonly",
         EventSource: "readonly", AudioContext: "readonly", Audio: "readonly",
+        AbortSignal: "readonly",
       },
     },
     rules: {
