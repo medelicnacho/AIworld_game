@@ -80,10 +80,12 @@ export function cityRadius(t) {
   return RADIUS * (SETTLE.cityScale + SETTLE.cityGrow * t);
 }
 
-/** How many ordinary towns a tier holds: 6, 9, 12... — always a multiple of three, so the
- *  faction colours (dealt round-robin in tierSettlements) come out even in every ring. */
+/** How many ordinary towns a tier holds: 9, 15, 21, 27... — always a multiple of three, so
+ *  the faction colours (dealt round-robin in tierSettlements) come out even in every ring,
+ *  and climbing steeply because the outer bands are wider and should feel MORE contested,
+ *  not emptier. */
 export function townCount(t) {
-  return t === 0 ? SETTLE.townsBase : Math.min(SETTLE.townCap, 3 + 3 * t);
+  return t === 0 ? SETTLE.townsBase : Math.min(SETTLE.townCap, 3 + 6 * t);
 }
 
 function build(key, x, z, radius, rng, city) {

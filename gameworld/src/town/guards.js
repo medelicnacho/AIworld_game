@@ -12,7 +12,6 @@
 import * as THREE from "three";
 import { GUARD } from "../config.js";
 import { player } from "../state.js";
-import { isHostileSanctuary } from "../prog/factions.js";
 import { groundY, tierAt } from "../world/gen.js";
 import { sanctuariesNear, boundaryAt, gateArc } from "../world/sanctuary.js";
 import { sfx } from "../audio/sfx.js";
@@ -20,14 +19,11 @@ import { sfx } from "../audio/sfx.js";
 const KEEP = 300;
 let _live = [];        // flat list, for the mob layer to taunt against
 
-/** The guard a mob at (x,z) should be fighting instead of the player, if any. A mob is
- *  never taunted onto guards of its OWN colour — a town and its faction's creatures are
- *  one side, and one side does not brawl with itself at its own gate. */
-export function guardNear(x, z, range = GUARD.taunt, faction = undefined) {
+/** The guard a mob at (x,z) should be fighting instead of the player, if any. */
+export function guardNear(x, z, range = GUARD.taunt) {
   let best = null, bd = range;
   for (const g of _live) {
     if (g.down > 0) continue;
-    if (faction !== undefined && g.fac !== null && g.fac === faction) continue;
     const d = Math.hypot(g.x - x, g.z - z);
     if (d < bd) { bd = d; best = g; }
   }
@@ -41,15 +37,6 @@ export class Guards {
     this.geo = new THREE.ConeGeometry(0.5, 1.7, 6);
     this.geo.translate(0, 0.85, 0);
     this.mat = new THREE.MeshLambertMaterial({ color: 0x6fa8dc });
-    // A town's guards wear the town's colour, so whose ground you are walking onto is told
-    // at the GATE — before you've read a single nameplate. Neutral ground keeps guard-blue.
-    // Index matches the faction colour indices used everywhere (0 iron-black, 1 ash-blue,
-    // 2 vale-green); iron guards are lifted a shade off true black so they read at distance.
-    this.matFaction = [
-      new THREE.MeshLambertMaterial({ color: 0x32323a }),
-      new THREE.MeshLambertMaterial({ color: 0x3f6fd1 }),
-      new THREE.MeshLambertMaterial({ color: 0x4fae5a }),
-    ];
     this.matDown = new THREE.MeshLambertMaterial({ color: 0x3a4455 });
     this.tracer = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
@@ -61,12 +48,17 @@ export class Guards {
   }
 
   build(s) {
+    // ONLY NEUTRAL GROUND keeps the classic detachment — cities and the spawn town, where a
+    // hitscan line of civic police reads right. A FACTION town's defence is its GARRISON
+    // (town/raid.js): mob-bodied fighters in the town's colour, who fight the war for real.
+    // An empty list (not a skip) so the per-frame "have I built this?" check stays cheap.
+    if (!s.city && !s.neutral && s.faction !== null && s.faction !== undefined) {
+      this.built.set(s.id, []);
+      return;
+    }
     const guards = [];
     const gateR = boundaryAt(s, s.gate);
     const arc = gateArc(gateR);
-    // The town's colour, worn at the gate. Neutral ground (cities, spawn) keeps guard-blue.
-    const mat = (s.faction === null || s.faction === undefined)
-      ? this.mat : this.matFaction[s.faction % 3];
     for (let i = 0; i < GUARD.count; i++) {
       // Fanned across the approach, just outside the gateway.
       const t = (i / (GUARD.count - 1) - 0.5) * 2;
@@ -74,13 +66,12 @@ export class Guards {
       const r = boundaryAt(s, a) + 4 + Math.abs(t) * 2;
       const x = s.x + Math.cos(a) * r;
       const z = s.z + Math.sin(a) * r;
-      const mesh = new THREE.Mesh(this.geo, mat);
+      const mesh = new THREE.Mesh(this.geo, this.mat);
       mesh.position.set(x, groundY(x, z), z);
       this.scene.add(mesh);
       const tier = tierAt(x, z);
       const hp = GUARD.hp * (1 + GUARD.hpPerTier * tier);
-      guards.push({ postX: x, postZ: z, x, z, mesh, mat, s,
-                    fac: s.faction ?? null, cd: i * 0.4, hp, maxHp: hp, down: 0 });
+      guards.push({ postX: x, postZ: z, x, z, mesh, cd: i * 0.4, hp, maxHp: hp, down: 0 });
     }
     this.built.set(s.id, guards);
   }
@@ -92,13 +83,10 @@ export class Guards {
     this.built.delete(id);
   }
 
-  /** True when the player is close enough to a guard that kills should not pay. HOSTILE
-   *  towns' guards don't count: the dead zone exists so a friendly detachment can't farm
-   *  the frontier for you, and a rival garrison is farming nothing on your behalf — without
-   *  this exemption every raid kill inside a rival town would pay zero. */
+  /** True when the player is close enough to a guard that kills should not pay. Only
+   *  neutral ground has guards now, so this never taxes a raid. */
   inDeadZone() {
     for (const g of _live) {
-      if (isHostileSanctuary(g.s)) continue;
       if (Math.hypot(player.x - g.x, player.z - g.z) < GUARD.deadZone) return true;
     }
     return false;
@@ -126,18 +114,17 @@ export class Guards {
     for (const g of _live) {
       if (g.down > 0) {
         g.down -= dt;
-        if (g.down <= 0) { g.hp = g.maxHp; g.mesh.material = g.mat; }
+        if (g.down <= 0) { g.hp = g.maxHp; g.mesh.material = this.mat; }
         continue;
       }
 
       // Anything in melee range is hitting them. Guards are worn down by numbers, which is
-      // what makes a big camp at the gate a problem you still have to solve.
-      // A guard never counts or shoots its own COLOUR — the town's faction creatures (and
-      // its raid defenders) are its own side, not a siege.
+      // what makes a big camp at the gate a problem you still have to solve. A town's
+      // GARRISON is never a target — defenders are a town's own people, not a siege.
       let pressing = 0;
       let best = null, bd = GUARD.range;
       for (const e of mobs.entities()) {
-        if (g.fac !== null && (e.faction === g.fac || e.defender)) continue;
+        if (e.defender) continue;
         const d = Math.hypot(e.x - g.x, e.z - g.z);
         if (d < GUARD.meleeRange) pressing++;
         if (d < bd) { bd = d; best = e; }

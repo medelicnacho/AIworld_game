@@ -35,6 +35,18 @@ test("more towns than before, growing with depth, capped", () => {
   assert.ok(townCount(9) <= SETTLE.townCap, "and the cap holds");
 });
 
+test("the garrison is a BIG group with all three jobs in it", () => {
+  // "Reading a garrison is the same skill as reading the field" only holds if the garrison
+  // actually carries the field's vocabulary: bodies that close, bodies that stand and cast,
+  // bodies that wind up and charge. And it must be a GROUP — a town guarded by three people
+  // reads as abandoned, not defended.
+  assert.ok(RAID.melee >= 2, "a line of melee bodies");
+  assert.ok(RAID.ranged >= 2, "casters behind them");
+  assert.ok(RAID.chargers >= 1, "and at least one charger to fear");
+  assert.ok(RAID.melee + RAID.ranged + RAID.chargers >= 8,
+    "the garrison must read as a big group, not a patrol");
+});
+
 test("the sack is a RAID, not a faucet: rebuild long, loot real, champions ranked", () => {
   // The rebuild timer is what separates 'raiding' from 'farming one poor village forever'.
   assert.ok(RAID.rebuild >= 300, "a sacked town must stay down for minutes, not moments");

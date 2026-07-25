@@ -199,19 +199,26 @@ export class Mobs {
     // The wind-up telegraph is a VIBRATION now (see render()), not a colour swap — so a
     // caster or charger keeps its faction colour the whole time and you never lose track of
     // whose side it is on while it is about to fire.
+    const base = this.factionCols[(e.faction || 0) % this.factionCols.length];
     const n = e.affixes?.length || 0;
-    if (n === 1) return this.affixColor(e.affixes[0]);
-    if (n > 1) {
-      const span = 0.9;                       // seconds per affix in the cycle
-      const t = (now / (span * 1000)) % n;
-      const a = this.affixColor(e.affixes[Math.floor(t)]);
-      const b = this.affixColor(e.affixes[(Math.floor(t) + 1) % n]);
+    if (n > 0) {
+      // AFFIXES NO LONGER STEAL THE BODY. An affixed star used to wear its affix colour
+      // outright — which meant the "special" mobs were the one thing on the field NOT
+      // wearing their faction's colour, and the war stopped being readable exactly where
+      // reading it mattered most. Now the cycle is ANCHORED: faction colour → affix →
+      // faction colour → next affix — allegiance is the home key the tint keeps returning
+      // to, and the affix is a flourish on top rather than a new identity.
+      const seq = [base];
+      for (const id of e.affixes) seq.push(this.affixColor(id));
+      const span = 0.9;                       // seconds per step in the cycle
+      const t = (now / (span * 1000)) % seq.length;
+      const a = seq[Math.floor(t)];
+      const b = seq[(Math.floor(t) + 1) % seq.length];
       const f = t % 1;
-      // Hold each colour, then snap across quickly: readable as "orange AND blue", not mud.
+      // Hold each colour, then snap across quickly: readable as "blue AND burning", not mud.
       return this._affixCol.copy(a).lerp(b, Math.max(0, Math.min(1, (f - 0.75) * 4)));
     }
     // Shape already says WHAT it is; colour says WHOSE side it's on. Elites glow brighter.
-    const base = this.factionCols[(e.faction || 0) % this.factionCols.length];
     if (e.elite) return this._factionElite.copy(base).lerp(this._white, 0.4);
     return base;
   }
@@ -438,9 +445,7 @@ export class Mobs {
     if (!MOB.factionWar) return null;
     let best = null, bd = range;
     for (const o of nearby(e.x, e.z, range)) {
-      // Defenders are also not war TARGETS: their deaths must all belong to the raid (the
-      // sack counts kills), and a garrison whittled by passing camps would sack itself.
-      if (o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction || o.defender) continue;
+      if (o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction) continue;
       const d = Math.hypot(o.x - e.x, o.z - e.z);
       if (d < bd) { bd = d; best = o; }
     }
@@ -456,6 +461,10 @@ export class Mobs {
     target.aggroT = MOB.loseInterest;
     if (target.hp <= 0) {
       runAffix(target, "onDeath", this.fx);
+      // A defender that falls in the WAR still counts toward the sack: if a rival camp
+      // whittles a garrison and you deal the finishing blows, the town fell and you took
+      // it — using the war as a weapon is play, not an exploit.
+      if (target.defender) this.onDefenderKill?.(target);
       this.deathPop(target.x, target.y, target.z, this.factionColor(target));
       this.despawn(target.id);
     }
@@ -668,7 +677,9 @@ export class Mobs {
     // Hostiles cannot enter a sanctuary AT ALL — not blocked by the wall, barred from the
     // ground. The wall makes it read as a refuge; this makes it be one. A safe zone that
     // leaks through the gateway would be worse than none, because you'd stop trusting it.
-    const ward = sanctuaryOf(e.x, e.z, 2) ? null : true;
+    // Town DEFENDERS are exempt: the sanctuary is their home. Without this, a garrison
+    // that stepped outside the walls to answer a siege could never walk back in.
+    const ward = (e.defender || sanctuaryOf(e.x, e.z, 2)) ? null : true;
     for (const turn of [0, MOB.avoidArc * 0.5, -MOB.avoidArc * 0.5, MOB.avoidArc,
                         -MOB.avoidArc, MOB.avoidArc * 1.6, -MOB.avoidArc * 1.6]) {
       const c = Math.cos(turn), s = Math.sin(turn);
@@ -792,15 +803,16 @@ export class Mobs {
       // The target that OVERRIDES you: a gate guard, or — the war — the nearest enemy-faction
       // mob. You still win priority when you're the closest threat and have been noticed, so
       // walking into a melee pulls them onto you; otherwise the two camps fight each other.
-      // Town DEFENDERS never fight gate guards (theirs or anyone's) and sit out the faction
-      // war below — they hold their town against YOU, and nothing else distracts them.
-      const guard = e.defender ? null : guardNear(e.x, e.z, undefined, e.faction);
+      // Town DEFENDERS are never taunted onto gate guards — but they DO fight the faction
+      // war below: a garrison that watches an enemy camp walk past its gate isn't guarding
+      // anything, and a siege the garrison answers is the war made visible at a town.
+      const guard = e.defender ? null : guardNear(e.x, e.z);
       // The war target is the expensive part (a spatial scan), so it's THROTTLED: recompute
       // the nearest enemy only every ~0.2s (staggered per mob), and between recomputes just
       // re-validate the cached one. Combat doesn't need frame-perfect target picking, and this
       // is what keeps a big battle from scanning n² enemies every frame.
       let warFoe = null;
-      if (MOB.factionWar && !guard && !e.defender) {
+      if (MOB.factionWar && !guard) {
         e.warThink = (e.warThink || 0) - dt;
         if (e.warThink <= 0) {
           e.warThink = 0.2 + this.rng() * 0.2;
@@ -835,7 +847,9 @@ export class Mobs {
         // The leash is on HOME, not on you. Run far enough and they turn back — they have
         // somewhere to be, and it isn't wherever you happen to be standing.
         if (homeD > MOB.leashRange || e.aggroT <= 0) e.aggro = false;
-      } else if (!alliedToPlayer && dist < noticeR) {
+      } else if (!alliedToPlayer && !e.noAggroPlayer && dist < noticeR) {
+        // noAggroPlayer: the garrison of a town that is not YOUR enemy (a neutral visitor,
+        // or before you have picked a side) watches you pass. It still fights the war.
         e.aggro = true;
         e.aggroT = MOB.loseInterest;
         this.alert(e);

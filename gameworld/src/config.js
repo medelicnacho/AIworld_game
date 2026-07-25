@@ -76,10 +76,12 @@ export const RING_WIDEN = 0.25;
 // tier 1 outward that grows as you go. So the frontier gets denser AND grander.
 export const SETTLE = {
   townsBase: 1,           // tier 0: the spawn town, alone
-  // Town count per tier is 3 + 3t (see townCount) — always a MULTIPLE OF THREE, so the three
+  // Town count per tier is 3 + 6t (see townCount) — always a MULTIPLE OF THREE, so the three
   // faction colours deal out evenly and every ring is guaranteed all three: wherever you
   // stand, your people are nearby, and so are your enemies. The map itself is the war.
-  townCap: 18,
+  // It climbs STEEPLY with depth: the outer bands are physically wider, and a frontier that
+  // thins out as you push into it reads backwards — the deep should feel contested.
+  townCap: 30,
   cityFromTier: 1,
   cityScale: 1.55,        // city radius = RADIUS * (cityScale + cityGrow * tier)
   cityGrow: 0.32,
@@ -643,9 +645,15 @@ export const GUARD = {
 // kill order becomes a decision), and the QUARTERMASTER is the boss (a charge you already
 // know to fear, and the most health in town). Soldiers fill out the line.
 export const RAID = {
-  engage: 90,            // defenders muster when you come this close to a rival town
-  notice: 44,            // and they see an intruder from further than a wild mob would
-  soldiers: 4,           // the line infantry, plain mobs of the town's colour
+  engage: 90,            // the garrison musters when you come this close to a faction town
+  notice: 44,            // and it sees an intruder from further than a wild mob would
+  // THE GARRISON — every faction town has one, yours included, bunched at the gate: a big
+  // group in the town's colour that fights the faction war for real. Yours fight beside you;
+  // a rival's are the raid. The mix is the mob vocabulary you already know: melee bodies,
+  // casters, and chargers, so reading a garrison is the same skill as reading the field.
+  melee: 4,
+  ranged: 3,
+  chargers: 2,
   soldierHp: 1.5,
   adeptHp: 3,            // champions are multiples of the ring's base mob health
   herbHp: 3.5,

@@ -15,16 +15,24 @@ import { groundY } from "../world/gen.js";
 import { sanctuariesNear } from "../world/sanctuary.js";
 import { GOODS } from "../ui/shop.js";
 import { mulberry32 } from "../rng.js";
-import { isHostileSanctuary } from "../prog/factions.js";
+import { isHostileSanctuary, FACTIONS } from "../prog/factions.js";
+
+// A SMALL faction town wears its colours on its PEOPLE: keepers and the smith are tinted the
+// town's war colour, so the whole settlement reads as one allegiance from across a field.
+// The working vendors stay legible by KEEPING their trade colours — green herbalist, black
+// adept — and the quartermaster goes RED: the one desk that matters most in a faction town,
+// wearing the one colour no faction owns. Cities stay as they are — grayish civilians with
+// the three war-coloured desks side by side — because neutral ground should look neutral.
+// (Iron's black is lifted a shade, same as its guards, so a town of them reads at distance.)
+const TOWN_TINT = { 0: 0x32323a, 1: 0x3f6fd1, 2: 0x4fae5a };   // war-colour space
+const QM_TOWN_RED = 0xd23c3c;
 
 // Who lives here. What they actually SELL is a table in ui/shop.js (GOODS), keyed by these
 // role keys — stock is data, so adding wares never touches this file or the game loop.
 export const ROLES = [
   { key: "herbalist", name: "Herbalist", color: 0x63d1a0 },
   { key: "smith", name: "Smith", color: 0xd8b06a },
-  // Arcane purple, no longer black — iron's war colour IS black now, and two different people
-  // wearing the same colour in one town teaches a lie.
-  { key: "adept", name: "Adept", color: 0x7a5cd6 },
+  { key: "adept", name: "Adept", color: 0x14141c },   // black: the one who sells abilities
   { key: "keeper", name: "Keeper", color: 0x8fa6c4 },
   // QUARTERMASTERS. One per faction, and they are the only people in the world who can take
   // you into one or sell you its kit. A TOWN gets the one whose colour it flies; a CITY keeps
@@ -97,6 +105,10 @@ export class Villagers {
     // town to find one at a time. A short row on a fixed radius and heading, close enough to
     // stand shoulder to shoulder but spaced so they never overlap: findable, comparable, and
     // the same spot every time.
+    // The town's tint (small faction towns only): civilians wear the colour, vendors keep
+    // their trades, the quartermaster turns red. See TOWN_TINT above.
+    const townCol = (!neutral && !hostile && s.faction !== null && s.faction !== undefined)
+      ? TOWN_TINT[FACTIONS[s.faction % FACTIONS.length].ally] : null;
     const qmRoles = roles.filter((k) => QM.includes(k));
     const qmCount = qmRoles.length;
     const QM_RAD = Math.max(6, Math.min(15, s.rMin - 12));
@@ -111,8 +123,16 @@ export class Villagers {
         ? QM_HEADING + (qmSeen - (qmCount - 1) / 2) * QM_SPACING
         : rng() * Math.PI * 2;
       if (isQm) qmSeen++;
+      // Colour override, town scheme: civilians carry the flag, the QM desk goes red,
+      // herbalist and adept keep the trade colours you learned in the spawn town.
+      let col = null;
+      if (townCol !== null) {
+        if (isQm) col = QM_TOWN_RED;
+        else if (key === "keeper" || key === "smith") col = townCol;
+      }
       folk.push({
         role: ROLES[ri], ri, s,
+        col: col !== null ? new THREE.Color(col) : null,
         ang,
         rad: isQm ? QM_RAD : 4 + rng() * Math.max(4, s.rMin - 9),
         spd: isQm ? 0 : (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.05),
@@ -193,7 +213,7 @@ export class Villagers {
       this._q.setFromAxisAngle(this._up, -v.ang);
       this._m.compose(this._p.set(v.x, v.y, v.z), this._q, this._s);
       this.mesh.setMatrixAt(i, this._m);
-      this.mesh.setColorAt(i, this._colors[v.ri]);
+      this.mesh.setColorAt(i, v.col || this._colors[v.ri]);
       i++;
     }
     this.mesh.count = i;
