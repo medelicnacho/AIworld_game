@@ -82,7 +82,10 @@ export const WARCRY = {
   // Per war-colour: piper model, synth pace, and a post-synth playbackRate — the cheap
   // monster-maker: Iron growls low and slow, Vale yips high and quick.
   voices: {
-    0: { model: "en_GB-northern_english_male-medium.onnx", pace: 0.92, rate: 0.85 },  // Iron
+    // Iron retuned in play: 0.85 rate made a growl but ATE THE WORDS — a threat you
+    // can't parse is just noise. The northern voice is gruff on its own; slow it down
+    // for weight (pace) and barely shift the pitch. Menace must stay legible.
+    0: { model: "en_GB-northern_english_male-medium.onnx", pace: 1.02, rate: 0.94 },  // Iron
     1: { model: "en_US-ryan-medium.onnx", pace: 0.85, rate: 1.02 },                   // Ash
     2: { model: "en_US-amy-medium.onnx", pace: 0.8, rate: 1.12 },                     // Vale
   },
