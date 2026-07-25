@@ -159,9 +159,15 @@ export function tooSimilar(a, b) {
 export function cleanLine(raw) {
   if (!raw) return null;
   const t = raw
+    .replace(/[’‘]/g, "'")               // curly apostrophes become straight ones FIRST —
+                                         // stripping them as quotes turned "don't" into
+                                         // "don", and the wreckage was SPOKEN ("this war
+                                         // won end tonight"). A contraction is a word.
     .replace(/\*[^*]*\*/g, " ")          // *sighs*
     .replace(/\([^)]*\)/g, " ")          // (hums softly)
-    .replace(/["“”‘’'`]/g, " ")
+    .replace(/["“”`]/g, " ")
+    .replace(/(^|[^a-zA-Z])'/g, "$1 ")   // apostrophes that AREN'T inside a word are
+    .replace(/'(?![a-zA-Z])/g, " ")      // quote marks; the ones in "don't" stay put
     .replace(/[^\x20-\x7E]/g, " ")       // emoji, smart punctuation, anything non-ASCII
     .replace(/\s+/g, " ")
     .trim();

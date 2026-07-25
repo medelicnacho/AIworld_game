@@ -57,3 +57,15 @@ test("a paraphrase is not a reply — the parrot guard", async () => {
     "The soup wants salt.",
     "The soup wants salt again, always salt."), true);
 });
+
+test("contractions SURVIVE the scrubber — a curly apostrophe is not a quote mark", async () => {
+  const { cleanLine } = await import("./voice.js");
+  // The bug this pins, transcribed from a live session: "don't" became "don" and the
+  // wreckage was spoken aloud ("Spinning rings don fill bellies").
+  assert.equal(cleanLine("Spinning rings don’t fill bellies, just hungry ghosts."),
+    "Spinning rings don't fill bellies, just hungry ghosts.");
+  assert.equal(cleanLine("this endless war won’t end tonight."),
+    "this endless war won't end tonight.");
+  // While straight quotes used AS quotes still go.
+  assert.equal(cleanLine("'The gate holds', she said."), "The gate holds she said.");
+});
