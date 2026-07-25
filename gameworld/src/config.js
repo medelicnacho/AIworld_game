@@ -91,15 +91,15 @@ export const WARCRY = {
     "Your mom is lame!",
     "You like doodoo!",
     "I poo and pee on your face!",
-    "You're a homo sapien!",
+    "You're a homosapien!",
     "Go back to stupid school!",
     "I am going to own you, noob!",
     "Super ultra power boost!",
     "You smell of poo!",
-    "You're going to get some dirt in your eye!",
+    "I'm gonna put some dirt in your eye!",
     "I know kung fu!",
     "Run home, little wanderer!",
-    "Crawl back to your walls!",
+    "Crawl back to your mommy!",
   ],
   tauntChance: 0.5,       // odds a cry slot uses the floor instead of a baked line
   // EVERY CLAN TAUNTS IN ITS OWN THROAT: taunts bake per faction through the same
