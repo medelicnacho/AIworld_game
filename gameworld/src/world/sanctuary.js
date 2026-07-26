@@ -16,7 +16,6 @@ import * as THREE from "three";
 import { WORLD_SEED, SETTLE } from "../config.js";
 import { hash2, mulberry32 } from "../rng.js";
 import { groundY, rawHeight, tierStart, tierWidth, tierAt, setFlattenLookup, setSkyPlatformLookup } from "./gen.js";
-import { RELIEF } from "../config.js";
 
 export const RADIUS = 46;         // a town you walk around inside, not a pen
 export const WALL_T = 1.7;        // wall thickness
@@ -191,29 +190,6 @@ export function tierSettlements(t) {
       town.faction = (i + facOff) % 3;
       out.push(town);
     }
-    // AND THE SKY GETS ITS OWN. Added to the ring rather than taken out of it, on bearings
-    // offset half a slot from the ground towns so a sky town is rarely directly over one —
-    // the point is somewhere new to go, not a second storey on a place you already know.
-    // Their altitudes are dealt across the lower decks so the climb has counters at every
-    // stage of it rather than a single shelf of shops.
-    // A MULTIPLE OF THREE, like the ground count, so the colours deal out evenly here too —
-    // a ring that hands the sky to one faction is a ring where a player of the wrong colour
-    // finds no counter anywhere above the land.
-    const nSky = Math.max(3, Math.round(n * SETTLE.skyTowns / 3) * 3);
-    for (let i = 0; i < nSky; i++) {
-      const ang = ((i + 0.5) / nSky) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / nSky) * 0.6;
-      const r = lo + w * (0.15 + rng() * 0.7);
-      const deck = i % SETTLE.skyDeckSpread;
-      // Inside its deck rather than at the floor of it, so towns are not all on one level.
-      // Well clear of the tallest land (TERRAIN_CAP is 78), so a sky town is never at an
-      // altitude a ground town could also be at — which is what lets everything else treat
-      // "same height" as "same place" without a special case.
-      const y = Math.round(RELIEF.island.baseY + deck * RELIEF.deckH
-        + RELIEF.deckH * (0.62 + rng() * 0.3));
-      const town = build(`t${t}-sky${i}`, Math.cos(ang) * r, Math.sin(ang) * r, RADIUS, rng, false, y);
-      town.faction = (i + facOff + 1) % 3;
-      out.push(town);
-    }
     if (t >= SETTLE.cityFromTier) {
       // THE CITY HAS TO LOOK WHERE IT IS STANDING.
       //
@@ -250,6 +226,49 @@ export function tierSettlements(t) {
       }
       out.push(build(`t${t}-city`, best.x, best.z, cr, rng, true));
     }
+    // AND THE SKY GETS ITS OWN — placed LAST, after the city.
+    //
+    // Order matters because placement is a seeded stream: generating the sky towns first
+    // shifted every draw the city's search makes, and it landed eight units too close to one
+    // of its own ring's towns. The sky has no bearing on where a city goes, so it should have
+    // no bearing on the numbers that decide it either.
+    //
+    // Added to the ring rather than taken out of it, on bearings
+    // offset half a slot from the ground towns so a sky town is rarely directly over one —
+    // the point is somewhere new to go, not a second storey on a place you already know.
+    // Their altitudes are dealt across the lower decks so the climb has counters at every
+    // stage of it rather than a single shelf of shops.
+    // A MULTIPLE OF THREE, like the ground count, so the colours deal out evenly here too —
+    // a ring that hands the sky to one faction is a ring where a player of the wrong colour
+    // finds no counter anywhere above the land.
+    const nSky = Math.max(3, Math.round(n * SETTLE.skyTowns / 3) * 3);
+    for (let i = 0; i < nSky; i++) {
+      const ang = ((i + 0.5) / nSky) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / nSky) * 0.6;
+      const r = lo + w * (0.15 + rng() * 0.7);
+      // ALTITUDE FROM THE GOLDEN RATIO, not from a roll and not from a deck index.
+      //
+      // Two things must be true at once, and a plain random draw gives neither reliably.
+      // Heights must VARY — snapped to three narrow shelves a deck apart they read as one
+      // place, and that place too high. And NEIGHBOURS must differ, because two towns on
+      // adjacent bearings at the same height would overlap and the ring is crowded now.
+      // Stepping by the golden ratio does both by construction: the sequence never repeats,
+      // fills the range evenly, and consecutive terms are always far apart.
+      //
+      // Then biased downward, so most sky towns are a climb rather than an expedition and the
+      // high ones are the exception you go looking for. Always well clear of the tallest land
+      // (TERRAIN_CAP is 78), so a sky town is never at an altitude a ground town could also
+      // be at — which is what lets everything else treat "same height" as "same place".
+      // Offset by half a step so index 0 does not sit at the very bottom of the sequence.
+      // It did, and index 0's bearing WRAPS AROUND to sit beside the last town's — so the one
+      // pair the golden ratio cannot separate is exactly the pair that ends up adjacent.
+      const frac = ((i + 0.5) * 0.6180339887498949) % 1;
+      const y = Math.round(SETTLE.skyLow + Math.pow(frac, SETTLE.skyLowBias) * SETTLE.skySpan);
+      const town = build(`t${t}-sky${i}`, Math.cos(ang) * r, Math.sin(ang) * r,
+                         SETTLE.skyRadius, rng, false, y);
+      town.faction = (i + facOff + 1) % 3;
+      out.push(town);
+    }
+
   }
   _tiers.set(t, out);
   return out;
@@ -276,9 +295,22 @@ export function homeOfTier(t) {
  * inherited that.
  */
 export function sanctuaryUnder(x, y, z, margin = 0) {
-  const s = sanctuaryOf(x, z, margin);
-  if (!s) return null;
-  return y <= settlementFloorAt(x, z) + SETTLE.roof ? s : null;
+  // Asked of EVERY settlement over this column rather than of whichever one sanctuaryOf
+  // happened to name first. Sky towns and ground towns overlap on the map now — that is the
+  // point of building upward — so a column can be inside two of them at once, and "which
+  // town's floor is this" has no single answer. Each is asked about its OWN band instead.
+  for (const s of sanctuariesNear(x, z, 0)) {
+    const dx = x - s.x, dz = z - s.z;
+    const dd = Math.hypot(dx, dz);
+    if (dd > s.rMax + margin) continue;
+    if (dd > boundaryAt(s, Math.atan2(dz, dx)) + margin) continue;
+    // A BAND, not a lid. Bounding only the top made the ground far beneath a sky town count
+    // as inside it — safe from everything, while the frontier down there went on spawning
+    // camps and bosses around you, because those ask a different question entirely.
+    const f = s.plateau + 1;
+    if (y <= f + SETTLE.roof && y >= f - SETTLE.cellar) return s;
+  }
+  return null;
 }
 
 /** Which sky town's platform covers this column, or null. */

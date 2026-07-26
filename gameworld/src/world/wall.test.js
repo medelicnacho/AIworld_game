@@ -87,3 +87,26 @@ test("outside a town, height changes nothing", () => {
     assert.equal(sanctuaryUnder(far.x, groundY(far.x, far.z) + y, far.z), null);
   }
 });
+
+// UNDER A TOWN IS NOT IN IT. The roof test bounded only the top, so the ground far beneath a
+// sky town counted as inside its walls: nothing could hurt you there, while the frontier
+// around you went on spawning camps and bosses, because those ask a different question.
+test("a sky town protects its platform, not the world beneath it", () => {
+  const sky = tierSettlements(2).find((s) => s.sky);
+  assert.ok(sky, "tier 2 must have a sky town to test");
+  const floor = sky.plateau + 1;
+  assert.ok(sanctuaryUnder(sky.x, floor, sky.z), "standing in its square is in town");
+  assert.ok(sanctuaryUnder(sky.x, floor + SETTLE.roof - 2, sky.z), "and just under its roof");
+  assert.equal(sanctuaryUnder(sky.x, floor - SETTLE.cellar - 2, sky.z), null,
+    "just below its slab is already outside");
+  assert.equal(sanctuaryUnder(sky.x, groundY(sky.x, sky.z), sky.z), null,
+    "and the LAND beneath it is open frontier, not a refuge");
+});
+
+test("a town on the ground is unchanged by any of this", () => {
+  const s = tierSettlements(1).find((q) => !q.sky && !q.city);
+  const g = groundY(s.x, s.z);
+  assert.ok(sanctuaryUnder(s.x, g, s.z), "you are in town when you are in town");
+  assert.ok(sanctuaryUnder(s.x, g + 4, s.z), "and while you are jumping in it");
+  assert.equal(sanctuaryUnder(s.x, g + SETTLE.roof + 4, s.z), null, "the sky above it is sky");
+});

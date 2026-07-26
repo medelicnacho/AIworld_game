@@ -524,6 +524,13 @@ export const SETTLE = {
   // from inside (the walls are 10 tall and a double jump adds 2.5), so ordinary play never
   // touches it.
   roof: 24,
+  // ...and how far BELOW its floor still counts as being in it. A town is a slab of space,
+  // not a half-space with a lid: bounding only the top meant standing on the ground under a
+  // sky town put you inside its walls two hundred blocks down, so nothing could hurt you
+  // there — while the frontier around you carried on spawning camps and bosses, because
+  // those ask a different question. Small, because it only has to cover a dip inside the
+  // walls, not the whole sky beneath them.
+  cellar: 8,
   /**
    * SKY TOWNS. Settlements standing on their own flat platform up in the archipelago —
    * the same towns, with the same quartermasters, the same standing and the same counters.
@@ -532,12 +539,23 @@ export const SETTLE = {
    * every town it had, and the sky gets its own. Without them the whole climb is a place to
    * fight with nowhere to spend anything, and you have to come all the way down to sell.
    */
-  // TWO AND A HALF TIMES the ground count. The sky is enormously bigger than the land — it
-  // is the same ring area repeated at every deck — so matching the ground's count spread them
-  // hundreds of units apart in a place where fog closes at 106 and you cannot see one until
-  // you are almost standing on it.
-  skyTowns: 2.5,
-  skyDeckSpread: 3,     // how many decks up they are scattered through
+  // FIVE TIMES the ground count. The sky is enormously bigger than the land — the same ring
+  // area repeated at every altitude — and fog closes at about 106, so you cannot see one
+  // until you are nearly standing on it. It has to be crowded to be findable at all.
+  skyTowns: 5,
+  // The band they are scattered through, measured from just clear of the tallest land. They
+  // used to be snapped to three narrow shelves one deck apart, which read exactly as Luke
+  // described it — one spot, and that spot far too high. Continuous now, and biased LOW
+  // (skyLowBias), so most of them are a climb rather than an expedition and the high ones are
+  // the exception you go looking for.
+  // A SKY TOWN IS A COMPACT OUTPOST, not a full town. At the ground's radius, forty-five of
+  // them in a ring needed 154 units of separation and the ring only affords about 107 — so
+  // they either had to be rarer or smaller, and rare is the thing that made them unfindable
+  // in the first place. Small enough to fit, big enough to walk around in and hold a market.
+  skyRadius: 30,
+  skyLow: 88,
+  skySpan: 300,
+  skyLowBias: 1.8,
   cityFromTier: 1,
   cityScale: 1.55,        // city radius = RADIUS * (cityScale + cityGrow * tier)
   cityGrow: 0.32,

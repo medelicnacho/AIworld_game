@@ -10,6 +10,9 @@ import { tierSettlements, footprint, cityOfTier } from "./sanctuary.js";
 import { SETTLE } from "../config.js";
 
 const TIERS = 20;
+// Two settlements stop contending for space once their slabs and walls clear each other
+// entirely: RELIEF.skyPlatform of rock plus WALL_H of wall, and a little air.
+const SKY_CLEAR = 28;
 
 test("no settlement overlaps another in the same ring", () => {
   const bad = [];
@@ -21,7 +24,7 @@ test("no settlement overlaps another in the same ring", () => {
         // Two settlements only contend for ground if they are ON the same ground. A sky town
         // three hundred blocks over a field is not crowding it — that is the entire point of
         // building one up there.
-        if (Math.abs(a.plateau - b.plateau) > 40) continue;
+        if (Math.abs(a.plateau - b.plateau) > SKY_CLEAR) continue;
         const d = Math.hypot(a.x - b.x, a.z - b.z);
         const need = footprint(a) + footprint(b);
         if (d < need) bad.push(`${a.id} x ${b.id}: ${d.toFixed(0)} apart, needs ${need.toFixed(0)}`);
@@ -36,7 +39,7 @@ test("no settlement reaches into the next ring's", () => {
   for (let t = 0; t < TIERS; t++) {
     for (const a of tierSettlements(t)) {
       for (const b of tierSettlements(t + 1)) {
-        if (Math.abs(a.plateau - b.plateau) > 40) continue;
+        if (Math.abs(a.plateau - b.plateau) > SKY_CLEAR) continue;
         const d = Math.hypot(a.x - b.x, a.z - b.z);
         const need = footprint(a) + footprint(b);
         if (d < need) bad.push(`${a.id} x ${b.id}: ${d.toFixed(0)} apart, needs ${need.toFixed(0)}`);

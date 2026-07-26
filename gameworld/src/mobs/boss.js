@@ -84,7 +84,9 @@ export class Boss {
     if (this.alive) return null;
     // Never on holy ground. A boss inside the walls would be unkillable (weapons are
     // stowed in there) and would break the one promise a sanctuary makes.
-    if (sanctuaryOf(x, z, BOSS.contactRange + 12)) return null;
+    // Measured at the ground it will stand on: a boss may absolutely prowl the land beneath a
+    // sky town, which is open frontier, but never inside a settlement's own walls.
+    if (sanctuaryUnder(x, groundY(x, z), z, BOSS.contactRange + 12)) return null;
     const ring = Math.max(BOSS.spawnRing, tierAt(x, z));
     // Accelerates with depth like the trash, but on a gentler ramp — see BOSS.ramp.
     const hp = BOSS.hp * Math.pow(BOSS.hpGrowth, ringPressure(ring, BOSS.ramp));
@@ -323,7 +325,7 @@ export class Boss {
       const ux = dx / dist, uz = dz / dist;
       const nx = b.x + ux * BOSS.speed * dt;
       const nz = b.z + uz * BOSS.speed * dt;
-      if (!sanctuaryOf(nx, nz, BOSS.contactRange)) { b.x = nx; b.z = nz; }
+      if (!sanctuaryUnder(nx, groundY(nx, nz), nz, BOSS.contactRange)) { b.x = nx; b.z = nz; }
       b.y = groundY(b.x, b.z);
 
       if (dist < BOSS.contactRange && !overhead && b.contactCd <= 0 && player.iframes <= 0) {

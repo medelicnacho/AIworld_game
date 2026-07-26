@@ -568,15 +568,18 @@ export class Mobs {
     const d = MOB.spawnMin + this.rng() * (MOB.spawnMax - MOB.spawnMin);
     const hx = player.x + Math.cos(a) * d;
     const hz = player.z + Math.sin(a) * d;
+    // THE CAMP'S GROUND FIRST, because whether this is holy ground depends on which FLOOR the
+    // camp stands on. A sky town's walls do not sterilise the land two hundred blocks below
+    // them — that is ordinary frontier and should be thick with camps — but its own platform
+    // is a refuge like any other.
+    const packY = this.pickFloor(hx, hz);
     // Never make camp on holy ground — a refuge you have to clear isn't a refuge.
-    if (sanctuaryOf(hx, hz, MOB.homeWander + 14)) return null;
+    if (sanctuaryUnder(hx, packY, hz, MOB.homeWander + 14)) return null;
     const id = this.nextPack++;
     this.packs.set(id, { x: hx, z: hz });
 
     // A camp is either ordinary or a SWARM — mixing them would blur the silhouette read,
     // and reading the camp before you engage it is the whole point of having breeds.
-    // THE CAMP'S GROUND, chosen once here and worn by every body in it.
-    const packY = this.pickFloor(hx, hz);
     const isSwarm = this.rng() < MOB.swarmPackChance;
     const [lo, hi] = isSwarm ? MOB.swarmSize : MOB.packSize;
     const n = lo + Math.floor(this.rng() * (hi - lo + 1));
