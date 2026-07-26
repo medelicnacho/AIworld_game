@@ -506,6 +506,30 @@ export const RING_SIZE = 260;           // width of the FIRST band
 // thin shells. Band t is RING_SIZE * (1 + t*RING_WIDEN).
 export const RING_WIDEN = 0.25;
 
+/**
+ * WHERE THE DIFFICULTY RAMP LEVELS OFF — see ringPressure() in world/gen.js.
+ *
+ * The ramp was a pure quadratic: pressure = ring + ramp·ring·(ring−1). Mob HP is
+ * hpGrowth raised to that, so HP grew exponentially in a QUADRATIC while the player's damage
+ * grows exponentially in a LINE (damageGrowth per level). Two curves of different order can
+ * only ever diverge, and in an endless world (D9) there is no value of `ramp` that saves it —
+ * it just moves the wall further out. Measured on the cleaver in easy mode, a plain mob cost:
+ *
+ *     ring 2    0.8 swings          ring 10     224 swings
+ *     ring 7    8.2 swings          ring 12    3925 swings
+ *     ring 8   20.7 swings          ring 15  700662 swings
+ *
+ * which is exactly the "above level 35 it takes forever" this is answering.
+ *
+ * So the acceleration SATURATES. The extra pressure still climbs quickly through the early
+ * rings — where it is the whole reason the deep feels different — and then flattens into a
+ * straight line, which puts mob HP back on the same order as player damage. Depth still
+ * costs you: it grows about 1.16× per ring rather than 2.5×. It just stops being a wall.
+ *
+ * Lower = flattens sooner and gentler. This one number is the whole difficulty of the deep.
+ */
+export const RAMP_KNEE = 3;
+
 // How many settlements a band holds: towns double per tier (capped), plus one CITY from
 // tier 1 outward that grows as you go. So the frontier gets denser AND grander.
 export const SETTLE = {
