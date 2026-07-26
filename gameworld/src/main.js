@@ -25,7 +25,7 @@ import { rollGear, vendorPiece, sellValue, RARITY } from "./prog/gear.js";
 import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, isHostileSanctuary, servesYou, factionOfTown, playerColor } from "./prog/factions.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
-import { ringAt, tierAt, tierStart, groundY, solidAt } from "./world/gen.js";
+import { ringAt, tierAt, tierStart, groundY, solidAt, surfaceNear } from "./world/gen.js";
 import { Sanctuaries, sanctuariesNear, boundaryAt, homeOfTier, sanctuaryUnder } from "./world/sanctuary.js";
 import { attachInput, input, stepPlayer } from "./player/controller.js";
 import { CameraRig } from "./player/camera.js";
@@ -415,7 +415,10 @@ function dropPool(x, z, { r, dps, life, tick = 0.3, slowMul = 1, slowT = 0, root
   const old = spellPools.findIndex((p) => p.mesh === mesh);
   if (old >= 0) spellPools.splice(old, 1);
   mesh.material.color.setHex(color);
-  mesh.position.set(x, groundY(x, z) + 0.06, z);
+  // On the FLOOR IT LANDED ON, not on the land. groundY answers with the ground far below an
+  // island, so a pool thrown onto one was drawn hundreds of blocks underneath your feet — you
+  // could see the burst, take the damage, and never see where it was burning.
+  mesh.position.set(x, surfaceNear(x, z, player.y) + 0.06, z);
   mesh.scale.setScalar(r);
   mesh.visible = true;
   spellPools.push({ x, z, r, dps, t: life, tick, tk: 0, slowMul, slowT, rootT, mesh });

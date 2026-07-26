@@ -118,6 +118,22 @@ export function townCount(t) {
 function build(key, x, z, radius, rng, city, skyY = 0) {
   const corners = makeShape(rng, radius);
   const rMax = Math.max(...corners.map((c) => c.r));
+  // THE POLYGON'S TRUE INNER RADIUS — how close its WALL ever comes to the centre.
+  //
+  // Not the same thing as the smallest corner. An edge is a straight chord between two
+  // corners and passes NEARER the middle than either of them does; with a nine-corner town
+  // that midpoint sits well inside the nearest corner. The collision test used the smallest
+  // corner as an early-out and skipped anything closer, so every stretch of wall that dipped
+  // below it was a hole you walked straight through — measured at 28 units deep on a city.
+  let rInner = Infinity;
+  for (let i = 0; i < corners.length; i++) {
+    const A = corners[i], B = corners[(i + 1) % corners.length];
+    const ex = B.x - A.x, ez = B.z - A.z;
+    const len2 = ex * ex + ez * ez || 1;
+    // Closest approach of the segment A->B to the origin, clamped to the segment itself.
+    const tt = Math.max(0, Math.min(1, -(A.x * ex + A.z * ez) / len2));
+    rInner = Math.min(rInner, Math.hypot(A.x + ex * tt, A.z + ez * tt));
+  }
   return {
     // A SKY TOWN stands on its own slab instead of on the land. Everything else about it —
     // walls, faction, market, garrison — is identical, which is the point: it is a town, not
@@ -134,6 +150,7 @@ function build(key, x, z, radius, rng, city, skyY = 0) {
     // and showing a new player one option out of three is a bad way to introduce a choice.
     neutral: !!city,
     rMin: Math.min(...corners.map((c) => c.r)),
+    rInner,
     rMax,
     gate: rng() * Math.PI * 2,
     // EVERY settlement stands on levelled ground, not only cities. Towns used to sit on the
@@ -460,25 +477,33 @@ const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Mat
  * projectiles — it was only bodies that never learned.)
  */
 export function wallBlocksBody(x, y, z, bodyH = 0) {
-  if (!wallBlocks(x, z)) return false;
-  const g = settlementFloorAt(x, z) - 1;
+  // THE WALL'S OWN TOWN, not whatever settlement happens to cover this column. Sky towns and
+  // ground towns overlap on the map, so settlementFloorAt could answer with a platform two
+  // hundred blocks up while the wall in question stands on the land — and the height test
+  // then passed for nobody, leaving a stretch of wall you walked straight through.
+  const s = wallBlocks(x, z);
+  if (!s) return false;
+  const g = s.plateau;
   return y < g + WALL_H && y + bodyH > g - 1;
 }
 
+/** The settlement whose WALL stands at this point, or null. Returns the settlement rather
+ *  than a boolean so callers can ask about that town's own height — see wallBlocksBody. */
 export function wallBlocks(x, z) {
   // Range 0: sanctuariesNear already pads by each settlement's own rMax, so a wall test
   // only needs the ones it could possibly be standing in.
   for (const s of sanctuariesNear(x, z, 0)) {
     const dx = x - s.x, dz = z - s.z;
     const d = Math.hypot(dx, dz);
-    if (d < s.rMin - WALL_T || d > s.rMax + WALL_T) continue;
+    // rInner, not rMin — see build(). The smallest CORNER is not the closest the wall comes.
+    if (d < s.rInner - WALL_T || d > s.rMax + WALL_T) continue;
     const ang = Math.atan2(dz, dx);
     const R = boundaryAt(s, ang);
     if (d < R - WALL_T || d > R + WALL_T) continue;
     if (angDiff(ang, s.gate) < gateArc(R)) continue;   // the gate
-    return true;
+    return s;
   }
-  return false;
+  return null;
 }
 
 /**
@@ -494,8 +519,9 @@ export function wallRayDist(ox, oy, oz, dx, dy, dz, maxDist) {
   for (let t = STEP; t <= maxDist; t += STEP) {
     const x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
     // Above the parapet the shot clears the wall entirely — over the top is not through it.
-    if (y > settlementFloorAt(x, z) + WALL_H) continue;
-    if (wallBlocks(x, z)) return t;
+    // Measured against the wall's OWN town, for the same reason wallBlocksBody is.
+    const w = wallBlocks(x, z);
+    if (w && y <= w.plateau + WALL_H) return t;
   }
   return maxDist;
 }

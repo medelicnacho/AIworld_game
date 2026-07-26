@@ -110,3 +110,31 @@ test("a town on the ground is unchanged by any of this", () => {
   assert.ok(sanctuaryUnder(s.x, g + 4, s.z), "and while you are jumping in it");
   assert.equal(sanctuaryUnder(s.x, g + SETTLE.roof + 4, s.z), null, "the sky above it is sky");
 });
+
+// A POLYGON'S EDGES DIP INSIDE ITS CORNERS. The collision test used the smallest corner as an
+// early-out and skipped anything nearer, so every stretch of wall that passed closer than that
+// was a hole you walked straight through — measured at 28 units deep on a city.
+test("no stretch of any wall is inside the collision early-out", () => {
+  for (let t = 0; t <= 6; t++) {
+    for (const s of tierSettlements(t)) {
+      let minR = Infinity;
+      for (let i = 0; i < 720; i++) minR = Math.min(minR, boundaryAt(s, (i / 720) * Math.PI * 2));
+      assert.ok(s.rInner <= minR + 0.5,
+        `${s.id}: rInner ${s.rInner.toFixed(1)} claims more than the wall's true ${minR.toFixed(1)}`);
+    }
+  }
+});
+
+test("you cannot walk through a wall anywhere along it", () => {
+  const s = tierSettlements(1).find((q) => !q.city && !q.sky);
+  const g = groundY(s.x, s.z);
+  let solid = 0;
+  for (let i = 0; i < 720; i++) {
+    const ang = (i / 720) * Math.PI * 2;
+    const r = boundaryAt(s, ang);
+    const x = s.x + Math.cos(ang) * r, z = s.z + Math.sin(ang) * r;
+    if (wallBlocksBody(x, g, z, PLAYER.height)) solid++;
+  }
+  // Everything but the gateway has to stop you. One doorway is a few percent of the ring.
+  assert.ok(solid / 720 > 0.9, `only ${(solid / 720 * 100).toFixed(0)}% of the wall line blocks`);
+});
