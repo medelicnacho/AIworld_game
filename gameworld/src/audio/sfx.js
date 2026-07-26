@@ -1107,6 +1107,89 @@ export class Sfx {
     src.start(t); src.stop(t + dur);
   }
 
+  /**
+   * BEING HIT. The most important thing that can happen to you had no sound at all — the
+   * screen flashed red and you got shoved, and that was it.
+   *
+   * Three layers, because a body blow is three things at once: a SLAP (bright noise, gone in
+   * 40ms — the contact), a THUMP (a pitch falling from ~180Hz to ~55, distorted — the weight
+   * landing in your chest), and a GRUNT of low filtered noise under it that keeps the whole
+   * thing feeling organic rather than like a UI beep.
+   *
+   * It FALLS in pitch, always. That is the entire semantic difference between this and
+   * hitConfirm() twenty lines up, which rises. Rising is a reward; falling is a cost. Nobody
+   * has to be taught that, which is why it can carry the meaning while you are busy looking
+   * somewhere else.
+   *
+   * @param fromX,fromZ  where it came from — panned, at almost no distance falloff, because
+   *                     WHICH SIDE you were hit from is real information when you are
+   *                     surrounded and cannot see behind you.
+   * @param severity     0..1, the fraction of your health this took. Bigger hits are lower,
+   *                     longer and dirtier, so you can hear how much trouble you are in
+   *                     without reading a number.
+   */
+  playerHurt(fromX, fromZ, severity = 0.2, sustained = false) {
+    if (!this.on) return;
+    const t = this.t;
+    // TWO different rate limits, because there are two different kinds of damage and one
+    // number cannot serve both. The beam deals tiny amounts SIXTY TIMES A SECOND — ungated
+    // it is a buzzsaw — so it gets a slow pulse. Melee hits are discrete events, and when
+    // six mobs are on you, six hits is the single most useful thing the mix can tell you.
+    // They are gated only enough to stop same-frame pile-ups turning to mud, so a swarm
+    // sounds like a swarm: overlapping thumps from the sides they are actually on.
+    const gate = sustained ? 0.16 : 0.03;
+    if (t - (this._lastHurt || -9) < gate) return;
+    this._lastHurt = t;
+
+    const s = Math.max(0, Math.min(1, severity));
+    const dur = 0.16 + s * 0.2;
+    // A long reach means this is panned but effectively not attenuated: it is happening to
+    // YOUR body, wherever the thing that did it is standing.
+    const { input } = this.place(fromX, fromZ, 4000);
+    // Roughed up per hit so a flurry never sounds like one clip on repeat.
+    const jitter = 0.82 + this.rng() * 0.36;
+
+    // 1. THE SLAP — the contact itself. Short and bright or it reads as mud.
+    const slap = this.noise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2100 * jitter;
+    bp.Q.value = 0.8;
+    const sg = this.ctx.createGain();
+    sg.gain.setValueAtTime(0.0001, t);
+    sg.gain.linearRampToValueAtTime(0.32 + s * 0.2, t + 0.004);
+    sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    slap.connect(bp); bp.connect(sg); sg.connect(input);
+    slap.start(t); slap.stop(t + 0.08);
+
+    // 2. THE THUMP — the weight. Distorted, because clean sine is a notification and grit is
+    // a hit. Bigger hits start lower and land lower.
+    const o = this.ctx.createOscillator();
+    o.type = "triangle";
+    o.frequency.setValueAtTime((205 - s * 45) * jitter, t);
+    o.frequency.exponentialRampToValueAtTime((62 - s * 16) * jitter, t + dur);
+    const dist = this.distortion(12 + s * 40);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.0001, t);
+    og.gain.linearRampToValueAtTime(0.5 + s * 0.35, t + 0.006);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(dist); dist.connect(og); og.connect(input);
+    o.start(t); o.stop(t + dur + 0.03);
+
+    // 3. THE BODY — low noise under everything, so it lands in the chest instead of the ear.
+    const bod = this.noise();
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(700, t);
+    lp.frequency.exponentialRampToValueAtTime(120, t + dur);
+    const bg = this.ctx.createGain();
+    bg.gain.setValueAtTime(0.0001, t);
+    bg.gain.linearRampToValueAtTime(0.26 + s * 0.24, t + 0.008);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.9);
+    bod.connect(lp); lp.connect(bg); bg.connect(input);
+    bod.start(t); bod.stop(t + dur);
+  }
+
   whoosh() {
     if (!this.on) return;
     const t = this.t, dur = 0.26;

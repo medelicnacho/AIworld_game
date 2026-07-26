@@ -1136,7 +1136,9 @@ function drawBossBar() {
 }
 let hurtT = 0, killFeed = "";
 
-function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
+// `sustained` marks damage that arrives continuously rather than as a blow — only the beam,
+// today. It exists purely so the hurt sound can tell a burn apart from a punch.
+function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback, sustained = false) {
   if (player.iframes > 0) return;      // the dodge window actually pays out here
   // A sanctuary is safe — UNLESS it is a RIVAL faction's town. The mobs, the boss and the
   // projectiles each have their own behavioural guards, but those are about looking right;
@@ -1158,6 +1160,9 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
   player.hp -= amount * diff().incoming * (1 - armorDR(player.armor, tierAt(player.x, player.z)))
     * (1 - (player.graceMitigation || 0));       // early-game grace: fades out by ~level 8
   hurtT = 0.35;
+  // Severity is the fraction of your MAX health this took, so the sound scales with what it
+  // cost you rather than with a raw number that means nothing at level 30.
+  sfx.playerHurt(fromX, fromZ, amount * diff().incoming / Math.max(1, player.maxHp), sustained);
   markCombat();
   if (HEAL.breakOnDamage) heal.interrupt("hit");
   // Knockback, so a hit moves you and reads as physical rather than as a number ticking.
@@ -2022,7 +2027,7 @@ function frame(now) {
     (dmg, mx, mz) => { boss.engage(); damagePlayer(dmg, mx, mz, 7); },
     // The beam burns continuously, so it deals damage with NO knockback — being shoved
     // every frame while standing in it would fight the very movement it is demanding.
-    (dmg, bx, bz) => { boss.engage(); damagePlayer(dmg, bx, bz, 0); });
+    (dmg, bx, bz) => { boss.engage(); damagePlayer(dmg, bx, bz, 0, true); });
 
   // Impact shake — applied AFTER the rig sets the camera, so it perturbs the final pose
   // rather than fighting the rig's own smoothing.
