@@ -28,12 +28,16 @@ export function buildChunkGeometry(chunk) {
   // one band per ring, readable before anything in it tries to kill you.
   const tint = RINGS[ringAt(ox + CHUNK_X / 2, oz + CHUNK_Z / 2)].tint;
 
-  // Only as high as this chunk actually reaches. With the ceiling raised for the sky, most
-  // of a chunk's vertical range is empty air, and sweeping all of it to find nothing was
-  // pure cost — the mesher is run on every rebuild, not once.
-  let yTop = 0;
-  for (let i = blocks.length - 1; i >= 0; i--) if (blocks[i] !== AIR) { yTop = Math.floor(i / (CHUNK_X * CHUNK_Z)); break; }
+  // Only as high as this chunk actually reaches. Most of a 512-tall chunk is empty air, and
+  // sweeping it to find nothing is pure cost — the mesher runs on every rebuild. fillChunk
+  // already knows where it stopped, so it hands the number over rather than us hunting it.
+  const yTop = Math.min(CHUNK_Y - 1, chunk.yTop ?? CHUNK_Y - 1);
+  const layers = chunk.layers;
   for (let y = 0; y <= yTop; y++) {
+    // Skip a whole empty layer in one comparison instead of 256 of them. Above the land the
+    // sky is mostly nothing, so this is the difference between meshing what is there and
+    // walking every cubic metre of air between the decks.
+    if (layers && !layers[y]) continue;
     for (let z = 0; z < CHUNK_Z; z++) {
       for (let x = 0; x < CHUNK_X; x++) {
         const id = blocks[idx(x, y, z)];

@@ -70,6 +70,15 @@ let _flatten = null;
 export function setFlattenLookup(fn) { _flatten = fn; clearColumnCache(); }
 
 /**
+ * WHICH DECK of sky a height falls in. Deck 0 starts at the island layer's base and each is
+ * RELIEF.deckH tall; below the base everything is deck 0, so the land's own sky is unchanged.
+ * Negative decks would mean islands underground, which is what the hollows are for.
+ */
+export function deckOf(wy) {
+  return Math.max(0, Math.floor((wy - RELIEF.island.baseY) / RELIEF.deckH));
+}
+
+/**
  * A COLUMN CACHE for the two expensive per-column answers.
  *
  * Both heightAt and featuresAt are pure functions of (x, z) that cost half a dozen noise
@@ -86,11 +95,12 @@ const cX = new Int32Array(CACHE_N).fill(0x7fffffff);
 const cZ = new Int32Array(CACHE_N);
 const cH = new Int16Array(CACHE_N);
 const cF = new Array(CACHE_N);
+const cD = new Int16Array(CACHE_N).fill(-1);   // which DECK the cached features belong to
 const cHas = new Uint8Array(CACHE_N);
 const slot = (x, z) => ((x * 73856093) ^ (z * 19349663)) & CACHE_MASK;
 
 /** Dropped whenever the thing heightAt depends on changes — see setFlattenLookup. */
-function clearColumnCache() { cHas.fill(0); cX.fill(0x7fffffff); }
+function clearColumnCache() { cHas.fill(0); cX.fill(0x7fffffff); cD.fill(-1); }
 
 /**
  * Terrain height, with settlement plateaus levelled in. A settlement sits on flat ground and
@@ -185,20 +195,20 @@ export function ringAt(wx, wz) {
  * Returns null when the column is plain, which is most of them, so the common case costs a
  * comparison.
  */
-export function featuresAt(wx, wz, h) {
+export function featuresAt(wx, wz, h, deck = 0) {
   const int = (wx | 0) === wx && (wz | 0) === wz;
   let i = 0;
   if (int) {
     i = slot(wx, wz);
     // Only trust the features slot if it belongs to THIS column and has actually been filled.
-    if (cHas[i] && cX[i] === wx && cZ[i] === wz && cF[i] !== undefined) return cF[i];
+    if (cHas[i] && cX[i] === wx && cZ[i] === wz && cD[i] === deck && cF[i] !== undefined) return cF[i];
   }
-  const out = featuresRaw(wx, wz, h);
-  if (int) { cX[i] = wx; cZ[i] = wz; cH[i] = h; cHas[i] = 1; cF[i] = out; }
+  const out = featuresRaw(wx, wz, h, deck);
+  if (int) { cX[i] = wx; cZ[i] = wz; cH[i] = h; cHas[i] = 1; cF[i] = out; cD[i] = deck; }
   return out;
 }
 
-function featuresRaw(wx, wz, h) {
+function featuresRaw(wx, wz, h, deck) {
   const grow = Math.min(1, tierAt(wx, wz) / RELIEF.fullTier);
   if (grow <= 0) return null;              // the Commons keeps a plain sky and solid ground
 
@@ -207,21 +217,30 @@ function featuresRaw(wx, wz, h) {
 
   if (tierAt(wx, wz) >= I.fromTier) {
     const P = RELIEF.pebble;
+    // ONE DECK OF SKY. The same generator runs again every RELIEF.deckH blocks with the
+    // coordinates shifted, so each deck is a different archipelago made the same way — and
+    // there is no altitude at which islands stop. Climbing does not run out of world.
+    const D = RELIEF.deckH;
+    const deckBase = I.baseY + deck * D;
+    // The shift is what stops deck 3 from being deck 0 again a few hundred blocks up.
+    const sx = wx + deck * 811.7, sz = wz + deck * -523.3;
+
     // ALTITUDE FIRST, because it decides how CROWDED this piece of sky is. Both fields are
     // absolute rather than measured off the land — an island keyed to the ground beneath it
     // warps into a sheet draped over the hill instead of being a thing that broke off.
-    const slow = fbm(WORLD_SEED + 9901, wx * I.levelSlowScale, wz * I.levelSlowScale, 2);
-    const fast = fbm(WORLD_SEED + 5507, wx * I.levelScale, wz * I.levelScale, 2);
-    const lift = Math.pow(slow * 0.5 + 0.5, I.levelBias) * I.levelSlowSpan
+    const slow = fbm(WORLD_SEED + 9901, sx * I.levelSlowScale, sz * I.levelSlowScale, 2);
+    const fast = fbm(WORLD_SEED + 5507, sx * I.levelScale, sz * I.levelScale, 2);
+    const lift = Math.pow(slow * 0.5 + 0.5, I.levelBias) * (D * 0.72)
       + (fast * 0.5 + 0.5) * I.levelSpan;
-    const span = I.levelSlowSpan + I.levelSpan;
-    /** 0 at the bottom of the sky, 1 at the top — how much to relax a threshold by. */
-    const highness = (y) => Math.min(1, Math.max(0, (y - I.baseY) / span));
+    /** 0 at the bottom of THIS deck, 1 at its top — how much to relax a threshold by, plus a
+     *  standing bonus per deck so the sky keeps thickening the higher you climb, for ever. */
+    const stack = deck * RELIEF.deckThicken;
+    const highness = (y) => stack + Math.min(1, Math.max(0, (y - deckBase) / D));
 
     // A PLATFORM first — somewhere with room to fight on.
-    const platY = I.baseY + lift;
+    const platY = deckBase + lift;
     const thrI = I.thresh - highness(platY) * I.threshHigh;
-    const im = fbm(WORLD_SEED + 3301, wx * I.scale, wz * I.scale, 3);
+    const im = fbm(WORLD_SEED + 3301, sx * I.scale, sz * I.scale, 3);
     const iStr = Math.min(1, Math.max(0, (im - thrI) / (I.peak - thrI)));
     // Thickness from the mask, so the middle of an island is deep and its rim is a lip.
     let half = iStr > 0 ? (I.minThick + (I.thick - I.minThick) * iStr) * 0.5 : 0;
@@ -231,21 +250,30 @@ function featuresRaw(wx, wz, h) {
       // mask failed, which is most columns, so this costs one extra field on the common path
       // and nothing at all where an island already stands. It hangs below the platform layer
       // by its own amount, filling the lower air instead of adding one more shelf up top.
-      const dn = fbm(WORLD_SEED + 8813, wx * P.dropScale, wz * P.dropScale, 2);
+      const dn = fbm(WORLD_SEED + 8813, sx * P.dropScale, sz * P.dropScale, 2);
       const pebY = platY - (P.dropMin + (dn * 0.5 + 0.5) * P.dropSpan);
       const thrP = P.thresh - highness(pebY) * P.threshHigh;
-      const pm = fbm(WORLD_SEED + 6607, wx * P.scale, wz * P.scale, 2);
+      const pm = fbm(WORLD_SEED + 6607, sx * P.scale, sz * P.scale, 2);
       if (pm > thrP) { half = P.thick * 0.5; cy = pebY; }
       else {
         // ...and failing that, a MOTE: the smallest thing in the sky, scattered through the
         // whole height of it. Only reached when both larger tiers have already declined, so
         // it costs one field on the columns that would otherwise have had nothing at all.
         const M = RELIEF.mote;
-        const mn = fbm(WORLD_SEED + 2711, wx * M.dropScale, wz * M.dropScale, 2);
+        const mn = fbm(WORLD_SEED + 2711, sx * M.dropScale, sz * M.dropScale, 2);
         const moteY = platY - (M.dropMin + (mn * 0.5 + 0.5) * M.dropSpan);
         const thrM = M.thresh - highness(moteY) * P.threshHigh;
-        if (fbm(WORLD_SEED + 3121, wx * M.scale, wz * M.scale, 2) > thrM) {
-          half = M.thick * 0.5; cy = moteY;
+        if (fbm(WORLD_SEED + 3121, sx * M.scale, sz * M.scale, 2) > thrM) {
+          // Returned RIGHT HERE, before any shaping. A mote is one block; running it through
+          // the land's hills-and-spires pipeline turned footholds into towers and left only
+          // 2% of them actually one block tall, which is the opposite of a foothold.
+          const mLo = moteY - M.thick * 0.5;
+          if (mLo >= (deck === 0 ? h + I.gapMin : deckBase) && moteY + M.thick * 0.5 < deckBase + D) {
+            out = out || {};
+            out.iLo = mLo;
+            out.iHi = mLo + M.thick;
+          }
+          return out;
         }
       }
     }
@@ -269,8 +297,10 @@ function featuresRaw(wx, wz, h) {
       const under = cy - half
         - Math.abs(fbm(WORLD_SEED + 4409, wx * HILL_SCALE * 1.7, wz * HILL_SCALE * 1.7, 2))
           * I.underRough;
-      // Where the land has risen into where this one would sit there is simply no island.
-      if (under >= h + I.gapMin && top <= CHUNK_Y - 2 && top > under) {
+      // Deck 0 has to clear the LAND; every deck above only has to stay inside itself, so a
+      // high deck is never suppressed by a mountain hundreds of blocks below it.
+      const floorY = deck === 0 ? h + I.gapMin : deckBase;
+      if (under >= floorY && top <= CHUNK_Y - 2 && top > under && top < deckBase + D) {
         out = { iLo: under, iHi: top };
       }
     }
@@ -289,7 +319,7 @@ function featuresRaw(wx, wz, h) {
 }
 
 /** THE FILL FUNCTION (D15). Everything else in the engine reads the world through here. */
-export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz, h)) {
+export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz, h, deckOf(wy))) {
   if (wy < 0 || wy >= CHUNK_Y) return AIR;
   // THE SKY comes first: an island is the only thing that can be solid above the land.
   if (f && f.iHi !== undefined && wy >= f.iLo && wy <= f.iHi) {
@@ -314,9 +344,9 @@ export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz,
 
 /** The top of the island over this column, or null — what a spawner needs to put a body up
  *  there rather than on the land far below it. */
-export function islandTopAt(wx, wz) {
+export function islandTopAt(wx, wz, near = RELIEF.island.baseY) {
   const x = Math.floor(wx), z = Math.floor(wz);
-  const f = featuresAt(x, z, heightAt(x, z));
+  const f = featuresAt(x, z, heightAt(x, z), deckOf(near));
   return f?.iHi !== undefined ? Math.floor(f.iHi) + 1 : null;
 }
 
@@ -334,7 +364,9 @@ export function islandTopAt(wx, wz) {
 export function surfaceNear(wx, wz, yRef) {
   const x = Math.floor(wx), z = Math.floor(wz);
   const h = heightAt(x, z);
-  const f = featuresAt(x, z, h);
+  // The deck you are STANDING IN — a body four hundred blocks up is asking about the sky
+  // around it, not the deck above the land.
+  const f = featuresAt(x, z, h, deckOf(yRef));
   if (!f) return h + 1;
   let best = h + 1, bestD = Math.abs(yRef - (h + 1));
   const consider = (y) => {
@@ -367,22 +399,35 @@ export function fillChunk(cx, cz) {
   const blocks = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
   const heights = new Int16Array(CHUNK_X * CHUNK_Z);
   const ox = cx * CHUNK_X, oz = cz * CHUNK_Z;
+  // The highest solid voxel written, tracked as we go. The mesher needs it, and scanning a
+  // 512-tall chunk backwards to find it would cost more than building the chunk did.
+  let yTop = 0;
+  const topDeck = deckOf(CHUNK_Y - 1);
+  // Which Y layers have ANYTHING in them. A 512-tall chunk is overwhelmingly air, and the
+  // mesher walking 256 voxels of a layer to discover it is empty is the single biggest cost
+  // in building a chunk. Filling this as we go is free; using it skips those layers whole.
+  const layers = new Uint8Array(CHUNK_Y);
   for (let z = 0; z < CHUNK_Z; z++) {
     for (let x = 0; x < CHUNK_X; x++) {
       const h = heightAt(ox + x, oz + z);
-      const f = featuresAt(ox + x, oz + z, h);
+      const f = featuresAt(ox + x, oz + z, h, 0);
       heights[z * CHUNK_X + x] = h;
-      // TWO RUNS, not one sweep to the island's top. The gap between the land and the sky is
-      // thirty-odd voxels of guaranteed air, and walking it to write zero into an array that
-      // is already zero cost more than everything else here put together — 2.1ms a chunk
-      // against 0.4ms. Fill the land, then fill the island, and skip the sky between them.
-      for (let y = 0; y <= h; y++) blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, f);
-      if (f && f.iHi !== undefined) {
-        const lo = Math.max(0, Math.floor(f.iLo));
-        const hi = Math.min(CHUNK_Y - 1, Math.ceil(f.iHi));
-        for (let y = lo; y <= hi; y++) blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, f);
+      // RUN PER SOLID THING, never a sweep of the column. The air between the land and the
+      // sky — and between one deck and the next — is hundreds of voxels of guaranteed
+      // nothing, and walking it to write zero into an array that is already zero costs more
+      // than everything else here put together. Fill the land, then fill each deck's island,
+      // and skip every gap.
+      for (let y = 0; y <= h; y++) { blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, f); layers[y] = 1; }
+      if (h > yTop) yTop = h;
+      for (let d = 0; d <= topDeck; d++) {
+        const fd = d === 0 ? f : featuresAt(ox + x, oz + z, h, d);
+        if (!fd || fd.iHi === undefined) continue;
+        const lo = Math.max(0, Math.floor(fd.iLo));
+        const hi = Math.min(CHUNK_Y - 1, Math.ceil(fd.iHi));
+        for (let y = lo; y <= hi; y++) { blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, fd); layers[y] = 1; }
+        if (hi > yTop) yTop = hi;
       }
     }
   }
-  return { blocks, heights, cx, cz, ox, oz };
+  return { blocks, heights, cx, cz, ox, oz, yTop, layers };
 }

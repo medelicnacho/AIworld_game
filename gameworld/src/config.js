@@ -252,7 +252,13 @@ export const CHUNK_X = 16;
 // there was nowhere for an archipelago to climb into, and "higher and higher islands" was a
 // request the world had no room to answer. Costs memory per chunk and nothing else, because
 // fillChunk skips the empty air between the land and the sky rather than walking it.
-export const CHUNK_Y = 176;
+// 256, not more. The sky is PERIODIC (RELIEF.deckH) so the generator never runs out of
+// altitude — but a chunk is built and meshed in one piece on one frame, and each extra deck
+// of archipelago in it is another ~2ms of meshing. Measured at 512 it was 12.5ms a chunk,
+// which hitches every frame you are moving fast enough to need a new one. Raising this
+// further wants greedy meshing first, which mesher.js was written to accept behind its
+// existing interface.
+export const CHUNK_Y = 256;
 // ...and how tall the LAND may get, which is a separate question and must stay where it was.
 // Clamping terrain to the ceiling instead would have grown mountains into the new sky the
 // moment it was raised.
@@ -410,13 +416,31 @@ export const RELIEF = {
    * so wherever you are there is usually something just above you.
    */
   mote: {
-    scale: 0.17,        // ~6-unit cells
-    thresh: 0.34,       // sparse — a sky of these would be soup, not a route
-    thick: 2,
+    scale: 0.2,         // ~5-unit cells
+    thresh: 0.06,       // everywhere — these are the rungs, and a ladder needs a lot of them
+    thick: 1,           // ONE BLOCK. A foothold, not a floor.
     dropMin: 2,
-    dropSpan: 74,       // the whole climb, not a band of it
+    dropSpan: 88,       // scattered through the whole deck, not a band of it
     dropScale: 0.055,
   },
+
+  /**
+   * HOW TALL ONE DECK OF SKY IS.
+   *
+   * The archipelago is PERIODIC in altitude: the same generator runs again every deckH blocks
+   * with a different noise offset, forever, so there is no altitude at which islands stop —
+   * climb higher and there is simply more sky, made the same way and never the same shape.
+   * That is what makes "upwards infinitely" a property of the generator rather than a number
+   * someone has to keep raising.
+   *
+   * The one remaining bound is CHUNK_Y, the height of a column of world the streamer builds
+   * in one piece. Removing THAT means splitting chunks vertically and streaming slabs, which
+   * multiplies draw calls — a separate piece of work, and the honest edge of this one.
+   */
+  deckH: 96,
+  // Each deck up gets a slightly easier threshold than the last, so the sky keeps thickening
+  // the higher you climb instead of settling into one repeated density.
+  deckThicken: 0.03,
 
   /**
    * HOLLOWS — the land bitten out from underneath: overhangs, undercuts, a roof to fight
