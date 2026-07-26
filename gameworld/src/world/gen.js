@@ -158,18 +158,30 @@ export function featuresAt(wx, wz, h) {
   let out = null;
 
   if (tierAt(wx, wz) >= I.fromTier) {
+    const P = RELIEF.pebble;
+    // A PLATFORM first — somewhere with room to fight on.
     const im = fbm(WORLD_SEED + 3301, wx * I.scale, wz * I.scale, 3);
     const iStr = Math.min(1, Math.max(0, (im - I.thresh) / (I.peak - I.thresh)));
-    if (iStr > 0) {
-      // Thickness from the mask, so the middle of an island is deep and its rim is a lip.
-      const half = (I.minThick + (I.thick - I.minThick) * iStr) * 0.5;
-      // Altitude from its own slower field: neighbours sit at DIFFERENT levels, which is
-      // what turns a scatter of platforms into something you climb by jumping between.
-      const lv = fbm(WORLD_SEED + 5507, wx * I.levelScale, wz * I.levelScale, 2);
-      const cy = I.baseY + (lv * 0.5 + 0.5) * I.spanY;
-      // Flat, always: if the land has risen into where this one would sit, there is simply
-      // no island here. Nudging it upward instead would warp it into a sheet draped over the
-      // hill, which is the thing an island must never look like.
+    // Thickness from the mask, so the middle of an island is deep and its rim is a lip.
+    let half = iStr > 0 ? (I.minThick + (I.thick - I.minThick) * iStr) * 0.5 : 0;
+    if (half === 0) {
+      // ...and where there is no platform, a STEPPING STONE. Only evaluated when the first
+      // mask failed, which is most columns, so this costs one extra field on the common path
+      // and nothing at all where an island already stands.
+      const pm = fbm(WORLD_SEED + 6607, wx * P.scale, wz * P.scale, 2);
+      const pStr = Math.min(1, Math.max(0, (pm - P.thresh) / (P.peak - P.thresh)));
+      if (pStr > 0) half = P.thick * 0.5;
+    }
+    if (half > 0) {
+      // Altitude in two parts — see RELIEF.island. The slow field carries the whole region of
+      // sky up or down; the fast one jitters neighbours around it by a jumpable amount. Both
+      // are ABSOLUTE rather than measured off the land, or an island would warp into a sheet
+      // draped over the hill beneath it instead of being flat.
+      const slow = fbm(WORLD_SEED + 9901, wx * I.levelSlowScale, wz * I.levelSlowScale, 2);
+      const fast = fbm(WORLD_SEED + 5507, wx * I.levelScale, wz * I.levelScale, 2);
+      const cy = I.baseY + (slow * 0.5 + 0.5) * I.levelSlowSpan + (fast * 0.5 + 0.5) * I.levelSpan;
+      // Flat, always: where the land has risen into where this one would sit there is simply
+      // no island. Nudging it up instead would bring back the warping this avoids.
       if (cy - half >= h + I.gapMin && cy + half <= CHUNK_Y - 2) {
         out = { iLo: cy - half, iHi: cy + half };
       }
@@ -206,6 +218,14 @@ export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz,
   }
   if (wy > h - 4) return DIRT;
   return STONE;
+}
+
+/** The top of the island over this column, or null — what a spawner needs to put a body up
+ *  there rather than on the land far below it. */
+export function islandTopAt(wx, wz) {
+  const x = Math.floor(wx), z = Math.floor(wz);
+  const f = featuresAt(x, z, heightAt(x, z));
+  return f?.iHi !== undefined ? Math.floor(f.iHi) + 1 : null;
 }
 
 /**

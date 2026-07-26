@@ -92,3 +92,35 @@ test("a chunk still builds in about a millisecond", () => {
   const ms = (performance.now() - t0) / 20;
   assert.ok(ms < 8, `chunk build took ${ms.toFixed(2)}ms — the per-voxel cliff is ~80ms`);
 });
+
+// PEBBLES — the small ones. A chain is only crossable if the gap between two real platforms
+// has something in the middle of it; these are that something.
+test("the sky has small stepping stones, not only platforms", () => {
+  let small = 0, total = 0, run = 0;
+  for (let x = 1800; x < 9800; x++) {
+    const f = featuresAt(x, 0, heightAt(x, 0));
+    if (f?.iHi !== undefined) { run++; continue; }
+    if (run) { total++; if (run <= 8) small++; run = 0; }
+  }
+  assert.ok(total > 60, `the sky should be busy; found ${total} islands over 8km`);
+  assert.ok(small / total > 0.2, `only ${(small / total * 100).toFixed(0)}% are stepping stones`);
+});
+
+// "Vary in height going up super high" — while staying hoppable, which is the tension the
+// two-part altitude field exists to resolve.
+test("the archipelago climbs high AND stays jumpable", () => {
+  const tops = []; let cur = null;
+  for (let x = 1800; x < 9800; x++) {
+    const f = featuresAt(x, 0, heightAt(x, 0));
+    if (f?.iHi !== undefined) { cur = Math.max(cur ?? 0, f.iHi); }
+    else if (cur !== null) { tops.push(cur); cur = null; }
+  }
+  const lo = Math.min(...tops), hi = Math.max(...tops);
+  assert.ok(hi - lo > 15, `the sky is flat: altitudes only spanned ${(hi - lo).toFixed(0)} blocks`);
+  assert.ok(hi > 60, `nothing goes high; the tallest island top was ${hi.toFixed(0)}`);
+
+  const gaps = [];
+  for (let i = 1; i < tops.length; i++) gaps.push(Math.abs(tops[i] - tops[i - 1]));
+  const reach = gaps.filter((g) => g <= 2.5).length / gaps.length;
+  assert.ok(reach > 0.6, `only ${(reach * 100).toFixed(0)}% of hops are within a double jump`);
+});

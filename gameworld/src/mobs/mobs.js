@@ -15,7 +15,7 @@ import * as THREE from "three";
 import { MOB, PLAYER, RAID, WARCRY } from "../config.js";
 import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
-import { groundY, solidAt, tierAt, ringPressure, surfaceNear } from "../world/gen.js";
+import { groundY, solidAt, tierAt, ringPressure, surfaceNear, islandTopAt } from "../world/gen.js";
 import { terrainClear } from "../world/raycast.js";
 import { sfx } from "../audio/sfx.js";
 import { sanctuaryOf, boundaryAt, gateArc } from "../world/sanctuary.js";
@@ -394,7 +394,9 @@ export class Mobs {
       const reach = MOB.leapReach[i];
       const nx = e.x + ux * reach, nz = e.z + uz * reach;
       const there = this.floorAt(e, nx, nz);
-      if (there - here > MOB.leapClimb) continue;      // a spire is still a spire
+      // Both ways: a spire is still a spire, and a leap off an island into open sky is not a
+      // pursuit, it is a body throwing itself away.
+      if (Math.abs(there - here) > MOB.leapClimb) continue;
       if (!this.wallOk(e, nx, nz)) continue;           // a wall is never leapt
       e.leapT = MOB.leapDur;
       e.leapCd = MOB.leapCd;
@@ -462,6 +464,13 @@ export class Mobs {
       e.affixes = rollAffixes(s.ring, this.rng, forceAffixes);
       runAffix(e, "onSpawn", this.fx);
     }
+    // ISLANDS GET GARRISONS. Some of what spawns over a column with sky above it is put UP
+    // there rather than on the land beneath — islands with nothing on them are scenery, and
+    // the whole argument for putting them in the world is that taking one should be a fight.
+    // restY decides which floor a body is on by reading e.y, so seeding it here is what makes
+    // the choice stick for the rest of that body's life.
+    const top = islandTopAt(x, z);
+    e.y = (top !== null && this.rng() < MOB.islandSpawn) ? top : groundY(x, z);
     e.y = this.restY(e);
     return e;
   }
@@ -845,7 +854,11 @@ export class Mobs {
       const c = Math.cos(turn), s = Math.sin(turn);
       const dx = (vx * c - vz * s) * dt;
       const dz = (vx * s + vz * c) * dt;
-      if (this.floorAt(e, e.x + dx, e.z + dz) - here <= MOB.maxClimb
+      // A step has a FLOOR as well as a ceiling now. Without the drop limit every body on a
+      // sky island strolled off the edge within seconds: a fall is a negative climb, and a
+      // test with only an upper bound waves it straight through.
+      const rise = this.floorAt(e, e.x + dx, e.z + dz) - here;
+      if (rise <= MOB.maxClimb && rise >= -MOB.maxDrop
           && this.wallOk(e, e.x + dx, e.z + dz)) {
         e.x += dx; e.z += dz;
         e.heading = Math.atan2(dx, dz);

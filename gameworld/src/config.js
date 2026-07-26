@@ -323,19 +323,36 @@ export const RELIEF = {
     thick: 7,
     // Altitude comes from an ABSOLUTE field, not from the land below, or an island would
     // warp to follow the terrain under it instead of being flat.
-    // Slower than the island field on purpose: neighbours then share a level and form a
-    // CHAIN you can hop along, with the bigger steps falling between clusters rather than
-    // between every pair. At 0.013 the median step was 3.6 blocks against a 2.5-block double
-    // jump, so most hops simply could not be made.
+    // ALTITUDE IN TWO PARTS, and the split is the whole trick.
+    //
+    // "Go up super high" and "let me jump between them" pull in opposite directions, because
+    // the spread of altitudes IS the size of the step from one island to the next. One field
+    // cannot do both: widen it and the sky climbs but every hop becomes impossible; narrow
+    // it and everything is reachable and flat.
+    //
+    // So: a very SLOW field decides what altitude this whole REGION of sky sits at — walk far
+    // enough and the archipelago climbs from just overhead to near the ceiling of the world —
+    // and a faster, much smaller field jitters neighbours around that. Local hops stay short
+    // while the sky as a whole goes a long way up.
+    levelSlowScale: 0.0016,   // ~600-unit regions
+    levelSlowSpan: 34,
     levelScale: 0.006,
-    baseY: 33,
-    // 20, not 30. The spread of altitudes IS the size of the step between one island and the
-    // next, and at 30 the median hop was 3.2 blocks against a 2.5-block double jump — most
-    // of the sky was visible and unreachable, which is the most annoying thing a platform
-    // can be. Dropping is always free (there is no fall damage), so the climb is the only
-    // constraint worth tuning.
-    spanY: 20,
+    levelSpan: 9,             // the part that becomes the step between neighbours
+    baseY: 30,
     gapMin: 5,          // clearance under it; where the land rises into that, no island
+  },
+
+  /**
+   * PEBBLES — the stepping stones. Small enough to be a landing rather than a place, sharing
+   * the islands' altitude field so they sit between the big platforms instead of in their own
+   * unrelated sky. These are what make a chain crossable: the gap between two real islands is
+   * usually too far, and a pebble in the middle turns it into two jumps.
+   */
+  pebble: {
+    scale: 0.085,       // ~12-unit cells — a few strides across
+    thresh: 0.34,       // only the peaks of the field survive, so they stay small
+    peak: 0.62,
+    thick: 3,
   },
 
   /**
@@ -1267,6 +1284,13 @@ export const MOB = {
   // question. Almost everything alive is standing on the land, and for those the cheap
   // answer is the right one — only islanders and things under an overhang need the rest.
   floorSlack: 2.5,
+  // A body will hop down a terrace all day; it will not walk off a cliff. Without this, every
+  // mob standing on a sky island strolled straight off the edge within seconds, because a
+  // drop of any size passed the climb test — it is negative, and the test only had a ceiling.
+  maxDrop: 4,
+  // How often a body that COULD be put on an island is. Islands with nothing on them are
+  // scenery; the whole argument for having them is that taking one is a fight.
+  islandSpawn: 0.55,
   // A FLIER CHASES IN THREE DIMENSIONS. Hovering a fixed distance over the LAND meant an air
   // mob would sail along underneath an island with you standing on top of it, which makes
   // the sky a safe place and the fliers ornaments. Chasing, it climbs to your height plus
