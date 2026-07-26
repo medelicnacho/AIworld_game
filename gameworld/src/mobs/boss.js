@@ -261,6 +261,9 @@ export class Boss {
     const dx = player.x - b.x, dz = player.z - b.z;
     const dist = Math.hypot(dx, dz) || 1;
     if (dist > BOSS.despawn) { this.despawn(); return; }
+    // ...and how far up. Every range below was flat, so a boss at the foot of a cliff fought
+    // you at the top of it as though you were standing on its toes.
+    const overhead = Math.abs(player.y - b.y) > BOSS.reachY;
 
     if (b.phase === 1 && b.hp / b.maxHp <= BOSS.phase2At) {
       b.phase = 2;
@@ -272,7 +275,9 @@ export class Boss {
 
     // A refuge holds against the boss too: it stops calling volleys down on you and stops
     // advancing. Meteors already in the air still land — you ran, they were already falling.
-    if (sanctuaryUnder(player.x, player.y, player.z, 0)) {
+    // Out of its reach for the same reason a sanctuary is: it cannot fight what it cannot
+    // get to, so it stops winding up rather than firing into the sky.
+    if (overhead || sanctuaryUnder(player.x, player.y, player.z, 0)) {
       b.charging = false;
       b.beamWarm = 0;
       b.beamT = 0;
@@ -321,7 +326,7 @@ export class Boss {
       if (!sanctuaryOf(nx, nz, BOSS.contactRange)) { b.x = nx; b.z = nz; }
       b.y = groundY(b.x, b.z);
 
-      if (dist < BOSS.contactRange && b.contactCd <= 0 && player.iframes <= 0) {
+      if (dist < BOSS.contactRange && !overhead && b.contactCd <= 0 && player.iframes <= 0) {
         b.contactCd = BOSS.contactCd;
         onPlayerHit?.(this.telegraphed(BOSS.contactDamage, BOSS.contactFrac), b.x, b.z);
       }
@@ -379,7 +384,8 @@ export class Boss {
         b.beamX += (dx / d) * step;
         b.beamZ += (dz / d) * step;
       }
-      if (d < BOSS.beamRadius && player.iframes <= 0) {
+      if (d < BOSS.beamRadius && Math.abs(player.y - groundY(b.beamX, b.beamZ)) <= BOSS.reachY
+          && player.iframes <= 0) {
         // Per SECOND, so the fraction is scaled by dt exactly like the flat dps is.
         onBeamHit?.(this.telegraphed(BOSS.beamDps, BOSS.beamFrac) * dt, b.beamX, b.beamZ);
       }
@@ -429,7 +435,8 @@ export class Boss {
         m.rock.rotation.z += dt * 4;
         if (m.t <= 0) {
           const d = Math.hypot(player.x - m.x, player.z - m.z);
-          if (d < BOSS.meteorRadius && player.iframes <= 0) {
+          if (d < BOSS.meteorRadius && Math.abs(player.y - m.y) <= BOSS.meteorRadius
+              && player.iframes <= 0) {
             onMeteorHit?.(this.telegraphed(BOSS.meteorDamage, BOSS.meteorFrac), m.x, m.z);
           }
           sfx.explosion(m.x, m.z, 1.35);

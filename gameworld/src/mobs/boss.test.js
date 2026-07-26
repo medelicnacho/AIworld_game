@@ -60,3 +60,29 @@ test("engage() is safe with no boss alive", () => {
   const b = new Boss(new THREE.Scene(), 0xB055);
   assert.doesNotThrow(() => b.engage());
 });
+
+// THE FIGHT HAS A CEILING. Every distance a boss measured was flat, which was the whole truth
+// while the world was a surface — with a sky full of islands it meant a boss standing under
+// you at ground level read as being at your feet, and clubbed and beamed you from a hundred
+// blocks below.
+test("a boss under your feet still fights you", () => {
+  const b = spawned();
+  player.x = b.alive.x + 3; player.z = b.alive.z; player.y = b.alive.y + 2;
+  b.update(0.1, () => {}, () => {}, () => {});
+  assert.ok(b.alive, "close range, same level — this is just a fight");
+});
+
+test("a boss cannot reach you from far below", () => {
+  const b = spawned();
+  let hits = 0;
+  player.x = b.alive.x; player.z = b.alive.z;      // directly overhead: flat distance is ZERO
+  player.y = b.alive.y + BOSS.reachY + 40;
+  for (let i = 0; i < 40; i++) b.update(0.1, () => { hits++; }, () => { hits++; }, () => { hits++; });
+  assert.equal(hits, 0, "it landed a blow on someone forty blocks past its reach");
+});
+
+// Dropping onto one from a ledge has to stay a fight, or the answer to every boss is a rock.
+test("a few storeys up is still inside the fight", () => {
+  assert.ok(BOSS.reachY > 20, `reachY ${BOSS.reachY} is low enough that any ledge beats a boss`);
+  assert.ok(BOSS.reachY < 60, `reachY ${BOSS.reachY} is high enough to be no limit at all`);
+});

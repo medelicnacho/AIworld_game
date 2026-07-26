@@ -1477,6 +1477,17 @@ export const BOSS = {
   // enough to cover a full disengage — dodge out, heal, reload, come back — because a bar
   // that blinked off every time you stopped shooting would be worse than one always on.
   // Short enough that walking away from a fight clears the top of the screen.
+  // HOW FAR UP THE FIGHT REACHES. Every distance a boss measured was flat — Math.hypot of x
+  // and z — which was the whole truth while the world was a surface. With a sky full of
+  // islands it meant a boss standing under you at ground level read as being AT your feet:
+  // it charged, beamed and clubbed you from a hundred blocks below, and its meteors landed on
+  // an island you were not standing on.
+  //
+  // 32 is chosen to keep the fight honest rather than to end it. A boss is ~10 tall, its
+  // meteors fall from overhead, and dropping onto one from a ledge should absolutely still be
+  // a fight — so anything within a few storeys is in reach. Above that you are not fighting
+  // it, you are looking at it.
+  reachY: 32,
   barHold: 10,
   maxHitFraction: 0.03,     // ring 1: no single hit may exceed 3% of max HP (~34-hit floor)
   hitCapTighten: 0.06,      // and that shrinks: fraction / (1 + this * ring)
