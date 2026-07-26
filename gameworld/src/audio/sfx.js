@@ -1150,6 +1150,10 @@ export class Sfx {
 
     const s = Math.max(0, Math.min(1, severity));
     const dur = 0.16 + s * 0.2;
+    // ONE KNOB for the whole blow. It was mixed to be unmissable and came out simply loud:
+    // this plays several times in a bad second, and a sound that frequent has to sit UNDER
+    // the fight rather than on top of it. Being legible is the job, not being big.
+    const LEVEL = 0.55;
     // A long reach means this is panned but effectively not attenuated: it is happening to
     // YOUR body, wherever the thing that did it is standing.
     const { input } = this.place(fromX, fromZ, 4000);
@@ -1164,7 +1168,7 @@ export class Sfx {
     bp.Q.value = 0.8;
     const sg = this.ctx.createGain();
     sg.gain.setValueAtTime(0.0001, t);
-    sg.gain.linearRampToValueAtTime(0.32 + s * 0.2, t + 0.004);
+    sg.gain.linearRampToValueAtTime((0.24 + s * 0.15) * LEVEL, t + 0.004);
     sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
     slap.connect(bp); bp.connect(sg); sg.connect(input);
     slap.start(t); slap.stop(t + 0.08);
@@ -1178,7 +1182,7 @@ export class Sfx {
     const dist = this.distortion(12 + s * 40);
     const og = this.ctx.createGain();
     og.gain.setValueAtTime(0.0001, t);
-    og.gain.linearRampToValueAtTime(0.5 + s * 0.35, t + 0.006);
+    og.gain.linearRampToValueAtTime((0.5 + s * 0.35) * LEVEL, t + 0.006);
     og.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(dist); dist.connect(og); og.connect(input);
     o.start(t); o.stop(t + dur + 0.03);
@@ -1191,7 +1195,7 @@ export class Sfx {
     lp.frequency.exponentialRampToValueAtTime(120, t + dur);
     const bg = this.ctx.createGain();
     bg.gain.setValueAtTime(0.0001, t);
-    bg.gain.linearRampToValueAtTime(0.26 + s * 0.24, t + 0.008);
+    bg.gain.linearRampToValueAtTime((0.26 + s * 0.24) * LEVEL, t + 0.008);
     bg.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.9);
     bod.connect(lp); lp.connect(bg); bg.connect(input);
     bod.start(t); bod.stop(t + dur);
