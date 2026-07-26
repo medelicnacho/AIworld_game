@@ -15,7 +15,7 @@ import * as THREE from "three";
 import { MOB, PLAYER, RAID, WARCRY } from "../config.js";
 import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
-import { groundY, solidAt, tierAt, ringPressure, surfaceNear, islandTopAt } from "../world/gen.js";
+import { groundY, solidAt, tierAt, ringPressure, surfaceNear, islandTopsAt } from "../world/gen.js";
 import { terrainClear } from "../world/raycast.js";
 import { sfx } from "../audio/sfx.js";
 import { sanctuaryOf, boundaryAt, gateArc, sanctuaryUnder } from "../world/sanctuary.js";
@@ -335,7 +335,8 @@ export class Mobs {
     // faster, so "tuns of mobs" arrives well before the flat caps would have delivered it.
     const crowd = ringPressure(tier, MOB.rampCrowd);
     return {
-      alive: Math.min(MOB.maxAliveCap, MOB.maxAlive + MOB.maxAlivePerTier * crowd),
+      alive: Math.min(MOB.maxAliveCap,
+        (MOB.maxAlive + MOB.maxAlivePerTier * crowd) * MOB.skyCrowd),
       packs: Math.min(MOB.maxPacksCap, MOB.maxPacks + MOB.maxPacksPerTier * crowd),
       interval: Math.max(MOB.spawnIntervalMin,
         MOB.spawnInterval * Math.pow(1 - MOB.spawnFasterPerTier, crowd)),
@@ -469,8 +470,17 @@ export class Mobs {
     // the whole argument for putting them in the world is that taking one should be a fight.
     // restY decides which floor a body is on by reading e.y, so seeding it here is what makes
     // the choice stick for the rest of that body's life.
-    const top = islandTopAt(x, z);
-    e.y = (top !== null && this.rng() < MOB.islandSpawn) ? top : groundY(x, z);
+    // EVERY deck is a place to be born, not just the one over the land. Weighted upward: the
+    // top layers were the emptiest part of the world exactly because they are the hardest to
+    // reach, which is backwards — the climb should be paid for at the top of it.
+    const tops = islandTopsAt(x, z);
+    if (tops.length && this.rng() < MOB.islandSpawn) {
+      const pick = Math.min(tops.length - 1,
+        Math.floor(Math.pow(this.rng(), MOB.skyBias) * tops.length));
+      e.y = tops[pick];
+    } else {
+      e.y = groundY(x, z);
+    }
     e.y = this.restY(e);
     return e;
   }

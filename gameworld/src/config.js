@@ -416,9 +416,9 @@ export const RELIEF = {
    * so wherever you are there is usually something just above you.
    */
   mote: {
-    scale: 0.125,       // ~8-unit cells — a couple of strides, not a single brick
+    scale: 0.095,       // ~10-unit cells — a landing you aim at, not one you thread
     thresh: 0.11,       // everywhere: these are the rungs, and a ladder needs a lot of them
-    thick: 2,           // a foothold you can land on without pixel-hunting, still not a floor
+    thick: 3,           // enough to read as a step from a distance; still not a floor
     // ...AND FAR MORE OF THEM UP HIGH. Its own relaxation rather than the pebbles', and a big
     // one: the top of a deck is where the platforms thin out and the gaps between them get
     // long, so it is exactly where a route needs the most rungs. Down low the big islands
@@ -1400,7 +1400,20 @@ export const MOB = {
   maxDrop: 4,
   // How often a body that COULD be put on an island is. Islands with nothing on them are
   // scenery; the whole argument for having them is that taking one is a fight.
+  // 0.55, not higher. Nearly every column has SOME perch above it now, so this is close to
+  // the share of everything alive that ends up airborne — at 0.8 it was 77%, which does not
+  // fill the sky so much as move the world into it and leave the ground you walk across
+  // empty. Paired with skyCrowd below, this puts roughly three times as many bodies in the
+  // air as before while the frontier underneath stays about as busy as it was.
   islandSpawn: 0.55,
+  // WHICH perch, when a column offers several. Below 1 this skews the roll toward the HIGHER
+  // decks — the upper layers were the emptiest part of the world precisely because they are
+  // the hardest to reach, which is backwards: the climb should be paid for at the top.
+  skyBias: 0.45,
+  // The world grew a sky, so the crowd budget grows with it — otherwise populating the air
+  // just empties the ground, and the frontier you walk through gets quieter the more there
+  // is above it.
+  skyCrowd: 1.5,
   // A FLIER CHASES IN THREE DIMENSIONS. Hovering a fixed distance over the LAND meant an air
   // mob would sail along underneath an island with you standing on top of it, which makes
   // the sky a safe place and the fliers ornaments. Chasing, it climbs to your height plus
@@ -1423,9 +1436,12 @@ export const MOB = {
   // The count drops hard at the base and the ramp steepens to make it up, so the Commons is
   // a handful of mobs you can read while the deep stays a horde. (GEAR.md G5/G6 take this
   // further into the MMO direction: fewer, meatier mobs.)
-  maxAlive: 44,
+  maxAlive: 44,          // scaled by MOB.skyCrowd — see budget()
   maxAlivePerTier: 28,    // tier 1: ~72 · tier 3: ~150 · tier 6+: capped — less swarm early
-  maxAliveCap: 380,
+  // Raised with the sky. The deep rings sit ON this cap, so skyCrowd alone would have done
+  // nothing out there — the extra bodies the air needs would have been taken straight off the
+  // ground instead of added.
+  maxAliveCap: 470,
   maxPacks: 6,
   maxPacksPerTier: 5,
   maxPacksCap: 34,

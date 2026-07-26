@@ -354,6 +354,26 @@ export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz,
 
 /** The top of the island over this column, or null — what a spawner needs to put a body up
  *  there rather than on the land far below it. */
+/**
+ * EVERY perch above this column, lowest first — one per deck that has an island here.
+ *
+ * islandTopAt only ever answered for the deck above the LAND, which was the whole sky when
+ * there was one deck of it. With the archipelago repeating upward, that meant everything the
+ * spawner put in the air went onto the bottom layer and the levels above it were empty
+ * scenery. Allocates a small array, which is fine: this is asked when a body is born, not
+ * every frame.
+ */
+export function islandTopsAt(wx, wz, maxY = CHUNK_Y - 1) {
+  const x = Math.floor(wx), z = Math.floor(wz);
+  const h = heightAt(x, z);
+  const out = [];
+  for (let d = 0; d <= deckOf(maxY); d++) {
+    const f = featuresAt(x, z, h, d);
+    if (f?.iHi !== undefined) out.push(Math.floor(f.iHi) + 1);
+  }
+  return out;
+}
+
 export function islandTopAt(wx, wz, near = RELIEF.island.baseY) {
   const x = Math.floor(wx), z = Math.floor(wz);
   const f = featuresAt(x, z, heightAt(x, z), deckOf(near));
