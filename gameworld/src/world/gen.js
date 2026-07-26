@@ -7,7 +7,7 @@
 
 import { fbm } from "../rng.js";
 import {
-  WORLD_SEED, CHUNK_X, CHUNK_Y, CHUNK_Z, SEA_LEVEL, BASE_HEIGHT,
+  WORLD_SEED, CHUNK_X, CHUNK_Y, CHUNK_Z, SEA_LEVEL, BASE_HEIGHT, TERRAIN_CAP,
   CONTINENT_SCALE, CONTINENT_AMP, HILL_SCALE, HILL_AMP, RING_SIZE, RING_WIDEN, RINGS, RELIEF,
 } from "../config.js";
 
@@ -60,14 +60,37 @@ export function rawHeight(wx, wz) {
   const continent = fbm(WORLD_SEED, wx * CONTINENT_SCALE, wz * CONTINENT_SCALE, 4);
   const hills = fbm(WORLD_SEED + 7717, wx * HILL_SCALE, wz * HILL_SCALE, 3);
   const h = relief(wx, wz, BASE_HEIGHT + continent * CONTINENT_AMP + hills * HILL_AMP);
-  return Math.max(1, Math.min(CHUNK_Y - 2, Math.floor(h)));
+  return Math.max(1, Math.min(TERRAIN_CAP, Math.floor(h)));
 }
 
 // Settlements flatten the ground they stand on. gen.js cannot import sanctuary.js (sanctuary
 // needs groundY from here), so the settlement list is INJECTED — one small indirection that
 // keeps the dependency pointing one way instead of in a circle.
 let _flatten = null;
-export function setFlattenLookup(fn) { _flatten = fn; }
+export function setFlattenLookup(fn) { _flatten = fn; clearColumnCache(); }
+
+/**
+ * A COLUMN CACHE for the two expensive per-column answers.
+ *
+ * Both heightAt and featuresAt are pure functions of (x, z) that cost half a dozen noise
+ * fields plus a settlement sweep, and the engine asks for the same column over and over: the
+ * mesher re-derives every out-of-bounds neighbour once per Y level, collision samples a
+ * capsule's worth of voxels several times per substep, and a sight line marches a column at a
+ * time. Direct-mapped, fixed size, no allocation — a miss just recomputes.
+ *
+ * Only integer columns are cached. A fractional coordinate is not a column, and quietly
+ * flooring one would change what callers got back rather than merely how fast they got it.
+ */
+const CACHE_BITS = 15, CACHE_N = 1 << CACHE_BITS, CACHE_MASK = CACHE_N - 1;
+const cX = new Int32Array(CACHE_N).fill(0x7fffffff);
+const cZ = new Int32Array(CACHE_N);
+const cH = new Int16Array(CACHE_N);
+const cF = new Array(CACHE_N);
+const cHas = new Uint8Array(CACHE_N);
+const slot = (x, z) => ((x * 73856093) ^ (z * 19349663)) & CACHE_MASK;
+
+/** Dropped whenever the thing heightAt depends on changes — see setFlattenLookup. */
+function clearColumnCache() { cHas.fill(0); cX.fill(0x7fffffff); }
 
 /**
  * Terrain height, with settlement plateaus levelled in. A settlement sits on flat ground and
@@ -75,6 +98,18 @@ export function setFlattenLookup(fn) { _flatten = fn; }
  * than streets running up a hillside — and no cliff at the boundary either.
  */
 export function heightAt(wx, wz) {
+  const int = (wx | 0) === wx && (wz | 0) === wz;
+  let i = 0;
+  if (int) {
+    i = slot(wx, wz);
+    if (cHas[i] && cX[i] === wx && cZ[i] === wz) return cH[i];
+  }
+  const out = heightRaw(wx, wz);
+  if (int) { cX[i] = wx; cZ[i] = wz; cH[i] = out; cHas[i] = 1; cF[i] = undefined; }
+  return out;
+}
+
+function heightRaw(wx, wz) {
   const h = rawHeight(wx, wz);
   if (!_flatten) return h;
   const c = _flatten(wx, wz);
@@ -151,6 +186,19 @@ export function ringAt(wx, wz) {
  * comparison.
  */
 export function featuresAt(wx, wz, h) {
+  const int = (wx | 0) === wx && (wz | 0) === wz;
+  let i = 0;
+  if (int) {
+    i = slot(wx, wz);
+    // Only trust the features slot if it belongs to THIS column and has actually been filled.
+    if (cHas[i] && cX[i] === wx && cZ[i] === wz && cF[i] !== undefined) return cF[i];
+  }
+  const out = featuresRaw(wx, wz, h);
+  if (int) { cX[i] = wx; cZ[i] = wz; cH[i] = h; cHas[i] = 1; cF[i] = out; }
+  return out;
+}
+
+function featuresRaw(wx, wz, h) {
   const grow = Math.min(1, tierAt(wx, wz) / RELIEF.fullTier);
   if (grow <= 0) return null;              // the Commons keeps a plain sky and solid ground
 
@@ -188,6 +236,18 @@ export function featuresAt(wx, wz, h) {
       const thrP = P.thresh - highness(pebY) * P.threshHigh;
       const pm = fbm(WORLD_SEED + 6607, wx * P.scale, wz * P.scale, 2);
       if (pm > thrP) { half = P.thick * 0.5; cy = pebY; }
+      else {
+        // ...and failing that, a MOTE: the smallest thing in the sky, scattered through the
+        // whole height of it. Only reached when both larger tiers have already declined, so
+        // it costs one field on the columns that would otherwise have had nothing at all.
+        const M = RELIEF.mote;
+        const mn = fbm(WORLD_SEED + 2711, wx * M.dropScale, wz * M.dropScale, 2);
+        const moteY = platY - (M.dropMin + (mn * 0.5 + 0.5) * M.dropSpan);
+        const thrM = M.thresh - highness(moteY) * P.threshHigh;
+        if (fbm(WORLD_SEED + 3121, wx * M.scale, wz * M.scale, 2) > thrM) {
+          half = M.thick * 0.5; cy = moteY;
+        }
+      }
     }
     if (half > 0) {
       // SHAPED LIKE THE LAND. A lens is a bubble; the world is stepped and rough, so the top
@@ -195,8 +255,15 @@ export function featuresAt(wx, wz, h) {
       // what makes an island read as a piece of the world rather than a placed platform. The
       // underside is roughened separately, because a torn bottom is the tell that it broke
       // off rather than being built.
-      const bump = fbm(WORLD_SEED + 2207, wx * HILL_SCALE, wz * HILL_SCALE, 3);
-      let top = cy + half + bump * I.roughness;
+      // Hills, then SPIRES, then terraces — the land's own three steps, in its own order.
+      // The spires are what make it read as steep: ridged noise piles rock up in fingers,
+      // and the terrace quantisation turns every slope it makes into a staircase of cliffs
+      // instead of a ramp. Skipping them was why an island still looked like a lens with a
+      // bumpy lid on it.
+      let top = cy + half + fbm(WORLD_SEED + 2207, wx * HILL_SCALE, wz * HILL_SCALE, 3) * I.roughness;
+      const rn = fbm(WORLD_SEED + 6113, wx * RELIEF.spireScale, wz * RELIEF.spireScale, 3);
+      const ridge = Math.max(0, 1 - Math.abs(rn) / RELIEF.spireWidth);
+      top += Math.pow(ridge, RELIEF.spireSharp) * I.spireAmp;
       const q = Math.round(top / RELIEF.terraceStep) * RELIEF.terraceStep;
       top += (q - top) * RELIEF.terraceMix;
       const under = cy - half

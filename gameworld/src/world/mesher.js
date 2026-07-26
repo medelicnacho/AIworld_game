@@ -28,7 +28,12 @@ export function buildChunkGeometry(chunk) {
   // one band per ring, readable before anything in it tries to kill you.
   const tint = RINGS[ringAt(ox + CHUNK_X / 2, oz + CHUNK_Z / 2)].tint;
 
-  for (let y = 0; y < CHUNK_Y; y++) {
+  // Only as high as this chunk actually reaches. With the ceiling raised for the sky, most
+  // of a chunk's vertical range is empty air, and sweeping all of it to find nothing was
+  // pure cost — the mesher is run on every rebuild, not once.
+  let yTop = 0;
+  for (let i = blocks.length - 1; i >= 0; i--) if (blocks[i] !== AIR) { yTop = Math.floor(i / (CHUNK_X * CHUNK_Z)); break; }
+  for (let y = 0; y <= yTop; y++) {
     for (let z = 0; z < CHUNK_Z; z++) {
       for (let x = 0; x < CHUNK_X; x++) {
         const id = blocks[idx(x, y, z)];

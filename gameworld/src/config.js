@@ -247,11 +247,24 @@ export const ADMIN_CODE = "4711";
 // Chunk dimensions. Y is the full world height — the world is read-only (D1), so a
 // chunk is a column, never a stack, and there is no vertical streaming to write.
 export const CHUNK_X = 16;
-export const CHUNK_Y = 80;
+// The world's CEILING — how much sky there is, not how tall the land gets. Raised from 80
+// once islands existed: the land had always used almost all of it (TERRAIN_CAP below), so
+// there was nowhere for an archipelago to climb into, and "higher and higher islands" was a
+// request the world had no room to answer. Costs memory per chunk and nothing else, because
+// fillChunk skips the empty air between the land and the sky rather than walking it.
+export const CHUNK_Y = 176;
+// ...and how tall the LAND may get, which is a separate question and must stay where it was.
+// Clamping terrain to the ceiling instead would have grown mountains into the new sky the
+// moment it was raised.
+export const TERRAIN_CAP = 78;
 export const CHUNK_Z = 16;
 
 export const VIEW_RADIUS = 7;          // chunks loaded around the player
-export const CHUNKS_PER_FRAME = 2;     // build budget — keeps frame time flat while streaming
+// Build budget — keeps frame time flat while streaming. Dropped to 1 once the sky filled up:
+// a chunk with an archipelago over it costs ~1.1ms to fill and ~5ms to mesh, so two of them
+// was 12ms of a 16ms frame and streaming started to hitch exactly when you were moving fast
+// enough to need it. One chunk a frame is still sixty a second.
+export const CHUNKS_PER_FRAME = 1;
 
 // Terrain shape
 export const SEA_LEVEL = 24;
@@ -323,11 +336,14 @@ export const RELIEF = {
     // subtracted, never added, so nothing gets rarer down low — the ceiling gets busier
     // rather than the floor emptying out. Climbing should feel like going somewhere.
     threshHigh: 0.16,
-    // How much the top of an island wanders, before it gets the same terrace treatment the
-    // land does. A perfectly flat slab reads as a platform someone placed; the ground's own
-    // roughness and stepping is what makes a thing look like it broke off the world.
-    roughness: 5,
-    underRough: 2.2,    // the underside too — a torn bottom, not a machined one
+    // SHAPED BY THE SAME PIPELINE AS THE LAND, not merely bumpy. Hill noise alone gave a
+    // rolling top with a couple of terrace steps on it — nothing like the ground, which gets
+    // hills AND ridged spires AND the terrace quantisation, and reads as steep because of the
+    // last two. An island runs through all three, with its own seeds so it is a piece of the
+    // same world rather than a copy of the bit underneath it.
+    roughness: 7,       // hills
+    spireAmp: 13,       // the steep part — ridged, exactly as RELIEF.spire does it
+    underRough: 4,      // a torn bottom, not a machined one
     peak: 0.55,         // mask value at which an island is full size — reachable, unlike 1.0
     minThick: 2,        // even the smallest is something you can land on
     thick: 7,
@@ -345,14 +361,17 @@ export const RELIEF = {
     // and a faster, much smaller field jitters neighbours around that. Local hops stay short
     // while the sky as a whole goes a long way up.
     levelSlowScale: 0.0016,   // ~600-unit regions
-    levelSlowSpan: 34,
+    // The ceiling is 176 now and the land stops at 78, so the sky has ~90 blocks of room to
+    // climb through. This is what actually makes islands go "higher and higher" — the old 34
+    // could not, because there was nowhere above y73 to put one.
+    levelSlowSpan: 88,
     // Noise is bell-shaped, so left alone most regions of sky sit at MIDDLE altitude and the
     // count actually falls off above y60 — the opposite of climbing into a thickening sky.
     // Below 1 this skews regions upward, so the high air is where most of the world is.
     levelBias: 0.62,
     levelScale: 0.006,
     levelSpan: 9,             // the part that becomes the step between neighbours
-    baseY: 30,
+    baseY: 34,
     gapMin: 5,          // clearance under it; where the land rises into that, no island
   },
 
@@ -375,9 +394,28 @@ export const RELIEF = {
     // hop along the top of the sky but never get up there. Each pebble drops by its own
     // amount, so the air between the land and the platforms fills in at every level and the
     // climb becomes a staircase you can find rather than one you have to already be on.
+    // Widened with the sky: stepping stones have to fill a ~90-block climb now, not a
+    // ~20-block one, or the ladder loses its middle rungs and the top of the sky becomes
+    // somewhere you can see and never reach.
     dropMin: 4,
-    dropSpan: 22,
+    dropSpan: 60,
     dropScale: 0.022,   // its own field — neighbouring pebbles sit at different depths
+  },
+
+  /**
+   * MOTES — the smallest tier, a few blocks across and barely thicker than a step. Not places
+   * and not really landings: these are the things you touch for a fraction of a second on the
+   * way somewhere, and they are what turns a climb of ninety blocks from a series of gaps
+   * into a route. Scattered through the ENTIRE height of the sky rather than a layer of it,
+   * so wherever you are there is usually something just above you.
+   */
+  mote: {
+    scale: 0.17,        // ~6-unit cells
+    thresh: 0.34,       // sparse — a sky of these would be soup, not a route
+    thick: 2,
+    dropMin: 2,
+    dropSpan: 74,       // the whole climb, not a band of it
+    dropScale: 0.055,
   },
 
   /**
