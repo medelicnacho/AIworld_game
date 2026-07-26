@@ -53,13 +53,9 @@ const CRY_SEEDS = {
   ],
 };
 
-// What an ally says when you walk past — the no-model fallback rotation. The model
-// version adds clan flavour; these are the floor, and the floor is exactly what was
-// asked for: hail soldier, greetings warrior.
-const HAIL_SEEDS = [
-  "Hail, soldier.", "Hail, friend.", "Greetings, warrior.", "Well met, friend.",
-  "Good hunting out there.", "The colours hold.", "Walk safe, soldier.",
-];
+// The hail floor lives in config beside the taunts now — one place for the whole war's
+// vocabulary. (The model still writes clan-flavoured extras on later bakes.)
+const HAIL_SEEDS = WARCRY.hails;
 
 export class WarCries {
   constructor(bridge, sfx) {
@@ -234,6 +230,23 @@ export class WarCries {
     }
   }
 
+  /** Two clans speaking through the same model+pace produce BYTE-IDENTICAL audio, so the
+   *  second synthesis is pure waste. Since the war was unified onto one voice that is
+   *  every line times three — 81 taunt synths where 27 would do. Borrow instead. Keyed on
+   *  the voice, not the clan, so handing a faction its own throat back re-splits them
+   *  automatically with no other change. */
+  borrowLine(colour, text, bins) {
+    const v = WARCRY.voices[colour];
+    for (const [c, bin] of bins) {
+      if (c === colour) continue;
+      const o = WARCRY.voices[c];
+      if (o.model !== v.model || o.pace !== v.pace) continue;
+      const hit = bin.find((t) => t.text === text);
+      if (hit) return hit.wav;
+    }
+    return null;
+  }
+
   async bakeTaunt(colour) {
     this.baking = true;
     this.ctrl = new AbortController();
@@ -244,7 +257,8 @@ export class WarCries {
       const text = WARCRY.taunts.find((t) => !bin.some((b) => b.text === t));
       if (!text) return;
       const { model, pace } = WARCRY.voices[colour];
-      const wav = await this.bridge.speak(text, model, pace, this.ctrl.signal);
+      const wav = this.borrowLine(colour, text, this.taunts)
+        || await this.bridge.speak(text, model, pace, this.ctrl.signal);
       if (wav) {
         bin.push({ text, wav });
         this.persist(`${WARCRY.voiceRev}|taunt|${colour}|${text}`, text, wav);
@@ -270,7 +284,11 @@ export class WarCries {
     this.baking = true;
     this.ctrl = new AbortController();
     try {
-      const { model } = WARCRY.voices[colour];
+      // A HAIL IS A SOLDIER'S VOICE, NOT A CIVILIAN'S. It used to bake and play at flat
+      // natural pitch, which made your own colours sound like a different species from the
+      // ones screaming at you. Same throat as the war-cries now — pace at bake, rate at
+      // play — so an army sounds like one army whichever way it is pointed at you.
+      const { model, pace } = WARCRY.voices[colour];
       let text = null;
       // FAST-TRACK THE FIRST GREETINGS: the opening hail per faction skips the model and
       // speaks the rotation directly (~1.5s instead of ~6) — an ally who can say "Hail,
@@ -283,18 +301,18 @@ export class WarCries {
           + `A sworn ally, the lone wanderer who fights beside your colours, walks past your `
           + `post. Greet them in ONE short hail, two to six words — like "Hail, soldier" or `
           + `"Well met, warrior". No stage directions, no quotes, just the hail.`,
-          { words: 6, voice: model, lengthScale: 1.0, signal: this.ctrl.signal });
+          { words: 6, voice: model, lengthScale: pace, signal: this.ctrl.signal });
         const clean = res?.text ? cleanLine(res.text, 1) : null;
         if (clean && clean.split(" ").length <= 7 && res.audio) {
           const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
           let wav = res.audio;
-          if (gist(clean) !== gist(res.text)) wav = await this.bridge.speak(clean, model, 1.0, this.ctrl.signal);
+          if (gist(clean) !== gist(res.text)) wav = await this.bridge.speak(clean, model, pace, this.ctrl.signal);
           if (wav) { this.stashHail(colour, clean, wav); return; }
         }
       }
       // No model: the rotation the feature was asked for with, verbatim.
       text = HAIL_SEEDS[(this.rng() * HAIL_SEEDS.length) | 0];
-      const wav = await this.bridge.speak(text, model, 1.0, this.ctrl.signal);
+      const wav = await this.bridge.speak(text, model, pace, this.ctrl.signal);
       if (wav) this.stashHail(colour, text, wav);
     } catch {
       // A failed bake is a quieter camp, nothing more.
@@ -382,7 +400,7 @@ export class WarCries {
       if (!bin.length) return;
       const { text, wav } = bin[(this.rng() * bin.length) | 0];
       this.hailCd = WARCRY.hailCd;
-      this.sfx.playClip(wav, e.x, e.z, WARCRY.hailVolume, 1);
+      this.sfx.playClip(wav, e.x, e.z, WARCRY.hailVolume, WARCRY.voices[colour].rate);
       console.info(`[warcry] colour ${colour} (hail): "${text}"`);
       return;
     }

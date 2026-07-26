@@ -73,7 +73,24 @@ export const WARCRY = {
   // nothing to its own reads as a texture; one that knows you're on its side reads as an
   // army you belong to. One hail per mob per long cooldown, one per battlefield window,
   // spoken at natural pitch — a greeting is a voice, not a monster.
-  hailPerFaction: 4,
+  // WHAT YOUR OWN COLOURS SAY when you walk past — authored here beside the taunts, so
+  // both halves of the war's vocabulary are edited in one place. The model still writes
+  // extra clan-flavoured greetings on later bakes; these are the floor, and the floor is
+  // what actually gets heard most.
+  hails: [
+    "Hail, comrade!",
+    "Brother in arms!",
+    "Greetings, soldier!",
+    "We unite as one!",
+    "Hail, soldier!",
+    "Let's destroy the enemy!",
+    "Let's fight in glory!",
+    "Hail, friend!",
+    "Well met, warrior!",
+    "The colours hold!",
+    "Good hunting out there!",
+  ],
+  hailPerFaction: 8,      // raised with the list: four kept ten of them unheard
   hailChance: 0.7,
   hailCd: 14,             // battlefield-wide gap between hails
   hailMobCd: 150,         // one soldier greets you once, then holds his peace a while
@@ -100,6 +117,18 @@ export const WARCRY = {
     "I know kung fu!",
     "Run home, little wanderer!",
     "Crawl back to your mommy!",
+    "I'm going to wipe that smug look off your face!",
+    "I'm going to beat you silly!",
+    "You fat oaf!",
+    "I will destroy your hopes and dreams!",
+    "I am going to kill you!",
+    "You will die slowly!",
+    "I will inflict agonizing pain on you!",
+    "Your mom is fat!",
+    "I slept with your mother!",
+    "You will taste my fist!",
+    "While you were partying, I trained in the blade!",
+    "I have two hundred and twenty-three confirmed kills!",
   ],
   tauntChance: 0.5,       // odds a cry slot uses the floor instead of a baked line
   // EVERY CLAN TAUNTS IN ITS OWN THROAT: taunts bake per faction through the same

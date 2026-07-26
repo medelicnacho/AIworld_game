@@ -47,7 +47,7 @@ test("deeds reach every corpus — your legend joins their screaming", () => {
     "the deed's words entered the war vocabulary");
 });
 
-test("hails are their own channel: friendly cache, own budget, never the war's", () => {
+test("hails are their own channel: friendly cache, own budget, never the war's", async () => {
   played.length = 0;
   const w = new WarCries(offline, fakeSfx);
   w.hails.get(2).push({ text: "Hail, soldier.", wav: new ArrayBuffer(4) });
@@ -59,7 +59,10 @@ test("hails are their own channel: friendly cache, own budget, never the war's",
     greeted = played.length;
   }
   assert.equal(greeted, 1, "an ally eventually says hello");
-  assert.equal(played[0].rate, 1, "a greeting is a voice, not a monster");
+  // A hail now speaks in the WAR's voice — your own colours must not sound like a
+  // different species from the ones screaming at you across the same field.
+  const { WARCRY } = await import("../config.js");
+  assert.equal(played[0].rate, WARCRY.voices[2].rate, "an ally is a soldier, same throat");
   w.cry({ faction: 2, x: 0, z: 0 }, "hail");
   assert.equal(played.length, 1, "the courtesy cooldown holds");
   w.cry({ faction: 2, x: 0, z: 0 }, "arm");
@@ -127,4 +130,23 @@ test("clan-vs-clan war chatter has its own slower clock", () => {
   assert.equal(spoke, 1, "clans at war are audible");
   w.cry({ faction: 2, x: 0, z: 0 }, "war");
   assert.equal(played.length, 1, "but the war clock holds them apart");
+});
+
+test("clans sharing a voice share the audio — one bake, not three", async () => {
+  const { WARCRY } = await import("../config.js");
+  const w = new WarCries(offline, fakeSfx);
+  // Iron already learned a line; Vale wants the same one. With the war unified onto a
+  // single voice the bytes are identical, so Vale must borrow rather than re-synthesize.
+  const wav = new ArrayBuffer(8);
+  w.taunts.get(0).push({ text: "I know kung fu!", wav });
+  const borrowed = w.borrowLine(2, "I know kung fu!", w.taunts);
+  const sameVoice = WARCRY.voices[0].model === WARCRY.voices[2].model
+    && WARCRY.voices[0].pace === WARCRY.voices[2].pace;
+  if (sameVoice) {
+    assert.equal(borrowed, wav, "identical voices must share one synthesis");
+  } else {
+    assert.equal(borrowed, null, "different throats must each be sung");
+  }
+  // A line nobody has baked is never borrowed from thin air.
+  assert.equal(w.borrowLine(2, "a line nobody baked", w.taunts), null);
 });
