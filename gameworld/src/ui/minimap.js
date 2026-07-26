@@ -321,6 +321,28 @@ export class Minimap {
       ctx.fillStyle = flag.fill;
       ctx.fill();
 
+      // HOW FAR UP. A sky town's footprint on a flat map is indistinguishable from a town on
+      // the ground, so you navigate to it, arrive, and find nothing — it is two hundred blocks
+      // over your head, and fog closes at about a hundred. The arrow is the whole fix: it says
+      // which way to go once you have arrived.
+      if (s.sky) {
+        const [cx0, cy0] = pt(s.x, s.z);
+        const up = s.plateau + 1 - player.y;
+        if (Math.abs(up) > 8) {
+          ctx.fillStyle = flag.wall;
+          ctx.font = "bold 11px ui-monospace, monospace";
+          ctx.textAlign = "center";
+          ctx.fillText(up > 0 ? "▲" : "▼", cx0, cy0 + 4);
+        } else {
+          // You are level with it — that is the moment it stops being a puzzle.
+          ctx.strokeStyle = flag.wall;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(cx0, cy0, 5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
       // Outline drawn edge by edge with the gate arc LEFT OUT, so the opening reads as a
       // gap in the wall rather than needing a legend to explain it.
       ctx.strokeStyle = flag.wall;

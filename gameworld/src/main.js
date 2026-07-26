@@ -1726,13 +1726,17 @@ function nearestGate() {
   }
   if (!best) return "no town within 700m";
   if (inSafe) return "✦ SANCTUARY";
+  // WHICH WAY UP. Distance alone sent you to the right patch of map to find nothing there,
+  // because the town was overhead and fog closes long before it.
+  const climb = Math.round((best.plateau + 1) - player.y);
+  const updown = Math.abs(climb) > 8 ? `  ${climb > 0 ? "▲" : "▼"}${Math.abs(climb)}m` : "  · level ·";
   // Whose gate it is, not just how far. The map carries this as colour (ui/minimap townFlag);
   // saying it in words too is what makes the colour learnable in the first place.
   const whose = best.city || best.neutral ? "neutral"
     : isHostileSanctuary(best) ? "RIVAL"
     : servesYou(best) ? "yours"
     : factionOfTown(best) || "neutral";
-  return `town gate ${Math.round(bd)}m (${whose})`;
+  return `town gate ${Math.round(bd)}m${updown} (${whose})`;
 }
 
 // The one question hours of "still broken" reports finally came down to: WHICH BUILD IS ON

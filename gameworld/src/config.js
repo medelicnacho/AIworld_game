@@ -532,7 +532,11 @@ export const SETTLE = {
    * every town it had, and the sky gets its own. Without them the whole climb is a place to
    * fight with nowhere to spend anything, and you have to come all the way down to sell.
    */
-  skyTowns: 0.75,       // as a fraction of a ring's ground towns
+  // TWO AND A HALF TIMES the ground count. The sky is enormously bigger than the land — it
+  // is the same ring area repeated at every deck — so matching the ground's count spread them
+  // hundreds of units apart in a place where fog closes at 106 and you cannot see one until
+  // you are almost standing on it.
+  skyTowns: 2.5,
   skyDeckSpread: 3,     // how many decks up they are scattered through
   cityFromTier: 1,
   cityScale: 1.55,        // city radius = RADIUS * (cityScale + cityGrow * tier)

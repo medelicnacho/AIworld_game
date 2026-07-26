@@ -144,6 +144,13 @@ function build(key, x, z, radius, rng, city, skyY = 0) {
     // The top solid block a body stands on. For a town on the ground that is the levelled
     // land; for one in the sky it is the top of its platform. Same number, same meaning, so
     // everything downstream can ask one question.
+    // Polar position, cached at build time. The per-column lookups below run for every column
+    // of every chunk and had to test EVERY settlement in three rings — 300 of them once the
+    // sky filled up, which cost fifteen frames a second. A settlement at a very different
+    // radius, or round the far side of the ring, cannot possibly contain the point, and these
+    // two numbers reject it in a subtraction instead of a square root.
+    sR: Math.hypot(x, z),
+    sA: Math.atan2(z, x),
     plateau: skyY > 0 ? skyY : rawHeight(x, z),
     flatInner: rMax,
     flatR: rMax * (city ? SETTLE.flatten : SETTLE.townFlatten),
@@ -277,9 +284,14 @@ export function sanctuaryUnder(x, y, z, margin = 0) {
 /** Which sky town's platform covers this column, or null. */
 function skyTownAt(x, z) {
   const d = Math.hypot(x, z);
+  const a = Math.atan2(z, x);
   for (let t = Math.max(0, tierAt(d, 0) - 1); t <= tierAt(d, 0) + 1; t++) {
     for (const s of tierSettlements(t)) {
       if (!s.sky) continue;
+      if (Math.abs(s.sR - d) > s.flatR) continue;          // wrong distance out
+      let da = Math.abs(a - s.sA);
+      if (da > Math.PI) da = Math.PI * 2 - da;
+      if (da * d > s.flatR) continue;                      // wrong way round the ring
       const dx = s.x - x, dz = s.z - z;
       if (dx * dx + dz * dz < s.flatR * s.flatR) return s;
     }
@@ -330,12 +342,18 @@ export function sanctuaryOf(x, z, margin = 0) {
 // dependency stays one-way).
 setFlattenLookup((x, z) => {
   const d = Math.hypot(x, z);
+  const a = Math.atan2(z, x);
   // From tier 0, not tier 1 — the spawn town needs level ground as much as anything does,
   // and starting the sweep at 1 quietly excluded it.
   for (let t = Math.max(0, tierAt(d, 0) - 1); t <= tierAt(d, 0) + 1; t++) {
     for (const s of tierSettlements(t)) {
       if (s.sky) continue;      // its ground is a slab in the air, not the land down here
-      // Squared compare: this runs for every column of every chunk built.
+      // Rejected on polar position first — see sR/sA in build(). This runs for every column
+      // of every chunk built, so the cheapest test that can say no goes first.
+      if (Math.abs(s.sR - d) > s.flatR) continue;
+      let da = Math.abs(a - s.sA);
+      if (da > Math.PI) da = Math.PI * 2 - da;
+      if (da * d > s.flatR) continue;
       const dx = s.x - x, dz = s.z - z;
       if (dx * dx + dz * dz < s.flatR * s.flatR) return s;
     }
