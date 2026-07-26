@@ -9,7 +9,7 @@ import { fbm } from "../rng.js";
 import {
   WORLD_SEED, CHUNK_X, CHUNK_Y, CHUNK_Z, SEA_LEVEL, BASE_HEIGHT, TERRAIN_CAP,
   CONTINENT_SCALE, CONTINENT_AMP, HILL_SCALE, HILL_AMP, RING_SIZE, RING_WIDEN, RINGS, RELIEF,
-  RAMP_KNEE,
+  RAMP_FREE, RAMP_KNEE,
 } from "../config.js";
 
 export const AIR = 0, STONE = 1, DIRT = 2, GRASS = 3, SAND = 4, SNOW = 5;
@@ -179,11 +179,11 @@ export function tierAt(wx, wz) {
  */
 export function ringPressure(ring, ramp) {
   if (ring <= 1) return ring;
-  // The acceleration levels off instead of compounding for ever — see RAMP_KNEE. Through the
-  // early rings the denominator is near 1 and this is the old quadratic almost exactly, so
-  // nothing about the shallow game moves; by the deep rings the extra term has become linear,
-  // which is the same order as the player's own growth.
-  return ring + (ramp * ring * (ring - 1)) / (1 + (ring - 1) / RAMP_KNEE);
+  // The first RAMP_FREE rings are the original quadratic, untouched — that ramp is what makes
+  // leaving the Commons mean something. Past them the acceleration levels off, so mob HP
+  // stops being an exponent of a different ORDER to the player's own growth and the deep
+  // becomes expensive rather than impossible. See RAMP_FREE / RAMP_KNEE.
+  return ring + (ramp * ring * (ring - 1)) / (1 + Math.max(0, ring - RAMP_FREE) / RAMP_KNEE);
 }
 
 /** The NAME and colour of that band — capped, because we only wrote six names. */

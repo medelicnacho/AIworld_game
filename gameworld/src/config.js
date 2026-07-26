@@ -526,9 +526,24 @@ export const RING_WIDEN = 0.25;
  * straight line, which puts mob HP back on the same order as player damage. Depth still
  * costs you: it grows about 1.16× per ring rather than 2.5×. It just stops being a wall.
  *
- * Lower = flattens sooner and gentler. This one number is the whole difficulty of the deep.
+ * TWO numbers, because saturating from ring zero was the other error. Flattening the whole
+ * curve took a ring-8 mob from 20.7 swings to 2.0 — from a wall to nothing, and "they die too
+ * fast" was the immediate verdict. The early rings were never the problem: the ramp there is
+ * what makes leaving the Commons mean something, and it should be left exactly alone.
+ *
+ * So RAMP_FREE rings keep the original quadratic untouched, and only past that does the
+ * acceleration level off. The two reports bracket the target — 20.7 swings is a wall, 2.0 is
+ * nothing — so ring 8 is set near the middle of them at about 7:
+ *
+ *     ring 2   0.8      ring 8    6.8      ring 12  14.2
+ *     ring 6   4.3      ring 10   9.0      ring 15  31.3
+ *
+ * (before gear, which roughly halves them again.) Depth still costs; it just stops being an
+ * exponent of a different order to your own growth. RAMP_KNEE lower flattens harder past the
+ * free rings; RAMP_FREE higher keeps the old wall for longer.
  */
-export const RAMP_KNEE = 3;
+export const RAMP_FREE = 7;
+export const RAMP_KNEE = 2;
 
 // How many settlements a band holds: towns double per tier (capped), plus one CITY from
 // tier 1 outward that grows as you go. So the frontier gets denser AND grander.
