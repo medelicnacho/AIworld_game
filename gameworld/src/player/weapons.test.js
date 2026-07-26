@@ -140,21 +140,29 @@ test("SWING: the height you cut at follows where you look", () => {
   player.x = 0; player.y = 0; player.z = 0;
 
   const level = { x: 0, y: 0, z: -1 };                       // looking straight ahead
-  const up50 = { x: 0, y: Math.sin(0.87), z: -Math.cos(0.87) };   // looking well up
+  const up50 = { x: 0, y: Math.sin(0.87), z: -Math.cos(0.87) };   // looking well up (~50°)
 
-  const ahead = { id: 1, x: 0, y: 1.1, z: -4, r: 0.5 };      // chest height, in front
-  const high = { id: 2, x: 0, y: 5.6, z: -3, r: 0.5 };       // up a ledge, ~56° above
-  const feet = { id: 3, x: 0, y: 0, z: -3, r: 0.5 };         // at your feet
+  // The band is ±70° now (coneVertDeg 140), so these are placed against THAT edge. The
+  // earlier version put its ledge at 56°, which the old ±45° excluded and the widened swing
+  // is meant to reach — the terrain put enemies on ledges, and a swing that could not touch
+  // them was the whole reason the numbers moved.
+  const ahead = { id: 1, x: 0, y: 1.1, z: -4, r: 0.5 };      // chest height, in front, 0°
+  const steep = { id: 2, x: 0, y: 9.6, z: -1.5, r: 0.5 };    // almost overhead, ~80°
+  const underfoot = { id: 3, x: 0, y: 0, z: -1.2, r: 0.5 };  // right at your boots, ~-43°
   const behind = { id: 4, x: 0, y: 1.1, z: 4, r: 0.5 };      // behind you
+  const far = { id: 5, x: 0, y: 1.1, z: -8.6, r: 0.5 };      // out at the edge of the reach
 
   const ids = (fwd, targets) => g.swing(fwd, targets).map((t) => t.id);
 
-  assert.deepEqual(ids(level, [ahead, high, behind]), [1],
-    "looking level: you hit what is ahead, not the ledge above, never behind");
-  assert.deepEqual(ids(up50, [ahead, high, feet]), [2],
-    "looking up: the cut moves up — the ledge is in reach, and your feet are not");
-  assert.ok(ids(level, [feet]).includes(3),
+  assert.deepEqual(ids(level, [ahead, steep, behind]), [1],
+    "looking level: you hit what is ahead, not what is almost overhead, never behind");
+  assert.deepEqual(ids(up50, [steep, underfoot]), [2],
+    "looking up: the cut moves up — the high one is in reach, and your boots are not");
+  assert.ok(ids(level, [underfoot]).includes(3),
     "looking level still catches things at your feet — the band is generous, not a razor");
+  // The reach itself. A cleaver that stops at six units cannot answer a terrace.
+  assert.ok(ids(level, [far]).includes(5),
+    "the swing reaches past eight units — the terrain put fights at that distance");
 });
 
 test("ALIGNMENT: a faction weapon is dead in the hands of the wrong faction", () => {

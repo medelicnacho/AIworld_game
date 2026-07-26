@@ -98,6 +98,22 @@ export class Mobs {
       new THREE.Color(0x4fae5a),   // 2: green — Vale
       new THREE.Color(0xcf7a2a),   // 3: amber (if factions > 3)
     ];
+    // ELITE bodies, chosen by eye rather than derived. The old rule was "lerp the faction
+    // colour 40% toward white", which brightens a HUE perfectly well and destroys a faction
+    // that hasn't got one: Iron is deliberately achromatic, so #26262c came out #7d7d80 —
+    // neutral grey, which names no side at all. Every flying mob is an elite (only elites
+    // can fly) and elites are the big ones, so that single line turned every large or
+    // airborne Iron body into a colourless blob.
+    //
+    // Each of these is picked to stay unmistakably its own faction while reading as brighter
+    // than the rank and file. Iron's keeps a cool violet cast so it is never neutral, and
+    // stays the darkest of the three, because "Iron is the dark one" is the whole tell.
+    this.factionElites = [
+      new THREE.Color(0x5b5b78),   // 0: Iron  — lit steel, still darkest, never grey
+      new THREE.Color(0x86b0ff),   // 1: Ash
+      new THREE.Color(0x8fe09b),   // 2: Vale
+      new THREE.Color(0xf0a860),   // 3: amber
+    ];
     this.COL_CASTER = new THREE.Color(0xd11f1f);   // red: airborne ranged
     this.COL_GROUNDCASTER = new THREE.Color(0x8a3fd1);   // violet: ranged, but grounded
     // (The wind-up telegraph is a JUDDER now, not a colour — see render(). This is left as a
@@ -113,8 +129,7 @@ export class Mobs {
       qm: new THREE.Color(0xd23c3c),
     };
     this._affixCol = new THREE.Color();
-    this._white = new THREE.Color(0xffffff);
-    this._factionElite = new THREE.Color();
+
     this._affixCache = new Map();     // affix id -> THREE.Color, built once
 
     // Dying bursts: a telegraph ring, then a bang. Pooled — a wiped elite pack can put
@@ -235,9 +250,9 @@ export class Mobs {
     // glance in a war of three colours. Everything else has its own channel: SHAPE says
     // what it is, the JUDDER says it's about to fire, SCALE and the brighter tint say it's
     // a star, and the kill feed names its affixes.
-    const base = this.factionCols[(e.faction || 0) % this.factionCols.length];
-    if (e.elite) return this._factionElite.copy(base).lerp(this._white, 0.4);
-    return base;
+    const f = (e.faction || 0);
+    if (e.elite) return this.factionElites[f % this.factionElites.length];
+    return this.factionCols[f % this.factionCols.length];
   }
 
   /** Which silhouette this creature is drawn as. */

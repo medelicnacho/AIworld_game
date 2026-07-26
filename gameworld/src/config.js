@@ -438,7 +438,13 @@ Object.assign(WEAPONS, {
     // cutting high, look down and you are cutting low. One rigid cone tilted by the camera
     // did the opposite of what a swing should: looking down at things crowding you made the
     // cone point INTO the ground and miss them.
-    damage: 88, fireRate: 1.9, range: 6.0, coneDeg: 100, coneVertDeg: 90, knock: 12,
+    // 9.5 and a 140-degree height band, up from 6.0 and 90. Both numbers are answers to the
+    // terrain: RELIEF put the fight on several levels at once, and a swing that reached six
+    // units on a 45-degree band could not touch the body standing on the terrace above you or
+    // the one clawing up from the chasm below — the two places enemies now most often are. A
+    // melee faction whose weapon only works on flat ground is a melee faction that cannot
+    // play the game the terrain is asking you to play.
+    damage: 88, fireRate: 1.9, range: 9.5, coneDeg: 100, coneVertDeg: 140, knock: 12,
     magSize: 0, reloadTime: 0, pellets: 1, auto: true, recoil: 0.004, recoilRecover: 0.7,
     spreadHip: 0, spreadAim: 0, sound: "cleave",
     desc: "A wide swing in front of you that throws things back. Right-click to spin: "
