@@ -37,7 +37,6 @@ export class Inventory {
     this.adminUnlocked = false;
     this.adminAsking = false;
     this.adminWrong = false;
-    this.confirmReset = false;
     this.tab = "character";
     this.picked = null;      // {from: "bag"|"slot", index} — Spells tab only
     this.hoverUid = null;    // gear cell under the cursor, for the compare tooltip
@@ -171,15 +170,12 @@ export class Inventory {
       return;
     }
     if (e.target.closest("[data-admincode]")) { this.tryAdminCode(); return; }
-    if (e.target.closest("[data-reset]")) {
-      if (!this.confirmReset) { this.confirmReset = true; this.render(); return; }
-      this.confirmReset = false;
-      this.hooks.resetGame?.();
-      return;
-    }
-    // Any other click in the panel takes the confirm back down — you should have to MEAN it
-    // in one go, not leave a loaded button sitting there for the next stray press.
-    if (this.confirmReset) { this.confirmReset = false; this.render(); }
+    // BACK TO CHARACTER SELECT. No confirm and no danger: your character is saved on the way
+    // out, and the slot screen is where you switch, start another, or delete one. Erasing used
+    // to live here as "Start over", which meant the destructive button sat inside the panel
+    // you open forty times a session — right beside the tabs. It belongs on the screen whose
+    // whole job is choosing a character, and nowhere else.
+    if (e.target.closest("[data-slots]")) { this.hooks.toCharacterSelect?.(); return; }
     if (e.target.closest("[data-grant]")) { this.hooks.grantAll?.(); this.render(); return; }
     const one = e.target.closest("[data-give]");
     if (one) { this.hooks.give?.(one.dataset.give); this.render(); return; }
@@ -530,14 +526,9 @@ export class Inventory {
     const body = this.tab === "character" ? this.characterHtml()
       : this.tab === "spells" ? this.spellsHtml()
         : this.talentsHtml();
-    // START OVER. Deliberately two presses: this deletes a character that may represent hours,
-    // and in a game where dying already costs a level, an accidental wipe is the one loss
-    // there is no coming back from. The confirm state also renames the button — a button that
-    // says "sure?" cannot be pressed twice by muscle memory the way one that keeps its label
-    // can, which is the actual failure this is guarding against.
-    const reset = this.confirmReset
-      ? `<button class="reset go" data-reset>Erase everything?</button>`
-      : `<button class="reset" data-reset>Start over</button>`;
+    // The way out to the slot screen. Safe by construction — it saves and returns you to the
+    // character list, where switching, starting another and deleting one all live together.
+    const reset = `<button class="reset" data-slots>Characters</button>`;
 
     const foot = this.tab === "spells"
       ? (this.picked ? "Now click a slot to place it"

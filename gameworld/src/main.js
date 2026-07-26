@@ -964,13 +964,13 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
     globalPct: (player.dmgGlobal || 0) * 100,
     speedMult: player.speedMult, dashMult: player.dashMult,
   }),
-  // START OVER. Wipes the slot and reloads, rather than trying to unwind a live game back to
-  // its opening state by hand — there are a dozen places holding a piece of who you are (the
-  // bar, your guns, worn gear, bought upgrades, stat multipliers), and a reset that misses one
-  // of them leaves a character that is neither old nor new. A reload cannot miss any.
-  resetGame: () => {
-    resetting = true;      // must come FIRST — the reload below fires the save-on-exit hooks
-    wipeSave();
+  // BACK TO THE CHARACTER LIST. Saves first, then reloads — rather than trying to unwind a
+  // live game back to its opening state by hand. A dozen places hold a piece of who you are
+  // (the bar, your guns, worn gear, bought upgrades, stat multipliers) and a teardown that
+  // misses one leaves a character that is neither this one nor the next. A reload cannot miss
+  // any, and the slot picker is the first thing a load shows.
+  toCharacterSelect: () => {
+    persist();
     window.location.reload();
   },
   state: () => ({ level: player.level, points: player.points }),
@@ -1579,10 +1579,14 @@ const saveCtx = {
   slots: SLOTS,
   recomputeGear,
 };
-// Once a wipe is underway, NOTHING may write again. Erasing the slot reloads the page, and a
-// reload fires the very "save before you go" handler below — which cheerfully wrote the whole
-// character back over the wipe a few milliseconds after it happened, so Start Over erased
-// nothing at all. Any code that can save must first ask whether saving is still allowed.
+// A latch that stops any further writing once a slot is being destroyed. Erasing reloads the
+// page, and a reload fires the "save before you go" handlers — which used to cheerfully write
+// the whole character back over the wipe a few milliseconds after it happened, so Start Over
+// erased nothing at all.
+//
+// Nothing sets it today: erasing moved to the slot picker, which deletes a slot you are NOT
+// playing and never reloads. It is kept because the hazard is real and will come back the
+// moment anything in here erases again — and because the alternative is rediscovering it.
 let resetting = false;
 // A debounced write, for the things that happen in clusters — walking over three drops in a
 // second should cost one save, not three. Anything that must not be lost calls saveNow.

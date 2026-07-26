@@ -565,6 +565,15 @@
         100% { opacity: 0; transform: translate(-50%,-58%) scale(1.0); }
       }
       body.running #crosshair { opacity: .9; }
+      /* NO MOUSE ARROW DURING PLAY. Pointer lock hides the system cursor itself, but only
+         while it holds — and it drops constantly: Chrome refuses to re-acquire it for over a
+         second after Escape, and any click that lands outside the canvas releases it. In that
+         window the arrow sits over the middle of a firefight pointing at nothing, because
+         aiming is the crosshair and always has been.
+         Keyed on `running`, so every panel that pauses the game (the shop, the character
+         sheet, the slot picker, the death screen) gets the cursor straight back — those are
+         the only places it means anything. */
+      body.running, body.running canvas { cursor: none; }
       #health, #ammo, #xp, #rep, #jumps, #energy { opacity: 0; transition: opacity .2s; }
       body.running #health, body.running #ammo, body.running #xp, body.running #rep,
       body.running #jumps, body.running #energy { opacity: 1; }
