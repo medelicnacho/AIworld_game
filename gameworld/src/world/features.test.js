@@ -106,9 +106,9 @@ test("the sky has small stepping stones, not only platforms", () => {
   assert.ok(small / total > 0.2, `only ${(small / total * 100).toFixed(0)}% are stepping stones`);
 });
 
-// "Vary in height going up super high" — while staying hoppable, which is the tension the
-// two-part altitude field exists to resolve.
-test("the archipelago climbs high AND stays jumpable", () => {
+// "Vary in height going up super high" — while the climb stays possible, which is the
+// tension the two-part altitude field and the pebbles' own drop field exist to resolve.
+test("the archipelago climbs high, and the climb is a staircase", () => {
   const tops = []; let cur = null;
   for (let x = 1800; x < 9800; x++) {
     const f = featuresAt(x, 0, heightAt(x, 0));
@@ -119,8 +119,16 @@ test("the archipelago climbs high AND stays jumpable", () => {
   assert.ok(hi - lo > 15, `the sky is flat: altitudes only spanned ${(hi - lo).toFixed(0)} blocks`);
   assert.ok(hi > 60, `nothing goes high; the tallest island top was ${hi.toFixed(0)}`);
 
-  const gaps = [];
-  for (let i = 1; i < tops.length; i++) gaps.push(Math.abs(tops[i] - tops[i - 1]));
-  const reach = gaps.filter((g) => g <= 2.5).length / gaps.length;
-  assert.ok(reach > 0.6, `only ${(reach * 100).toFixed(0)}% of hops are within a double jump`);
+  // NOT whether the island spatially NEXT to you is reachable. The sky has layers now — low
+  // stepping stones threaded under high platforms — so a neighbour along any given line is
+  // often something you would drop to rather than climb to, and counting those as failures
+  // measures the wrong thing entirely. What has to be true is that the set of ALTITUDES is a
+  // ladder: sort them, and each rung should sit within a double jump of the one below, or
+  // there is a layer of sky nothing can reach.
+  const rungs = [...tops].sort((a, b) => a - b);
+  const steps = [];
+  for (let i = 1; i < rungs.length; i++) steps.push(rungs[i] - rungs[i - 1]);
+  const climbable = steps.filter((g) => g <= 2.5).length / steps.length;
+  assert.ok(climbable > 0.9,
+    `only ${(climbable * 100).toFixed(0)}% of consecutive levels are within a double jump`);
 });

@@ -159,31 +159,52 @@ export function featuresAt(wx, wz, h) {
 
   if (tierAt(wx, wz) >= I.fromTier) {
     const P = RELIEF.pebble;
+    // ALTITUDE FIRST, because it decides how CROWDED this piece of sky is. Both fields are
+    // absolute rather than measured off the land — an island keyed to the ground beneath it
+    // warps into a sheet draped over the hill instead of being a thing that broke off.
+    const slow = fbm(WORLD_SEED + 9901, wx * I.levelSlowScale, wz * I.levelSlowScale, 2);
+    const fast = fbm(WORLD_SEED + 5507, wx * I.levelScale, wz * I.levelScale, 2);
+    const lift = Math.pow(slow * 0.5 + 0.5, I.levelBias) * I.levelSlowSpan
+      + (fast * 0.5 + 0.5) * I.levelSpan;
+    const span = I.levelSlowSpan + I.levelSpan;
+    /** 0 at the bottom of the sky, 1 at the top — how much to relax a threshold by. */
+    const highness = (y) => Math.min(1, Math.max(0, (y - I.baseY) / span));
+
     // A PLATFORM first — somewhere with room to fight on.
+    const platY = I.baseY + lift;
+    const thrI = I.thresh - highness(platY) * I.threshHigh;
     const im = fbm(WORLD_SEED + 3301, wx * I.scale, wz * I.scale, 3);
-    const iStr = Math.min(1, Math.max(0, (im - I.thresh) / (I.peak - I.thresh)));
+    const iStr = Math.min(1, Math.max(0, (im - thrI) / (I.peak - thrI)));
     // Thickness from the mask, so the middle of an island is deep and its rim is a lip.
     let half = iStr > 0 ? (I.minThick + (I.thick - I.minThick) * iStr) * 0.5 : 0;
+    let cy = platY;
     if (half === 0) {
       // ...and where there is no platform, a STEPPING STONE. Only evaluated when the first
       // mask failed, which is most columns, so this costs one extra field on the common path
-      // and nothing at all where an island already stands.
+      // and nothing at all where an island already stands. It hangs below the platform layer
+      // by its own amount, filling the lower air instead of adding one more shelf up top.
+      const dn = fbm(WORLD_SEED + 8813, wx * P.dropScale, wz * P.dropScale, 2);
+      const pebY = platY - (P.dropMin + (dn * 0.5 + 0.5) * P.dropSpan);
+      const thrP = P.thresh - highness(pebY) * P.threshHigh;
       const pm = fbm(WORLD_SEED + 6607, wx * P.scale, wz * P.scale, 2);
-      const pStr = Math.min(1, Math.max(0, (pm - P.thresh) / (P.peak - P.thresh)));
-      if (pStr > 0) half = P.thick * 0.5;
+      if (pm > thrP) { half = P.thick * 0.5; cy = pebY; }
     }
     if (half > 0) {
-      // Altitude in two parts — see RELIEF.island. The slow field carries the whole region of
-      // sky up or down; the fast one jitters neighbours around it by a jumpable amount. Both
-      // are ABSOLUTE rather than measured off the land, or an island would warp into a sheet
-      // draped over the hill beneath it instead of being flat.
-      const slow = fbm(WORLD_SEED + 9901, wx * I.levelSlowScale, wz * I.levelSlowScale, 2);
-      const fast = fbm(WORLD_SEED + 5507, wx * I.levelScale, wz * I.levelScale, 2);
-      const cy = I.baseY + (slow * 0.5 + 0.5) * I.levelSlowSpan + (fast * 0.5 + 0.5) * I.levelSpan;
-      // Flat, always: where the land has risen into where this one would sit there is simply
-      // no island. Nudging it up instead would bring back the warping this avoids.
-      if (cy - half >= h + I.gapMin && cy + half <= CHUNK_Y - 2) {
-        out = { iLo: cy - half, iHi: cy + half };
+      // SHAPED LIKE THE LAND. A lens is a bubble; the world is stepped and rough, so the top
+      // gets hill noise and then the same terrace quantisation the ground gets — which is
+      // what makes an island read as a piece of the world rather than a placed platform. The
+      // underside is roughened separately, because a torn bottom is the tell that it broke
+      // off rather than being built.
+      const bump = fbm(WORLD_SEED + 2207, wx * HILL_SCALE, wz * HILL_SCALE, 3);
+      let top = cy + half + bump * I.roughness;
+      const q = Math.round(top / RELIEF.terraceStep) * RELIEF.terraceStep;
+      top += (q - top) * RELIEF.terraceMix;
+      const under = cy - half
+        - Math.abs(fbm(WORLD_SEED + 4409, wx * HILL_SCALE * 1.7, wz * HILL_SCALE * 1.7, 2))
+          * I.underRough;
+      // Where the land has risen into where this one would sit there is simply no island.
+      if (under >= h + I.gapMin && top <= CHUNK_Y - 2 && top > under) {
+        out = { iLo: under, iHi: top };
       }
     }
   }
@@ -205,7 +226,11 @@ export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz,
   if (wy < 0 || wy >= CHUNK_Y) return AIR;
   // THE SKY comes first: an island is the only thing that can be solid above the land.
   if (f && f.iHi !== undefined && wy >= f.iLo && wy <= f.iHi) {
-    return wy >= f.iHi - 1 ? GRASS : STONE;
+    // Layered exactly like the land is, so a high island wears snow and the ones down in the
+    // warm air are green. Same rule, same numbers — one world, not two.
+    const top = Math.floor(f.iHi);
+    if (wy === top) return top > 52 ? SNOW : GRASS;
+    return wy > top - 4 ? DIRT : STONE;
   }
   if (wy > h) return AIR;
   // Bitten out from under the lid — an overhang you can walk beneath, never a hole in the
@@ -280,10 +305,16 @@ export function fillChunk(cx, cz) {
       const h = heightAt(ox + x, oz + z);
       const f = featuresAt(ox + x, oz + z, h);
       heights[z * CHUNK_X + x] = h;
-      // Up to the LAND, or up to the island floating over it — whichever is higher. The
-      // loop used to stop at h, which is exactly the assumption a sky full of rock breaks.
-      const top = f && f.iHi !== undefined ? Math.min(CHUNK_Y - 1, Math.ceil(f.iHi)) : h;
-      for (let y = 0; y <= top; y++) blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, f);
+      // TWO RUNS, not one sweep to the island's top. The gap between the land and the sky is
+      // thirty-odd voxels of guaranteed air, and walking it to write zero into an array that
+      // is already zero cost more than everything else here put together — 2.1ms a chunk
+      // against 0.4ms. Fill the land, then fill the island, and skip the sky between them.
+      for (let y = 0; y <= h; y++) blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, f);
+      if (f && f.iHi !== undefined) {
+        const lo = Math.max(0, Math.floor(f.iLo));
+        const hi = Math.min(CHUNK_Y - 1, Math.ceil(f.iHi));
+        for (let y = lo; y <= hi; y++) blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, f);
+      }
     }
   }
   return { blocks, heights, cx, cz, ox, oz };

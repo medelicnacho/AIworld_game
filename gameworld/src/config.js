@@ -318,6 +318,16 @@ export const RELIEF = {
     fromTier: 1,        // the Commons keeps a clean sky; everywhere else has them
     scale: 0.031,       // ~32-unit cells — stepping stones, not landmasses
     thresh: 0.16,       // measured against the real mask spread (p50 is ~0, p90 ~0.35)
+    // THE SKY THICKENS AS IT CLIMBS. The threshold is relaxed by up to this much at the top
+    // of the altitude range, so the high air is crowded and the low air stays open. It is
+    // subtracted, never added, so nothing gets rarer down low — the ceiling gets busier
+    // rather than the floor emptying out. Climbing should feel like going somewhere.
+    threshHigh: 0.16,
+    // How much the top of an island wanders, before it gets the same terrace treatment the
+    // land does. A perfectly flat slab reads as a platform someone placed; the ground's own
+    // roughness and stepping is what makes a thing look like it broke off the world.
+    roughness: 5,
+    underRough: 2.2,    // the underside too — a torn bottom, not a machined one
     peak: 0.55,         // mask value at which an island is full size — reachable, unlike 1.0
     minThick: 2,        // even the smallest is something you can land on
     thick: 7,
@@ -336,6 +346,10 @@ export const RELIEF = {
     // while the sky as a whole goes a long way up.
     levelSlowScale: 0.0016,   // ~600-unit regions
     levelSlowSpan: 34,
+    // Noise is bell-shaped, so left alone most regions of sky sit at MIDDLE altitude and the
+    // count actually falls off above y60 — the opposite of climbing into a thickening sky.
+    // Below 1 this skews regions upward, so the high air is where most of the world is.
+    levelBias: 0.62,
     levelScale: 0.006,
     levelSpan: 9,             // the part that becomes the step between neighbours
     baseY: 30,
@@ -350,9 +364,20 @@ export const RELIEF = {
    */
   pebble: {
     scale: 0.085,       // ~12-unit cells — a few strides across
-    thresh: 0.34,       // only the peaks of the field survive, so they stay small
+    // 0.18 against a field whose median is 0.00 and 90th percentile 0.42 — about 30% of
+    // columns, roughly double what 0.34 gave. Measured before it was chosen this time.
+    thresh: 0.18,
+    threshHigh: 0.16,   // same climb-and-thicken rule as the platforms
     peak: 0.62,
     thick: 3,
+    // AND THEY HANG LOW. Sharing the platforms' altitude exactly put every pebble in the
+    // same layer as the thing it was supposed to be a route TO, which is useless: you could
+    // hop along the top of the sky but never get up there. Each pebble drops by its own
+    // amount, so the air between the land and the platforms fills in at every level and the
+    // climb becomes a staircase you can find rather than one you have to already be on.
+    dropMin: 4,
+    dropSpan: 22,
+    dropScale: 0.022,   // its own field — neighbouring pebbles sit at different depths
   },
 
   /**
