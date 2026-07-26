@@ -1438,7 +1438,7 @@ export const MOB = {
    * hundred blocks up, the world fills in around you there instead of far below. Nothing is
    * taken from the ground to pay for the air — the budget simply lands where you are.
    */
-  skyWeight: 3.2,       // a perch is worth this many ground slots before distance is counted
+  skyWeight: 5.5,       // a perch is worth this many ground slots before distance is counted
   skyAffinity: 55,      // blocks of altitude over which a floor's share falls away
   // The world grew a sky, so the crowd budget grows with it — otherwise populating the air
   // just empties the ground, and the frontier you walk through gets quieter the more there

@@ -78,9 +78,12 @@ export class Sfx {
    * meaning a faction war happening across the map could spend the whole voice budget on
    * sounds too far away to hear and drop the ones that were actually about you.
    */
-  audible(x, z, reach = MAX_DIST) {
+  audible(x, z, reach = MAX_DIST, y = null) {
     if (x === undefined) return 1;
-    return Math.max(0, 1 - Math.hypot(x - player.x, z - player.z) / reach) ** 2;
+    const d = y === null
+      ? Math.hypot(x - player.x, z - player.z)
+      : Math.hypot(x - player.x, y - player.y, z - player.z);
+    return Math.max(0, 1 - d / reach) ** 2;
   }
 
   /**
@@ -112,7 +115,7 @@ export class Sfx {
   }
 
   /** Distance gain + stereo pan for a world position, chained into the master bus. */
-  place(x, z, reach = MAX_DIST) {
+  place(x, z, reach = MAX_DIST, y = null) {
     const g = this.ctx.createGain();
     const pan = this.ctx.createStereoPanner();
     if (x === undefined) {                    // non-positional (your own gun)
@@ -120,7 +123,12 @@ export class Sfx {
       return { input: g, gain: 1 };
     }
     const dx = x - player.x, dz = z - player.z;
-    const dist = Math.hypot(dx, dz);
+    // HOW FAR, including UP. Distance was flat, which was the whole truth on a surface and is
+    // nonsense in a world of floors: a villager in a town two hundred blocks below an island
+    // sounded like they were beside you, because the only thing measured was the ground you
+    // were both over. Panning stays flat on purpose — it answers "which way do I turn", and
+    // there is nothing to turn toward in the vertical.
+    const dist = y === null ? Math.hypot(dx, dz) : Math.hypot(dx, y - player.y, dz);
     const falloff = Math.max(0, 1 - dist / reach) ** 2;
     // Right vector for the current yaw — the same basis camera.js uses.
     const rx = Math.cos(player.yaw), rz = -Math.sin(player.yaw);
@@ -621,7 +629,7 @@ export class Sfx {
    * toward someone made almost no audible difference. A voice should get louder as you
    * approach it; that is most of what makes it feel like it is coming from a body.
    */
-  async playClip(arrayBuffer, x, z, volume = 1, rate = 1, reach = 200) {
+  async playClip(arrayBuffer, x, z, volume = 1, rate = 1, reach = 200, y = null) {
     if (!this.on || !arrayBuffer) return 0;
     let buf;
     try {
@@ -632,7 +640,7 @@ export class Sfx {
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = rate;
-    const { input, gain } = this.place(x, z, reach);
+    const { input, gain } = this.place(x, z, reach, y);
     const g = this.ctx.createGain();
     g.gain.value = (gain ?? 1) * volume * this.voice;
     src.connect(g);

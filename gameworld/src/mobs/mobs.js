@@ -428,7 +428,38 @@ export class Mobs {
     return lo + this.rng() * (hi - lo);
   }
 
-  spawnOne(x, z, packId, homeX, homeZ, forceAffixes = null, faction = 0) {
+  /**
+   * WHICH FLOOR a new camp stands on. Every floor over the column competes — the land, and
+   * one perch per deck — weighted by how near it is to the player's own altitude, with the
+   * sky carrying a standing multiplier (MOB.skyWeight). This is what fills the level you are
+   * actually on, rather than arguing about what fraction of the world should be airborne.
+   */
+  pickFloor(x, z) {
+    const floors = [groundY(x, z), ...islandTopsAt(x, z)];
+    let total = 0;
+    const w = floors.map((fy, i) => {
+      const v = (i === 0 ? 1 : MOB.skyWeight) / (1 + Math.abs(fy - player.y) / MOB.skyAffinity);
+      total += v;
+      return v;
+    });
+    let r = this.rng() * total, pick = 0;
+    while (pick < floors.length - 1 && (r -= w[pick]) > 0) pick++;
+    return floors[pick];
+  }
+
+  /** The floor at this column nearest a height its camp already chose — so a body on the rim
+   *  of a small island stands on THAT island rather than whatever is directly below it. */
+  floorNearest(x, z, wantY) {
+    const floors = [groundY(x, z), ...islandTopsAt(x, z)];
+    let best = floors[0], bd = Infinity;
+    for (const fy of floors) {
+      const d = Math.abs(fy - wantY);
+      if (d < bd) { bd = d; best = fy; }
+    }
+    return best;
+  }
+
+  spawnOne(x, z, packId, homeX, homeZ, forceAffixes = null, faction = 0, wantY = null) {
     const s = this.rollStats(x, z);
     const e = addEntity({
       kind: "mob", x, z,
@@ -470,21 +501,11 @@ export class Mobs {
     // the whole argument for putting them in the world is that taking one should be a fight.
     // restY decides which floor a body is on by reading e.y, so seeding it here is what makes
     // the choice stick for the rest of that body's life.
-    // EVERY FLOOR OVER THIS COLUMN COMPETES — the land and one perch per deck — weighted by
-    // how near it is to the player's own altitude, with the sky carrying a standing
-    // multiplier. See MOB.skyWeight: this is what fills the level you are actually on instead
-    // of arguing about what fraction of the world should be airborne.
-    const floors = [groundY(x, z), ...islandTopsAt(x, z)];
-    let total = 0;
-    const w = floors.map((fy, i) => {
-      const near = 1 / (1 + Math.abs(fy - player.y) / MOB.skyAffinity);
-      const v = (i === 0 ? 1 : MOB.skyWeight) * near;
-      total += v;
-      return v;
-    });
-    let r = this.rng() * total, pick = 0;
-    while (pick < floors.length - 1 && (r -= w[pick]) > 0) pick++;
-    e.y = floors[pick];
+    // A CAMP SHARES A FLOOR. Choosing per BODY scattered a pack of a dozen across a dozen
+    // different levels — one here, one two hundred blocks up — so every level looked empty
+    // even though the world was full of them. A camp is a camp: it picks its ground once and
+    // its bodies stand on it, and what you find is twelve of them rather than one.
+    e.y = wantY === null ? this.pickFloor(x, z) : this.floorNearest(x, z, wantY);
     e.y = this.restY(e);
     return e;
   }
@@ -554,6 +575,8 @@ export class Mobs {
 
     // A camp is either ordinary or a SWARM — mixing them would blur the silhouette read,
     // and reading the camp before you engage it is the whole point of having breeds.
+    // THE CAMP'S GROUND, chosen once here and worn by every body in it.
+    const packY = this.pickFloor(hx, hz);
     const isSwarm = this.rng() < MOB.swarmPackChance;
     const [lo, hi] = isSwarm ? MOB.swarmSize : MOB.packSize;
     const n = lo + Math.floor(this.rng() * (hi - lo + 1));
@@ -567,7 +590,8 @@ export class Mobs {
     for (let i = 0; i < n; i++) {
       const ang = this.rng() * Math.PI * 2;
       const r = this.rng() * MOB.homeWander * (isSwarm ? 0.5 : 1);
-      const e = this.spawnOne(hx + Math.cos(ang) * r, hz + Math.sin(ang) * r, id, hx, hz, null, faction);
+      const e = this.spawnOne(hx + Math.cos(ang) * r, hz + Math.sin(ang) * r, id, hx, hz,
+                              null, faction, packY);
       if (isSwarm) this.makeSwarm(e);
     }
     return id;
@@ -766,7 +790,7 @@ export class Mobs {
       // forceAffixes = [] means "roll nothing": a spawnling that could itself split would
       // be an infinite fight, and one that could roll a star would lie about its size.
       const e = this.spawnOne(parent.x + Math.cos(a) * 1.5, parent.z + Math.sin(a) * 1.5,
-                              parent.pack, parent.homeX, parent.homeZ, [], parent.faction);
+                              parent.pack, parent.homeX, parent.homeZ, [], parent.faction, parent.y);
       e.elite = false;
       e.caster = false;
       e.flies = false;
@@ -1393,7 +1417,7 @@ export class Mobs {
     for (const parent of babies) {
       const ang = this.rng() * Math.PI * 2;
       this.spawnOne(parent.x + Math.cos(ang) * 1.6, parent.z + Math.sin(ang) * 1.6,
-                    parent.pack, parent.homeX, parent.homeZ, null, parent.faction);
+                    parent.pack, parent.homeX, parent.homeZ, null, parent.faction, parent.y);
       this.born++;
     }
 

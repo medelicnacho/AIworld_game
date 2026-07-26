@@ -340,7 +340,7 @@ export class TownChat {
       if (log.length > LOG_KEEP) log.splice(0, log.length - LOG_KEEP);
       this.townVoice.hear(clean, v.s);               // her answer is heard by HER town
       console.info(`[chat] you: "${said}" -> ${nameOf(v)} the ${v.role.name} (${mood}, ${regard}): "${clean}"`);
-      if (wav) this.sfx.playClip(wav, v.x, v.z, VOICE.volume, 1, VOICE.reach);
+      if (wav) this.sfx.playClip(wav, v.x, v.z, VOICE.volume, 1, VOICE.reach, v.y);
     } catch {
       console.info(`[chat] you: "${said}" -> ${v.role.name}: NO REPLY (error)`);
       log.push({ who: "them", text: "…" });          // the lab hiccuped; she just works on

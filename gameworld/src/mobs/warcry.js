@@ -394,7 +394,7 @@ export class WarCries {
       if (!bin.length) return false;
       const { text, wav } = bin[(this.rng() * bin.length) | 0];
       this.hailCd = WARCRY.hailCd;
-      this.sfx.playClip(wav, e.x, e.z, WARCRY.hailVolume, WARCRY.voices[colour].rate, WARCRY.hailReach);
+      this.sfx.playClip(wav, e.x, e.z, WARCRY.hailVolume, WARCRY.voices[colour].rate, WARCRY.hailReach, e.y);
       console.info(`[warcry] colour ${colour} (hail): "${text}"`);
       return;
     }
@@ -415,7 +415,7 @@ export class WarCries {
       this.chatterCd = WARCRY.chatterGap;
       if (isWar) this.warCd = WARCRY.warCd; else this.fightCd = WARCRY.fightCd;
       const { rate } = WARCRY.voices[colour];
-      this.sfx.playClip(pick.wav, e.x, e.z, WARCRY.volume, rate, WARCRY.reach);
+      this.sfx.playClip(pick.wav, e.x, e.z, WARCRY.volume, rate, WARCRY.reach, e.y);
       console.info(`[warcry] colour ${colour} (${kind}): "${pick.text}"`);
       return true;
     }
@@ -429,7 +429,7 @@ export class WarCries {
     this.globalCd = WARCRY.globalCd;
     this.factionCd.set(colour, WARCRY.factionCd);
     const { rate } = WARCRY.voices[colour];
-    this.sfx.playClip(wav, e.x, e.z, WARCRY.volume, rate, WARCRY.reach);
+    this.sfx.playClip(wav, e.x, e.z, WARCRY.volume, rate, WARCRY.reach, e.y);
     console.info(`[warcry] colour ${colour} (${kind}): "${text}"`);
 
     // THE WARBAND ANSWERS. Packmates near the crier take up the cry — staggered, from
@@ -445,7 +445,7 @@ export class WarCries {
       const delay = WARCRY.echoDelayMin + this.rng() * (WARCRY.echoDelayMax - WARCRY.echoDelayMin);
       const throat = rate * (0.94 + this.rng() * 0.12);
       setTimeout(() => {
-        if (o.hp > 0) this.sfx.playClip(echoPick.wav, o.x, o.z, WARCRY.volume * WARCRY.echoVolume, throat, WARCRY.reach);
+        if (o.hp > 0) this.sfx.playClip(echoPick.wav, o.x, o.z, WARCRY.volume * WARCRY.echoVolume, throat, WARCRY.reach, o.y);
       }, delay * 1000);
       echoes++;
     }
