@@ -48,7 +48,7 @@
       /* XP bar — a long thin BLUE bar sitting directly on top of the ability bar. */
       /* overflow VISIBLE, not hidden: the bar's floating label lives above the box, and
          overflow:hidden was silently clipping it to nothing. The fill rounds itself. */
-      #xp { position: absolute; left: 50%; transform: translateX(-50%); bottom: 94px;
+      #xp { position: absolute; left: 50%; transform: translateX(-50%); bottom: 108px;
         width: min(720px, 92vw); height: 6px; background: #0a1220cc;
         border: 1px solid #1c3050; border-radius: 4px; }
       #xp .xp-fill { height: 100%; background: linear-gradient(90deg, #2f8fff, #7fd0ff);
@@ -59,7 +59,7 @@
          colour. XP is who you are; reputation is who you are WITH someone — the two long
          climbs of the game, stacked, so both are read in the same glance. Hidden until a
          faction is joined (main.js), because a bar for a ladder you are not on is noise. */
-      #rep { position: absolute; left: 50%; transform: translateX(-50%); bottom: 104px;
+      #rep { position: absolute; left: 50%; transform: translateX(-50%); bottom: 118px;
         width: min(720px, 92vw); height: 5px; background: #0a1220cc;
         border: 1px solid #1c3050; border-radius: 4px; }
       #rep .rep-fill { height: 100%; transition: width .25s linear, filter .3s;
@@ -109,11 +109,15 @@
         transition: opacity .9s ease; z-index: 60; display: grid; place-content: center;
         font: 15px/1.6 ui-sans-serif, system-ui, sans-serif; color: #9fb2cc; letter-spacing: .12em; }
       #sleep.show { opacity: 1; }
+      /* WHO IS SPEAKING. This sat at `bottom: 12%` while everything it stacks against is
+         measured in pixels — so on any ordinary window 12% landed straight on the rep bar
+         and the name of the person talking to you was unreadable. A caption belongs at a
+         fixed distance above the bars it must clear, not at a fraction of the window. */
       #subtitle {
-        position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%);
+        position: absolute; left: 50%; bottom: 196px; transform: translateX(-50%);
         max-width: 60%; text-align: center; opacity: 0;
         font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; color: #eaf2ff;
-        text-shadow: 0 2px 8px #000c; transition: opacity .25s;
+        text-shadow: 0 2px 8px #000c, 0 0 14px #000a; transition: opacity .25s;
       }
       #shop { position: absolute; inset: 0; display: none; place-content: center;
         pointer-events: auto; font: 13px/1.5 ui-sans-serif, system-ui, sans-serif; }
@@ -353,7 +357,7 @@
       .geartip .tt-hint { color: #7f8fab; font-size: 10.5px; margin-top: 5px; }
       /* On a narrow window the three columns stack instead of squeezing. */
       @media (max-width: 720px) { #inv .char { grid-template-columns: 1fr; } }
-      #points { position: absolute; left: 50%; bottom: 124px; transform: translateX(-50%);
+      #points { position: absolute; left: 50%; bottom: 138px; transform: translateX(-50%);
         font: 600 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #ffd45e;
         text-shadow: 0 2px 6px #000b; letter-spacing: .06em; }
       #points small { color: #b9c6da; font-weight: 400; font-size: 10px; letter-spacing: .12em; }
@@ -498,11 +502,37 @@
       /* "Move outward" nudge — shows when your zone has greyed out (little/no xp). */
       /* The sleep nudge: a quiet line while you stand in a safe town after dark. Teaches
          the ONE key the night wants without a tutorial — and only when it's usable. */
-      #sleephint { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%);
+      #sleephint { position: absolute; left: 50%; bottom: 164px; transform: translateX(-50%);
         font: 600 12px/1.4 ui-sans-serif, system-ui, sans-serif; color: #b9c6da;
         text-shadow: 0 2px 6px #000b; letter-spacing: .08em; opacity: 0;
         transition: opacity .4s; pointer-events: none; }
       #sleephint.show { opacity: .85; }
+      /* BOSS HEALTH — top centre, big, and red.
+         It was twenty ASCII blocks inside the debug readout: top-left corner, 10px, 40%
+         opacity, wrapped in coordinates and camera settings. That is precisely where you
+         are not looking while a boss is beaming you. A boss is the one fight whose
+         remaining health has to be legible from peripheral vision, so it gets the one
+         piece of screen nothing else uses and a colour that means exactly one thing. */
+      #bossbar { position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+        /* The vw term is what keeps it off the minimap on a smaller window — at 52vw the
+           two were within fourteen pixels of touching at 1024 wide. */
+        width: min(720px, 46vw); opacity: 0; transition: opacity .3s; pointer-events: none; }
+      #bossbar.show { opacity: 1; }
+      #bossbar .bb-top { display: flex; justify-content: space-between; align-items: baseline;
+        margin-bottom: 5px; font: 800 12px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .2em; color: #ff8f8f; text-shadow: 0 2px 6px #000d; }
+      #bossbar .bb-hp { font-weight: 700; letter-spacing: .06em; color: #ffdede; }
+      #bossbar .bb-track { height: 20px; background: #1a0707dd; border: 1px solid #8d2222;
+        border-radius: 5px; overflow: hidden; box-shadow: 0 2px 14px #000b, 0 0 20px #ff2a2a2e; }
+      #bossbar .bb-fill { height: 100%; background: linear-gradient(180deg, #ff5f4d, #c60f0f 60%, #8d0505);
+        box-shadow: 0 0 16px #ff3b2ecc; transition: width .18s linear; }
+      /* Phase 2 changes the fight, so it changes the bar: hotter colour and a pulse you can
+         catch without reading a word. */
+      #bossbar.enraged .bb-top { color: #ffc36a; }
+      #bossbar.enraged .bb-track { border-color: #ffae3a; }
+      #bossbar.enraged .bb-fill { background: linear-gradient(180deg, #ff9a3a, #e21616 60%, #a30505);
+        animation: bbpulse .55s ease-in-out infinite alternate; }
+      @keyframes bbpulse { from { filter: brightness(1); } to { filter: brightness(1.5); } }
       #alert { position: absolute; left: 50%; top: 74px; transform: translateX(-50%);
         opacity: 0; transition: opacity .3s; pointer-events: none; text-align: center;
         font: 700 15px/1.4 ui-sans-serif, system-ui, sans-serif; color: #ffe08a;
@@ -523,6 +553,7 @@
       <div id="ammo"></div>
       <div id="rep"></div>
       <div id="xp"></div>
+      <div id="bossbar"></div>
       <div id="alert"></div>
       <div id="sleephint">🌙 night in town &nbsp;·&nbsp; press <b>Z</b> to sleep</div>
       <div id="levelbanner"></div>

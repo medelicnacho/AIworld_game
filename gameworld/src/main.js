@@ -1103,6 +1103,34 @@ let bossTimer = 6;
 
 const hurtEl = document.getElementById("hurt");
 const subEl = document.getElementById("subtitle");
+const bossEl = document.getElementById("bossbar");
+let bossShown = false, bossEnraged = false;
+
+/**
+ * The boss bar. Rebuilt only when the boss appears or its phase turns — the fill width is
+ * a style poke every frame, but the markup is not, because writing innerHTML sixty times a
+ * second to change one number is how a HUD ends up costing more than the fight.
+ */
+function drawBossBar() {
+  const b = boss.alive;
+  if (!b) {
+    if (bossShown) { bossEl.classList.remove("show", "enraged"); bossShown = false; }
+    return;
+  }
+  const enraged = b.phase === 2;
+  if (!bossShown || enraged !== bossEnraged) {
+    bossEl.innerHTML = `<div class="bb-top"><span>${enraged ? "BOSS HEALTH · ENRAGED" : "BOSS HEALTH"}</span>`
+      + `<span class="bb-hp"></span></div>`
+      + `<div class="bb-track"><div class="bb-fill"></div></div>`;
+    bossEl.classList.add("show");
+    bossEl.classList.toggle("enraged", enraged);
+    bossShown = true; bossEnraged = enraged;
+  }
+  const frac = Math.max(0, Math.min(1, b.hp / b.maxHp));
+  bossEl.querySelector(".bb-fill").style.width = `${frac * 100}%`;
+  bossEl.querySelector(".bb-hp").textContent =
+    `${Math.max(0, Math.round(b.hp))} / ${Math.round(b.maxHp)}`;
+}
 let hurtT = 0, killFeed = "";
 
 function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback) {
@@ -2047,6 +2075,8 @@ function frame(now) {
     subEl.style.opacity = "0";
   }
 
+  drawBossBar();
+
   if (hurtT > 0) {
     hurtT -= dt;
     hurtEl.style.opacity = String(Math.max(0, hurtT / 0.35) * 0.55);
@@ -2064,11 +2094,6 @@ function frame(now) {
   const bossStatus = boss.active ? ""
     : boss.eligible ? `boss  inbound ~${Math.ceil(bossTimer)}s\n`
       : `boss  none in ${RINGS[0].name} — ${Math.ceil(tierStart(1) - fromSpawn)}m to ${RINGS[1].name}\n`;
-  const bossLine = boss.active
-    ? `BOSS ${"█".repeat(Math.max(0, Math.round(boss.alive.hp / boss.alive.maxHp * 20)))}` +
-      `${"░".repeat(Math.max(0, 20 - Math.round(boss.alive.hp / boss.alive.maxHp * 20)))}` +
-      ` ${Math.max(0, Math.round(boss.alive.hp))}  ${boss.alive.phase === 2 ? "· ENRAGED ·" : ""}\n`
-    : "";
   const broken = brokenAffixes();
   // The HP bar is a FIXED length that fills by FRACTION of max HP, so gaining max health from
   // Stamina makes the NUMBER climb, not the bar grow ever longer across the screen.
@@ -2077,7 +2102,7 @@ function frame(now) {
     ? Math.max(0, Math.min(HPBAR, Math.round(player.hp / player.maxHp * HPBAR))) : 0;
   hud.textContent =
     (broken.length ? `⚠ affix disabled: ${broken.join(", ")} — see console\n` : "") +
-    bossLine + bossStatus +
+    bossStatus +
     `${nearestGate()}\n` +
     `${RINGS[ring].name}  (tier ${tier})   ${Math.round(fromSpawn)}m out` +
     `   next ring ${Math.max(0, Math.ceil(toNextRing))}m   · ${dayNight.phase()}\n` +
