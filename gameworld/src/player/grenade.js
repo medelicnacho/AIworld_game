@@ -42,6 +42,9 @@ export class Grenades {
     this.blastT = 0;
     this.light = new THREE.PointLight(0xffa040, 0, 30);
     scene.add(this.light);
+    // Set by main: (x,y,z) => truthy when a hostile body occupies that point. Kept as a
+    // hook rather than an import so this file keeps knowing nothing about what it hits.
+    this.bodyAt = null;
   }
 
   get ready() { return this.cooldown <= 0 && this.count > 0; }
@@ -112,11 +115,18 @@ export class Grenades {
       // Contact test against the same world function collision uses — no separate collider,
       // and it can't disagree with the terrain the player is standing on.
       const hitWorld = solidAt(nx, ny, nz) || ny <= groundY(nx, nz) - 1;
-      if (hitWorld || g.fuse <= 0) {
-        // Detonate at the last free spot so the blast isn't buried inside a block.
-        const bx = hitWorld ? g.x : nx;
-        const by = hitWorld ? g.y : ny;
-        const bz = hitWorld ? g.z : nz;
+      // AND AGAINST BODIES. Found by a playtester on easy who could not kill a boss: the
+      // grenade sailed clean THROUGH it and only ever popped on terrain, so a direct hit
+      // on the biggest target in the game did nothing at all. `bodyAt` is supplied by
+      // main — this file still knows nothing about mobs or bosses, it just asks "is
+      // something there", the same way it asks solidAt about the world.
+      const body = this.bodyAt ? this.bodyAt(nx, ny, nz) : null;
+      if (hitWorld || body || g.fuse <= 0) {
+        // Detonate at the last free spot so the blast isn't buried inside a block — but a
+        // BODY hit detonates right on the body, which is the whole point of a direct hit.
+        const bx = body ? nx : (hitWorld ? g.x : nx);
+        const by = body ? ny : (hitWorld ? g.y : ny);
+        const bz = body ? nz : (hitWorld ? g.z : nz);
         this.detonate(bx, by, bz, onDetonate);
         g.active = false;
         g.mesh.visible = false;

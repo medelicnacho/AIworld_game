@@ -130,6 +130,9 @@ export class Gun {
     }
     this.shellLight = new THREE.PointLight(0xff8a2e, 0, 20);
     scene.add(this.shellLight);
+    // Set by main: (x,y,z) => truthy when a hostile body is there, so a shell bursts on
+    // what it strikes. A hook, not an import — the gun still learns nobody's name.
+    this.bodyAt = null;
 
     // THE BURST. The cannon had no explosion visual at all — only a sound and invisible
     // damage — so a huge blast landed with nothing to see. A pool of shells can put a couple
@@ -516,9 +519,17 @@ export class Gun {
       const nx = s.x + s.vx * dt, ny = s.y + s.vy * dt, nz = s.z + s.vz * dt;
       // A wall bursts the shell too — it detonates ON the wall rather than sailing through it.
       const hitWall = ny < groundY(nx, nz) + WALL_H && wallBlocks(nx, nz);
-      if (s.t <= 0 || hitWall || solidAt(nx, ny, nz) || ny <= groundY(nx, nz)) {
-        this.spawnBurst(s.x, s.y, s.z, w.blastRadius);
-        onBurst?.(s.x, s.y, s.z);
+      // AND SO DOES A BODY. The lobber is the aim-forgiving weapon — the one handed to a
+      // player who cannot track a moving target — and it was the only weapon in the game
+      // that could score a perfect direct hit on a boss and deal nothing, because the
+      // shell only ever tested terrain. A shell that passes through the thing it struck
+      // is not a splash weapon, it is a bug. bodyAt is main's; this file stays ignorant.
+      const body = this.bodyAt ? this.bodyAt(nx, ny, nz) : null;
+      if (s.t <= 0 || hitWall || body || solidAt(nx, ny, nz) || ny <= groundY(nx, nz)) {
+        // A direct hit bursts ON the body, not at the last empty step before it.
+        const bx = body ? nx : s.x, by = body ? ny : s.y, bz = body ? nz : s.z;
+        this.spawnBurst(bx, by, bz, w.blastRadius);
+        onBurst?.(bx, by, bz);
         s.active = false;
         s.mesh.visible = false;
         continue;

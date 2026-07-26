@@ -1016,6 +1016,32 @@ const townVoice = new TownVoice(bridge, villagers, sfx, (name, text, dur) => {
 const warcries = new WarCries(bridge, sfx);
 mobs.onWarcry = (e, kind) => warcries.cry(e, kind);
 
+/**
+ * IS A HOSTILE BODY AT THIS POINT? The contact test for everything that FLIES rather than
+ * hitscans — the lobber's shells and thrown grenades both ask it every step.
+ *
+ * It reuses the very same target spheres the hitscan already trusts (mobs.targets() skips
+ * allies and phased bodies; boss.targets() carries the bulk and the weak core), so a
+ * grenade and a bullet can never disagree about what is solid. A generous +0.35 pads the
+ * sphere, because a thrown explosive that visibly clips a shoulder and sails on is exactly
+ * the complaint this was written for.
+ */
+function bodyAt(x, y, z) {
+  for (const t of mobs.targets()) {
+    const r = t.r + 0.35;
+    const dx = t.x - x, dy = t.y - y, dz = t.z - z;
+    if (dx * dx + dy * dy + dz * dz <= r * r) return t;
+  }
+  for (const t of boss.targets()) {
+    const r = t.r + 0.35;
+    const dx = t.x - x, dy = t.y - y, dz = t.z - z;
+    if (dx * dx + dy * dy + dz * dz <= r * r) return t;
+  }
+  return null;
+}
+gun.bodyAt = bodyAt;
+grenades.bodyAt = bodyAt;
+
 // The world's clock (world/daynight.js). main drives the lights off daylight() below —
 // sim state is not render state, and time is sim state.
 const dayNight = new DayNight();
