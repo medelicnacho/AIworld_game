@@ -1159,7 +1159,20 @@ export const MOB = {
   timidStandoff: 11.0,
   // One mob committing makes its neighbours more likely to follow within the second.
   contagion: 0.45,
-  maxClimb: 1.15,         // blocks it can step up; steeper terrain must be walked around
+  // Blocks it can step up; steeper terrain must be walked around.
+  //
+  // This was 1.15 when the land never rose more than a block, so it never mattered. Once
+  // RELIEF put ~2-block terraces everywhere, it meant a mob could not follow you onto a
+  // ledge — and standing on the nearest step became a free win against anything in the
+  // game. A movement pillar that hands you an exploit is not a movement pillar.
+  //
+  // 2.4 is chosen against the measured terrain, not by feel: it lets a mob follow you up
+  // roughly 90% of the rises in the deep rings, and leaves the top tenth — 3+ block faces,
+  // spires, chasm edges — as ground they genuinely cannot take. High ground still wins you
+  // fights; it just has to be high ground you FOUND, not the step you happened to be next
+  // to. STOPGAP: the real answer is chargers that leap and lobbers that arc over cover,
+  // so that height is a trade rather than a hiding place.
+  maxClimb: 2.4,
   avoidArc: 1.05,         // radians it will veer to find a walkable line
 
   // Population around the player. Cost is bounded by COUNT, not by world size.
