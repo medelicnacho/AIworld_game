@@ -4,7 +4,7 @@
 // tunnel through a block, and cost scales with distance travelled rather than precision
 // wanted. This is what hitscan fire, and later line-of-sight checks, both ride on.
 
-import { solidAt } from "./gen.js";
+import { solidAt, heightAt } from "./gen.js";
 
 const EPS = 1e-8;
 
@@ -61,4 +61,28 @@ export function raycastVoxel(ox, oy, oz, dx, dy, dz, maxDist = 256) {
     px: ox + dx * maxDist, py: oy + dy * maxDist, pz: oz + dz * maxDist,
     nx: 0, ny: 0, nz: 0, dist: maxDist,
   };
+}
+
+/**
+ * Can these two points see each other past the LAND?
+ *
+ * Terrain is a heightmap — no overhangs anywhere, by construction — so line of sight is
+ * exactly "does the ground ever rise above the line between them". That makes this a march
+ * over COLUMNS instead of a voxel DDA: a dozen height lookups rather than sixty solidAt
+ * calls, which is what makes it cheap enough for the AI to ask at all.
+ *
+ * If Stage 2 ever adds real overhangs this stops being exact and has to become a proper
+ * raycastVoxel — the assumption is written here so that day is a search hit, not a surprise.
+ */
+export function terrainClear(x0, y0, z0, x1, y1, z1, step = 3) {
+  const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+  const flat = Math.hypot(dx, dz);
+  if (flat < 1e-3) return true;
+  const n = Math.min(40, Math.max(2, Math.ceil(flat / step)));
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    // heightAt is the TOP SOLID block, so a point is inside the land when y <= h.
+    if (y0 + dy * t <= heightAt(Math.floor(x0 + dx * t), Math.floor(z0 + dz * t))) return false;
+  }
+  return true;
 }

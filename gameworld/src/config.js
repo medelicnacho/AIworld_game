@@ -1180,6 +1180,23 @@ export const MOB = {
   // 1.2 sits just under the player's 1.36-block jump, so clearing a patch mid-stride is a
   // real option and standing in one is still a mistake.
   fireHeight: 1.2,
+  // THE LEAP. maxClimb is what a body can WALK up; this is what it can throw itself over.
+  // Without it, RELIEF's terraces were a wall that thinking creatures stood and stared at,
+  // and the answer to every hard fight was "find a step". A leap costs them a beat of
+  // commitment and gets them to you, which is the trade high ground is supposed to be: it
+  // buys you TIME, not immunity.
+  leapClimb: 6,         // blocks a leap can gain — well past a terrace, well under a spire
+  leapReach: [3, 5, 7], // how far ahead it looks for somewhere to land
+  leapDur: 0.42,        // airborne seconds; long enough to read as a jump and dodge around
+  leapArc: 1.3,         // how high over the straight line it travels — the readable part
+  leapCd: 1.6,          // so a body that cannot find a route does not strobe
+  // How often a caster re-asks whether it can actually SEE its target. A sight line costs
+  // about 4.5µs, which is nothing once and eight milliseconds a frame if every caster asks
+  // every frame. Jittered per body so they never all ask on the same tick, and slow enough
+  // that stepping behind a rock buys you a beat before they notice — which is the right
+  // feel anyway: a moment of being missed, not an instant switch.
+  losCheck: 0.45,
+
   avoidArc: 1.05,         // radians it will veer to find a walkable line
 
   // Population around the player. Cost is bounded by COUNT, not by world size.

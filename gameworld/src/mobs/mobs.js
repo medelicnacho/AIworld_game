@@ -16,6 +16,7 @@ import { MOB, PLAYER, RAID, WARCRY } from "../config.js";
 import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
 import { groundY, solidAt, tierAt, ringPressure } from "../world/gen.js";
+import { terrainClear } from "../world/raycast.js";
 import { sfx } from "../audio/sfx.js";
 import { sanctuaryOf, boundaryAt, gateArc } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
@@ -328,8 +329,60 @@ export class Mobs {
 
   /** Where this body sits vertically: on the ground, or hovering above it. */
   restY(e) {
+    // MID-LEAP the ground is not the answer. Interpolating between the heights it left and
+    // is heading for — rather than reading groundY under it — is what stops the body
+    // snapping vertically the instant it crosses the cliff edge it is jumping over.
+    if (e.leapT > 0) {
+      const p = 1 - e.leapT / MOB.leapDur;
+      return e.leapY0 + (e.leapY1 - e.leapY0) * p + Math.sin(p * Math.PI) * MOB.leapArc;
+    }
     const g = groundY(e.x, e.z);
     return e.flies ? g + MOB.flyHeight + Math.sin(e.wobble * 1.6) * MOB.flyBob : g;
+  }
+
+  /**
+   * Throw itself at something it cannot walk up.
+   *
+   * Called only when tryMove has failed on every heading, so this is the last resort before
+   * standing still — which is what used to happen, and what made a two-block ledge an
+   * unbeatable fortress. It looks a few strides ahead for somewhere it could land, takes the
+   * furthest one that works, and commits: for leapDur seconds the body follows an arc and
+   * nothing tests its footing.
+   */
+  tryLeap(e, vx, vz) {
+    if (e.leapT > 0 || e.leapCd > 0 || !e.aggro || e.flies) return false;
+    const d = Math.hypot(vx, vz) || 1;
+    const ux = vx / d, uz = vz / d;
+    const here = groundY(e.x, e.z);
+    // Furthest first: clearing a gap outright beats scrambling onto its near lip.
+    for (let i = MOB.leapReach.length - 1; i >= 0; i--) {
+      const reach = MOB.leapReach[i];
+      const nx = e.x + ux * reach, nz = e.z + uz * reach;
+      const there = groundY(nx, nz);
+      if (there - here > MOB.leapClimb) continue;      // a spire is still a spire
+      if (!this.wallOk(e, nx, nz)) continue;           // a wall is never leapt
+      e.leapT = MOB.leapDur;
+      e.leapCd = MOB.leapCd;
+      e.leapX0 = e.x; e.leapZ0 = e.z; e.leapX1 = nx; e.leapZ1 = nz;
+      e.leapY0 = here; e.leapY1 = there;
+      e.heading = Math.atan2(ux, uz);
+      return true;
+    }
+    return false;
+  }
+
+  /** Advance every body that is in the air. One pass, so no AI branch can forget to do it. */
+  stepLeaps(dt) {
+    for (const e of this.entities()) {
+      if (e.leapCd > 0) e.leapCd -= dt;
+      if (e.leapT <= 0) continue;
+      e.leapT -= dt;
+      const p = Math.max(0, Math.min(1, 1 - e.leapT / MOB.leapDur));
+      e.x = e.leapX0 + (e.leapX1 - e.leapX0) * p;
+      e.z = e.leapZ0 + (e.leapZ1 - e.leapZ0) * p;
+      if (e.leapT <= 0) { e.leapT = 0; e.x = e.leapX1; e.z = e.leapZ1; }
+      e.y = this.restY(e);
+    }
   }
 
   breedDelay() {
@@ -357,6 +410,10 @@ export class Mobs {
       scale: 1,
       swarm: false,
       windT: 0, rushT: 0, recoverT: 0, rushX: 0, rushZ: 0, rushVoice: null,
+      // Mid-leap state. leapT counts DOWN, so 0 means "on the ground" everywhere.
+      leapT: 0, leapCd: 0, leapX0: 0, leapZ0: 0, leapX1: 0, leapZ1: 0, leapY0: 0, leapY1: 0,
+      // Cached sight line and the clock that refreshes it — see MOB.losCheck.
+      los: true, losT: 0,
       kx: 0, kz: 0, kT: 0,
       castT: 0, castCd: 1.5 + this.rng() * MOB.castCd,
       slowT: 0, slowMul: 1, rootT: 0,     // crowd control from player spells
@@ -745,6 +802,7 @@ export class Mobs {
    * contours and funnelling through passes, with no navmesh existing anywhere.
    */
   tryMove(e, vx, vz, dt) {
+    if (e.leapT > 0) return;              // committed: stepLeaps owns the body until it lands
     if (Math.hypot(vx, vz) < 1e-4) return;
     const here = groundY(e.x, e.z);
     for (const turn of [0, MOB.avoidArc * 0.5, -MOB.avoidArc * 0.5, MOB.avoidArc,
@@ -759,10 +817,13 @@ export class Mobs {
         return;
       }
     }
-    // Walled in on every heading — hold rather than climb.
+    // Walled in on every heading. Jump it, or hold — but no longer just hold.
+    this.tryLeap(e, vx, vz);
   }
 
   update(dt, onPlayerHit) {
+    // Bodies in the air move first, before any AI branch gets a chance to forget them.
+    this.stepLeaps(dt);
     // Sweep anything you've walked away from FIRST. The nearby() loop below only sees mobs
     // within despawn range, so its `dist > despawn` cleanup never fires for mobs abandoned in
     // a ring you've left — they'd persist frozen far behind you and, because the alive budget
@@ -1094,9 +1155,16 @@ export class Mobs {
         // you otherwise. Never lunges, never brawls.
         e.bold = false;
         const ctx = foeMob ? foeMob.x : player.x, ctz = foeMob ? foeMob.z : player.z;
+        const cty = foeMob ? foeMob.y + 0.6 : player.y + 0.9;
         const cdx = ctx - e.x, cdz = ctz - e.z;
         const cdist = Math.hypot(cdx, cdz) || 1;
         const cux = cdx / cdist, cuz = cdz / cdist;
+        // CAN IT SEE YOU? Asked on its own slow, jittered clock rather than every frame.
+        e.losT -= dt;
+        if (e.losT <= 0) {
+          e.los = terrainClear(e.x, e.y + 1.1, e.z, ctx, cty, ctz);
+          e.losT = MOB.losCheck * (0.7 + this.rng() * 0.6);
+        }
         // THE ADEPT'S BARRAGE: after the opening shot, the remaining fireballs stream out on
         // a short clock. Each aims at where you are NOW — five balls you dodge by MOVING,
         // and the answer the barrage teaches is line of sight, not luck.
@@ -1114,10 +1182,23 @@ export class Mobs {
           }
         } else {
           if (e.castCd > 0) e.castCd -= dt;
-          if (e.castCd <= 0 && cdist > MOB.castMin && cdist < MOB.castMax) e.castT = MOB.castWindup;
+          // IT HAS TO BE ABLE TO SEE YOU. Range alone meant a caster wound up and fired
+          // into the back of a mesa, over and over — the shot died on the rock so cover
+          // "worked", but it looked witless and it was the source of the knocking that took
+          // over the mix. Checked once, at the moment it decides to wind up, not every
+          // frame: the wind-up is the tell, and breaking line of sight DURING it is meant to
+          // be a dodge you earned rather than a shot that never happened.
+          if (e.castCd <= 0 && cdist > MOB.castMin && cdist < MOB.castMax && e.los) {
+            e.castT = MOB.castWindup;
+          }
 
           // Keep the range band: back off when crowded, close when you've drifted too far.
-          const want = cdist < MOB.castMin ? -1 : cdist > MOB.castMax * 0.75 ? 1 : 0;
+          // UNLESS it cannot see you — then the band is worthless and the only thing worth
+          // doing is closing, because coming around the rock is what restores the shot. This
+          // is the half that stops cover being a fortress: break line of sight and the
+          // casters stop shooting AND start walking at you. Cover buys a breath, not a win.
+          const want = !e.los ? 1
+            : cdist < MOB.castMin ? -1 : cdist > MOB.castMax * 0.75 ? 1 : 0;
           vx += cux * want * 1.4;
           vz += cuz * want * 1.4;
           vx += -cuz * e.bias * 0.6;      // and drift sideways so they're not static targets
