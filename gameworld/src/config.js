@@ -1042,7 +1042,10 @@ export const DASH = {
   speed: 46,
   time: 0.26,           // ~12 units of travel
   radius: 2.6,          // how close a mob must be to the line you cut
-  damage: 95,
+  // 130, up from 95 — a LITTLE more, deliberately. Dash is on a three-second cooldown and is
+  // mostly a movement tool; the damage is a bonus for aiming it through something, and if it
+  // paid like a nova there would be no reason to press anything else.
+  damage: 130,
   knock: 9,
   iframePad: 0.1,       // a sliver of grace on landing, so you don't eat a hit on arrival
 };
@@ -1078,7 +1081,12 @@ export const ORB = {
   slowMul: 0.5, slowT: 1.2, rootT: 1.1,
 };
 // Frost Nova: instant ring around you — damage + a hard slow. Rank 2 roots instead.
-export const NOVA = { price: 175, minTier: 0, cd: 8, radius: 11, damage: 95, slowMul: 0.5, slowT: 3, rootT: 1.6 };
+// FROST NOVA. 260, up from 95. Spells scale with dmgMult exactly as weapons do, so they were
+// never falling BEHIND — they were just small: at level 38 a nova landed about one cleaver
+// swing on each target, for an eight-second cooldown. A button you press once per fight has
+// to be worth more than a button you press five times a second, or there is no reason to
+// learn it. Against a deep-ring mob this is now most of its health rather than a fifth.
+export const NOVA = { price: 175, minTier: 0, cd: 8, radius: 11, damage: 260, slowMul: 0.5, slowT: 3, rootT: 1.6 };
 // Chain Lightning: arcs from the nearest foe to the next, damage falling each jump.
 export const CHAIN = { price: 210, minTier: 1, cd: 7, range: 34, jumps: 5, jumpRange: 15, damage: 130, falloff: 0.8 };
 // Sprint: a burst of movement speed on demand (a movement spell, the first of several).
@@ -1111,7 +1119,10 @@ export const FIRERING = {
   price: 90,
   cd: 15,
   radius: 15,
-  damage: 150,          // still clears an early camp; no longer deletes a boss
+  // 420, up from 150. Fifteen seconds is the longest cooldown in the kit and the radius is
+  // the widest — that combination should read as "the room is now clear", and at 150 it read
+  // as a nudge. It still cannot delete a boss: bosses cap what any single hit may take.
+  damage: 420,
   knock: 13,
   grow: 0.55,           // seconds for the wall of flame to reach full radius
   shove: 26,            // rank 2 only: how hard survivors are thrown outward

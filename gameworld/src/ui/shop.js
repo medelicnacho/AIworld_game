@@ -19,6 +19,19 @@ import { sfx } from "../audio/sfx.js";
 const PRICE_GROWTH = 1.28;      // per purchase, for repeatable upgrades
 
 /** A piece's stats as a readable line: "26 Armor, +3 Strength, +3% Gun Damage". */
+/**
+ * What a spell ACTUALLY hits for, right now.
+ *
+ * These read `${NOVA.damage} damage` — the base number, which never changes — so the shop
+ * told you a spell did 95 damage at level 1 and 95 damage at level 40. It has scaled with
+ * dmgMult the whole time, exactly as weapons do; the counter was simply lying about it, and
+ * "the spells do not get stronger" is the reasonable conclusion to draw from a number that
+ * never moves. Now it moves every level, and every piece of gear.
+ */
+export function spellDamage(base) {
+  return Math.round(base * (player.dmgMult || 1) * (1 + (player.dmgSpell || 0)));
+}
+
 export function statLine(stats) {
   return Object.entries(stats).map(([k, v]) => {
     const info = STAT_INFO[k];
@@ -83,7 +96,7 @@ export const GOODS = {
   // the heal channel exactly as before.
   adept: [
     { id: "firering", name: "Ring of Fire", price: FIRERING.price, once: true,
-      desc: `A wall of flame erupts outward, ${FIRERING.damage} damage to everything within `
+      desc: `A wall of flame erupts outward, ${spellDamage(FIRERING.damage)} damage to everything within `
         + `${FIRERING.radius}m. ${FIRERING.cd}s cooldown. Goes to your first free slot.`,
       apply: (game) => game.abilities.acquire({
         id: "firering",
@@ -95,7 +108,7 @@ export const GOODS = {
       }) },
     { id: "dash", name: "Dash Strike", price: DASH.price, once: true,
       desc: `Blink forward through your enemies — untouchable while you travel, `
-        + `${DASH.damage} damage to anything you cut through. Narrow: only what you pass. `
+        + `${spellDamage(DASH.damage)} damage to anything you cut through. Narrow: only what you pass. `
         + `${DASH.cd}s cooldown.`,
       apply: (game) => game.abilities.acquire({
         id: "dash",
@@ -159,7 +172,7 @@ export const GOODS = {
         desc: "Burning pool that roots.", cd: ORB.cd, use: () => game.cataclysmOrb(3),
       }) },
     { id: "nova", name: "Frost Nova", price: NOVA.price, once: true,
-      desc: `A ring of frost: ${NOVA.damage} damage and a hard slow to everything within `
+      desc: `A ring of frost: ${spellDamage(NOVA.damage)} damage and a hard slow to everything within `
         + `${NOVA.radius}m. ${NOVA.cd}s cooldown.`,
       apply: (game) => game.abilities.acquire({
         id: "nova", name: "Frost Nova", icon: "frost",
@@ -172,7 +185,7 @@ export const GOODS = {
         desc: "Damages and roots everything around you.", cd: NOVA.cd, use: () => game.frostNova(2),
       }) },
     { id: "chain", name: "Chain Lightning", price: CHAIN.price, once: true, minTier: 1,
-      desc: `A bolt that leaps between up to ${CHAIN.jumps} enemies, ${CHAIN.damage} damage `
+      desc: `A bolt that leaps between up to ${CHAIN.jumps} enemies, ${spellDamage(CHAIN.damage)} damage `
         + `falling each jump. ${CHAIN.cd}s cooldown.`,
       apply: (game) => game.abilities.acquire({
         id: "chain", name: "Chain Lightning", icon: "bolt",
