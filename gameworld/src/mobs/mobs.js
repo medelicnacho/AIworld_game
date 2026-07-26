@@ -470,17 +470,21 @@ export class Mobs {
     // the whole argument for putting them in the world is that taking one should be a fight.
     // restY decides which floor a body is on by reading e.y, so seeding it here is what makes
     // the choice stick for the rest of that body's life.
-    // EVERY deck is a place to be born, not just the one over the land. Weighted upward: the
-    // top layers were the emptiest part of the world exactly because they are the hardest to
-    // reach, which is backwards — the climb should be paid for at the top of it.
-    const tops = islandTopsAt(x, z);
-    if (tops.length && this.rng() < MOB.islandSpawn) {
-      const pick = Math.min(tops.length - 1,
-        Math.floor(Math.pow(this.rng(), MOB.skyBias) * tops.length));
-      e.y = tops[pick];
-    } else {
-      e.y = groundY(x, z);
-    }
+    // EVERY FLOOR OVER THIS COLUMN COMPETES — the land and one perch per deck — weighted by
+    // how near it is to the player's own altitude, with the sky carrying a standing
+    // multiplier. See MOB.skyWeight: this is what fills the level you are actually on instead
+    // of arguing about what fraction of the world should be airborne.
+    const floors = [groundY(x, z), ...islandTopsAt(x, z)];
+    let total = 0;
+    const w = floors.map((fy, i) => {
+      const near = 1 / (1 + Math.abs(fy - player.y) / MOB.skyAffinity);
+      const v = (i === 0 ? 1 : MOB.skyWeight) * near;
+      total += v;
+      return v;
+    });
+    let r = this.rng() * total, pick = 0;
+    while (pick < floors.length - 1 && (r -= w[pick]) > 0) pick++;
+    e.y = floors[pick];
     e.y = this.restY(e);
     return e;
   }

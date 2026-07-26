@@ -1400,20 +1400,26 @@ export const MOB = {
   maxDrop: 4,
   // How often a body that COULD be put on an island is. Islands with nothing on them are
   // scenery; the whole argument for having them is that taking one is a fight.
-  // 0.55, not higher. Nearly every column has SOME perch above it now, so this is close to
-  // the share of everything alive that ends up airborne — at 0.8 it was 77%, which does not
-  // fill the sky so much as move the world into it and leave the ground you walk across
-  // empty. Paired with skyCrowd below, this puts roughly three times as many bodies in the
-  // air as before while the frontier underneath stays about as busy as it was.
-  islandSpawn: 0.55,
-  // WHICH perch, when a column offers several. Below 1 this skews the roll toward the HIGHER
-  // decks — the upper layers were the emptiest part of the world precisely because they are
-  // the hardest to reach, which is backwards: the climb should be paid for at the top.
-  skyBias: 0.45,
+  /**
+   * WHERE A BODY IS BORN, in a world with several floors.
+   *
+   * A single "sky or ground" coin flip cannot do this job. Set it low and the upper decks
+   * stay empty; set it high and it does not fill the sky so much as MOVE the world into it,
+   * leaving the ground you walk across bare. Both were tried and both were wrong, because
+   * the question is not how much of the world is airborne — it is what is near YOU.
+   *
+   * So every floor over a column competes, weighted by how close it is to the player's own
+   * altitude, and the sky carries a standing multiplier on top. Standing in a valley, most of
+   * what spawns is on the ledges above you rather than beside you; standing on a deck three
+   * hundred blocks up, the world fills in around you there instead of far below. Nothing is
+   * taken from the ground to pay for the air — the budget simply lands where you are.
+   */
+  skyWeight: 3.2,       // a perch is worth this many ground slots before distance is counted
+  skyAffinity: 55,      // blocks of altitude over which a floor's share falls away
   // The world grew a sky, so the crowd budget grows with it — otherwise populating the air
   // just empties the ground, and the frontier you walk through gets quieter the more there
   // is above it.
-  skyCrowd: 1.5,
+  skyCrowd: 1.8,
   // A FLIER CHASES IN THREE DIMENSIONS. Hovering a fixed distance over the LAND meant an air
   // mob would sail along underneath an island with you standing on top of it, which makes
   // the sky a safe place and the fliers ornaments. Chasing, it climbs to your height plus
