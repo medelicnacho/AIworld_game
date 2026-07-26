@@ -252,3 +252,42 @@ test("a sky town's garrison musters in the town, not on the ground under it", as
       `a defender stood at y${e.y.toFixed(0)} instead of its town's y${sky.plateau + 1}`);
   }
 });
+
+// A RELOAD MUST NOT UNDO A RAID. Sacked towns and dead champions were the only things in this
+// module that matter between sessions, and neither was saved — so refreshing the page handed
+// back every garrison you had just cleared, and the cheapest way to farm a town was the
+// browser's own reset button.
+test("a sacked town and its dead champions survive a reload", () => {
+  const raids = new Raids(fakeMobs(), () => {}, () => {});
+  raids.state.set("t1-3", { ids: new Set(), total: 9, killed: 9, sackedT: 120, hostile: true, armed: false });
+  raids.fallen.set("t1-3", { roles: new Set(["qm", "adept"]), t: 300 });
+
+  const back = new Raids(fakeMobs(), () => {}, () => {});
+  back.restore(JSON.parse(JSON.stringify(raids.dump())), 0);
+  assert.ok(back.sackedRecently("t1-3"), "the town must still be rebuilding");
+  assert.deepEqual([...back.fallen.get("t1-3").roles].sort(), ["adept", "qm"]);
+});
+
+// ...but being away is not a pause button. A town sacked long enough ago has rebuilt.
+test("time away ages the rebuild, and a long absence forgets it", () => {
+  const raids = new Raids(fakeMobs(), () => {}, () => {});
+  raids.state.set("t1-3", { ids: new Set(), total: 9, killed: 9, sackedT: 120, hostile: true, armed: false });
+  raids.fallen.set("t1-3", { roles: new Set(["qm"]), t: 300 });
+  const snap = JSON.parse(JSON.stringify(raids.dump()));
+
+  const soon = new Raids(fakeMobs(), () => {}, () => {});
+  soon.restore(snap, 60);
+  assert.ok(soon.sackedRecently("t1-3"), "a minute later it is still rebuilding");
+
+  const later = new Raids(fakeMobs(), () => {}, () => {});
+  later.restore(snap, 600);
+  assert.equal(later.sackedRecently("t1-3"), false, "ten minutes later it has rebuilt");
+  assert.equal(later.fallen.has("t1-3"), false, "and its champions are back");
+});
+
+test("a corrupt or empty war restores to a fresh garrison rather than throwing", () => {
+  const raids = new Raids(fakeMobs(), () => {}, () => {});
+  assert.doesNotThrow(() => raids.restore(null, 0));
+  assert.doesNotThrow(() => raids.restore({}, 0));
+  assert.doesNotThrow(() => raids.restore({ towns: null, graves: undefined }, 0));
+});

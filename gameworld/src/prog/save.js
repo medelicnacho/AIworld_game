@@ -73,6 +73,11 @@ export function snapshot(ctx) {
     town: ctx.townVoice && ctx.townChat
       ? { voice: ctx.townVoice.dump(), chat: ctx.townChat.dump() }
       : null,
+    // WHAT THE WAR REMEMBERS. A town you sacked stays quiet for its rebuild window and a
+    // champion you killed stays dead — and neither survived a reload, so refreshing the page
+    // handed back every garrison you had just cleared. That is not a save bug so much as a
+    // free reset button, and the cheapest way to farm a town was the browser's own.
+    raids: ctx.raids ? ctx.raids.dump() : null,
     // Where the sun was. Without this every reload is dawn, and a world whose clock
     // resets when you blink is a stage set, not a place.
     worldT: ctx.dayNight ? ctx.dayNight.t : null,
@@ -153,6 +158,14 @@ export function restore(data, ctx) {
       ctx.townVoice.restore(data.town.voice, hoursAway);
       ctx.townChat.restore(data.town.chat, hoursAway);
     } catch { /* a corrupt memory is forgotten, not fatal */ }
+  }
+  if (data.raids && ctx.raids) {
+    try {
+      // AGED by the time you were away, in seconds — the rebuild timers are real durations,
+      // so an hour away should have rebuilt the town rather than preserving it in amber.
+      const away = data.at ? Math.max(0, (Date.now() - data.at) / 1000) : 0;
+      ctx.raids.restore(data.raids, away);
+    } catch { /* a corrupt war is a fresh garrison, not a crash */ }
   }
 }
 

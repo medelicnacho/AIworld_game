@@ -69,6 +69,49 @@ export class Raids {
     };
   }
 
+  /**
+   * WHAT A TOWN REMEMBERS ABOUT YOU BETWEEN SESSIONS.
+   *
+   * Everything else here is transient by design — bodies despawn, garrisons re-muster, ids
+   * mean nothing once the world is rebuilt. Two things are not: a town you SACKED is quiet
+   * for its rebuild window, and a champion you killed stays dead until its own clock runs
+   * out. Without saving them, a reload handed back every garrison you had just cleared, and
+   * the cheapest way to farm a town was to refresh the page.
+   *
+   * Only the durable halves go out — a timer and a list of graves. The live state (which
+   * entity ids are standing, whether the war is armed) is rebuilt from the world.
+   */
+  dump() {
+    const towns = [];
+    for (const [id, st] of this.state) if (st.sackedT > 0) towns.push([id, +st.sackedT.toFixed(1)]);
+    const graves = [];
+    for (const [id, g] of this.fallen) graves.push([id, [...g.roles], +g.t.toFixed(1)]);
+    return { towns, graves };
+  }
+
+  /**
+   * ...and put it back, AGED by however long you were away. A town sacked three hours ago has
+   * rebuilt; being away must not preserve your work in amber any more than it should discard
+   * it. Defensive throughout: a corrupt or older save means a fresh garrison, never a crash.
+   */
+  restore(data, secondsAway = 0) {
+    if (!data) return;
+    for (const [id, t] of data.towns || []) {
+      const left = t - secondsAway;
+      // A sacked town with no bodies is a legal state — update() reads sackedT first and
+      // skips everything else, so this is exactly what it looks like mid-rebuild.
+      if (left > 0) {
+        this.state.set(id, {
+          ids: new Set(), total: 0, killed: 0, sackedT: left, hostile: false, armed: false,
+        });
+      }
+    }
+    for (const [id, roles, t] of data.graves || []) {
+      const left = t - secondsAway;
+      if (left > 0) this.fallen.set(id, { roles: new Set(roles), t: left });
+    }
+  }
+
   /** A raid in progress or done here recently? (For UI / respawn logic if wanted.) */
   sackedRecently(townId) {
     const st = this.state.get(townId);

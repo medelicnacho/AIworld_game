@@ -1496,6 +1496,7 @@ const saveCtx = {
   get townVoice() { return townVoice; },
   get townChat() { return townChat; },
   get dayNight() { return dayNight; },
+  get raids() { return raids; },
   slots: SLOTS,
   recomputeGear,
 };
