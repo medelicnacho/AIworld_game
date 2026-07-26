@@ -309,11 +309,33 @@ export const RELIEF = {
    * place, and taking it is a decision.
    */
   island: {
-    scale: 0.0021,      // ~480 units across — a place, not a stepping stone
-    thresh: 0.55,       // how much of the land gets one; the rest of the sky stays empty
-    gap: 15,            // least clearance between the land and the underside
-    rise: 12,           // stronger mask floats higher
-    thick: 8,           // half-thickness at full strength
+    // AN ARCHIPELAGO, not a continent. The first version was one big smooth lens per ~480
+    // units, which made islands both rare and — because the strength ramp never approached
+    // 1 — paper thin. You could stand three thousand metres out with a 15% chance of one
+    // being in sight. A sky worth climbing into is a scatter of small platforms at different
+    // heights that you cross by jumping, so: small cells, a low threshold, and every island
+    // taking its altitude from its OWN field.
+    fromTier: 1,        // the Commons keeps a clean sky; everywhere else has them
+    scale: 0.031,       // ~32-unit cells — stepping stones, not landmasses
+    thresh: 0.16,       // measured against the real mask spread (p50 is ~0, p90 ~0.35)
+    peak: 0.55,         // mask value at which an island is full size — reachable, unlike 1.0
+    minThick: 2,        // even the smallest is something you can land on
+    thick: 7,
+    // Altitude comes from an ABSOLUTE field, not from the land below, or an island would
+    // warp to follow the terrain under it instead of being flat.
+    // Slower than the island field on purpose: neighbours then share a level and form a
+    // CHAIN you can hop along, with the bigger steps falling between clusters rather than
+    // between every pair. At 0.013 the median step was 3.6 blocks against a 2.5-block double
+    // jump, so most hops simply could not be made.
+    levelScale: 0.006,
+    baseY: 33,
+    // 20, not 30. The spread of altitudes IS the size of the step between one island and the
+    // next, and at 30 the median hop was 3.2 blocks against a 2.5-block double jump — most
+    // of the sky was visible and unreachable, which is the most annoying thing a platform
+    // can be. Dropping is always free (there is no fall damage), so the climb is the only
+    // constraint worth tuning.
+    spanY: 20,
+    gapMin: 5,          // clearance under it; where the land rises into that, no island
   },
 
   /**

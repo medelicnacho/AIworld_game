@@ -157,13 +157,23 @@ export function featuresAt(wx, wz, h) {
   const I = RELIEF.island, H = RELIEF.hollow;
   let out = null;
 
-  const im = fbm(WORLD_SEED + 3301, wx * I.scale, wz * I.scale, 3);
-  const iStr = Math.max(0, (im - I.thresh) / (1 - I.thresh)) * grow;
-  if (iStr > 0.02) {
-    const half = I.thick * iStr;
-    // Clamped so an island can never punch through the top of the world.
-    const cy = Math.min(CHUNK_Y - 2 - half, h + I.gap + I.rise * iStr);
-    out = { iLo: cy - half, iHi: cy + half };
+  if (tierAt(wx, wz) >= I.fromTier) {
+    const im = fbm(WORLD_SEED + 3301, wx * I.scale, wz * I.scale, 3);
+    const iStr = Math.min(1, Math.max(0, (im - I.thresh) / (I.peak - I.thresh)));
+    if (iStr > 0) {
+      // Thickness from the mask, so the middle of an island is deep and its rim is a lip.
+      const half = (I.minThick + (I.thick - I.minThick) * iStr) * 0.5;
+      // Altitude from its own slower field: neighbours sit at DIFFERENT levels, which is
+      // what turns a scatter of platforms into something you climb by jumping between.
+      const lv = fbm(WORLD_SEED + 5507, wx * I.levelScale, wz * I.levelScale, 2);
+      const cy = I.baseY + (lv * 0.5 + 0.5) * I.spanY;
+      // Flat, always: if the land has risen into where this one would sit, there is simply
+      // no island here. Nudging it upward instead would warp it into a sheet draped over the
+      // hill, which is the thing an island must never look like.
+      if (cy - half >= h + I.gapMin && cy + half <= CHUNK_Y - 2) {
+        out = { iLo: cy - half, iHi: cy + half };
+      }
+    }
   }
 
   const hm = fbm(WORLD_SEED + 7703, wx * H.scale, wz * H.scale, 3);
