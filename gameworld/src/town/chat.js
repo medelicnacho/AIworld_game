@@ -20,6 +20,7 @@ import { player } from "../state.js";
 import { sanctuaryOf } from "../world/sanctuary.js";
 import { servesYou } from "../prog/factions.js";
 import { worldFor, TRADE, MOOD_STYLE, voiceOf, cleanLine, nameOf } from "./voice.js";
+import { voiceQueue, PRIORITY } from "../net/queue.js";
 
 const LOG_KEEP = 8;      // turns remembered per villager (session memory — C2 persists it)
 // CHEAPER MEMORY (tuned after the wedge): every remembered turn is re-processed by the
@@ -306,8 +307,14 @@ export class TownChat {
         + `person of this town, never as a helper or a guide. If they ask something outside `
         + `your world, answer as a tired townsperson would. Plain frontier speech in real `
         + `words only. No stage directions, no lists, no advice unless it is town advice.`;
-      const res = await this.bridge.line(prompt, {
-        words: VOICE.lineWords, voice: model, lengthScale: pace,
+      // TOP PRIORITY, ALWAYS. A person is watching a cursor blink; the queue takes the
+      // model off whatever ambient musing or cache-warming had it, this instant.
+      const res = await voiceQueue.request({
+        priority: PRIORITY.chat,
+        tag: `chat:${nameOf(v)}`,
+        run: (signal) => this.bridge.line(prompt, {
+          words: VOICE.lineWords, voice: model, lengthScale: pace, signal,
+        }),
       });
       // "Mara." is an answer (floor 1) — and a leading self-label is stage furniture:
       // the model sometimes writes "Edda: My name's Edda...", theatre-script style.
@@ -322,7 +329,13 @@ export class TownChat {
       }
       const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
       let wav = res.audio;
-      if (gist(clean) !== gist(res.text)) wav = await this.bridge.speak(clean, model, pace);
+      if (gist(clean) !== gist(res.text)) {
+        wav = await voiceQueue.request({
+          priority: PRIORITY.chat,
+          tag: `chat-synth:${nameOf(v)}`,
+          run: (signal) => this.bridge.speak(clean, model, pace, signal),
+        });
+      }
       log.push({ who: "them", text: clean });
       if (log.length > LOG_KEEP) log.splice(0, log.length - LOG_KEEP);
       this.townVoice.hear(clean, v.s);               // her answer is heard by HER town

@@ -24,6 +24,7 @@ import { servesYou, factionOfTown } from "../prog/factions.js";
 import { mulberry32 } from "../rng.js";
 import { Drift } from "./drift.js";
 import { deeds } from "../world/events.js";
+import { voiceQueue, PRIORITY } from "../net/queue.js";
 
 // The starter town's shared vocabulary — what its people have on their minds. REWRITTEN
 // for the order-2 chain (VOICE.md rung 2): every phrase is one clean clause, and the
@@ -453,14 +454,15 @@ export class TownVoice {
     if (bridge?.state === "online" && bridge.info?.llm) {
       try {
         const texts = material.slice(0, 8).map((h) => `"${h.text}"`).join(", ");
-        const res = await Promise.race([
-          bridge.line(
+        const res = await voiceQueue.request({
+          priority: PRIORITY.consolidate,
+          tag: "consolidate",
+          run: (signal) => bridge.line(
             `Overnight, a small town in a war-torn land digests the day's talk: `
             + `${texts}. Write ONE short line — how the town will remember this day. `
             + `Plain frontier speech, no greetings, no names of who said what.`,
-            { words: 12, voice: "en_US-kristin-medium.onnx" }),
-          new Promise((r) => setTimeout(() => r(null), 9000)),
-        ]);
+            { words: 12, voice: "en_US-kristin-medium.onnx", signal }),
+        });
         lore = res?.text ? cleanLine(res.text) : null;
       } catch { /* the mechanical memory below */ }
     }
@@ -583,24 +585,12 @@ export class TownVoice {
    *  one speaking slot for the duration, which is also why it can never stack. Uncached
    *  on purpose: a settled line should never come around twice. */
   /**
-   * PRE-EMPTED BY THE PLAYER. Opening a chat calls this: the in-flight ambient request is
-   * aborted client-side, and — the part that matters even when the server has already
-   * finished generating — the GENERATION COUNTER advances, so a result that lands after
-   * the interrupt is discarded instead of played. A villager who kept mumbling her queued
-   * line while you stood there waiting to talk to her read as ignoring you; now the
-   * moment you press G, whatever she was about to say is simply never said.
-   * (Honest limit: the lab's model finishes the aborted generation server-side — the
-   * thread frees in a few seconds — so a first chat reply can still take a beat. What
-   * this guarantees is that nothing STALE ever plays, and nothing new queues ahead of you.)
+   * A settled line, through the QUEUE. Preemption, staleness and ordering are no longer
+   * this file's problem: it asks for the model at ambient priority and gets null back if
+   * something that matters more — the player typing — took the thread. The old hand-rolled
+   * generation counter and AbortController lived here and are gone.
    */
-  interrupt() {
-    this.gen = (this.gen || 0) + 1;
-    try { this.ctrl?.abort(); } catch { /* already settled */ }
-  }
-
   async sayLine(v, st) {
-    const gen = this.gen = (this.gen || 0) + 1;
-    this.ctrl = new AbortController();
     try {
       const { model, pace } = voiceOf(v);
       const frags = st.drift.current(3).map((f) => `"${f}"`).join(", ");
@@ -635,11 +625,14 @@ export class TownVoice {
           + `Say ONE short line to yourself — plain frontier speech in real words only. `
           + `Avoid stock filler like "I reckon". No greetings, no questions, no humming `
           + `or sound effects, no stage directions, never address anyone.`;
-      const res = await this.bridge.line(prompt, {
-        words: VOICE.lineWords, voice: model, lengthScale: pace, signal: this.ctrl.signal,
+      const res = await voiceQueue.request({
+        priority: PRIORITY.ambient,
+        tag: `ambient:${v.role.name}`,
+        run: (signal) => this.bridge.line(prompt, {
+          words: VOICE.lineWords, voice: model, lengthScale: pace, signal,
+        }),
       });
-      if (gen !== this.gen) return;              // pre-empted: this line was never said
-      if (!res?.text) return;
+      if (!res?.text) return;                    // null also means "preempted" — say nothing
       // THE TRANSCRIPT. Every line the model produces is logged — spoken OR rejected,
       // with which guard killed it and why — because a voice layer can only be tuned
       // against what it actually says, and subtitles evaporate in seconds. One line per
@@ -668,9 +661,13 @@ export class TownVoice {
       const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
       let wav = res.audio;
       if (gist(clean) !== gist(res.text)) {
-        wav = await this.bridge.speak(clean, model, pace, this.ctrl.signal);
+        wav = await voiceQueue.request({
+          priority: PRIORITY.ambient,
+          tag: `ambient-synth:${v.role.name}`,
+          run: (signal) => this.bridge.speak(clean, model, pace, signal),
+        });
       }
-      if (gen !== this.gen || !wav) return;      // pre-empted mid-resynth: never played
+      if (!wav) return;                          // preempted mid-resynth: never played
       const dur = await this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
       if (!dur) return;
       this.onLine?.(v.role.name, clean, dur, true);

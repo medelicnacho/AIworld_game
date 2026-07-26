@@ -915,8 +915,15 @@ export class Mobs {
       // already said hello.
       if (e.hailT > 0) e.hailT -= dt;
       if (alliedToPlayer && dist < WARCRY.hailRange && !(e.hailT > 0)) {
-        e.hailT = WARCRY.hailMobCd;
-        this.onWarcry?.(e, "hail");
+        // ONLY A GREETING THAT HAPPENED COSTS THE COOLDOWN. This used to burn the full
+        // 150s the moment it ASKED — so a refusal (the chance roll, the battlefield gap,
+        // or an empty cache while the arsenal was still baking) silenced that soldier for
+        // two and a half minutes having said nothing. Early on the cache is always empty,
+        // so every ally near you spent their one attempt on nothing and the friendly half
+        // of the war was mute while the fighting half — on a 3.5s retry — sounded fine.
+        // That asymmetry was the whole bug.
+        const spoke = this.onWarcry?.(e, "hail");
+        e.hailT = spoke ? WARCRY.hailMobCd : 3;
       }
 
       // THE FIGHT KEEPS TALKING. One cry when a pack notices you was an opening line and
@@ -927,12 +934,12 @@ export class Mobs {
       // Budgets live in warcry.js; this only decides who is in a position to speak.
       if (e.cryT > 0) e.cryT -= dt;
       if (!(e.cryT > 0)) {
+        // Same rule as the hail: a refused line retries soon rather than muting the
+        // speaker for its full turn.
         if (e.aggro && !alliedToPlayer && dist < MOB.noticeRange * 1.4) {
-          e.cryT = WARCRY.fightMobCd;
-          this.onWarcry?.(e, "fight");
+          e.cryT = this.onWarcry?.(e, "fight") ? WARCRY.fightMobCd : 0.8;
         } else if (warFoe && dist < WARCRY.warHearRange) {
-          e.cryT = WARCRY.warMobCd;
-          this.onWarcry?.(e, "war");
+          e.cryT = this.onWarcry?.(e, "war") ? WARCRY.warMobCd : 1.2;
         }
       }
 

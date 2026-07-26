@@ -42,6 +42,7 @@ import { save as saveGame, load as loadSave, restore as restoreSave, hasSave, wi
 import { mulberry32 } from "./rng.js";
 import { deeds } from "./world/events.js";
 import { WarCries } from "./mobs/warcry.js";
+import { voiceQueue } from "./net/queue.js";
 import { DayNight } from "./world/daynight.js";
 import { setDifficulty, diff } from "./prog/difficulty.js";
 
@@ -1052,7 +1053,7 @@ const townVoice = new TownVoice(bridge, villagers, sfx, (name, text, dur) => {
 // leaves the audio context running whenever the chat owns the pause.
 // The armies' voices (mobs/warcry.js): baked in town, screamed in the field.
 const warcries = new WarCries(bridge, sfx);
-mobs.onWarcry = (e, kind) => warcries.cry(e, kind);
+mobs.onWarcry = (e, kind) => warcries.cry(e, kind);   // returns true if it spoke
 
 /**
  * IS A HOSTILE BODY AT THIS POINT? The contact test for everything that FLIES rather than
@@ -1091,8 +1092,7 @@ const townChat = new TownChat(bridge, villagers, townVoice, sfx, {
     // The player pressed G: whatever the ambient voice was mid-generating is aborted and
     // its result discarded — she must never mumble her queued line AT you while you wait
     // to talk to her — and the arsenal drops its in-flight bake so the model frees fast.
-    townVoice.interrupt();
-    warcries.interrupt();
+    voiceQueue.clear("the player opened a chat");
     setPaused(true);
   },
   onClose: () => resumeFromShop(),
@@ -1575,10 +1575,6 @@ function trySleep() {
     sleeping = false;
   }, 1000);
 }
-
-// The bake queue yields to every LIVE voice: a villager mid-line, a chat reply being
-// written, the town dreaming through a sleep. One model thread; conversation first.
-warcries.holdWhile = () => townVoice.busy || townChat.busy || sleeping;
 
 const clickEl = document.getElementById("click");
 let paused = true, everPlayed = false, inSafe = false, dead = false;

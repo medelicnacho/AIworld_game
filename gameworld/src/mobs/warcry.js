@@ -24,6 +24,7 @@ import { mulberry32 } from "../rng.js";
 import { Drift } from "../town/drift.js";
 import { cleanLine } from "../town/voice.js";
 import { deeds } from "../world/events.js";
+import { voiceQueue, PRIORITY } from "../net/queue.js";
 
 // Who is doing the screaming — each clan's creed, for the model that writes its cries.
 const CRY_IDENTITY = {
@@ -87,18 +88,9 @@ export class WarCries {
     this.fightCd = 0;
     this.warCd = 0;
     this.chatterCd = 0;
-    // THE TOWN OUTRANKS THE ARSENAL. main wires this to "is any voice system mid-request"
-    // — while a villager is speaking (or the town is dreaming), the baker stands down.
-    // The model has one thread; conversation gets it first, rehearsal takes the gaps.
-    this.holdWhile = null;
-    this.ctrl = null;              // the in-flight bake's abort handle (see interrupt)
-  }
-
-  /** The player opened a chat: whatever is mid-bake is abandoned so the model's thread
-   *  frees as soon as the server notices. A dropped bake costs one cache line, retried
-   *  free next cycle; a player waiting behind a rehearsal costs the illusion. */
-  interrupt() {
-    try { this.ctrl?.abort(); } catch { /* already settled */ }
+    // The arsenal used to name its betters in a holdWhile predicate and carry its own
+    // abort handle. Both are gone: it simply asks at PRIORITY.bake, the lowest rung there
+    // is, and the queue takes the thread away the instant anything real wants it.
   }
 
   async openDb() {
@@ -194,7 +186,7 @@ export class WarCries {
     // The field never synthesizes — it is either already baked, or it is quiet.
     this.bakeT -= dt;
     if (this.baking || this.bakeT > 0) return;
-    if (this.holdWhile?.()) return;
+    if (voiceQueue.busy) return;   // something real is speaking; warm the cache later
     if (this.bridge.state !== "online") return;
     // THE FLOOR FILLS FIRST, AND FILLS ANYWHERE: hardcoded taunts are piper-only — no
     // model to contend for — so they bake in the field too. Gating them to town once left
@@ -247,9 +239,13 @@ export class WarCries {
     return null;
   }
 
+  /** Ask for the model at the lowest rung — a warming cache yields to everything. */
+  bake(tag, run) {
+    return voiceQueue.request({ priority: PRIORITY.bake, tag: `bake:${tag}`, run });
+  }
+
   async bakeTaunt(colour) {
     this.baking = true;
-    this.ctrl = new AbortController();
     try {
       const bin = this.taunts.get(colour);
       // The next line this clan has not learned yet — order preserved, so the config list
@@ -258,7 +254,7 @@ export class WarCries {
       if (!text) return;
       const { model, pace } = WARCRY.voices[colour];
       const wav = this.borrowLine(colour, text, this.taunts)
-        || await this.bridge.speak(text, model, pace, this.ctrl.signal);
+        || await this.bake(`taunt${colour}`, (sig) => this.bridge.speak(text, model, pace, sig));
       if (wav) {
         bin.push({ text, wav });
         this.persist(`${WARCRY.voiceRev}|taunt|${colour}|${text}`, text, wav);
@@ -282,7 +278,6 @@ export class WarCries {
 
   async bakeHail(colour) {
     this.baking = true;
-    this.ctrl = new AbortController();
     try {
       // A HAIL IS A SOLDIER'S VOICE, NOT A CIVILIAN'S. It used to bake and play at flat
       // natural pitch, which made your own colours sound like a different species from the
@@ -296,23 +291,23 @@ export class WarCries {
       // Later bakes upgrade the shelf with clan-flavoured lines.
       if (this.hails.get(colour).length >= 1 && this.bridge.info?.llm) {
         const who = CRY_IDENTITY[colour];
-        const res = await this.bridge.line(
+        const res = await this.bake(`hail${colour}`, (sig) => this.bridge.line(
           `You are a soldier of the ${who.name} clan on a war-torn frontier — ${who.creed}. `
           + `A sworn ally, the lone wanderer who fights beside your colours, walks past your `
           + `post. Greet them in ONE short hail, two to six words — like "Hail, soldier" or `
           + `"Well met, warrior". No stage directions, no quotes, just the hail.`,
-          { words: 6, voice: model, lengthScale: pace, signal: this.ctrl.signal });
+          { words: 6, voice: model, lengthScale: pace, signal: sig }));
         const clean = res?.text ? cleanLine(res.text, 1) : null;
         if (clean && clean.split(" ").length <= 7 && res.audio) {
           const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
           let wav = res.audio;
-          if (gist(clean) !== gist(res.text)) wav = await this.bridge.speak(clean, model, pace, this.ctrl.signal);
+          if (gist(clean) !== gist(res.text)) wav = await this.bake(`resynth${colour}`, (sig) => this.bridge.speak(clean, model, pace, sig));
           if (wav) { this.stashHail(colour, clean, wav); return; }
         }
       }
       // No model: the rotation the feature was asked for with, verbatim.
       text = HAIL_SEEDS[(this.rng() * HAIL_SEEDS.length) | 0];
-      const wav = await this.bridge.speak(text, model, pace, this.ctrl.signal);
+      const wav = await this.bake(`hail${colour}`, (sig) => this.bridge.speak(text, model, pace, sig));
       if (wav) this.stashHail(colour, text, wav);
     } catch {
       // A failed bake is a quieter camp, nothing more.
@@ -331,7 +326,6 @@ export class WarCries {
 
   async bakeOne(colour) {
     this.baking = true;
-    this.ctrl = new AbortController();
     try {
       const { model, pace } = WARCRY.voices[colour];
       // COHERENCE COSTS NOTHING HERE — baking happens at rest, so the model can write the
@@ -342,16 +336,16 @@ export class WarCries {
       if (this.bridge.info?.llm) {
         const who = CRY_IDENTITY[colour];
         const word = this.lastDeed ? ` The lone wanderer you all hunt is out there; word is ${this.lastDeed}.` : "";
-        const res = await this.bridge.line(
+        const res = await this.bake(`cry${colour}`, (sig) => this.bridge.line(
           `You are a war-crier of the ${who.name} clan on a war-torn frontier — ${who.creed}.${word} `
           + `Shout ONE battle cry, three to eight words, plain and brutal. `
           + `No stage directions, no quotes, just the cry itself.`,
-          { words: 8, voice: model, lengthScale: pace, signal: this.ctrl.signal });
+          { words: 8, voice: model, lengthScale: pace, signal: sig }));
         const clean = res?.text ? cleanLine(res.text, 1) : null;
         if (clean && clean.split(" ").length <= 9) {
           const gist = (t) => t.toLowerCase().replace(/[^a-z]+/g, " ").trim();
           let wav = res.audio;
-          if (gist(clean) !== gist(res.text)) wav = await this.bridge.speak(clean, model, pace, this.ctrl.signal);
+          if (gist(clean) !== gist(res.text)) wav = await this.bake(`resynth${colour}`, (sig) => this.bridge.speak(clean, model, pace, sig));
           if (wav) {
             this.stash(colour, clean, wav);
             return;
@@ -366,7 +360,7 @@ export class WarCries {
         if (f && f.indexOf(" ") > 0 && f.split(" ").length <= 6) text = f;
       }
       if (!text) return;
-      const wav = await this.bridge.speak(`${text}!`, model, pace, this.ctrl.signal);
+      const wav = await this.bake(`cry${colour}`, (sig) => this.bridge.speak(`${text}!`, model, pace, sig));
       if (wav) this.stash(colour, `${text}!`, wav);
     } catch {
       // A failed bake is a quieter army, nothing more.
@@ -389,15 +383,15 @@ export class WarCries {
    * Budget gates keep a battlefield from becoming a playground.
    */
   cry(e, kind = "aggro") {
-    if (!WARCRY.enabled || !e) return;
+    if (!WARCRY.enabled || !e) return false;
     const colour = (e.faction || 0) % 3;
     // A HAIL is its own channel: friendly cache, natural pitch, no echoes — a greeting is
     // a voice, not a warband — and its own battlefield cooldown, so courtesy never eats
     // the war's budget (or vice versa).
     if (kind === "hail") {
-      if (this.hailCd > 0 || this.rng() >= WARCRY.hailChance) return;
+      if (this.hailCd > 0 || this.rng() >= WARCRY.hailChance) return false;
       const bin = this.hails.get(colour);
-      if (!bin.length) return;
+      if (!bin.length) return false;
       const { text, wav } = bin[(this.rng() * bin.length) | 0];
       this.hailCd = WARCRY.hailCd;
       this.sfx.playClip(wav, e.x, e.z, WARCRY.hailVolume, WARCRY.voices[colour].rate);
@@ -413,24 +407,24 @@ export class WarCries {
       // very nearly overlap (that is the wall of shouting), and — because it no longer
       // touches globalCd at all — a charge scream can cut straight through the noise
       // the instant it is due, which is exactly what a telegraph must be able to do.
-      if (this.chatterCd > 0) return;
-      if ((isWar ? this.warCd : this.fightCd) > 0) return;
-      if (this.rng() >= (isWar ? WARCRY.warChance : WARCRY.fightChance)) return;
+      if (this.chatterCd > 0) return false;
+      if ((isWar ? this.warCd : this.fightCd) > 0) return false;
+      if (this.rng() >= (isWar ? WARCRY.warChance : WARCRY.fightChance)) return false;
       const pick = this.pickLine(colour);
-      if (!pick) return;
+      if (!pick) return false;
       this.chatterCd = WARCRY.chatterGap;
       if (isWar) this.warCd = WARCRY.warCd; else this.fightCd = WARCRY.fightCd;
       const { rate } = WARCRY.voices[colour];
       this.sfx.playClip(pick.wav, e.x, e.z, WARCRY.volume, rate);
       console.info(`[warcry] colour ${colour} (${kind}): "${pick.text}"`);
-      return;
+      return true;
     }
     if (this.globalCd > 0 || this.factionCd.get(colour) > 0) return;
     const chance = kind === "charge" ? WARCRY.chargeChance
       : kind === "arm" ? 1 : WARCRY.aggroChance;
     if (this.rng() >= chance) return;
     const pick = this.pickLine(colour);
-    if (!pick) return;                             // nothing loaded yet: still quiet
+    if (!pick) return false;                       // nothing loaded yet: still quiet
     const { text, wav } = pick;
     this.globalCd = WARCRY.globalCd;
     this.factionCd.set(colour, WARCRY.factionCd);
@@ -455,5 +449,6 @@ export class WarCries {
       }, delay * 1000);
       echoes++;
     }
+    return true;
   }
 }
