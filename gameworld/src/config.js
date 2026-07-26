@@ -1148,7 +1148,18 @@ export const ORB = {
 // learn it. Against a deep-ring mob this is now most of its health rather than a fifth.
 export const NOVA = { price: 175, minTier: 0, cd: 1.2, radius: 11, damage: 260, slowMul: 0.5, slowT: 3, rootT: 1.6 };
 // Chain Lightning: arcs from the nearest foe to the next, damage falling each jump.
-export const CHAIN = { price: 210, minTier: 1, cd: 1, range: 34, jumps: 5, jumpRange: 15, damage: 130, falloff: 0.8 };
+// Chain Lightning. The BOLT numbers are pure presentation and matter more than they look:
+// it was a one-pixel THREE.Line alive for 120ms, and line width is ignored by most GPUs, so
+// the strongest-feeling spell in the kit read as a scratch on the lens. Real geometry now —
+// jagged, thick, and on screen long enough to see where it went.
+export const CHAIN = {
+  price: 210, minTier: 1, cd: 1, range: 34, jumps: 5, jumpRange: 15, damage: 130, falloff: 0.8,
+  boltLife: 0.42,       // was 0.12 — long enough to read the whole chain, not a flashbulb
+  boltWidth: 0.22,      // actual thickness, in world units
+  boltSegs: 7,          // pieces per arc; more means a wilder zigzag
+  boltJitter: 0.9,      // how far each joint wanders off the straight line
+  boltFlicker: 0.07,    // it re-jags this often while it lives, which is what sells it
+};
 // Sprint: a burst of movement speed on demand (a movement spell, the first of several).
 export const SPRINT = { price: 150, minTier: 0, cd: 10, dur: 4, mult: 1.7 };
 

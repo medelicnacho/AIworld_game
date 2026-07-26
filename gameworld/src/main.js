@@ -542,16 +542,70 @@ function frostNova(rank = 1) {
 
 // Chain Lightning: arcs from the nearest foe to the next, damage falling each jump.
 const BOLT_MAX = 8;
-let boltT = 0;
-const bolts = Array.from({ length: BOLT_MAX }, () => {
-  const line = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
-    new THREE.LineBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0 }),
-  );
-  line.frustumCulled = false;
-  scene.add(line);
-  return line;
+let boltT = 0, boltFlick = 0;
+// Each arc is a run of little cylinders rather than one line, because a line cannot be thick:
+// LineBasicMaterial's linewidth is ignored on essentially every desktop GPU, which is why the
+// spell read as a hairline no matter what was set. Segments also buy the zigzag for free.
+const boltGeo = new THREE.CylinderGeometry(1, 1, 1, 6);
+const boltMat = new THREE.MeshBasicMaterial({
+  color: 0xdff0ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+  depthWrite: false,
 });
+const bolts = Array.from({ length: BOLT_MAX }, () => {
+  const segs = Array.from({ length: CHAIN.boltSegs }, () => {
+    const m = new THREE.Mesh(boltGeo, boltMat);
+    m.frustumCulled = false;
+    m.visible = false;
+    scene.add(m);
+    return m;
+  });
+  return { segs, ax: 0, ay: 0, az: 0, bx: 0, by: 0, bz: 0, live: false };
+});
+
+const _bUp = new THREE.Vector3(0, 1, 0);
+const _bDir = new THREE.Vector3();
+const _bMid = new THREE.Vector3();
+const _bQ = new THREE.Quaternion();
+
+/**
+ * Lay one arc between two points as a jagged run of cylinders.
+ *
+ * Re-run every flicker, so the bolt writhes while it is on screen — a static zigzag reads as a
+ * drawn shape, and a moving one reads as electricity. Seeded like everything else (D14).
+ */
+function shapeBolt(b) {
+  const dx = b.bx - b.ax, dy = b.by - b.ay, dz = b.bz - b.az;
+  const len = Math.hypot(dx, dy, dz) || 1;
+  // A pair of axes across the bolt, to push the joints sideways rather than along it.
+  const ux = dx / len, uy = dy / len, uz = dz / len;
+  let px = -uz, py = 0, pz = ux;
+  const pl = Math.hypot(px, py, pz) || 1;
+  px /= pl; pz /= pl;
+  const qx = uy * pz - uz * py, qy = uz * px - ux * pz, qz = ux * py - uy * px;
+
+  let lx = b.ax, ly = b.ay, lz = b.az;
+  for (let i = 0; i < b.segs.length; i++) {
+    const t = (i + 1) / b.segs.length;
+    // The ends are pinned; the middle wanders most, so it hangs off its targets properly.
+    const wob = Math.sin(t * Math.PI) * CHAIN.boltJitter;
+    const j1 = (shakeRng() - 0.5) * 2 * wob, j2 = (shakeRng() - 0.5) * 2 * wob;
+    const nx = b.ax + dx * t + px * j1 + qx * j2;
+    const ny = b.ay + dy * t + py * j1 + qy * j2;
+    const nz = b.az + dz * t + pz * j1 + qz * j2;
+    const sx = nx - lx, sy = ny - ly, sz = nz - lz;
+    const sl = Math.hypot(sx, sy, sz) || 1e-4;
+    const m = b.segs[i];
+    _bMid.set((lx + nx) / 2, (ly + ny) / 2, (lz + nz) / 2);
+    _bDir.set(sx / sl, sy / sl, sz / sl);
+    _bQ.setFromUnitVectors(_bUp, _bDir);
+    m.position.copy(_bMid);
+    m.quaternion.copy(_bQ);
+    // Thinner toward the far end, so an arc reads as leaving you rather than just existing.
+    m.scale.set(CHAIN.boltWidth * (1.15 - t * 0.5), sl, CHAIN.boltWidth * (1.15 - t * 0.5));
+    m.visible = true;
+    lx = nx; ly = ny; lz = nz;
+  }
+}
 
 function chainLightning() {
   const list = [...world.entities.values()].filter((e) => e.kind === "mob");
@@ -566,9 +620,10 @@ function chainLightning() {
   for (let j = 0; j < CHAIN.jumps && cur; j++) {
     seen.add(cur.id);
     const b = bolts[bi++ % bolts.length];
-    const pos = b.geometry.attributes.position;
-    pos.setXYZ(0, fx, fy, fz); pos.setXYZ(1, cur.x, cur.y + 0.6, cur.z); pos.needsUpdate = true;
-    b.material.opacity = 1;
+    b.ax = fx; b.ay = fy; b.az = fz;
+    b.bx = cur.x; b.by = cur.y + 0.6; b.bz = cur.z;
+    b.live = true;
+    shapeBolt(b);
     const res = mobs.hit(cur.id, dmg * player.dmgMult * (1 + (player.dmgSpell || 0)));
     if (res?.killed) { reward(res); grenades.refill(); }
     fx = cur.x; fy = cur.y + 0.6; fz = cur.z;
@@ -581,7 +636,13 @@ function chainLightning() {
     }
     cur = next;
   }
-  boltT = 0.12;
+  for (let k = bi; k < bolts.length; k++) {          // arcs left over from a longer chain
+    bolts[k].live = false;
+    for (const m of bolts[k].segs) m.visible = false;
+  }
+  boltT = CHAIN.boltLife;
+  boltFlick = 0;
+  boltMat.opacity = 1;
   sfx.gunshot();
   markCombat();
   return true;
@@ -651,7 +712,16 @@ function updateSpells(dt) {
   }
   if (boltT > 0) {
     boltT -= dt;
-    for (const b of bolts) b.material.opacity = Math.max(0, boltT / 0.12);
+    // One shared material, so the whole chain fades as one thing. Squared, so it holds bright
+    // for most of its life and then goes — a linear fade reads as a light being turned down.
+    const f = Math.max(0, boltT / CHAIN.boltLife);
+    boltMat.opacity = f * f;
+    boltFlick -= dt;
+    if (boltFlick <= 0) {
+      boltFlick = CHAIN.boltFlicker;
+      for (const b of bolts) if (b.live) shapeBolt(b);
+    }
+    if (boltT <= 0) for (const b of bolts) { b.live = false; for (const m of b.segs) m.visible = false; }
   }
 }
 
