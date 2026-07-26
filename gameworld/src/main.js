@@ -1103,6 +1103,19 @@ let bossTimer = 6;
 
 const hurtEl = document.getElementById("hurt");
 const subEl = document.getElementById("subtitle");
+const jumpsEl = document.getElementById("jumps");
+let jumpsLeftShown = -1, jumpsMaxShown = -1;
+
+/** Redrawn only when the count actually changes — this is asked every frame and the answer
+ *  is the same on nearly all of them. */
+function drawJumps() {
+  if (player.jumpsLeft === jumpsLeftShown && player.maxJumps === jumpsMaxShown) return;
+  jumpsLeftShown = player.jumpsLeft; jumpsMaxShown = player.maxJumps;
+  let html = "";
+  for (let i = 0; i < player.maxJumps; i++) html += `<i class="${i < player.jumpsLeft ? "" : "spent"}"></i>`;
+  jumpsEl.innerHTML = html;
+}
+
 const bossEl = document.getElementById("bossbar");
 let bossShown = false, bossEnraged = false;
 
@@ -2086,6 +2099,7 @@ function frame(now) {
   }
 
   drawBossBar();
+  drawJumps();
 
   if (hurtT > 0) {
     hurtT -= dt;
@@ -2160,8 +2174,7 @@ function frame(now) {
     `in   fwd ${input.fwd >= 0 ? " " : ""}${input.fwd} str ${input.right >= 0 ? " " : ""}${input.right}` +
     `  ${input.aimHeld ? "AIM" : "---"}${input.aim ? "*" : " "}` +
     `  ${player.dodgeT > 0 ? "ROLL" : "    "}  ${player.onGround ? "grnd" : "air "}\n` +
-    `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ` +
-    `jumps ${"◆".repeat(player.jumpsLeft)}${"◇".repeat(Math.max(0, player.maxJumps - player.jumpsLeft))}`;
+    `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}`;
 
   // Overwatch-style HUD: big health bottom-left, big ammo bottom-right.
   const hpFrac = player.maxHp > 0 ? player.hp / player.maxHp : 0;

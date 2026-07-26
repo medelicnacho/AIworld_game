@@ -67,6 +67,23 @@
       #rep.flash .rep-fill { filter: brightness(1.9); }
       #rep .rep-txt { position: absolute; left: 2px; bottom: 8px; font-size: 10px; font-weight: 700;
         letter-spacing: .1em; text-shadow: 0 2px 5px #000c; }
+      /* JUMP CHARGES — chevrons under the character, just above the rest of the HUD.
+         In a game about leaping between ledges, "do I have another jump" is a question you
+         ask in mid-air with no time to look anywhere, so the answer sits directly below
+         where your character is and reads as a shape rather than a number. They point UP
+         because that is what they buy you. It counts however many you actually have, since
+         maxJumps grows with level (XP.jumpsPerLevels) and a hardcoded pair would quietly
+         start lying at the exact moment you earned a third. */
+      #jumps { position: absolute; left: 50%; bottom: 166px; transform: translateX(-50%);
+        display: flex; gap: 7px; pointer-events: none; }
+      #jumps i { width: 0; height: 0; border-left: 7px solid transparent;
+        border-right: 7px solid transparent; border-bottom: 10px solid #7fd0ff;
+        filter: drop-shadow(0 1px 3px #000c);
+        transition: border-bottom-color .1s, opacity .1s; }
+      /* Spent ones stay in place rather than disappearing — the gap that is missing is the
+         information, and a row that changes LENGTH is much harder to read at a glance than
+         one that changes colour. */
+      #jumps i.spent { border-bottom-color: #44566e; opacity: .5; }
       #crosshair {
         position: absolute; left: 50%; top: 50%; width: 3px; height: 3px;
         margin: -1.5px 0 0 -1.5px; background: #eef; border-radius: 50%;
@@ -114,7 +131,7 @@
          and the name of the person talking to you was unreadable. A caption belongs at a
          fixed distance above the bars it must clear, not at a fraction of the window. */
       #subtitle {
-        position: absolute; left: 50%; bottom: 196px; transform: translateX(-50%);
+        position: absolute; left: 50%; bottom: 228px; transform: translateX(-50%);
         max-width: 60%; text-align: center; opacity: 0;
         font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; color: #eaf2ff;
         text-shadow: 0 2px 8px #000c, 0 0 14px #000a; transition: opacity .25s;
@@ -497,12 +514,13 @@
         100% { opacity: 0; transform: translate(-50%,-58%) scale(1.0); }
       }
       body.running #crosshair { opacity: .9; }
-      #health, #ammo, #xp, #rep { opacity: 0; transition: opacity .2s; }
-      body.running #health, body.running #ammo, body.running #xp, body.running #rep { opacity: 1; }
+      #health, #ammo, #xp, #rep, #jumps { opacity: 0; transition: opacity .2s; }
+      body.running #health, body.running #ammo, body.running #xp, body.running #rep,
+      body.running #jumps { opacity: 1; }
       /* "Move outward" nudge — shows when your zone has greyed out (little/no xp). */
       /* The sleep nudge: a quiet line while you stand in a safe town after dark. Teaches
          the ONE key the night wants without a tutorial — and only when it's usable. */
-      #sleephint { position: absolute; left: 50%; bottom: 164px; transform: translateX(-50%);
+      #sleephint { position: absolute; left: 50%; bottom: 196px; transform: translateX(-50%);
         font: 600 12px/1.4 ui-sans-serif, system-ui, sans-serif; color: #b9c6da;
         text-shadow: 0 2px 6px #000b; letter-spacing: .08em; opacity: 0;
         transition: opacity .4s; pointer-events: none; }
@@ -553,6 +571,7 @@
       <div id="ammo"></div>
       <div id="rep"></div>
       <div id="xp"></div>
+      <div id="jumps"></div>
       <div id="bossbar"></div>
       <div id="alert"></div>
       <div id="sleephint">🌙 night in town &nbsp;·&nbsp; press <b>Z</b> to sleep</div>
