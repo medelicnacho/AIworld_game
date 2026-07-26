@@ -273,8 +273,17 @@ export function stepPlayer(dt) {
   // Derived, every step: held AND not mid-roll.
   input.aim = input.aimHeld && player.dodgeT <= 0;
   if (player.sprintT > 0) player.sprintT -= dt;
+  // A TOWN TAKES YOUR SPEED STATS, not your speed. Inside the walls speedMult is ignored, so
+  // you move at the level-one baseline — because by level forty you cross a market square in
+  // two strides and lining yourself up with a shopkeeper becomes a chore of overshooting them.
+  // Only the passive STAT goes: sprinting still sprints, and the movement abilities below are
+  // deliberate presses rather than something you carry, so they are left alone.
+  //
+  // Jumps are untouched on purpose. Your jump height and your double jump are what make a
+  // town navigable at walking pace, and taking them would fix one nuisance by adding another.
   const speed = (input.sprint && !input.aim ? PLAYER.sprintSpeed : PLAYER.walkSpeed)
-    * player.speedMult * (player.surgeT > 0 ? ABILITY.surgeSpeed : 1)
+    * (player.inTown ? 1 : player.speedMult)
+    * (player.surgeT > 0 ? ABILITY.surgeSpeed : 1)
     * (player.sprintT > 0 ? SPRINT.mult : 1)
     * (player.whirlT > 0 ? WHIRL.spinSpeed : 1)
     * (player.spinT > 0 ? SPIN.speed : 1);

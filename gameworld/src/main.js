@@ -1689,7 +1689,11 @@ attachInput(renderer.domElement, {
     setPaused(true);
   },
   ability: (i) => {
-    if (inSafe) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; return; }
+    // SPELLS WORK INSIDE THE WALLS. The gun is stowed and the grenade stays in the bag —
+    // those are weapons, and a refuge that lets you fire into a market is not a refuge. A
+    // spell is not: with nothing hostile inside a friendly town there is nothing for one to
+    // hit, and the ones you actually want in there are Sprint, Heal and Timewarp — crossing
+    // the square, patching up before you leave, and getting back to a shopkeeper.
     const msg = abilities.use(i);
     if (msg.includes("not enough energy")) flashStarved();
     if (msg) { tradeMsg = msg; tradeMsgT = 1.2; }
@@ -1943,6 +1947,9 @@ function frame(now) {
   {
     const s = sanctuaryUnder(player.x, player.y, player.z, 0);
     inSafe = s !== null && !isHostileSanctuary(s);
+    // The controller cannot see main's inSafe, and speed is its business — see PLAYER.speedMult
+    // in stepPlayer, where a town takes your stat bonuses away.
+    player.inTown = inSafe;
   }
   const inSafeZone = inSafe;
 

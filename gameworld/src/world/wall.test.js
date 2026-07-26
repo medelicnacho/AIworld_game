@@ -207,3 +207,35 @@ test("the slide beats a sprint, so you cannot simply walk against it", () => {
   assert.ok(WALL_T * 2 / PLAYER.wallSlide < 0.5,
     "it should have you off the parapet inside half a second");
 });
+
+// A TOWN TAKES YOUR SPEED STATS, NOT YOUR JUMPS. By level forty you cross a market square in
+// two strides, and lining yourself up with a shopkeeper becomes a chore of overshooting them.
+// The jumps stay, because at walking pace they are what makes a town navigable.
+test("a town neutralises the speed stat and nothing else", async () => {
+  const { stepPlayer, input } = await import("../player/controller.js");
+  const { player } = await import("../state.js");
+
+  // Run one body forward for a second and see how far it actually gets.
+  const run = (inTown, mult) => {
+    Object.assign(player, {
+      x: 4000, y: groundY(4000, 4000) + 0.001, z: 4000, vx: 0, vz: 0, vy: 0, yaw: 0,
+      onGround: true, inTown, speedMult: mult, jumpMult: 1, maxJumps: 2, jumpsLeft: 2,
+      dodgeT: 0, dodgeCd: 0, dashT: 0, leapT: 0, whirlT: 0, spinT: 0, spinCd: 0,
+      sprintT: 0, surgeT: 0, stepLift: 0, iframes: 0, hasteMove: 1, dashMult: 1,
+    });
+    input.fwd = 1; input.right = 0; input.sprint = false; input.aimHeld = false;
+    const x0 = player.x, z0 = player.z;
+    for (let i = 0; i < 60; i++) stepPlayer(1 / 60);
+    input.fwd = 0;
+    return Math.hypot(player.x - x0, player.z - z0);
+  };
+
+  const field = run(false, 2.17);
+  const town = run(true, 2.17);
+  assert.ok(town < field * 0.6, `town ${town.toFixed(1)}m vs field ${field.toFixed(1)}m — the stat still applies`);
+  const base = run(true, 1);
+  assert.ok(Math.abs(town - base) < 0.6,
+    `in town a level-40 body (${town.toFixed(1)}m) must move like a level-1 one (${base.toFixed(1)}m)`);
+  // And the jumps are untouched — that is the half of this that must NOT change.
+  assert.equal(player.jumpsLeft, player.maxJumps);
+});

@@ -39,6 +39,9 @@ export const player = {
   stepLift: 0,
   // The spell budget. See ENERGY — it governs offence only, never escape.
   energy: 100,
+  // Inside a friendly settlement's walls. Set each frame from main's sanctuary test; the
+  // controller reads it to drop your speed stats (not your jumps) while you are in a town.
+  inTown: false,
   jumpsLeft: 2,
   sprinting: false,
   dodgeT: 0, dodgeCd: 0, iframes: 0, dodgeX: 0, dodgeZ: 0,
