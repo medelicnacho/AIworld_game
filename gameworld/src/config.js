@@ -1057,6 +1057,24 @@ export const ABILITY = {
  * let you survive it turns a mistake into a death sentence, and makes the bar mean two things
  * at once. It means exactly one thing — how much damage you can do right now.
  */
+/**
+ * HOW FAR A BLAST REACHES UPWARD, as a divisor of its horizontal radius.
+ *
+ * Every blast in the game measured distance as hypot(dx, dz, dy * 0.5) — which is 3D, so it
+ * looked right, and is exactly BACKWARDS: halving the vertical term DOUBLES the vertical
+ * reach. A Ring of Fire with a 15m radius was hitting thirty metres straight down. On flat
+ * ground nobody could tell; standing on an island casting at the world below, it is the whole
+ * spell landing somewhere you cannot see.
+ *
+ * These are ground effects — a wall of flame, a ring of frost, a spin. They should be SLABS:
+ * wide and shallow. 2 gives a blast half its radius above and below, so a Ring of Fire covers
+ * 15m around you and about 7 up, and a grenade at your feet reaches a body on a low ledge but
+ * not one two storeys up.
+ *
+ * Bigger = flatter. Below 1 it starts reaching further up than out again, which is the bug.
+ */
+export const BLAST_VSCALE = 2;
+
 export const ENERGY = {
   max: 100,
   regen: 22,            // empty to full in about four and a half seconds

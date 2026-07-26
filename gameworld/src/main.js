@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY, RAID, BUILD_TAG, ENERGY } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY, RAID, BUILD_TAG, ENERGY, BLAST_VSCALE } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -423,10 +423,13 @@ function dropPool(x, z, { r, dps, life, tick = 0.3, slowMul = 1, slowT = 0, root
   // On the FLOOR IT LANDED ON, not on the land. groundY answers with the ground far below an
   // island, so a pool thrown onto one was drawn hundreds of blocks underneath your feet — you
   // could see the burst, take the damage, and never see where it was burning.
-  mesh.position.set(x, surfaceNear(x, z, player.y) + 0.06, z);
+  const py = surfaceNear(x, z, player.y);
+  mesh.position.set(x, py + 0.06, z);
   mesh.scale.setScalar(r);
   mesh.visible = true;
-  spellPools.push({ x, z, r, dps, t: life, tick, tk: 0, slowMul, slowT, rootT, mesh });
+  // The FLOOR it was laid on, remembered — the damage test needs to know what "on the ground"
+  // means here, and asking again later would answer for wherever the victim is standing.
+  spellPools.push({ x, y: py, z, r, dps, t: life, tick, tk: 0, slowMul, slowT, rootT, mesh });
 }
 
 function updatePools(dt) {
@@ -439,7 +442,9 @@ function updatePools(dt) {
       p.tk = p.tick;
       for (const e of [...world.entities.values()]) {
         if (e.kind !== "mob") continue;
-        if (Math.hypot(e.x - p.x, e.z - p.z) > p.r) continue;
+        // A burning pool is a FLOOR, like the burner's fire patch — measured against the
+        // surface it was laid on, so it stops scorching things on other levels entirely.
+        if (Math.hypot(e.x - p.x, e.z - p.z, (e.y - p.y) * BLAST_VSCALE) > p.r) continue;
         const res = mobs.hit(e.id, p.dps * p.tick * player.dmgMult * (1 + (player.dmgSpell || 0)));
         if (res?.killed) { reward(res); grenades.refill(); }
       }
@@ -1461,7 +1466,10 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
 
   for (const e of [...world.entities.values()]) {
     if (e.kind !== "mob") continue;
-    const d = Math.hypot(e.x - x, e.z - z, (e.y - y) * 0.5);
+    // The vertical axis is STRETCHED, not squashed — see BLAST_VSCALE. Scaling it by 0.5
+    // doubled the vertical reach, so every ground effect was a column reaching far further up
+    // and down than it ever did outward.
+    const d = Math.hypot(e.x - x, e.z - z, (e.y - y) * BLAST_VSCALE);
     if (d > radius) continue;
     const res = mobs.hit(e.id, damage * player.dmgMult * bucket * falloff(d));
     if (res?.killed) { reward(res); grenades.refill(); }
