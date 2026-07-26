@@ -268,6 +268,25 @@ const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Mat
  * Does the wall block this point? The gateway is a gap in the ring, so the player walks in
  * and out freely — the wall is what makes the refuge FEEL like one, not what enforces it.
  */
+/**
+ * Does a wall stand at this point AND at this height?
+ *
+ * wallBlocks answers only the first half, because when it was written nothing in the game
+ * could get above ten blocks and so the vertical half never came up. Once the sky filled with
+ * islands you could stand two hundred blocks over a town and still be stopped by its wall —
+ * an invisible barrier reaching to the top of the world, blocking flight over a settlement
+ * and, worse, refusing a jump INTO one from above.
+ *
+ * A wall is WALL_H tall and stands on the ground. Above that there is nothing but air, and
+ * air is what you should be able to move through. (gun.js has always tested it this way for
+ * projectiles — it was only bodies that never learned.)
+ */
+export function wallBlocksBody(x, y, z, bodyH = 0) {
+  if (!wallBlocks(x, z)) return false;
+  const g = groundY(x, z);
+  return y < g + WALL_H && y + bodyH > g - 1;
+}
+
 export function wallBlocks(x, z) {
   // Range 0: sanctuariesNear already pads by each settlement's own rMax, so a wall test
   // only needs the ones it could possibly be standing in.

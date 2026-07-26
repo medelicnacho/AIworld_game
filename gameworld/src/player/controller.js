@@ -7,7 +7,7 @@
 import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY, SPRINT, SPIN } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
-import { wallBlocks, sanctuaryOf } from "../world/sanctuary.js";
+import { wallBlocksBody, sanctuaryOf } from "../world/sanctuary.js";
 import { isHostileSanctuary } from "../prog/factions.js";
 
 // Which keyboard code maps to which spell-bar slot index. Matches abilities.SLOT_KEYS order.
@@ -236,7 +236,7 @@ export function attachInput(canvas, hooks = {}) {
 function blocked(x, y, z) {
   // The wall is an analytic ring, not voxels — so it's a maths test, and the collision can
   // never disagree with what's drawn. The gate is a gap: you walk in and out freely.
-  if (wallBlocks(x, z)) return true;
+  if (wallBlocksBody(x, y, z, PLAYER.height)) return true;
   const r = PLAYER.radius;
   const y0 = Math.floor(y), y1 = Math.floor(y + PLAYER.height - 0.001);
   for (let vy = y0; vy <= y1; vy++) {
