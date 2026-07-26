@@ -23,12 +23,18 @@ const BED_TRACKS = [
 const OUTSIDE_TRACK = { src: "audio/donkeybeats.mp3", gain: 0.85 };  // frontier track
 const TOWN_TRACK = { src: "audio/chillax.mp3", gain: 1.0 };          // the city track we had
 
-const VOLUME = 0.24;       // master, kept low so the layers don't clip
+// The soundtrack's own level. 0.24 was set when nothing else competed with it; the TTS
+// voices arrive at the ear around three times louder, which is why the music read as absent
+// while a villager two paces away read as a man shouting in your face. 0.40 with the voices
+// pulled down puts the soundtrack back UNDER the game rather than behind it.
+const VOLUME = 0.40;
 const CROSS_MS = 1100;     // gate-crossing fade
 
 export class Music {
   constructor(volume = VOLUME) {
-    this.base = volume;            // the mix's own level; the player's dial scales it
+    this.base = volume;            // the mix's own level; the player's dials scale it
+    this.master = 1;               // the global fader, shared with sfx
+    this.user = 1;                 // the soundtrack's OWN dial, independent of everything else
     this.volume = volume;
     this.muted = false;
     this.started = false;
@@ -81,7 +87,20 @@ export class Music {
    *  1.0 in fade(), so the soundtrack gains real headroom (base sits at 0.24) and simply
    *  levels off where HTMLMedia tops out. */
   setMaster(v) {
-    this.volume = this.base * Math.max(0, Math.min(2, v));
+    this.master = Math.max(0, Math.min(2, v));
+    this.recompute();
+  }
+
+  /** The soundtrack's own dial. Separate from the global one because "everything is too
+   *  loud" and "the music is buried under the voices" are different complaints, and a single
+   *  fader can only ever answer the first. */
+  setUser(v) {
+    this.user = Math.max(0, Math.min(2, v));
+    this.recompute();
+  }
+
+  recompute() {
+    this.volume = this.base * this.master * this.user;
     this.applyVolumes(0);
   }
 

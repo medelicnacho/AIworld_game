@@ -83,9 +83,15 @@ export class Inventory {
         const out = this.el.querySelector(".sens-val");
         if (out) out.textContent = (v * 1000).toFixed(1);
       }
-      if (e.target?.id === "opt-vol") {
-        const v = this.hooks.setVolume?.(Number(e.target.value));
-        const out = this.el.querySelector(".vol-val");
+      // All three faders behave identically, so they are one table rather than three blocks.
+      for (const [id, hook, cls] of [
+        ["opt-vol", "setVolume", ".vol-val"],
+        ["opt-music", "setMusicVolume", ".music-val"],
+        ["opt-voice", "setVoiceVolume", ".voice-val"],
+      ]) {
+        if (e.target?.id !== id) continue;
+        const v = this.hooks[hook]?.(Number(e.target.value));
+        const out = this.el.querySelector(cls);
         if (out && v !== undefined) out.textContent = `${Math.round(v * 100)}%`;
       }
     });
@@ -567,6 +573,20 @@ export class Inventory {
                  value="${this.hooks.volume?.() ?? 1}">
           <span class="optval vol-val">${Math.round((this.hooks.volume?.() ?? 1) * 100)}%</span>
           <span class="opthint">all game audio — past 100% is boost</span>
+        </div>
+        <div class="opts">
+          <label for="opt-music">Music</label>
+          <input id="opt-music" type="range" min="0" max="2" step="0.05"
+                 value="${this.hooks.musicVolume?.() ?? 1}">
+          <span class="optval music-val">${Math.round((this.hooks.musicVolume?.() ?? 1) * 100)}%</span>
+          <span class="opthint">the soundtrack, on its own</span>
+        </div>
+        <div class="opts">
+          <label for="opt-voice">Voices</label>
+          <input id="opt-voice" type="range" min="0" max="2" step="0.05"
+                 value="${this.hooks.voiceVolume?.() ?? 1}">
+          <span class="optval voice-val">${Math.round((this.hooks.voiceVolume?.() ?? 1) * 100)}%</span>
+          <span class="opthint">villagers, war cries and hails</span>
         </div>
         <footer>${foot}</footer>
       </div>`;

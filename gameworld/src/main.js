@@ -100,7 +100,7 @@ const kickAudio = () => { music.start(); music.resume(); };
 // THE GLOBAL FADER. One number scales every sound the game makes — effects and voices
 // (sfx master) and the soundtrack (music master) — set from the pause screen, remembered
 // between sessions. Audio you cannot turn down is audio that gets muted entirely.
-const VOL_KEY = "gw.volume";
+const VOL_KEY = "gw.volume", MUSIC_KEY = "gw.volMusic", VOICE_KEY = "gw.volVoice";
 function setVolume(v) {
   v = Math.max(0, Math.min(2, v));   // up to 200%: the sfx limiter absorbs the push
   sfx.setVolume(v);
@@ -108,9 +108,24 @@ function setVolume(v) {
   try { localStorage.setItem(VOL_KEY, String(v)); } catch { /* private mode; play on */ }
   return v;
 }
-{
-  const saved = parseFloat(localStorage.getItem(VOL_KEY) ?? "");
-  if (Number.isFinite(saved)) setVolume(saved);
+// BALANCE, not loudness. The global fader can only answer "everything is too loud"; these two
+// answer "the music is buried under the villagers", which is a different complaint and the
+// one people actually have. Both sit UNDER the global fader rather than beside it.
+function setMusicVolume(v) {
+  v = Math.max(0, Math.min(2, v));
+  music.setUser(v);
+  try { localStorage.setItem(MUSIC_KEY, String(v)); } catch { /* private mode; play on */ }
+  return v;
+}
+function setVoiceVolume(v) {
+  v = Math.max(0, Math.min(2, v));
+  sfx.setVoiceVolume(v);
+  try { localStorage.setItem(VOICE_KEY, String(v)); } catch { /* private mode; play on */ }
+  return v;
+}
+for (const [key, apply] of [[VOL_KEY, setVolume], [MUSIC_KEY, setMusicVolume], [VOICE_KEY, setVoiceVolume]]) {
+  const saved = parseFloat(localStorage.getItem(key) ?? "");
+  if (Number.isFinite(saved)) apply(saved);
 }
 addEventListener("pointerdown", kickAudio);
 addEventListener("keydown", kickAudio);
@@ -876,6 +891,17 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
     const all = affixList().map((a) => a.id);
     mobs.spawnPackWith(all.slice(0, 3));
   },
+  // THE AUDIO FADERS. These live here, in the INVENTORY's hooks, because the character sheet
+  // is the only thing that reads them — they were previously declared in the object below
+  // this one, which nothing consults for audio, so every slider rendered, slid, and did
+  // absolutely nothing. A control wired to no one is worse than no control: it teaches the
+  // player that the game simply ignores them.
+  volume: () => sfx.volume,
+  setVolume: (v) => setVolume(v),
+  musicVolume: () => music.user,
+  setMusicVolume: (v) => setMusicVolume(v),
+  voiceVolume: () => sfx.voice,
+  setVoiceVolume: (v) => setVoiceVolume(v),
 });
 const minimap = new Minimap(document.getElementById("minimap"));
 const sanctuaries = new Sanctuaries(scene);
@@ -907,8 +933,6 @@ const gameCtx = {
   applyStats: () => applyLevelStats(),   // gear changes re-derive the same way levels do
   // Joining or switching factions redraws the whole map's loyalties: which towns serve you,
   // which ones muster defenders against you. Both caches must let go of the old world.
-  volume: () => sfx.volume,
-  setVolume: (v) => setVolume(v),
   onFactionChange: () => {
     villagers.refresh();
     raids.reset();

@@ -20,7 +20,7 @@ export const VOICE = {
   jitter: 8,           // one voice every ~12-20s
   firstDelay: 3,       // settle-in: entering town never triggers an instant greeting
   range: 26,           // a villager this close to you may speak; further is stage-whisper
-  volume: 0.85,
+  volume: 0.6,          // pulled down from 0.85: a villager was out-shouting the soundtrack
   // How far a town voice carries before it fades to nothing. Deliberately not much more
   // than `range`: a villager at the edge of earshot should be a murmur you lean toward,
   // and one at your elbow should be clear. The falloff is quadratic, so 45 puts the far
@@ -72,7 +72,7 @@ export const WARCRY = {
   echoDelayMin: 0.35,
   echoDelayMax: 1.4,
   echoVolume: 0.9,
-  volume: 1.1,
+  volume: 0.8,          // was 1.1 — see VOICE.volume; the whole voice bus came down
   // HAILS — the same machinery pointed the other way: YOUR colour's soldiers greet you.
   // "Hail, soldier." "Well met, warrior." A camp that only screams at enemies and says
   // nothing to its own reads as a texture; one that knows you're on its side reads as an
@@ -100,7 +100,7 @@ export const WARCRY = {
   hailCd: 14,             // battlefield-wide gap between hails
   hailMobCd: 150,         // one soldier greets you once, then holds his peace a while
   hailRange: 11,          // walk this close to an ally before he bothers
-  hailVolume: 0.95,
+  hailVolume: 0.7,
   // A battlefield carries further than a town square, but not forever: at 95 a cry from
   // across the fight is faint and one in your face is loud, which is what makes a scream
   // usable as a telegraph — you can hear how CLOSE the thing that is charging you is.

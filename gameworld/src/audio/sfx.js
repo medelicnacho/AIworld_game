@@ -20,6 +20,9 @@ export class Sfx {
     this.noiseBuf = null;
     this.muted = false;
     this.volume = 1;               // the global fader (set from the pause screen)
+    // Every spoken line goes through playClip and nothing else does, so this one number IS
+    // the voice bus — villagers, war cries, hails and chat replies all ride it.
+    this.voice = 1;
     // Seeded (D14), like every other random number in the game — used to rough up the
     // crackle so repeated pops never land in an identical pattern.
     this.rng = mulberry32(0xC4AC1E);
@@ -64,6 +67,10 @@ export class Sfx {
     this.volume = Math.max(0, Math.min(2, v));
     if (this.master) this.master.gain.value = 0.9 * this.volume;
   }
+
+  /** Voices only — everything played through playClip. Sits UNDER the global fader, so
+   *  turning the game down still turns the voices down with it. */
+  setVoiceVolume(v) { this.voice = Math.max(0, Math.min(2, v)); }
 
   /**
    * A budget for loud, overlapping sounds. A wiped elite pack can ask for a dozen
@@ -616,7 +623,7 @@ export class Sfx {
     src.playbackRate.value = rate;
     const { input, gain } = this.place(x, z, reach);
     const g = this.ctx.createGain();
-    g.gain.value = (gain ?? 1) * volume;
+    g.gain.value = (gain ?? 1) * volume * this.voice;
     src.connect(g);
     g.connect(input);
     src.start();
