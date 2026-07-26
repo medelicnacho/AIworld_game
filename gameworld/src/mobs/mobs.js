@@ -24,6 +24,22 @@ import { isMyAlly, isHostileSanctuary, territoryColorAt } from "../prog/factions
 
 const HURT_FLASH = 0.12;
 
+/**
+ * Is the player standing IN a floor hazard sitting at height `fy`?
+ *
+ * A SLAB, not a column. The fire patch used to be a horizontal circle of infinite height, so
+ * it burned you on a ledge three blocks above it and at the top of every jump. That was
+ * harmless while the world was flat and nobody jumped; the moment the terrain had ledges in
+ * it, a floor hazard reaching the sky was absurd.
+ *
+ * Your feet must be below the top of the flames and your head above the bottom of them — a
+ * plain 1D overlap, which is why it also stops burning you from a chasm BELOW the fire
+ * rather than only fixing the case above it.
+ */
+export function inFireSlab(py, fy, height = MOB.fireHeight) {
+  return py < fy + height && py + PLAYER.height > fy;
+}
+
 export class Mobs {
   constructor(scene, seed = 0x5EED, fx = {}) {
     this.scene = scene;
@@ -126,7 +142,7 @@ export class Mobs {
       }));
       mesh.visible = false;
       scene.add(mesh);
-      this.fires.push({ mesh, active: false, x: 0, z: 0, t: 0, life: 1, dps: 0, r: 1 });
+      this.fires.push({ mesh, active: false, x: 0, y: 0, z: 0, t: 0, life: 1, dps: 0, r: 1 });
     }
 
     // Fireballs, pooled. Slow and straight, so they're a movement problem, not a DPS race.
@@ -599,8 +615,11 @@ export class Mobs {
     if (!f) return;
     e.fireX = e.x;
     e.fireZ = e.z;
-    Object.assign(f, { active: true, x: e.x, z: e.z, dps, r: radius, t: life, life });
-    f.mesh.position.set(e.x, groundY(e.x, e.z) + 0.05, e.z);
+    // The floor it sits on, remembered — the damage test needs to know what "on the ground"
+    // means HERE, and asking groundY again every frame would answer for wherever YOU are.
+    const fy = groundY(e.x, e.z);
+    Object.assign(f, { active: true, x: e.x, y: fy, z: e.z, dps, r: radius, t: life, life });
+    f.mesh.position.set(e.x, fy + 0.05, e.z);
     f.mesh.scale.setScalar(radius);
     f.mesh.visible = true;
   }
@@ -1290,7 +1309,8 @@ export class Mobs {
       f.t -= dt;
       f.mesh.material.opacity = 0.25 + Math.max(0, f.t / f.life) * 0.5;
       if (f.t <= 0) { f.active = false; f.mesh.visible = false; continue; }
-      if (Math.hypot(player.x - f.x, player.z - f.z) < f.r && player.iframes <= 0) {
+      if (inFireSlab(player.y, f.y) && Math.hypot(player.x - f.x, player.z - f.z) < f.r
+          && player.iframes <= 0) {
         hurt?.(f.dps * dt, f.x, f.z, 0);                 // no knockback: it is a floor
       }
     }

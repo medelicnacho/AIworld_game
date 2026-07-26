@@ -1173,6 +1173,13 @@ export const MOB = {
   // to. STOPGAP: the real answer is chargers that leap and lobbers that arc over cover,
   // so that height is a trade rather than a hiding place.
   maxClimb: 2.4,
+  // How tall the burner's fire patch stands. It is a FLOOR hazard, so it is tested as a slab
+  // you can be inside or above — it used to be a horizontal circle of infinite height, which
+  // meant it burned you on a ledge three blocks up and at the top of a jump. Harmless when
+  // the ground was flat and nobody jumped; absurd the moment the world had ledges in it.
+  // 1.2 sits just under the player's 1.36-block jump, so clearing a patch mid-stride is a
+  // real option and standing in one is still a mistake.
+  fireHeight: 1.2,
   avoidArc: 1.05,         // radians it will veer to find a walkable line
 
   // Population around the player. Cost is bounded by COUNT, not by world size.
