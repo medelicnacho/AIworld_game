@@ -262,7 +262,7 @@ function featuresRaw(wx, wz, h, deck) {
         const M = RELIEF.mote;
         const mn = fbm(WORLD_SEED + 2711, sx * M.dropScale, sz * M.dropScale, 2);
         const moteY = platY - (M.dropMin + (mn * 0.5 + 0.5) * M.dropSpan);
-        const thrM = M.thresh - highness(moteY) * P.threshHigh;
+        const thrM = M.thresh - highness(moteY) * M.threshHigh;
         if (fbm(WORLD_SEED + 3121, sx * M.scale, sz * M.scale, 2) > thrM) {
           // Returned RIGHT HERE, before any shaping. A mote is one block; running it through
           // the land's hills-and-spires pipeline turned footholds into towers and left only

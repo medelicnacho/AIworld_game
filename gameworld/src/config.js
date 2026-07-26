@@ -416,9 +416,14 @@ export const RELIEF = {
    * so wherever you are there is usually something just above you.
    */
   mote: {
-    scale: 0.2,         // ~5-unit cells
-    thresh: 0.06,       // everywhere — these are the rungs, and a ladder needs a lot of them
-    thick: 1,           // ONE BLOCK. A foothold, not a floor.
+    scale: 0.125,       // ~8-unit cells — a couple of strides, not a single brick
+    thresh: 0.02,       // everywhere: these are the rungs, and a ladder needs a lot of them
+    thick: 2,           // a foothold you can land on without pixel-hunting, still not a floor
+    // ...AND FAR MORE OF THEM UP HIGH. Its own relaxation rather than the pebbles', and a big
+    // one: the top of a deck is where the platforms thin out and the gaps between them get
+    // long, so it is exactly where a route needs the most rungs. Down low the big islands
+    // already carry you.
+    threshHigh: 0.34,
     dropMin: 2,
     dropSpan: 88,       // scattered through the whole deck, not a band of it
     dropScale: 0.055,
