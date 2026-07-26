@@ -28,8 +28,73 @@ import { bumpUid } from "./gear.js";
 import { applyLevelStats } from "./xp.js";
 import { setDifficulty, difficultyId } from "./difficulty.js";
 
-const KEY = "gw.save";
+/**
+ * THREE SLOTS, and one pointer at whichever you are playing.
+ *
+ * There was a single key, so there was one character, and "start over" was the only way to
+ * try anything else — a different faction, a harder run, a fresh look at the opening — and it
+ * cost you the one you had. Slots make experimenting free, which for a game about choosing a
+ * side is close to essential.
+ *
+ * The old single key is MIGRATED into slot 0 on first sight rather than abandoned. Someone
+ * with forty levels in it should not be asked to notice a storage change.
+ */
+export const SLOTS = 3;
+const LEGACY_KEY = "gw.save";
+const SLOT_KEY = (i) => `gw.save.${i}`;
+const ACTIVE_KEY = "gw.slot";
 const VERSION = 1;
+
+let active = 0;
+
+function migrate() {
+  try {
+    const old = localStorage.getItem(LEGACY_KEY);
+    if (old && !localStorage.getItem(SLOT_KEY(0))) localStorage.setItem(SLOT_KEY(0), old);
+    if (old) localStorage.removeItem(LEGACY_KEY);
+  } catch { /* storage unavailable; play on */ }
+}
+migrate();
+
+try {
+  const n = parseInt(localStorage.getItem(ACTIVE_KEY) ?? "", 10);
+  if (Number.isInteger(n) && n >= 0 && n < SLOTS) active = n;
+} catch { /* nothing to remember */ }
+
+/** Which slot is being played. Everything else here reads this. */
+export function activeSlot() { return active; }
+
+/** Choose a slot. Remembered, so a reload comes back to the same character. */
+export function setSlot(i) {
+  active = Math.max(0, Math.min(SLOTS - 1, i | 0));
+  try { localStorage.setItem(ACTIVE_KEY, String(active)); } catch { /* fine */ }
+  return active;
+}
+
+/** A one-line summary of each slot, for the picker. Never throws — a corrupt slot reads as
+ *  empty rather than taking the menu down with it. */
+export function listSlots() {
+  return Array.from({ length: SLOTS }, (_, i) => {
+    try {
+      const raw = localStorage.getItem(SLOT_KEY(i));
+      if (!raw) return { i, empty: true };
+      const d = JSON.parse(raw);
+      return {
+        i, empty: false,
+        level: d.level || 1,
+        faction: d.faction || null,
+        difficulty: d.difficulty || null,
+        at: d.at || 0,
+        points: d.points || 0,
+      };
+    } catch { return { i, empty: true, corrupt: true }; }
+  });
+}
+
+/** Erase one slot without touching the others, or which one is active. */
+export function eraseSlot(i) {
+  try { localStorage.removeItem(SLOT_KEY(i)); } catch { /* nothing to do */ }
+}
 
 /** Everything that is genuinely YOURS, as plain data. */
 export function snapshot(ctx) {
@@ -174,7 +239,7 @@ export function save(ctx) {
   try {
     const data = snapshot(ctx);
     data.at = Date.now();
-    localStorage.setItem(KEY, JSON.stringify(data));
+    localStorage.setItem(SLOT_KEY(active), JSON.stringify(data));
     return true;
   } catch {
     return false;      // private mode, quota, disabled storage — play on regardless
@@ -188,7 +253,7 @@ export function save(ctx) {
  */
 export function load() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(SLOT_KEY(active));
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (!data || data.v !== VERSION) return null;
@@ -202,5 +267,5 @@ export function load() {
 export function hasSave() { return load() !== null; }
 
 export function wipe() {
-  try { localStorage.removeItem(KEY); } catch { /* nothing to do */ }
+  try { localStorage.removeItem(SLOT_KEY(active)); } catch { /* nothing to do */ }
 }

@@ -38,7 +38,8 @@ import { Abilities, SLOTS, SLOT_KEYS } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
 import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, xpLevelMult, altitudeBonus } from "./prog/xp.js";
-import { save as saveGame, load as loadSave, restore as restoreSave, hasSave, wipe as wipeSave } from "./prog/save.js";
+import { save as saveGame, load as loadSave, restore as restoreSave, hasSave, wipe as wipeSave,
+  listSlots, setSlot, eraseSlot } from "./prog/save.js";
 import { mulberry32 } from "./rng.js";
 import { deeds } from "./world/events.js";
 import { WarCries } from "./mobs/warcry.js";
@@ -1593,19 +1594,27 @@ const saveNow = () => { saveT = 0; persist(); };
 // A brand-new game needs a difficulty chosen before the first hit lands; a returning one
 // already carries the choice in its save and must never be asked again.
 let newGame = true;
-if (hasSave()) {
-  const data = loadSave();
-  try {
-    restoreSave(data, saveCtx);   // this also restores the saved difficulty
-    paintPlayer();                // load your colours back on with everything else
-    killFeed = "welcome back";
-    newGame = false;
-  } catch (err) {
-    // A save that will not load must never be a wall. Better a fresh character than a game
-    // that cannot be started at all — one costs a session, the other costs the player.
-    console.warn("[save] could not restore, starting fresh:", err);
-    wipeSave();
-    spawnInTown();
+
+/** Load whatever is in the chosen slot, or start clean in it. */
+function openSlot(i) {
+  setSlot(i);
+  newGame = true;
+  if (hasSave()) {
+    const data = loadSave();
+    try {
+      restoreSave(data, saveCtx);   // this also restores the saved difficulty
+      paintPlayer();                // load your colours back on with everything else
+      killFeed = "welcome back";
+      newGame = false;
+    } catch (err) {
+      // A save that will not load must never be a wall. Better a fresh character than a game
+      // that cannot be started at all — one costs a session, the other costs the player.
+      console.warn("[save] could not restore, starting fresh:", err);
+      wipeSave();
+      spawnInTown();
+    }
+  } else {
+    spawnInTown();                  // an empty slot starts you at the gate, like a first run
   }
 }
 
@@ -1614,7 +1623,74 @@ if (hasSave()) {
 // entirely (their save decided), and Start Over wipes the save and reloads, so a new run
 // lands here again and can pick afresh.
 const diffEl = document.getElementById("difficulty");
+const slotsEl = document.getElementById("slots");
 let choosing = false;
+
+/**
+ * THE SLOT PICKER — the first thing you see, before difficulty.
+ *
+ * There was one save, so there was one character, and the only way to try a different faction
+ * or a harder run was to destroy the one you had. Three slots make experimenting free, which
+ * for a game whose central choice is a side to swear to is close to essential.
+ *
+ * Deleting ARMS first and confirms on a second click. Losing forty levels to a misclick is the
+ * one loss this game should never hand out, and a browser confirm() cannot be styled and
+ * steals focus from a canvas that is about to want the pointer.
+ */
+function showSlotPicker() {
+  choosing = true;
+  clickEl.style.display = "none";
+  diffEl.style.display = "none";
+  slotsEl.style.display = "grid";
+  let armed = -1;                    // which delete button is one click from firing
+
+  const when = (t) => {
+    if (!t) return "";
+    const mins = Math.max(0, (Date.now() - t) / 60000);
+    if (mins < 60) return `${Math.round(mins)}m ago`;
+    if (mins < 60 * 24) return `${Math.round(mins / 60)}h ago`;
+    return `${Math.round(mins / 1440)}d ago`;
+  };
+
+  const render = () => {
+    slotsEl.innerHTML = `
+      <h1>WAR NACHO</h1>
+      <div class="sub">Choose a character.</div>
+      <div class="row">
+        ${listSlots().map((sl) => `
+          <button class="slot ${sl.empty ? "empty" : ""}" data-slot="${sl.i}">
+            <span class="no">SLOT ${sl.i + 1}</span>
+            <span class="who">${sl.empty
+              ? (sl.corrupt ? "corrupt — starts fresh" : "empty — new game")
+              : `Level ${sl.level}${sl.faction ? ` · ${sl.faction}` : " · unsworn"}`}</span>
+            <span class="meta">${sl.empty ? "" : `${sl.difficulty || ""} ${when(sl.at)}`}</span>
+            ${sl.empty ? "" : `<span class="del ${armed === sl.i ? "arm" : ""}" data-del="${sl.i}">${
+              armed === sl.i ? "SURE?" : "DELETE"}</span>`}
+          </button>`).join("")}
+      </div>
+      <div class="hint">A slot you delete is gone for good. Difficulty is chosen per character.</div>`;
+  };
+  render();
+
+  slotsEl.onclick = (ev) => {
+    const del = ev.target.closest("[data-del]");
+    if (del) {
+      ev.stopPropagation();          // deleting must never also OPEN the slot
+      const i = +del.dataset.del;
+      if (armed === i) { eraseSlot(i); armed = -1; } else { armed = i; }
+      render();
+      return;
+    }
+    const pick = ev.target.closest("[data-slot]");
+    if (!pick) return;
+    slotsEl.style.display = "none";
+    slotsEl.onclick = null;
+    openSlot(+pick.dataset.slot);
+    if (newGame) { showDifficultyPicker(); return; }
+    choosing = false;
+    clickEl.style.display = "";
+  };
+}
 function showDifficultyPicker() {
   choosing = true;
   clickEl.style.display = "none";
@@ -2438,5 +2514,6 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
-// A fresh run must choose its difficulty before anything can start.
-if (newGame) showDifficultyPicker();
+// ALWAYS the slot screen first, even for a returning player — it is the only way to reach
+// your other characters, and it costs one click on the one you were already playing.
+showSlotPicker();

@@ -476,7 +476,39 @@
       /* pointer-events AUTO — the HUD layer above it is click-through (that is how the
          click-to-play screen passes clicks to the canvas), so the picker must opt its own
          buttons BACK IN or a real mouse never reaches them. */
-      #difficulty { max-width: 660px; pointer-events: auto; }
+      /* SAVE SLOTS — the first thing you see, before difficulty. Styled as the same kind of
+         card as the difficulty modes so the two screens read as one flow rather than two
+         unrelated menus bolted together. */
+      /* Both menus are full-screen takeovers, like the click-to-play screen. They were plain
+         blocks inside the HUD with only a max-width, so they sat jammed in the top-left corner
+         over live gameplay — legible, and reading as debug text rather than as a menu. */
+      #slots, #difficulty {
+        position: absolute; inset: 0; place-content: center; justify-items: center;
+        text-align: center; background: #0b0e13e0; backdrop-filter: blur(4px);
+      }
+      #slots { pointer-events: auto; }
+      #slots .row { width: min(680px, 90vw); }
+      #slots h1 { font-size: 26px; letter-spacing: .12em; color: #dfe8f5; margin: 0 0 6px; }
+      #slots .sub { color: #8fa3bf; font-size: 12px; margin-bottom: 22px; }
+      #slots .row { display: flex; flex-direction: column; gap: 10px; }
+      #slots .slot { display: flex; align-items: center; gap: 14px; text-align: left;
+        background: #121a26; border: 1px solid #2a3b55; border-radius: 10px;
+        padding: 12px 16px; color: #cfe0f5; font: inherit; cursor: pointer;
+        transition: border-color .12s, background .12s; }
+      #slots .slot:hover { border-color: #4a6b9b; background: #16202e; }
+      #slots .slot .no { font-size: 11px; letter-spacing: .18em; color: #6d819c; width: 54px; }
+      #slots .slot .who { flex: 1; font-size: 15px; font-weight: 700; }
+      #slots .slot .meta { font-size: 11px; color: #8fa3bf; letter-spacing: .06em; }
+      #slots .slot.empty .who { color: #6d819c; font-weight: 400; font-style: italic; }
+      /* Destructive, and it looks it — dim until you reach for it, red when you do. */
+      #slots .del { background: none; border: 1px solid #3a2a2a; color: #7b5a5a;
+        border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 11px; cursor: pointer;
+        letter-spacing: .1em; }
+      #slots .del:hover { border-color: #b8433a; color: #ff8a7a; background: #1e1010; }
+      #slots .del.arm { border-color: #ff5a4a; color: #fff; background: #6d1d16; }
+      #slots .hint { color: #6d819c; font-size: 11px; margin-top: 18px; }
+      #difficulty { pointer-events: auto; }
+      #difficulty .modes { max-width: 660px; }
       #difficulty h1 { font-size: 26px; letter-spacing: .12em; color: #dfe8f5; margin: 0 0 6px; }
       #difficulty .sub { color: #8fa3bf; font-size: 12px; margin-bottom: 22px; }
       #difficulty .modes { display: flex; gap: 16px; justify-content: center; }
@@ -602,6 +634,7 @@
       <div id="hpbars"></div>
       <div id="dmg"></div>
       <canvas id="minimap" width="180" height="180"></canvas>
+      <div id="slots" style="display:none"></div>
       <div id="difficulty" style="display:none"></div>
       <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; G chat &nbsp; Z sleep &nbsp; F trade &nbsp; C potion &nbsp; E firebomb &nbsp; Q heal &nbsp; C potion &nbsp; 1-6 T Tab spells &nbsp; wheel switch weapon</div>
     </div>
