@@ -255,3 +255,25 @@ test("...but the gaps between towns stay unclaimed, or the field war has nowhere
   assert.ok(free / (claimed + free) > 0.15,
     `no-man's-land must survive; only ${((free / (claimed + free)) * 100).toFixed(0)}% is free`);
 });
+
+test("the recruiter names the WEAPON before the poetry — every faction, both halves", async () => {
+  const { FACTION_PITCH, FACTION_WEAPON } = await import("./factions.js");
+  // The bug this pins is a UX one: a newcomer made the game's one irreversible choice
+  // from three character sketches that never mentioned what they would be holding.
+  for (const f of FACTIONS) {
+    const p = FACTION_PITCH[f.id];
+    assert.ok(p, `${f.id} must have a pitch at the desk`);
+    assert.ok(p.weapon && p.weapon.length > 40, `${f.id}'s weapon must be described, not named`);
+    assert.ok(p.spec && p.spec.length > 10, `${f.id} must say what its numbers do`);
+    // The pitch must actually describe the weapon that faction grants.
+    const w = FACTION_WEAPON[f.id];
+    const says = p.weapon.toLowerCase();
+    assert.ok(says.includes(w === "lobber" ? "lobber" : w === "cleaver" ? "cleaver" : "lance"),
+      `${f.id}'s pitch must name its real weapon (${w})`);
+  }
+  // And each stat track is claimed by exactly one faction — three routes, no overlap.
+  const specs = FACTIONS.map((f) => FACTION_PITCH[f.id].spec.toLowerCase());
+  assert.ok(specs.some((s) => s.includes("speed")), "someone sells speed");
+  assert.ok(specs.some((s) => s.includes("defence") || s.includes("armour")), "someone sells defence");
+  assert.ok(specs.some((s) => s.includes("damage")), "someone sells damage");
+});

@@ -12,7 +12,7 @@ import { player } from "../state.js";
 import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, WEAPONS, ARMOR, STAT_INFO, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "../config.js";
 import { tierAt } from "../world/gen.js";
 import { sellValue, sortBag } from "../prog/gear.js";
-import { factionById, repProgress, stockFor, lockedFor, REP_TIERS, repForTurnIn, join, JOIN_LEVEL, FACTION_WEAPON }
+import { factionById, repProgress, stockFor, lockedFor, REP_TIERS, repForTurnIn, join, JOIN_LEVEL, FACTION_WEAPON, FACTION_PITCH }
   from "../prog/factions.js";
 import { sfx } from "../audio/sfx.js";
 
@@ -453,10 +453,18 @@ export class Shop {
     const mine = player.faction;
     const rep = player.rep || 0;
 
+    // THE PITCH LEADS. Weapon first, stats second, character last — a newcomer choosing
+    // the one irreversible thing in the game needs the VERB before the poetry.
+    const pitch = FACTION_PITCH[f.id];
+    const pitchHtml = pitch ? `
+          <p class="qmweapon" style="color:${f.color}">${pitch.weapon}</p>
+          <p class="qmspec">${pitch.spec}</p>` : "";
+
     if (!mine && player.level < JOIN_LEVEL) {
       return `
         <div class="qm">
           <p class="qmlead" style="color:${f.color}">${f.name} does not know you yet.</p>
+          ${pitchHtml}
           <p class="qmblurb">${f.blurb}</p>
           <p class="qmnote">Come back at <b>level ${JOIN_LEVEL}</b>. Choosing a side is the
             first thing in this world you cannot undo cheaply, and it is worth understanding
@@ -468,6 +476,7 @@ export class Shop {
       return `
         <div class="qm">
           <p class="qmlead" style="color:${f.color}">${f.name} will take you in.</p>
+          ${pitchHtml}
           <p class="qmblurb">${f.blurb}</p>
           <p class="qmnote">Their quarrel is with one of the three warring camps out there.
             Once you join, <b>only that colour earns you standing</b> — you will start reading
@@ -499,6 +508,7 @@ export class Shop {
       return `
         <div class="qm">
           <p class="qmlead" style="color:${f.color}">${f.name} has nothing for you — yet.</p>
+          ${pitchHtml}
           <p class="qmblurb">You wear ${own?.name || "another"}'s colours. You are welcome to
             rest here and buy what any traveller can — but their kit is not for sale to you.</p>
           <p class="qmnote">Change sides and you keep every item you own, but your standing

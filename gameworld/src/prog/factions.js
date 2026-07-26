@@ -235,6 +235,37 @@ export function lockedFor(factionId, rep) {
  */
 export const FACTION_WEAPON = { iron: "cleaver", vale: "lobber", ash: "lance" };
 
+/**
+ * THE PITCH — what joining actually hands you, in the order a player needs it.
+ *
+ * The recruiter used to lead with character ("Hits harder than it can take") and never
+ * once name the WEAPON, which is the only part that changes how you play. A newcomer
+ * asked to make the game's one irreversible choice was reading poetry about three
+ * temperaments while the actual question — do I want to lob bombs, swing a cleaver, or
+ * hold a beam on a line — went unasked. WEAPONS.md said it first: the weapon IS the
+ * identity. So the desk says the weapon first, the stats second, the poetry last.
+ *
+ * `weapon` is the verb. `spec` is where the numbers go. Both are written for someone who
+ * has never played, which is exactly who is standing at the desk.
+ */
+export const FACTION_PITCH = {
+  vale: {
+    weapon: "A LOBBER — a shell you arc into a crowd that bursts in a wide blast. "
+      + "Forgiving to aim: you are covering ground, not tracking a head.",
+    spec: "Speed & haste — movement, dash, shorter cooldowns.",
+  },
+  iron: {
+    weapon: "A CLEAVER — a heavy melee arc that hits everything in front of you and "
+      + "knocks it back, plus a whirlwind spin that opens with invulnerable frames.",
+    spec: "Defence & health — armour and stamina.",
+  },
+  ash: {
+    weapon: "A LANCE — a long, precise beam you hold on a line, cutting through "
+      + "everything standing in it. Rewards aim and positioning.",
+    spec: "Strength & raw damage — every kind of damage you deal.",
+  },
+};
+
 // --- player state --------------------------------------------------------------------
 
 /** The faction you belong to, or null. */
