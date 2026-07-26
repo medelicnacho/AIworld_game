@@ -40,13 +40,19 @@ export const gateArc = (r) => GATE_WIDTH / r;
  * ray-segment solve, no point-in-polygon scan, and collision that cannot disagree with the
  * mesh because both read the same function.
  */
+const SHAPE_MIN = 0.68, SHAPE_SPAN = 0.58;
+/** The furthest a corner can ever reach, as a multiple of the nominal radius. Placement
+ *  needs to know how much ground a settlement might claim BEFORE its shape is rolled, and
+ *  a second hardcoded 1.26 that silently disagreed with makeShape would be a trap. */
+export const SHAPE_MAX = SHAPE_MIN + SHAPE_SPAN;
+
 function makeShape(rng, radius = RADIUS) {
   const n = CORNERS[0] + Math.floor(rng() * (CORNERS[1] - CORNERS[0] + 1));
   const corners = [];
   for (let i = 0; i < n; i++) {
     // Even spacing plus jitter: irregular, but never two corners on top of each other.
     const ang = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / n) * 0.6;
-    const r = radius * (0.68 + rng() * 0.58);
+    const r = radius * (SHAPE_MIN + rng() * SHAPE_SPAN);
     corners.push({ ang, r, x: Math.cos(ang) * r, z: Math.sin(ang) * r });
   }
   corners.sort((a, b) => a.ang - b.ang);
@@ -79,6 +85,28 @@ export function boundaryAt(s, theta) {
 export function cityRadius(t) {
   return RADIUS * (SETTLE.cityScale + SETTLE.cityGrow * t);
 }
+
+/**
+ * How much ground a settlement claims, worst case — used to keep them off each other.
+ *
+ * For a town that is just the furthest its wall can reach. For a city it is the greater of
+ * the wall and the PLATEAU, because a city levels the land under itself: a town that merely
+ * cleared the walls but stood on the flattened apron would be built half on a cliff edge,
+ * which looks even more broken than the overlap it replaced.
+ */
+export function footprint(s) {
+  const wall = s.r * SHAPE_MAX;
+  return s.city ? Math.max(wall, s.r * SETTLE.flatten) : wall;
+}
+
+/** Open ground left between two settlements' footprints. Walls that merely fail to
+ *  intersect still read as one lumpy compound from outside; you want to see daylight. */
+const CITY_GAP = 40;
+// Generous, because it costs nothing: this runs once per ring and the result is memoised
+// for the session. At 32 the two innermost rings — nine towns in the narrowest band — ran
+// out of tries and settled for 10 units of daylight; the room was there, blind sampling
+// just kept missing it.
+const CITY_TRIES = 256;
 
 /** How many ordinary towns a tier holds: 9, 15, 21, 27... — always a multiple of three, so
  *  the faction colours (dealt round-robin in tierSettlements) come out even in every ring,
@@ -146,10 +174,32 @@ export function tierSettlements(t) {
       out.push(town);
     }
     if (t >= SETTLE.cityFromTier) {
-      const ang = rng() * Math.PI * 2;
-      const r = lo + w * (0.35 + rng() * 0.3);
-      out.push(build(`t${t}-city`, Math.cos(ang) * r, Math.sin(ang) * r,
-                     cityRadius(t), rng, true));
+      // THE CITY HAS TO LOOK WHERE IT IS STANDING.
+      //
+      // Towns are dealt onto evenly-spread bearings, so they never collide with each other.
+      // The city was added later and simply took a random bearing in the same band — which
+      // put a town inside the city walls in eight of the first fourteen rings, once with the
+      // town almost dead centre. Nothing downstream could cope: two sets of walls through
+      // each other, two garrisons sharing ground, and a neutral market inside somebody's
+      // territory.
+      //
+      // So it looks first. Seeded candidates, take the first with room; if the ring is
+      // genuinely tight, take the roomiest seen rather than fail to place a city at all —
+      // homeOfTier() is a respawn point and must always answer. The FIRST candidate is drawn
+      // exactly as before, so every ring that was already fine keeps the city it had.
+      const cr = cityRadius(t);
+      const need = Math.max(cr * SHAPE_MAX, cr * SETTLE.flatten) + CITY_GAP;
+      let best = null;
+      for (let k = 0; k < CITY_TRIES; k++) {
+        const ang = rng() * Math.PI * 2;
+        const r = lo + w * (0.35 + rng() * 0.3);
+        const x = Math.cos(ang) * r, z = Math.sin(ang) * r;
+        let room = Infinity;
+        for (const s of out) room = Math.min(room, Math.hypot(s.x - x, s.z - z) - footprint(s));
+        if (!best || room > best.room) best = { x, z, room };
+        if (room >= need) break;
+      }
+      out.push(build(`t${t}-city`, best.x, best.z, cr, rng, true));
     }
   }
   _tiers.set(t, out);
