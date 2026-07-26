@@ -370,13 +370,24 @@ export function stepPlayer(dt) {
 
   // Standing on the ground restocks every jump. Walking off a ledge without jumping leaves
   // the full set — deliberately forgiving, and it doubles as coyote time.
-  if (player.onGround) player.jumpsLeft = player.maxJumps;
+  //
+  // A WALL IS NOT GROUND. Refusing the jump alone was not enough: touching down on a parapet
+  // still handed your charges back, so you could ride a wall to the top of the world by
+  // spending them, landing on stone to refill, and spending them again. Stone gives you
+  // nothing — you get your jumps back the moment you are standing on something real.
+  if (player.onGround && !slideX && !slideZ) player.jumpsLeft = player.maxJumps;
 
   player.vy = Math.max(PLAYER.maxFall, player.vy + PLAYER.gravity * dt);
 
   if (input.jumpQueued) {
     input.jumpQueued = false;
-    if (player.jumpsLeft > 0) {
+    // NOT OFF A WALL. Without this the slide is trivially beaten: hop, land, hop again, and
+    // you are still standing on the parapet — the slide only owns you while you are on the
+    // ground, so a jump is a free half-second of ignoring it. Refusing costs no jump charge;
+    // the moment you are clear of the stone, jumping works normally again.
+    if (slideX || slideZ) {
+      // nothing — you have no footing to push off from
+    } else if (player.jumpsLeft > 0) {
       const fromGround = player.onGround;
       // SET the velocity rather than adding: an air jump while falling fast should feel
       // like a clean second launch, not a rounding error against your downward momentum.
