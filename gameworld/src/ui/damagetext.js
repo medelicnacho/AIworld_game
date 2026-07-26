@@ -35,6 +35,20 @@ export class DamageText {
     s.el.style.display = "block";
   }
 
+  /**
+   * Wipe every number instantly. These are DOM elements whose only path to hidden runs
+   * INSIDE draw() — and draw() lives past the frame loop's `if (paused || dead) return`.
+   * So a crit landing in the same instant you press Escape (or die) froze on screen as a
+   * bright amber number with nothing left running to clear it, and the player reached for
+   * refresh. Combat text describes a living world; a stopped world should show none of it.
+   */
+  clear() {
+    for (const s of this.pool) {
+      s.active = false;
+      if (s.el.style.display !== "none") s.el.style.display = "none";
+    }
+  }
+
   draw(dt) {
     const w = window.innerWidth, h = window.innerHeight;
     for (const s of this.pool) {

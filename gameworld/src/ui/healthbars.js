@@ -33,6 +33,14 @@ export class HealthBars {
     }
   }
 
+  /** Hide every bar at once — see damagetext.clear(): these pools are only ever tidied
+   *  inside draw(), which the frame loop skips while paused or dead. */
+  clear() {
+    for (const slot of this.pool) {
+      if (slot.el.style.display !== "none") slot.el.style.display = "none";
+    }
+  }
+
   /** @param {Iterable<{x,y,z,hp,maxHp,elite}>} mobs */
   draw(mobs) {
     const w = window.innerWidth, h = window.innerHeight;

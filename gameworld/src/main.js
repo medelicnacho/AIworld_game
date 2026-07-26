@@ -1677,6 +1677,9 @@ let lastRep = -1, repFlashT = 0;
 const alertEl = document.getElementById("alert");
 const sleepHintEl = document.getElementById("sleephint");
 let acc = 0, last = performance.now(), fps = 60;
+// Latch for the overlay wipe above: cleared once when the world stops, armed again the
+// moment it resumes.
+let overlaysCleared = false;
 const AUTOSAVE_EVERY = 25;      // seconds; the backstop under the event-driven saves
 let autosaveT = AUTOSAVE_EVERY;
 
@@ -1686,9 +1689,24 @@ function frame(now) {
   last = now;    // updated even while paused, so resuming never simulates the gap
 
   if (paused || dead) {
+    // A STOPPED WORLD SHOWS NO LIVE OVERLAYS. Everything below this line — damage numbers,
+    // health bars, nameplates — is drawn and tidied by the loop we are about to skip, so
+    // anything alive at this instant would freeze on screen with nothing left running to
+    // clear it. The reported symptom was a bright amber crit stranded mid-air until the
+    // page was refreshed. Cleared ONCE on entering the state, not every frame, so pausing
+    // never thrashes the DOM.
+    if (!overlaysCleared) {
+      overlaysCleared = true;
+      dmgText.clear();
+      hpBars.clear();
+      plates.clear();
+      alertEl.classList.remove("show");
+      sleepHintEl.classList.remove("show");
+    }
     renderer.render(scene, camera);
     return;
   }
+  overlaysCleared = false;
 
   fps += (1 / Math.max(dt, 1e-4) - fps) * 0.05;
 

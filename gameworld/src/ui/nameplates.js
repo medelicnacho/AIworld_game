@@ -27,6 +27,11 @@ export class Nameplates {
     }
   }
 
+  /** Hide every plate at once — see damagetext.clear(). */
+  clear() {
+    for (const d of this.pool) if (d.style.display !== "none") d.style.display = "none";
+  }
+
   /** @param {Array<{x,y,z,label,sub}>} items */
   draw(items) {
     const w = window.innerWidth, h = window.innerHeight;
