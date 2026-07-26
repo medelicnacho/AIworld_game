@@ -301,6 +301,23 @@ export const FACTION_COLORS = {
   2: 0x4fae5a,   // green — Vale
 };
 
+// YOU WEAR YOUR COLOURS TOO. The same war-colour space the towns use (villagers.js
+// TOWN_TINT), lifted the same way for the same reason: Iron's true black reads as a hole
+// in the world rather than a body, so it becomes a dark steel that still says black at a
+// glance. The unaligned wanderer keeps the original rust — a colour none of the three
+// owns, which is exactly what having no banner should look like.
+export const PLAYER_UNSWORN = 0xd8734a;
+export const PLAYER_COLORS = {
+  iron: 0x32323a,
+  ash: 0x3f6fd1,
+  vale: 0x4fae5a,
+};
+
+/** What the player's body should be painted right now — their banner, or rust. */
+export function playerColor() {
+  return PLAYER_COLORS[player.faction] ?? PLAYER_UNSWORN;
+}
+
 /**
  * Join. Switching is allowed and costs you every point of reputation you earned — you keep
  * all your gear, because taking someone's kit back off them is a punishment out of proportion

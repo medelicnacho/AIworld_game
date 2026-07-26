@@ -22,7 +22,7 @@ import { HealthBars } from "./ui/healthbars.js";
 import { DamageText } from "./ui/damagetext.js";
 import { armorDR } from "./prog/stats.js";
 import { rollGear, vendorPiece, sellValue, RARITY } from "./prog/gear.js";
-import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, isHostileSanctuary, servesYou, factionOfTown } from "./prog/factions.js";
+import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, isHostileSanctuary, servesYou, factionOfTown, playerColor } from "./prog/factions.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY, solidAt } from "./world/gen.js";
@@ -71,9 +71,21 @@ scene.add(sun);
 // bulky in third person and hides more of the screen than it needs to.
 const body = new THREE.Mesh(
   new THREE.BoxGeometry(0.42, 1.25, 0.3),
+  // Painted by paintPlayer() below: the wanderer WEARS their banner. Rust until sworn.
   new THREE.MeshLambertMaterial({ color: 0xd8734a }),
 );
 scene.add(body);
+
+/**
+ * THE WANDERER WEARS THEIR BANNER. Swear to Iron and you go black; Ash, blue; Vale, green
+ * — the same three war-colours every camp, town and garrison in the world already flies,
+ * so in third person you can see at a glance which side of the map is yours. Unaligned
+ * stays rust, a colour none of the three owns: having no banner should LOOK like having
+ * no banner. Called on join, on switch, and on load — every door allegiance changes by.
+ */
+function paintPlayer() {
+  body.material.color.setHex(playerColor());
+}
 
 const streamer = new ChunkStreamer(scene);
 const rig = new CameraRig(camera);
@@ -899,6 +911,7 @@ const gameCtx = {
   onFactionChange: () => {
     villagers.refresh();
     raids.reset();
+    paintPlayer();
     const f = myFaction();
     if (f) deeds.push(`the wanderer swore to ${f.name} and wears their colours now`, 2.0);
   },
@@ -1374,6 +1387,7 @@ if (hasSave()) {
   const data = loadSave();
   try {
     restoreSave(data, saveCtx);   // this also restores the saved difficulty
+    paintPlayer();                // load your colours back on with everything else
     killFeed = "welcome back";
     newGame = false;
   } catch (err) {

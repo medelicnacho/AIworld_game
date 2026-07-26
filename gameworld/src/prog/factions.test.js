@@ -277,3 +277,26 @@ test("the recruiter names the WEAPON before the poetry — every faction, both h
   assert.ok(specs.some((s) => s.includes("defence") || s.includes("armour")), "someone sells defence");
   assert.ok(specs.some((s) => s.includes("damage")), "someone sells damage");
 });
+
+test("the wanderer wears their banner — a colour per faction, rust for the unsworn", async () => {
+  const { playerColor, PLAYER_COLORS, PLAYER_UNSWORN, FACTION_COLORS } = await import("./factions.js");
+  fresh();
+  assert.equal(playerColor(), PLAYER_UNSWORN, "no banner must LOOK like no banner");
+  for (const f of FACTIONS) {
+    fresh();
+    join(f.id);
+    assert.equal(playerColor(), PLAYER_COLORS[f.id], `${f.id} paints you ${f.id}`);
+  }
+  // Three distinct colours — if two matched, the whole point (see your side at a glance)
+  // would be gone.
+  assert.equal(new Set(Object.values(PLAYER_COLORS)).size, 3);
+  // And each sits in the war-colour space its own army flies: Ash and Vale exactly, Iron
+  // lifted off true black (which reads as a hole in the world rather than a body).
+  fresh(); join("ash");
+  assert.equal(playerColor(), FACTION_COLORS[factionById("ash").ally], "Ash wears Ash blue");
+  fresh(); join("vale");
+  assert.equal(playerColor(), FACTION_COLORS[factionById("vale").ally], "Vale wears Vale green");
+  fresh(); join("iron");
+  assert.notEqual(playerColor(), FACTION_COLORS[factionById("iron").ally],
+    "Iron is lifted from true black so a body still reads as a body");
+});
