@@ -12,6 +12,7 @@
 
 import { XP, PLAYER, HASTE, DODGE, STATS, GRACE } from "../config.js";
 import { player } from "../state.js";
+import { groundY } from "../world/gen.js";
 import { maxHpFor, ratingPct } from "./stats.js";
 import { diff } from "./difficulty.js";
 
@@ -58,6 +59,16 @@ export function bossValue(ring, level = 1) {
  * Award xp and resolve any number of level-ups (a boss can grant several at once).
  * @returns {number} levels gained
  */
+/**
+ * How much more a kill is worth for being made in the air. 1 on the ground, XP.altBonus more
+ * at XP.altFull above it. Measured against the LOCAL land rather than absolute height, so
+ * standing on a mountain earns nothing — you have to be off the world, not high on it.
+ */
+export function altitudeBonus() {
+  const up = player.y - groundY(player.x, player.z);
+  return 1 + Math.min(1, Math.max(0, up / XP.altFull)) * XP.altBonus;
+}
+
 export function award(amount) {
   player.xp += amount;
   let gained = 0;

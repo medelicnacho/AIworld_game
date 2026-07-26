@@ -808,6 +808,21 @@ export const GRACE = {
 // backbone of progress — while packs of small ones still meaningfully top you up during a
 // fight. Both stay worth killing; only their ROLE changes.
 export const XP = {
+  /**
+   * THE HEIGHT BONUS. Everything you kill is worth more the further you are above the land.
+   *
+   * The sky earns it: you are further from a refuge, there is no retreating downhill, a bad
+   * step is a long fall back to the bottom of a climb you just made, and the camps up there
+   * are as thick as anything on the ground. Without a reward the whole archipelago is a
+   * scenic detour and the optimal play is to stay on the floor.
+   *
+   * Deliberately modest. 1.6x at full height is enough that a good island is worth crossing
+   * the sky for, and small enough that it never beats simply going OUT — depth is the game's
+   * long climb (D8) and this must not quietly replace it with an easier one. Measured against
+   * the LOCAL ground, so a mountaintop is not a cheat: you have to actually be in the air.
+   */
+  altFull: 260,        // blocks above the land at which the bonus is fully earned
+  altBonus: 0.6,       // ...and what it is worth there
   mobBase: 12,
   // How much a kill is worth per ring out. Tuned so an ON-LEVEL regular mob is worth about
   // what a same-level WoW Classic mob is: at level 20 you're in tier 3, so 12 × (1 + 1.3×3)

@@ -37,7 +37,7 @@ import { Heal } from "./player/heal.js";
 import { Abilities, SLOTS, SLOT_KEYS } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
-import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, xpLevelMult } from "./prog/xp.js";
+import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, xpLevelMult, altitudeBonus } from "./prog/xp.js";
 import { save as saveGame, load as loadSave, restore as restoreSave, hasSave, wipe as wipeSave } from "./prog/save.js";
 import { mulberry32 } from "./rng.js";
 import { deeds } from "./world/events.js";
@@ -1215,7 +1215,10 @@ const hurtPlayer = (mob) => damagePlayer(mob.damage, mob.x, mob.z);
 function reward(res) {
   player.points += Math.round((LOOT.base + LOOT.perTier * res.ring)
     * (res.elite ? LOOT.eliteMult : 1));
-  const xp = killValue(res.ring, res.elite, player.level);
+  // HEIGHT PAYS. Applied at the call site rather than inside award() so the number the kill
+  // feed shows you is the number you actually got — a bonus you cannot see is not a reward,
+  // it is an accounting detail.
+  const xp = Math.round(killValue(res.ring, res.elite, player.level) * altitudeBonus());
   const lv = award(xp);
   // Ordinary kills pay NO reputation — standing comes from turn-ins, bosses and quests, not
   // from the endless frontier, so it stays something you choose rather than something you
@@ -1235,11 +1238,12 @@ function reward(res) {
 
 function rewardBoss(ring, x, z) {
   player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult);
-  const xp = bossValue(ring, player.level);
+  const alt = altitudeBonus();
+  const xp = Math.round(bossValue(ring, player.level) * alt);
   const lv = award(xp);
   // A boss is the big lump of standing. This is where reputation actually comes from, along
   // with turn-ins and (later) quests — never from the trash you clear on the way to it.
-  const rep = gainRep(repForBoss(ring));
+  const rep = gainRep(Math.round(repForBoss(ring) * alt));
   killFeed = `◆ BOSS DOWN ◆  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
   if (lv) levelUp();
   // News travels with the traveller (world/events.js): told the way a townsperson would.
@@ -1259,8 +1263,9 @@ function rewardBoss(ring, x, z) {
  */
 function sackTown(s) {
   const ring = tierAt(s.x, s.z);
-  const rep = gainRep(repForBoss(ring));
-  const xp = bossValue(ring, player.level);
+  const alt = altitudeBonus();
+  const rep = gainRep(Math.round(repForBoss(ring) * alt));
+  const xp = Math.round(bossValue(ring, player.level) * alt);
   const lv = award(xp);
   player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult);
   killFeed = `⚑ TOWN SACKED ⚑  +${xp}xp${rep ? `  +${rep} standing` : ""}${lv ? `   ▲ LEVEL ${player.level}` : ""}`;
@@ -1293,8 +1298,9 @@ function champFalls(e) {
   // through real bosses), while xp and points still pay like the mini-boss the fight is.
   const repFrac = RAID.champRep[e.champion] ?? 0.0625;
   const xpFrac = RAID.champXp[e.champion] ?? 0.25;
-  const rep = gainRep(Math.round(repForBoss(ring) * repFrac));
-  const xp = Math.round(bossValue(ring, player.level) * xpFrac);
+  const alt = altitudeBonus();
+  const rep = gainRep(Math.round(repForBoss(ring) * repFrac * alt));
+  const xp = Math.round(bossValue(ring, player.level) * xpFrac * alt);
   const lv = award(xp);
   player.points += Math.round((LOOT.base + LOOT.perTier * ring) * LOOT.bossMult * xpFrac);
   const name = (CHAMPION_NAME[e.champion] || "Champion").toUpperCase();
