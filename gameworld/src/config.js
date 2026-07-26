@@ -554,7 +554,10 @@ export const SETTLE = {
   // stand, your people are nearby, and so are your enemies. The map itself is the war.
   // It climbs STEEPLY with depth: the outer bands are physically wider, and a frontier that
   // thins out as you push into it reads backwards — the deep should feel contested.
-  townCap: 30,
+  // 60, up from 30. The cap existed so a ring could not run away, but a ring twelve bands out
+  // is twenty-five times the area of ring one and was being handed the same thirty towns —
+  // one per 837m of walking, which is a frontier with nothing on it.
+  townCap: 60,
   // HOW HIGH A TOWN'S AIRSPACE REACHES. Being "in a sanctuary" was a purely flat question,
   // which was the only sensible reading while the sky was empty — now you can stand on an
   // island two hundred blocks over a town and the game still counted you as inside its walls,
@@ -578,10 +581,37 @@ export const SETTLE = {
    * every town it had, and the sky gets its own. Without them the whole climb is a place to
    * fight with nowhere to spend anything, and you have to come all the way down to sell.
    */
-  // FIVE TIMES the ground count. The sky is enormously bigger than the land — the same ring
-  // area repeated at every altitude — and fog closes at about 106, so you cannot see one
-  // until you are nearly standing on it. It has to be crowded to be findable at all.
-  skyTowns: 5,
+  /**
+   * HOW FAR APART SKY TOWNS SIT, in metres — a DENSITY, not a count.
+   *
+   * Deriving them from the ground count was the mistake, because that count is capped at
+   * townCap and a ring eight bands out encloses twenty-five times the area of ring one. Same
+   * number, vastly more room: measured, one town per 138m at tier 1 and 588m at tier 12,
+   * which is why the deep felt empty however high the multiplier went. Fog closes at about
+   * 106m, so anything past a couple of hundred metres apart is a town you find by accident.
+   *
+   * A spacing scales itself. Deep rings get thousands of settlements, which is only
+   * affordable because sanctuariesNear is indexed by bearing now — it used to walk every
+   * settlement in three rings, from inside player collision.
+   */
+  // 165 rather than 150, because a ring is a THIN annulus and a sunflower on one does not
+  // achieve sqrt(area/n) between neighbours — the spiral's Fibonacci arms bring index i and
+  // index i+55 within about half of it. Measured against that real nearest-neighbour rather
+  // than the theoretical one.
+  skySpacing: 165,
+  /**
+   * ...AND A CEILING ON HOW MANY ONE RING MAY HOLD.
+   *
+   * A density with no cap is unbounded, because ring area grows with the square of the
+   * distance out and the world is endless. At a million metres out — which a test reaches
+   * simply by standing somewhere no wall could contain it — the honest answer is three
+   * million settlements in one ring, and the process dies building them.
+   *
+   * Past this the spacing widens instead, so the deep-deep gets sparser rather than
+   * impossible. The real fix is to generate settlements NEAR A POINT rather than a whole ring
+   * at a time; this is the guard rail until then.
+   */
+  skyMax: 4000,
   // The band they are scattered through, measured from just clear of the tallest land. They
   // used to be snapped to three narrow shelves one deck apart, which read exactly as Luke
   // described it — one spot, and that spot far too high. Continuous now, and biased LOW
@@ -591,7 +621,11 @@ export const SETTLE = {
   // them in a ring needed 154 units of separation and the ring only affords about 107 — so
   // they either had to be rarer or smaller, and rare is the thing that made them unfindable
   // in the first place. Small enough to fit, big enough to walk around in and hold a market.
-  skyRadius: 30,
+  // 26. Sunflower packing puts the nearest neighbour at about sqrt(area/n), but with real
+  // variance — at radius 30 the tightest pair in a ring came out three units short of its
+  // footprint. Shrinking the outpost keeps the DENSITY, which is the thing being asked for;
+  // widening the spacing would have paid for it with the very thing it is meant to fix.
+  skyRadius: 24,
   skyLow: 88,
   skySpan: 300,
   skyLowBias: 1.8,

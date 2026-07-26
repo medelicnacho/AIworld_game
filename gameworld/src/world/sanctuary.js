@@ -233,42 +233,50 @@ export function tierSettlements(t) {
     // of its own ring's towns. The sky has no bearing on where a city goes, so it should have
     // no bearing on the numbers that decide it either.
     //
-    // Added to the ring rather than taken out of it, on bearings
-    // offset half a slot from the ground towns so a sky town is rarely directly over one —
-    // the point is somewhere new to go, not a second storey on a place you already know.
-    // Their altitudes are dealt across the lower decks so the climb has counters at every
-    // stage of it rather than a single shelf of shops.
-    // A MULTIPLE OF THREE, like the ground count, so the colours deal out evenly here too —
-    // a ring that hands the sky to one faction is a ring where a player of the wrong colour
-    // finds no counter anywhere above the land.
-    const nSky = Math.max(3, Math.round(n * SETTLE.skyTowns / 3) * 3);
-    for (let i = 0; i < nSky; i++) {
-      const ang = ((i + 0.5) / nSky) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / nSky) * 0.6;
-      const r = lo + w * (0.15 + rng() * 0.7);
-      // ALTITUDE FROM THE GOLDEN RATIO, not from a roll and not from a deck index.
-      //
-      // Two things must be true at once, and a plain random draw gives neither reliably.
-      // Heights must VARY — snapped to three narrow shelves a deck apart they read as one
-      // place, and that place too high. And NEIGHBOURS must differ, because two towns on
-      // adjacent bearings at the same height would overlap and the ring is crowded now.
-      // Stepping by the golden ratio does both by construction: the sequence never repeats,
-      // fills the range evenly, and consecutive terms are always far apart.
-      //
-      // Then biased downward, so most sky towns are a climb rather than an expedition and the
-      // high ones are the exception you go looking for. Always well clear of the tallest land
-      // (TERRAIN_CAP is 78), so a sky town is never at an altitude a ground town could also
-      // be at — which is what lets everything else treat "same height" as "same place".
-      // Offset by half a step so index 0 does not sit at the very bottom of the sequence.
-      // It did, and index 0's bearing WRAPS AROUND to sit beside the last town's — so the one
-      // pair the golden ratio cannot separate is exactly the pair that ends up adjacent.
-      const frac = ((i + 0.5) * 0.6180339887498949) % 1;
-      const y = Math.round(SETTLE.skyLow + Math.pow(frac, SETTLE.skyLowBias) * SETTLE.skySpan);
-      const town = build(`t${t}-sky${i}`, Math.cos(ang) * r, Math.sin(ang) * r,
-                         SETTLE.skyRadius, rng, false, y);
-      town.faction = (i + facOff + 1) % 3;
-      out.push(town);
+    // Added to the ring rather than taken out of it: the frontier underneath keeps every town
+    // it had, and the sky gets its own.
+    //
+    // LAID OUT AS A STAGGERED LATTICE, because a ring is a THIN ANNULUS. Two placements were
+    // tried first and both failed the same way. Evenly-spread bearings work for thirty towns
+    // and collapse at two thousand — adjacent bearings become a fifth of a degree, which eight
+    // kilometres out is twenty metres of ground between towns needing a hundred. A sunflower
+    // spiral is the textbook answer for filling a DISC and degenerates on a thin ring: its
+    // Fibonacci arms bring index i and index i+55 to within half the nominal spacing, measured
+    // at 41m where 79 was needed.
+    //
+    // So: rows across the band, each row holding as many towns as its own circumference
+    // affords, alternate rows offset half a step so they interlock. Spacing is then GUARANTEED
+    // in both directions, at any count, at any depth — which is the whole point, since a deep
+    // ring encloses twenty-five times the area of ring one.
+    const rIn = lo + w * 0.12, rOut = lo + w * 0.92;
+    // Density until the ring would hold more than skyMax, then spacing widens to hold the
+    // count — ring area grows with the square of the distance out and the world is endless,
+    // so an uncapped density eventually asks for millions of settlements in one band.
+    const band = Math.PI * (rOut * rOut - rIn * rIn);
+    const spacing = Math.max(SETTLE.skySpacing, Math.sqrt(band / SETTLE.skyMax));
+    const rows = Math.max(1, Math.round((rOut - rIn) / spacing));
+    let k = 0;
+    for (let ri = 0; ri < rows; ri++) {
+      const rr = rIn + (ri + 0.5) * ((rOut - rIn) / rows);
+      const cols = Math.max(3, Math.round((Math.PI * 2 * rr) / spacing));
+      for (let ci = 0; ci < cols; ci++) {
+        const ang = ((ci + (ri % 2) * 0.5) / cols) * Math.PI * 2;
+        // Heights from the golden RATIO — a different walk from the positions, so two towns
+        // that do end up near each other are still at unrelated altitudes. Biased downward,
+        // so most are a climb and the high ones the exception you go looking for. Always well
+        // clear of the tallest land (TERRAIN_CAP is 78), which is what lets everything else
+        // treat "same height" as "same place" without a special case.
+        const hFrac = ((k + 0.5) * 0.6180339887498949) % 1;
+        const y = Math.round(SETTLE.skyLow + Math.pow(hFrac, SETTLE.skyLowBias) * SETTLE.skySpan);
+        const town = build(`t${t}-sky${k}`, Math.cos(ang) * rr, Math.sin(ang) * rr,
+                           SETTLE.skyRadius, rng, false, y);
+        // Dealt round-robin like the ground count, so no ring hands its whole sky to one
+        // faction and leaves a player of the wrong colour with no counter above the land.
+        town.faction = (k + facOff + 1) % 3;
+        out.push(town);
+        k++;
+      }
     }
-
   }
   _tiers.set(t, out);
   return out;
@@ -345,15 +353,54 @@ export function settlementFloorAt(x, z) {
   return s ? s.plateau + 1 : groundY(x, z);
 }
 
+/**
+ * A BEARING INDEX per ring, so a lookup does not scan the whole ring.
+ *
+ * Settlements were found by walking every one in three rings. That was nothing at thirty a
+ * ring and is ruinous at thousands — and thousands is what a deep ring needs, because a ring
+ * eight bands out encloses twenty-five times the area of ring one and was being given the
+ * same count. wallBlocks asks this question from inside player collision, several times per
+ * substep, so it is squarely on the hot path.
+ *
+ * Each settlement is filed under the bucket of its own bearing; a query sweeps only the
+ * buckets its search window covers. The window is (range + the widest footprint) / distance,
+ * which for a collision test at four thousand metres out is a single bucket.
+ */
+const BUCKETS = 256;
+const _index = new Map();
+
+function tierIndex(t) {
+  let idx = _index.get(t);
+  if (idx) return idx;
+  idx = { buckets: Array.from({ length: BUCKETS }, () => []), widest: 0 };
+  for (const s of tierSettlements(t)) {
+    const b = Math.min(BUCKETS - 1, Math.max(0,
+      Math.floor(((s.sA + Math.PI) / (Math.PI * 2)) * BUCKETS)));
+    idx.buckets[b].push(s);
+    idx.widest = Math.max(idx.widest, footprint(s));
+  }
+  _index.set(t, idx);
+  return idx;
+}
+
 /** Every settlement whose centre lies within `range` of a point. */
 export function sanctuariesNear(x, z, range = 220) {
   const out = [];
   const d = Math.hypot(x, z);
   const tLo = Math.max(0, tierAt(Math.max(0, d - range), 0) - 1);
   const tHi = tierAt(d + range, 0) + 1;
+  const a = Math.atan2(z, x);
   for (let t = tLo; t <= tHi; t++) {
-    for (const s of tierSettlements(t)) {
-      if (Math.hypot(s.x - x, s.z - z) <= range + s.rMax) out.push(s);
+    const idx = tierIndex(t);
+    // How far round the ring a settlement could still reach us from. Near the origin this
+    // opens to the whole circle, which is correct: at the middle every bearing is close.
+    const half = d > 1 ? Math.min(Math.PI, (range + idx.widest) / d) : Math.PI;
+    const lo = Math.floor(((a - half + Math.PI) / (Math.PI * 2)) * BUCKETS);
+    const hi = Math.ceil(((a + half + Math.PI) / (Math.PI * 2)) * BUCKETS);
+    for (let b = lo; b <= hi; b++) {
+      for (const s of idx.buckets[((b % BUCKETS) + BUCKETS) % BUCKETS]) {
+        if (Math.hypot(s.x - x, s.z - z) <= range + s.rMax) out.push(s);
+      }
     }
   }
   return out;

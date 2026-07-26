@@ -6,7 +6,7 @@
 
 import test from "node:test";
 import assert from "node:assert";
-import { tierSettlements, footprint, cityOfTier } from "./sanctuary.js";
+import { tierSettlements, footprint, cityOfTier, sanctuariesNear } from "./sanctuary.js";
 import { SETTLE } from "../config.js";
 
 const TIERS = 20;
@@ -18,9 +18,12 @@ test("no settlement overlaps another in the same ring", () => {
   const bad = [];
   for (let t = 0; t <= TIERS; t++) {
     const ss = tierSettlements(t);
+    // Only against NEARBY settlements. A deep ring holds thousands now, and all-pairs over
+    // twenty of them is tens of millions of comparisons — the test itself was taking a second.
     for (let i = 0; i < ss.length; i++) {
-      for (let j = i + 1; j < ss.length; j++) {
-        const a = ss[i], b = ss[j];
+      for (const b of sanctuariesNear(ss[i].x, ss[i].z, 260)) {
+        const a = ss[i];
+        if (a.id === b.id) continue;
         // Two settlements only contend for ground if they are ON the same ground. A sky town
         // three hundred blocks over a field is not crowding it — that is the entire point of
         // building one up there.
@@ -31,7 +34,7 @@ test("no settlement overlaps another in the same ring", () => {
       }
     }
   }
-  assert.deepEqual(bad, []);
+  assert.deepEqual(bad.slice(0, 6), []);
 });
 
 test("no settlement reaches into the next ring's", () => {

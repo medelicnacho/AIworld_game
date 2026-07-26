@@ -55,8 +55,14 @@ test("every ring deals all three colours, and deals them EVENLY", () => {
         `tier ${t}: a town must fly one of the three colours, got ${s.faction}`);
       byFac[s.faction]++;
     }
-    assert.ok(byFac.every((c) => c === byFac[0]),
-      `tier ${t}: colours must come out even, got ${byFac.join("/")}`);
+    // Within one of each other, not exactly equal. Ground towns are dealt from a count that
+    // is always a multiple of three and do come out exact; sky towns are derived from the
+    // ring's AREA, which cannot be, so a ring of 221 deals 73/74/74. The invariant that
+    // matters is that no colour is STARVED — a player hunting their own colour, or a rival to
+    // raid, must find one — and one town in two hundred is not starvation.
+    const spread = Math.max(...byFac) - Math.min(...byFac);
+    assert.ok(spread <= 1, `tier ${t}: colours must come out even, got ${byFac.join("/")}`);
+    assert.ok(Math.min(...byFac) > 0, `tier ${t}: a colour has no towns at all: ${byFac.join("/")}`);
   }
 });
 
