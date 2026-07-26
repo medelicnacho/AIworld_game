@@ -256,6 +256,47 @@ export const CHUNKS_PER_FRAME = 2;     // build budget — keeps frame time flat
 // Terrain shape
 export const SEA_LEVEL = 24;
 export const BASE_HEIGHT = 30;
+/**
+ * VERTICAL DRAMA — the land you have to read instead of walk.
+ *
+ * The terrain was gentle fbm on a voxel grid, which meant it never rose more than one block
+ * at a time anywhere in the world. Beautiful, and completely flat as far as your legs were
+ * concerned: nothing to jump over, nothing to jump between, nothing to climb. Relief is the
+ * part that disagrees with you.
+ *
+ * The numbers come from what the player's body can actually do, which is a short jump and a
+ * FAST run: 1.36 blocks of lift, but six blocks of ground covered in one sprinting leap. So
+ * the parkour here is horizontal. You clear gaps by committing to a run-up, not by climbing
+ * — and a ledge above double-jump height is not a challenge, it is a wall you route around.
+ * That is the lesson: the land has levels, and choosing your level is choosing your fight.
+ *
+ * It GROWS with the ring, like everything else visible about difficulty (D8). The Commons
+ * stays walkable because it is where movement is taught, and by the deep rings you are
+ * reading terrain as carefully as you read a mob pack. Nobody has to be told this happened;
+ * you can see it on the horizon.
+ */
+export const RELIEF = {
+  fullTier: 4,          // drama ramps from nothing at spawn to full by this ring
+  // TERRACES. Heights snap toward multiples of this, which turns smooth hills into stepped
+  // plateaus with real edges. The effective step is terraceStep * terraceMix ≈ 2 blocks —
+  // deliberately just above a single jump and just under a double, so every ledge asks for
+  // the second jump you would otherwise only spend on emergencies.
+  terraceStep: 3,
+  terraceMix: 0.7,
+  // SPIRES. Ridged noise: buttes and fingers of rock standing above the plateau. High ground
+  // that has to be earned, and a landmark you can navigate by.
+  spireScale: 0.03,
+  spireWidth: 0.42,     // smaller = narrower, meaner spires
+  spireSharp: 2.0,
+  spireAmp: 15,
+  // CHASMS. Long winding cuts, sized against that six-block leap: most are a committed jump,
+  // some are a detour. There is no fall damage, so a chasm costs you time and position and
+  // never your run — which is what makes trying the jump the right instinct.
+  chasmScale: 0.008,
+  chasmWidth: 0.13,
+  chasmDepth: 12,
+};
+
 export const CONTINENT_SCALE = 0.0035;  // big landforms
 export const CONTINENT_AMP = 20;
 export const HILL_SCALE = 0.02;         // local relief
@@ -285,7 +326,16 @@ export const SETTLE = {
   cityFromTier: 1,
   cityScale: 1.55,        // city radius = RADIUS * (cityScale + cityGrow * tier)
   cityGrow: 0.32,
-  flatten: 1.25,          // a city flattens terrain out to this multiple of its radius
+  // How far a settlement levels the land, as a multiple of its furthest WALL corner. Every
+  // settlement does this now, not just cities: once the terrain grew spires and chasms
+  // (RELIEF), a town on raw ground meant walls hanging off a cliff and villagers pathing
+  // into a canyon. Towns get the wider apron because they are small — the blend has to be
+  // long enough that the drop back to wild land is a slope you walk, not a wall you meet.
+  flatten: 1.25,
+  // 1.35, not more: ring 1 packs nine towns into the narrowest band, and a wider apron made
+  // neighbours overlap — where two aprons meet, one wins and the seam between them is a
+  // cliff, which is the exact thing this was added to prevent.
+  townFlatten: 1.35,
 };
 export const RINGS = [
   { name: "the Commons",  tint: [1.00, 1.00, 1.00] },
@@ -310,6 +360,17 @@ export const PLAYER = {
   jumps: 2,             // ground jump + this many air jumps - 1
   airJumpScale: 0.92,   // air jumps slightly weaker, so the first one still feels best
   maxFall: -60,
+  // AUTO STEP-UP. A capsule that tests its whole height against the voxel grid is stopped
+  // by a one-block rise, and the land rises by exactly one block every twenty units — so
+  // walking anywhere meant jumping every three seconds for no reason you could see.
+  // One block is walking; two or more is parkour. That line is what the terrain is built
+  // against, and it is why a ledge means something now: the ones that stop you are the ones
+  // you were meant to notice.
+  stepHeight: 1,
+  // The body snaps up instantly (physics stays honest); the EYE lags and catches up over
+  // about an eighth of a second, so a staircase reads as a climb instead of a series of
+  // jolts. Blocks per second.
+  stepSmooth: 9,
 };
 
 // D6: one hitscan gun. A raycast — no ballistics, no projectile pooling. Everything here

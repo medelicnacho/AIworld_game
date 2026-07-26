@@ -44,7 +44,8 @@ export class CameraRig {
     this.forward.set(-sy * cp, sp, -cy * cp).normalize();
 
     // The head: where the eye sits in first person, and what the third-person camera orbits.
-    const hx = player.x, hy = player.y + CAMERA.height, hz = player.z;
+    // stepLift trails an auto step-up so the view glides over a ledge instead of snapping.
+    const hx = player.x, hy = player.y - player.stepLift + CAMERA.height, hz = player.z;
 
     // Third-person anchor: back along the view ray, offset over the shoulder.
     const dist = CAMERA.thirdPersonDist * (1 - eased);

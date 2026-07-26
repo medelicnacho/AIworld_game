@@ -34,6 +34,9 @@ export const player = {
   vx: 0, vy: 0, vz: 0,
   yaw: 0, pitch: 0,
   onGround: false,
+  // How far the eye is still BEHIND the feet after an auto step-up, in blocks. Purely
+  // cosmetic — nothing in the sim may read this.
+  stepLift: 0,
   jumpsLeft: 2,
   sprinting: false,
   dodgeT: 0, dodgeCd: 0, iframes: 0, dodgeX: 0, dodgeZ: 0,

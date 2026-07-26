@@ -249,6 +249,26 @@ function blocked(x, y, z) {
   return false;
 }
 
+/**
+ * Walk UP a one-block rise instead of stopping dead against it.
+ *
+ * Only from the ground: allowed in mid-air this is a wall-climb, since you could hug a cliff
+ * and ratchet up it a block at a time. And only ONCE per physics step (the caller's `stepped`
+ * latch) — the move is substepped up to sixteen times a frame, so without that you could
+ * ascend sixteen blocks in a frame by running at a tall enough wall.
+ *
+ * A sheer wall still refuses, because the capsule test at the raised position finds the
+ * block above. Stairs climb; walls do not. That is the whole rule.
+ */
+function tryStep(nx, nz) {
+  if (!player.onGround) return false;
+  const ny = Math.floor(player.y) + PLAYER.stepHeight;
+  if (blocked(nx, ny, nz)) return false;
+  player.stepLift = Math.min(PLAYER.stepHeight, player.stepLift + (ny - player.y));
+  player.y = ny;
+  return true;
+}
+
 export function stepPlayer(dt) {
   // Derived, every step: held AND not mid-roll.
   input.aim = input.aimHeld && player.dodgeT <= 0;
@@ -352,13 +372,18 @@ export function stepPlayer(dt) {
   const steps = Math.min(16, Math.max(1, Math.ceil(move / 0.4)));
   const sdt = dt / steps;
 
+  let stepped = false;      // at most one block of auto-step per physics step — see tryStep
   for (let k = 0; k < steps; k++) {
     // Axis-separated resolution: try each move independently so a blocked X still allows Z.
     const nx = player.x + player.vx * sdt;
-    if (stuck || !blocked(nx, player.y, player.z)) player.x = nx; else player.vx = 0;
+    if (stuck || !blocked(nx, player.y, player.z)) player.x = nx;
+    else if (!stepped && tryStep(nx, player.z)) { player.x = nx; stepped = true; }
+    else player.vx = 0;
 
     const nz = player.z + player.vz * sdt;
-    if (stuck || !blocked(player.x, player.y, nz)) player.z = nz; else player.vz = 0;
+    if (stuck || !blocked(player.x, player.y, nz)) player.z = nz;
+    else if (!stepped && tryStep(player.x, nz)) { player.z = nz; stepped = true; }
+    else player.vz = 0;
   }
 
   const ny = player.y + player.vy * dt;
@@ -372,6 +397,8 @@ export function stepPlayer(dt) {
     }
     player.vy = 0;
   }
+
+  if (player.stepLift > 0) player.stepLift = Math.max(0, player.stepLift - dt * PLAYER.stepSmooth);
 
   player.sprinting = input.sprint && len > 0;
 }

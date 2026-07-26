@@ -15,7 +15,7 @@
 import * as THREE from "three";
 import { WORLD_SEED, SETTLE } from "../config.js";
 import { hash2, mulberry32 } from "../rng.js";
-import { groundY, rawHeight, tierStart, tierWidth, tierAt, setCityLookup } from "./gen.js";
+import { groundY, rawHeight, tierStart, tierWidth, tierAt, setFlattenLookup } from "./gen.js";
 
 export const RADIUS = 46;         // a town you walk around inside, not a pen
 export const WALL_T = 1.7;        // wall thickness
@@ -95,8 +95,7 @@ export function cityRadius(t) {
  * which looks even more broken than the overlap it replaced.
  */
 export function footprint(s) {
-  const wall = s.r * SHAPE_MAX;
-  return s.city ? Math.max(wall, s.r * SETTLE.flatten) : wall;
+  return Math.max(s.rMax, s.flatR);
 }
 
 /** Open ground left between two settlements' footprints. Walls that merely fail to
@@ -118,6 +117,7 @@ export function townCount(t) {
 
 function build(key, x, z, radius, rng, city) {
   const corners = makeShape(rng, radius);
+  const rMax = Math.max(...corners.map((c) => c.r));
   return {
     id: key, x, z, r: radius, corners, city,
     // WHOSE TOWN THIS IS. Towns fly one of the three colours; cities are neutral ground where
@@ -130,12 +130,15 @@ function build(key, x, z, radius, rng, city) {
     // and showing a new player one option out of three is a bad way to introduce a choice.
     neutral: !!city,
     rMin: Math.min(...corners.map((c) => c.r)),
-    rMax: Math.max(...corners.map((c) => c.r)),
+    rMax,
     gate: rng() * Math.PI * 2,
-    // Cities stand on levelled ground; the plateau is read from the RAW land so this can
-    // never feed back into itself through heightAt().
-    plateau: city ? rawHeight(x, z) : 0,
-    flatR: city ? radius * SETTLE.flatten : 0,
+    // EVERY settlement stands on levelled ground, not only cities. Towns used to sit on the
+    // raw land, which was survivable when the raw land never rose more than a block; with
+    // spires and chasms in it, a town is walls hanging over a canyon. The plateau is read
+    // from the RAW land so this can never feed back into itself through heightAt().
+    plateau: rawHeight(x, z),
+    flatInner: rMax,
+    flatR: rMax * (city ? SETTLE.flatten : SETTLE.townFlatten),
   };
 }
 
@@ -188,7 +191,9 @@ export function tierSettlements(t) {
       // homeOfTier() is a respawn point and must always answer. The FIRST candidate is drawn
       // exactly as before, so every ring that was already fine keeps the city it had.
       const cr = cityRadius(t);
-      const need = Math.max(cr * SHAPE_MAX, cr * SETTLE.flatten) + CITY_GAP;
+      // Conservative: the shape is not rolled yet, so assume the widest corner and the apron
+      // that follows from it.
+      const need = cr * SHAPE_MAX * SETTLE.flatten + CITY_GAP;
       let best = null;
       for (let k = 0; k < CITY_TRIES; k++) {
         const ang = rng() * Math.PI * 2;
@@ -243,12 +248,15 @@ export function sanctuaryOf(x, z, margin = 0) {
 
 // Cities level the ground they stand on; gen.js asks through this hook (injected, so the
 // dependency stays one-way).
-setCityLookup((x, z) => {
+setFlattenLookup((x, z) => {
   const d = Math.hypot(x, z);
-  for (let t = Math.max(1, tierAt(d, 0) - 1); t <= tierAt(d, 0) + 1; t++) {
+  // From tier 0, not tier 1 — the spawn town needs level ground as much as anything does,
+  // and starting the sweep at 1 quietly excluded it.
+  for (let t = Math.max(0, tierAt(d, 0) - 1); t <= tierAt(d, 0) + 1; t++) {
     for (const s of tierSettlements(t)) {
-      if (!s.city) continue;
-      if (Math.hypot(s.x - x, s.z - z) < s.flatR) return s;
+      // Squared compare: this runs for every column of every chunk built.
+      const dx = s.x - x, dz = s.z - z;
+      if (dx * dx + dz * dz < s.flatR * s.flatR) return s;
     }
   }
   return null;

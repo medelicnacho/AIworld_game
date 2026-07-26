@@ -8,7 +8,7 @@
 import { fbm } from "../rng.js";
 import {
   WORLD_SEED, CHUNK_X, CHUNK_Y, CHUNK_Z, SEA_LEVEL, BASE_HEIGHT,
-  CONTINENT_SCALE, CONTINENT_AMP, HILL_SCALE, HILL_AMP, RING_SIZE, RING_WIDEN, RINGS,
+  CONTINENT_SCALE, CONTINENT_AMP, HILL_SCALE, HILL_AMP, RING_SIZE, RING_WIDEN, RINGS, RELIEF,
 } from "../config.js";
 
 export const AIR = 0, STONE = 1, DIRT = 2, GRASS = 3, SAND = 4, SNOW = 5;
@@ -23,33 +23,67 @@ export const BLOCK_COLOR = {
   [SNOW]:  [0.90, 0.92, 0.96],
 };
 
+/**
+ * Terraces, spires and chasms — the part of the land you have to read. See RELIEF.
+ *
+ * Everything here is still ONE HEIGHT PER COLUMN, which is the whole reason it is affordable:
+ * fillChunk evaluates 256 columns, not 20,480 voxels, and that is the difference between a
+ * chunk building in about a millisecond and in eighty. Overhangs and arches need true 3D
+ * noise and are a separate, more expensive conversation.
+ */
+function relief(wx, wz, h) {
+  // Ramped by ring: the Commons is where movement is taught, so it stays walkable.
+  const grow = Math.min(1, tierAt(wx, wz) / RELIEF.fullTier);
+  if (grow <= 0) return h;
+
+  // TERRACES — snap toward a step, turning a smooth slope into plateaus with edges.
+  const q = Math.round(h / RELIEF.terraceStep) * RELIEF.terraceStep;
+  let out = h + (q - h) * RELIEF.terraceMix * grow;
+
+  // SPIRES — ridged noise. |noise| near zero is the crest, so inverting it gives ridges
+  // rather than the blobs you get from plain fbm, and the power sharpens them into fingers.
+  const rn = fbm(WORLD_SEED + 4441, wx * RELIEF.spireScale, wz * RELIEF.spireScale, 3);
+  const ridge = Math.max(0, 1 - Math.abs(rn) / RELIEF.spireWidth);
+  out += Math.pow(ridge, RELIEF.spireSharp) * RELIEF.spireAmp * grow;
+
+  // CHASMS — the same trick, subtracted, at a much larger scale so the cuts run for a long
+  // way instead of pocking the ground with holes.
+  const cn = fbm(WORLD_SEED + 9137, wx * RELIEF.chasmScale, wz * RELIEF.chasmScale, 2);
+  const cut = Math.max(0, 1 - Math.abs(cn) / RELIEF.chasmWidth);
+  out -= cut * cut * RELIEF.chasmDepth * grow;
+
+  return out;
+}
+
 /** The land as the noise wrote it, before anything flattens it. */
 export function rawHeight(wx, wz) {
   const continent = fbm(WORLD_SEED, wx * CONTINENT_SCALE, wz * CONTINENT_SCALE, 4);
   const hills = fbm(WORLD_SEED + 7717, wx * HILL_SCALE, wz * HILL_SCALE, 3);
-  const h = BASE_HEIGHT + continent * CONTINENT_AMP + hills * HILL_AMP;
+  const h = relief(wx, wz, BASE_HEIGHT + continent * CONTINENT_AMP + hills * HILL_AMP);
   return Math.max(1, Math.min(CHUNK_Y - 2, Math.floor(h)));
 }
 
-// Cities flatten the ground they stand on. gen.js cannot import sanctuary.js (sanctuary
-// needs groundY from here), so the city list is INJECTED — one small indirection that keeps
-// the dependency pointing one way instead of in a circle.
-let _cityLookup = null;
-export function setCityLookup(fn) { _cityLookup = fn; }
+// Settlements flatten the ground they stand on. gen.js cannot import sanctuary.js (sanctuary
+// needs groundY from here), so the settlement list is INJECTED — one small indirection that
+// keeps the dependency pointing one way instead of in a circle.
+let _flatten = null;
+export function setFlattenLookup(fn) { _flatten = fn; }
 
 /**
- * Terrain height, with city plateaus levelled in. A city sits on flat ground and the land
- * eases into it over the surrounding margin, so you get a buildable plain rather than
- * streets running up a hillside — and no cliff at the boundary either.
+ * Terrain height, with settlement plateaus levelled in. A settlement sits on flat ground and
+ * the land eases into it over the surrounding margin, so you get a buildable plain rather
+ * than streets running up a hillside — and no cliff at the boundary either.
  */
 export function heightAt(wx, wz) {
   const h = rawHeight(wx, wz);
-  if (!_cityLookup) return h;
-  const c = _cityLookup(wx, wz);
+  if (!_flatten) return h;
+  const c = _flatten(wx, wz);
   if (!c) return h;
   const d = Math.hypot(wx - c.x, wz - c.z);
   if (d >= c.flatR) return h;
-  const inner = c.r;
+  // Flat all the way out to the FURTHEST wall corner, not to the nominal radius — the wall
+  // reaches past r, and blending from r left its outermost corners standing on wild ground.
+  const inner = c.flatInner;
   if (d <= inner) return c.plateau;
   // Smoothstep across the margin: flat inside the walls, blending back to the wild land.
   const t = (d - inner) / (c.flatR - inner);
