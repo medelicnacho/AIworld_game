@@ -7,9 +7,9 @@
 
 import test from "node:test";
 import assert from "node:assert";
-import { wallBlocks, wallBlocksBody, tierSettlements, boundaryAt, WALL_H } from "./sanctuary.js";
+import { wallBlocks, wallBlocksBody, tierSettlements, boundaryAt, WALL_H, sanctuaryUnder } from "./sanctuary.js";
 import { groundY } from "./gen.js";
-import { PLAYER } from "../config.js";
+import { PLAYER, SETTLE } from "../config.js";
 
 /** A point standing in the wall of the spawn town, away from its gate. */
 function onTheWall() {
@@ -56,5 +56,34 @@ test("open ground is open at every height", () => {
   const far = { x: s.x + s.rMax + 60, z: s.z };
   for (const y of [0, 20, 120]) {
     assert.ok(!wallBlocksBody(far.x, groundY(far.x, far.z) + y, far.z, PLAYER.height));
+  }
+});
+
+// A TOWN IS A PLACE ON THE GROUND. Being "in a sanctuary" was a purely flat question, which
+// made a hover two hundred blocks over a town the safest spot in the world — every rule that
+// keys off sanctuary (damage immunity, stowed weapons, whether the garrison cares) inherited
+// it. Above SETTLE.roof you are in the sky, and the sky belongs to nobody.
+test("a town's protection has a ceiling", () => {
+  const s = tierSettlements(0)[0];
+  const g = groundY(s.x, s.z);
+  assert.ok(sanctuaryUnder(s.x, g, s.z), "standing in the square is in town");
+  assert.ok(sanctuaryUnder(s.x, g + SETTLE.roof - 1, s.z),
+    "and so is anywhere you could jump to from inside");
+  assert.equal(sanctuaryUnder(s.x, g + SETTLE.roof + 1, s.z), null, "just above the roof is sky");
+  assert.equal(sanctuaryUnder(s.x, g + 200, s.z), null, "an island over a town is not the town");
+});
+
+test("the ceiling clears anything reachable from inside the walls", () => {
+  // Walls are WALL_H tall and a double jump adds ~2.5 — ordinary play must never touch this.
+  const reach = WALL_H + PLAYER.jumpSpeed ** 2 / (2 * -PLAYER.gravity) * 2;
+  assert.ok(SETTLE.roof > reach + 4,
+    `roof ${SETTLE.roof} is too close to the ${reach.toFixed(1)} you can reach from the wall`);
+});
+
+test("outside a town, height changes nothing", () => {
+  const s = tierSettlements(0)[0];
+  const far = { x: s.x + s.rMax + 80, z: s.z };
+  for (const y of [0, 30, 300]) {
+    assert.equal(sanctuaryUnder(far.x, groundY(far.x, far.z) + y, far.z), null);
   }
 });

@@ -18,7 +18,7 @@
 
 import { WARCRY } from "../config.js";
 import { player, nearby } from "../state.js";
-import { sanctuaryOf } from "../world/sanctuary.js";
+import { sanctuaryUnder } from "../world/sanctuary.js";
 import { isHostileSanctuary } from "../prog/factions.js";
 import { mulberry32 } from "../rng.js";
 import { Drift } from "../town/drift.js";
@@ -201,7 +201,7 @@ export class WarCries {
       this.bakeTaunt(shortTaunts[0]);
       return;
     }
-    const s = sanctuaryOf(player.x, player.z, 0);
+    const s = sanctuaryUnder(player.x, player.y, player.z, 0);
     if (!s || isHostileSanctuary(s)) return;
     const shortCries = [0, 1, 2].filter((c) => this.cache.get(c).length < WARCRY.cachePerFaction);
     const shortHails = [0, 1, 2].filter((c) => this.hails.get(c).length < WARCRY.hailPerFaction);

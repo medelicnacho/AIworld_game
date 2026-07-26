@@ -26,7 +26,7 @@ import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, is
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY, solidAt } from "./world/gen.js";
-import { Sanctuaries, sanctuaryOf, sanctuariesNear, boundaryAt, homeOfTier } from "./world/sanctuary.js";
+import { Sanctuaries, sanctuariesNear, boundaryAt, homeOfTier, sanctuaryUnder } from "./world/sanctuary.js";
 import { attachInput, input, stepPlayer } from "./player/controller.js";
 import { CameraRig } from "./player/camera.js";
 import { Gun } from "./player/gun.js";
@@ -1183,7 +1183,7 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback, sustained = f
   // on hostile ground the town's own garrison can genuinely hurt you. Wild threats still
   // can't follow you in, so the walls still mean something — just not immunity.
   {
-    const s = sanctuaryOf(player.x, player.z, 0);
+    const s = sanctuaryUnder(player.x, player.y, player.z, 0);
     if (s && !isHostileSanctuary(s)) return;
   }
   // Armour applies HERE, at the one place damage enters the player — so it covers mob hits,
@@ -1799,7 +1799,7 @@ function frame(now) {
   // weapons stay out, the fast mend stays off, and the ✦ SANCTUARY label stays away —
   // everything that reads inSafe learns "this is intruder ground" from this one line.
   {
-    const s = sanctuaryOf(player.x, player.z, 0);
+    const s = sanctuaryUnder(player.x, player.y, player.z, 0);
     inSafe = s !== null && !isHostileSanctuary(s);
   }
   const inSafeZone = inSafe;

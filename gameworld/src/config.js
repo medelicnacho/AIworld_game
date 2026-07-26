@@ -483,6 +483,14 @@ export const SETTLE = {
   // It climbs STEEPLY with depth: the outer bands are physically wider, and a frontier that
   // thins out as you push into it reads backwards — the deep should feel contested.
   townCap: 30,
+  // HOW HIGH A TOWN'S AIRSPACE REACHES. Being "in a sanctuary" was a purely flat question,
+  // which was the only sensible reading while the sky was empty — now you can stand on an
+  // island two hundred blocks over a town and the game still counted you as inside its walls,
+  // which meant nothing could hurt you up there. A town is a place on the ground; above this
+  // you are in the sky, and the sky belongs to nobody. Well clear of anything you could reach
+  // from inside (the walls are 10 tall and a double jump adds 2.5), so ordinary play never
+  // touches it.
+  roof: 24,
   cityFromTier: 1,
   cityScale: 1.55,        // city radius = RADIUS * (cityScale + cityGrow * tier)
   cityGrow: 0.32,

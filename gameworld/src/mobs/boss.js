@@ -12,7 +12,7 @@ import * as THREE from "three";
 import { BOSS } from "../config.js";
 import { player } from "../state.js";
 import { groundY, ringAt, tierAt, ringPressure } from "../world/gen.js";
-import { sanctuaryOf } from "../world/sanctuary.js";
+import { sanctuaryOf, sanctuaryUnder } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 import { sfx } from "../audio/sfx.js";
 import { allyColor, FACTION_COLORS } from "../prog/factions.js";
@@ -272,7 +272,7 @@ export class Boss {
 
     // A refuge holds against the boss too: it stops calling volleys down on you and stops
     // advancing. Meteors already in the air still land — you ran, they were already falling.
-    if (sanctuaryOf(player.x, player.z, 0)) {
+    if (sanctuaryUnder(player.x, player.y, player.z, 0)) {
       b.charging = false;
       b.beamWarm = 0;
       b.beamT = 0;

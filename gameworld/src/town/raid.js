@@ -22,7 +22,7 @@
 
 import { MOB, RAID } from "../config.js";
 import { player, world } from "../state.js";
-import { sanctuariesNear, sanctuaryOf } from "../world/sanctuary.js";
+import { sanctuariesNear, sanctuaryUnder } from "../world/sanctuary.js";
 import { isHostileSanctuary, FACTIONS } from "../prog/factions.js";
 import { tierAt, ringPressure } from "../world/gen.js";
 
@@ -232,7 +232,7 @@ export class Raids {
 
   /** Have you started this one? Inside their walls, or blood already drawn on their people. */
   shouldArm(st) {
-    if (sanctuaryOf(player.x, player.z) === st.s) return true;
+    if (sanctuaryUnder(player.x, player.y, player.z) === st.s) return true;
     for (const id of st.ids) {
       const e = world.entities.get(id);
       if (e && e.hp > 0 && e.hp < e.maxHp) return true;

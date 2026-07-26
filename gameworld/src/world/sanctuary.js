@@ -221,6 +221,22 @@ export function homeOfTier(t) {
   return cityOfTier(t) || tierSettlements(t)[0] || tierSettlements(0)[0];
 }
 
+/**
+ * The settlement a BODY is standing in — the flat question plus the height one.
+ *
+ * sanctuaryOf asks only where you are on the map, which is the right question for a fireball
+ * or a mob's pathing and the wrong one for "am I in town". A town is a place on the ground:
+ * once the sky filled with islands, being counted as inside a settlement's walls two hundred
+ * blocks above it made the safest place in the world a hover, and every rule that keys off
+ * sanctuary — damage immunity, stowed weapons, whether the garrison cares about you —
+ * inherited that.
+ */
+export function sanctuaryUnder(x, y, z, margin = 0) {
+  const s = sanctuaryOf(x, z, margin);
+  if (!s) return null;
+  return y <= groundY(x, z) + SETTLE.roof ? s : null;
+}
+
 /** Every settlement whose centre lies within `range` of a point. */
 export function sanctuariesNear(x, z, range = 220) {
   const out = [];

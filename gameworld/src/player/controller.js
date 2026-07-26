@@ -7,7 +7,7 @@
 import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY, SPRINT, SPIN } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
-import { wallBlocksBody, sanctuaryOf } from "../world/sanctuary.js";
+import { wallBlocksBody, sanctuaryUnder } from "../world/sanctuary.js";
 import { isHostileSanctuary } from "../prog/factions.js";
 
 // Which keyboard code maps to which spell-bar slot index. Matches abilities.SLOT_KEYS order.
@@ -295,7 +295,7 @@ export function stepPlayer(dt) {
     // The double-tap dodge is a COMBAT move, so it stows at a friendly gate the same way your
     // weapons do — you do not roll around your own town square. A HOSTILE town (a rival's, one
     // that does not serve you) is intruder ground, and there the dash still answers.
-    const here = sanctuaryOf(player.x, player.z, 0);
+    const here = sanctuaryUnder(player.x, player.y, player.z, 0);
     const peaceful = here && !isHostileSanctuary(here);
     if (!peaceful && player.dodgeCd <= 0 && player.dodgeT <= 0) {
       // Roll the way you TAPPED, resolved against the camera yaw at the moment of the roll.

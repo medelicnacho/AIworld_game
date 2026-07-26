@@ -17,7 +17,7 @@
 
 import { VOICE } from "../config.js";
 import { player } from "../state.js";
-import { sanctuaryOf } from "../world/sanctuary.js";
+import { sanctuaryUnder } from "../world/sanctuary.js";
 import { servesYou } from "../prog/factions.js";
 import { worldFor, TRADE, MOOD_STYLE, voiceOf, cleanLine, nameOf } from "./voice.js";
 import { voiceQueue, PRIORITY } from "../net/queue.js";
@@ -211,7 +211,7 @@ export class TownChat {
    *  the same venue rule as the ambient voice (the neutral starter town, model up). */
   tryOpen() {
     if (this.open) { this.close(); return true; }
-    const s = sanctuaryOf(player.x, player.z, 0);
+    const s = sanctuaryUnder(player.x, player.y, player.z, 0);
     if (!s || !servesYou(s)) return false;         // any town that serves you will talk
     if (this.bridge.state !== "online" || !this.bridge.info?.llm) return false;
     let best = null, bd = VOICE.range;

@@ -19,7 +19,7 @@
 
 import { VOICE } from "../config.js";
 import { player } from "../state.js";
-import { sanctuaryOf } from "../world/sanctuary.js";
+import { sanctuaryUnder } from "../world/sanctuary.js";
 import { servesYou, factionOfTown } from "../prog/factions.js";
 import { mulberry32 } from "../rng.js";
 import { Drift } from "./drift.js";
@@ -526,7 +526,7 @@ export class TownVoice {
 
   update(dt) {
     if (this.busy || !VOICE.enabled) return;
-    const s = sanctuaryOf(player.x, player.z, 0);
+    const s = sanctuaryUnder(player.x, player.y, player.z, 0);
     // Every town that serves you talks — your colour's towns, every neutral city — and
     // each speaks from ITS OWN mind now. Walking out ends the visit; walking in wakes
     // that town's memory, catches it up on your deeds, resumes its preoccupations.

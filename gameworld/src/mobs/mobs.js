@@ -18,7 +18,7 @@ import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
 import { groundY, solidAt, tierAt, ringPressure, surfaceNear, islandTopAt } from "../world/gen.js";
 import { terrainClear } from "../world/raycast.js";
 import { sfx } from "../audio/sfx.js";
-import { sanctuaryOf, boundaryAt, gateArc } from "../world/sanctuary.js";
+import { sanctuaryOf, boundaryAt, gateArc, sanctuaryUnder } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 import { AFFIXES, rollAffixes, runAffix, affixHidden, affixLabel } from "./affixes.js";
 import { isMyAlly, isHostileSanctuary, territoryColorAt } from "../prog/factions.js";
@@ -911,7 +911,7 @@ export class Mobs {
     // for you (isHostileSanctuary): its defenders hunt an intruder inside their own walls.
     // Wild mobs still can't follow you in (the ward in tryMove bars them from the ground),
     // so a rival town is a refuge from the frontier — just never from its owners.
-    const inSanct = sanctuaryOf(player.x, player.z, 0);
+    const inSanct = sanctuaryUnder(player.x, player.y, player.z, 0);
     const playerSafe = inSanct !== null && !isHostileSanctuary(inSanct);
 
     for (const e of nearby(player.x, player.z, MOB.despawn)) {
