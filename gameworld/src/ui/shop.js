@@ -283,6 +283,13 @@ export class Shop {
         this.render();
         return;
       }
+      if (e.target?.closest?.("[data-turningray]")) {
+        const got = this.game.turnInAllCommon?.() || 0;
+        if (got) sfx.sell();
+        this.flash = got ? `handed in all gray — +${got} standing` : "no gray to hand in";
+        this.render();
+        return;
+      }
       if (e.target?.closest?.("[data-sellgray]")) {
         const got = this.game.sellAllCommon?.() || 0;
         if (got) sfx.sell();
@@ -582,6 +589,11 @@ export class Shop {
     if (fid) {
       const bag = sortBag(player.ownedGear);
       const mine = player.faction === fid;
+      // What the bulk button is worth, counted once: how many grays, and the standing they
+      // carry — a button that names its own payout is one you never have to guess at.
+      const grays = bag.filter((p) => p.rarity === "common" && repForTurnIn(p));
+      const grayTurnIn = grays.length;
+      const grayWorth = grays.reduce((n, p) => n + repForTurnIn(p), 0);
       // The TURN-IN desk. Your bag fills with pieces you will never wear, and selling them
       // gives points that stop mattering the moment you have enough. Handing them to your own
       // faction turns dead weight into progress instead — which is also why a drop is never
@@ -610,6 +622,9 @@ export class Shop {
             <div class="col">${this.quartermasterHtml(fid)}</div>
             ${mine ? `<div class="col sellcol">
               <h3>Hand in for standing</h3>
+              <button class="sellall ${grayTurnIn ? "" : "off"}" data-turningray>
+                Turn in all gray${grayTurnIn ? ` (${grayTurnIn}) — +${grayWorth}` : ""}
+              </button>
               <div class="items sellitems">${turnRows}</div>
             </div>` : ""}
           </div>

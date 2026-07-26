@@ -927,6 +927,31 @@ const gameCtx = {
     recomputeGear();
     return worth;
   },
+  /**
+   * Hand in EVERY gray at once — the quartermaster's answer to the smith's "sell all gray".
+   * Grays are what a bag fills with, and clicking twenty of them one at a time is the kind
+   * of chore that makes a player stop picking things up. Deliberately gray-only, exactly
+   * like the sell button: bulk actions must never be able to swallow something you meant
+   * to keep, and everything above common is worth a deliberate click.
+   */
+  turnInAllCommon: () => {
+    let total = 0, n = 0;
+    for (const p of [...player.ownedGear]) {
+      if (p.rarity !== "common") continue;
+      const worth = repForTurnIn(p);
+      if (!worth) continue;
+      const i = player.ownedGear.findIndex((g) => g.uid === p.uid);
+      if (i < 0) continue;
+      player.ownedGear.splice(i, 1);
+      total += worth;
+      n++;
+    }
+    if (n) {
+      player.rep = (player.rep || 0) + total;
+      recomputeGear();
+    }
+    return total;
+  },
   onClose: () => resumeFromShop(),
 };
 
