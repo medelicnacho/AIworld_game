@@ -138,3 +138,38 @@ test("you cannot walk through a wall anywhere along it", () => {
   // Everything but the gateway has to stop you. One doorway is a few percent of the ring.
   assert.ok(solid / 720 > 0.9, `only ${(solid / 720 * 100).toFixed(0)}% of the wall line blocks`);
 });
+
+// A SHOVE MUST NOT PARK A BODY IN THE STONE. wallOk asked only which side of a boundary a mob
+// was on — the right question for "may it enter the town" and no question at all about the
+// wall itself, which is a band of solid either side of that line. You could watch a mob
+// standing waist-deep in masonry after a knockback.
+test("a mob cannot be pushed into a wall, but one already in it can leave", async () => {
+  const THREE = await import("three");
+  const { Mobs } = await import("../mobs/mobs.js");
+  const mobs = new Mobs(new THREE.Scene(), 0x5A11, {});
+  const s = tierSettlements(1).find((q) => !q.city && !q.sky);
+  const g = groundY(s.x, s.z);
+
+  // A point standing in the wall, away from the gate.
+  let inWall = null;
+  for (let i = 0; i < 720 && !inWall; i++) {
+    const ang = (i / 720) * Math.PI * 2;
+    const r = boundaryAt(s, ang);
+    const x = s.x + Math.cos(ang) * r, z = s.z + Math.sin(ang) * r;
+    if (wallBlocks(x, z)) inWall = { x, z, ang, r };
+  }
+  assert.ok(inWall, "the town must have a wall to test");
+
+  // Standing outside, shoved at it: refused.
+  const outside = {
+    x: s.x + Math.cos(inWall.ang) * (inWall.r + 8),
+    z: s.z + Math.sin(inWall.ang) * (inWall.r + 8),
+    y: g, defender: false,
+  };
+  assert.equal(mobs.wallOk(outside, inWall.x, inWall.z), false,
+    "a body outside must not be shoved into the stone");
+
+  // Already stuck in it: allowed out, or a stranded body is welded there for ever.
+  const stuck = { x: inWall.x, z: inWall.z, y: g, defender: false };
+  assert.ok(mobs.wallOk(stuck, outside.x, outside.z), "a stranded body must be able to leave");
+});

@@ -18,7 +18,7 @@ import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
 import { groundY, solidAt, tierAt, ringPressure, surfaceNear, islandTopsAt } from "../world/gen.js";
 import { terrainClear } from "../world/raycast.js";
 import { sfx } from "../audio/sfx.js";
-import { sanctuaryOf, boundaryAt, gateArc, sanctuaryUnder } from "../world/sanctuary.js";
+import { sanctuaryOf, boundaryAt, gateArc, sanctuaryUnder, wallBlocks, WALL_H } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 import { AFFIXES, rollAffixes, runAffix, affixHidden, affixLabel } from "./affixes.js";
 import { isMyAlly, isHostileSanctuary, territoryColorAt } from "../prog/factions.js";
@@ -870,6 +870,14 @@ export class Mobs {
    * to punch through walls the walk respected.
    */
   wallOk(e, nx, nz) {
+    // NOT INSIDE THE STONE. This asked only which side of a boundary a body was on, which is
+    // the right question for "may it enter the town" and no question at all about the wall
+    // ITSELF — a wall is a band of solid roughly WALL_T either side of that boundary, and
+    // nothing stopped a shove parking a body in the middle of it. You could watch a mob
+    // standing waist-deep in masonry. A body already inside one is let out (a knockback or a
+    // shape change can strand one there, and refusing every move would weld it in place).
+    const w = wallBlocks(nx, nz);
+    if (w && Math.abs(e.y - (w.plateau + 1)) < WALL_H && !wallBlocks(e.x, e.z)) return false;
     const from = sanctuaryOf(e.x, e.z, 1.5);
     const to = sanctuaryOf(nx, nz, 1.5);
     if (to === from) return true;                 // no boundary crossed
