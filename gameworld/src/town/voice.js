@@ -668,7 +668,7 @@ export class TownVoice {
         });
       }
       if (!wav) return;                          // preempted mid-resynth: never played
-      const dur = await this.sfx.playClip(wav, v.x, v.z, VOICE.volume);
+      const dur = await this.sfx.playClip(wav, v.x, v.z, VOICE.volume, 1, VOICE.reach);
       if (!dur) return;
       this.onLine?.(v.role.name, clean, dur, true);
       // The line now hangs in the air for the next speaker to answer...

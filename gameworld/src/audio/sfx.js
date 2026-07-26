@@ -596,7 +596,14 @@ export class Sfx {
    */
   /** `rate` shifts pitch and speed together after synthesis — the cheap monster-maker:
    *  0.85 turns a narrator into a growl, 1.12 into something quick and sharp. */
-  async playClip(arrayBuffer, x, z, volume = 1, rate = 1) {
+  /**
+   * `reach` is the distance at which the clip fades to nothing, and it matters more for
+   * voices than for anything else here. It was hardcoded at 200 — so a villager standing
+   * at the far edge of earshot (26 units) still played at four fifths volume, and walking
+   * toward someone made almost no audible difference. A voice should get louder as you
+   * approach it; that is most of what makes it feel like it is coming from a body.
+   */
+  async playClip(arrayBuffer, x, z, volume = 1, rate = 1, reach = 200) {
     if (!this.on || !arrayBuffer) return 0;
     let buf;
     try {
@@ -607,7 +614,7 @@ export class Sfx {
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = rate;
-    const { input, gain } = this.place(x, z, 200);
+    const { input, gain } = this.place(x, z, reach);
     const g = this.ctx.createGain();
     g.gain.value = (gain ?? 1) * volume;
     src.connect(g);

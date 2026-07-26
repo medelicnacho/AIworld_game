@@ -21,6 +21,11 @@ export const VOICE = {
   firstDelay: 3,       // settle-in: entering town never triggers an instant greeting
   range: 26,           // a villager this close to you may speak; further is stage-whisper
   volume: 0.85,
+  // How far a town voice carries before it fades to nothing. Deliberately not much more
+  // than `range`: a villager at the edge of earshot should be a murmur you lean toward,
+  // and one at your elbow should be clear. The falloff is quadratic, so 45 puts the far
+  // edge (26) near a fifth volume and someone beside you near full.
+  reach: 45,
   // EVERY audible line is the model's (decided in play: voiced raw Markov sounded like
   // what it is). The chain still runs underneath — it feeds each prompt as "drifting
   // thoughts" and sets the speaker's MOOD — but it is subconscious now: nobody hears it
@@ -96,6 +101,11 @@ export const WARCRY = {
   hailMobCd: 150,         // one soldier greets you once, then holds his peace a while
   hailRange: 11,          // walk this close to an ally before he bothers
   hailVolume: 0.95,
+  // A battlefield carries further than a town square, but not forever: at 95 a cry from
+  // across the fight is faint and one in your face is loud, which is what makes a scream
+  // usable as a telegraph — you can hear how CLOSE the thing that is charging you is.
+  reach: 95,
+  hailReach: 45,        // a greeting is spoken to you, not broadcast
   // THE TAUNT FLOOR — hardcoded lines synthesized ONCE per session (piper only, no model),
   // then always loaded: an army is never silent again while the fancy lines bake, and
   // combat mixes these randomly between the generated cries (tauntChance). Authored HERE
