@@ -817,12 +817,15 @@ for (const id of ["cleaver", "lobber", "lance"]) {
 // space fits melee far better than standing still, and because it makes the defensive faction
 // the one that is best at READING incoming damage rather than the one that cannot be hurt.
 export const SPIN = {
-  time: 2.5,
-  // UNTOUCHABLE THE WHOLE SPIN, and the cooldown does not start ticking until the spin ENDS.
-  // So the shape is: 2.5s of guaranteed safety, then a real exposed gap of `cd` (down to
-  // `cdFloor` with haste) before you can vanish again. Guard start-to-finish, but never
-  // permanently — the gap between spins is where the danger lives.
-  iframes: 2.5,          // = time: guarded start to finish
+  // 1.5, down from 2.5. UNTOUCHABLE THE WHOLE SPIN — that part is deliberate and unchanged;
+  // a guard that expires halfway through is a guard you cannot plan around. What changed is
+  // how LONG you get it for: at 2.5s against a 2.5s gap it was fifty percent invulnerability
+  // uptime, and better than two thirds once haste was stacked, which is not a defensive
+  // button any more but a state you live in. A short, whole, reliable window is worth more
+  // than a long one you have to ration, and it keeps the gap between spins — where the
+  // danger actually lives — the larger half of the cycle.
+  time: 1.5,
+  iframes: 1.5,          // = time: guarded start to finish, on purpose
   cd: 2.5,               // starts counting AFTER the spin, not on cast
   cdFloor: 1.2,          // ...down to this with haste stacked
   radius: 6.6,
