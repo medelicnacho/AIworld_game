@@ -310,7 +310,7 @@ function featuresRaw(wx, wz, h, deck) {
       // Deck 0 has to clear the LAND; every deck above only has to stay inside itself, so a
       // high deck is never suppressed by a mountain hundreds of blocks below it.
       const floorY = deck === 0 ? h + I.gapMin : deckBase;
-      if (under >= floorY && top <= CHUNK_Y - 2 && top > under && top < deckBase + D) {
+      if (under >= floorY && top > under && top < deckBase + D) {
         out = { iLo: under, iHi: top };
       }
     }
@@ -330,7 +330,9 @@ function featuresRaw(wx, wz, h, deck) {
 
 /** THE FILL FUNCTION (D15). Everything else in the engine reads the world through here. */
 export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz, h, deckOf(wy))) {
-  if (wy < 0 || wy >= CHUNK_Y) return AIR;
+  // No ceiling. The sky repeats upward for ever (RELIEF.deckH) and the loaded WINDOW is what
+  // is bounded, not the world — a height test here would put a lid back on it.
+  if (wy < 0) return AIR;
   // THE SKY comes first: an island is the only thing that can be solid above the land.
   if (f && f.iHi !== undefined && wy >= f.iLo && wy <= f.iHi) {
     // Layered exactly like the land is, so a high island wears snow and the ones down in the
@@ -425,14 +427,15 @@ export const idx = (x, y, z) => (y * CHUNK_Z + z) * CHUNK_X + x;
  * Heights are computed once per COLUMN (256 fbm evaluations), not per voxel (20,480) —
  * the difference between a chunk building in ~1ms and ~80ms.
  */
-export function fillChunk(cx, cz) {
+export function fillChunk(cx, cz, oy = 0) {
   const blocks = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
   const heights = new Int16Array(CHUNK_X * CHUNK_Z);
   const ox = cx * CHUNK_X, oz = cz * CHUNK_Z;
   // The highest solid voxel written, tracked as we go. The mesher needs it, and scanning a
   // 512-tall chunk backwards to find it would cost more than building the chunk did.
   let yTop = 0;
-  const topDeck = deckOf(CHUNK_Y - 1);
+  // Every deck the window can see into, not every deck below 256.
+  const loDeck = deckOf(oy), topDeck = deckOf(oy + CHUNK_Y - 1);
   // Which Y layers have ANYTHING in them. A 512-tall chunk is overwhelmingly air, and the
   // mesher walking 256 voxels of a layer to discover it is empty is the single biggest cost
   // in building a chunk. Filling this as we go is free; using it skips those layers whole.
@@ -440,24 +443,34 @@ export function fillChunk(cx, cz) {
   for (let z = 0; z < CHUNK_Z; z++) {
     for (let x = 0; x < CHUNK_X; x++) {
       const h = heightAt(ox + x, oz + z);
-      const f = featuresAt(ox + x, oz + z, h, 0);
+      const f = featuresAt(ox + x, oz + z, h, loDeck);
       heights[z * CHUNK_X + x] = h;
       // RUN PER SOLID THING, never a sweep of the column. The air between the land and the
       // sky — and between one deck and the next — is hundreds of voxels of guaranteed
       // nothing, and walking it to write zero into an array that is already zero costs more
       // than everything else here put together. Fill the land, then fill each deck's island,
       // and skip every gap.
-      for (let y = 0; y <= h; y++) { blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, f); layers[y] = 1; }
-      if (h > yTop) yTop = h;
-      for (let d = 0; d <= topDeck; d++) {
-        const fd = d === 0 ? f : featuresAt(ox + x, oz + z, h, d);
+      // Local Y is world Y minus the window's base — everything below or above simply is not
+      // in this chunk, which is what lets the window sit anywhere without changing anything
+      // downstream.
+      const landHi = Math.min(CHUNK_Y - 1, h - oy);
+      for (let y = Math.max(0, -oy); y <= landHi; y++) {
+        blocks[idx(x, y, z)] = blockAt(ox + x, y + oy, oz + z, h, f);
+        layers[y] = 1;
+        if (y > yTop) yTop = y;
+      }
+      for (let d = loDeck; d <= topDeck; d++) {
+        const fd = featuresAt(ox + x, oz + z, h, d);
         if (!fd || fd.iHi === undefined) continue;
-        const lo = Math.max(0, Math.floor(fd.iLo));
-        const hi = Math.min(CHUNK_Y - 1, Math.ceil(fd.iHi));
-        for (let y = lo; y <= hi; y++) { blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, fd); layers[y] = 1; }
-        if (hi > yTop) yTop = hi;
+        const lo = Math.max(0, Math.floor(fd.iLo) - oy);
+        const hi = Math.min(CHUNK_Y - 1, Math.ceil(fd.iHi) - oy);
+        for (let y = lo; y <= hi; y++) {
+          blocks[idx(x, y, z)] = blockAt(ox + x, y + oy, oz + z, h, fd);
+          layers[y] = 1;
+          if (y > yTop) yTop = y;
+        }
       }
     }
   }
-  return { blocks, heights, cx, cz, ox, oz, yTop, layers };
+  return { blocks, heights, cx, cz, ox, oy, oz, yTop, layers };
 }

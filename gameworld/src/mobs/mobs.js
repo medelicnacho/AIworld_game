@@ -934,6 +934,11 @@ export class Mobs {
 
       const dx = player.x - e.x, dz = player.z - e.z;
       const dist = Math.hypot(dx, dz) || 1;
+      // ...and how far up. `dist` is FLAT, which is right for spatial bookkeeping and wrong
+      // for every question about fighting you: a body on the ground under an island reads as
+      // being at flat distance zero, so it bit, shot and charged from two hundred blocks
+      // below where you could neither see nor answer it. That is the invisible damage.
+      const reach = Math.abs(player.y - e.y) <= MOB.reachY;
       // THE BUG THAT WORE FIVE DISGUISES. This is a DUPLICATE of the distance sweep at the
       // top of update() — and for days it was the only one of the two that still culled
       // DEFENDERS. The garrison musters when you are ~150-208 from a town's centre; walking
@@ -1137,7 +1142,7 @@ export class Mobs {
           e.x = lx;
           e.z = lz;
         }
-        if (dist < MOB.attackRange && player.iframes <= 0) {
+        if (dist < MOB.attackRange && reach && player.iframes <= 0) {
           e.lungeT = 0;
           onPlayerHit?.(e);
           runAffix(e, "onHitPlayer", this.fx);
@@ -1185,7 +1190,7 @@ export class Mobs {
           // while it runs, and the whole point of the sound is to answer "where is it now"
           // while you are turned away mid-dodge.
           e.rushVoice?.move(e.x, e.z);
-          if (dist < MOB.attackRange * 1.3 && player.iframes <= 0) {
+          if (dist < MOB.attackRange * 1.3 && reach && player.iframes <= 0) {
             onPlayerHit?.({ damage: e.damage * MOB.chargeDamage, x: e.x, z: e.z });
             runAffix(e, "onHitPlayer", this.fx);
             e.rushT = 0;
@@ -1250,7 +1255,11 @@ export class Mobs {
           // over the mix. Checked once, at the moment it decides to wind up, not every
           // frame: the wind-up is the tell, and breaking line of sight DURING it is meant to
           // be a dodge you earned rather than a shot that never happened.
-          if (e.castCd <= 0 && cdist > MOB.castMin && cdist < MOB.castMax && e.los) {
+          // TRUE distance for the shot, not the flat one. A caster may absolutely fire upward
+          // at something on a ledge — that is what makes ledges contested — but a target two
+          // hundred blocks overhead is out of range, and only a 3D measure knows that.
+          const cdist3 = Math.hypot(cdx, cdz, cty - (e.y + 1.1));
+          if (e.castCd <= 0 && cdist3 > MOB.castMin && cdist3 < MOB.castMax && e.los) {
             e.castT = MOB.castWindup;
           }
 

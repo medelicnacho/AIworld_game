@@ -22,6 +22,7 @@ const FACES = [
 
 export function buildChunkGeometry(chunk) {
   const { blocks, ox, oz } = chunk;
+  const oy = chunk.oy || 0;      // the world Y this chunk's local Y=0 sits at
   const pos = [], nor = [], col = [];
 
   // Ring tint is applied at mesh time so difficulty is VISIBLE from a distance (D8) —
@@ -52,7 +53,7 @@ export function buildChunkGeometry(chunk) {
           const occluded =
             nx >= 0 && nx < CHUNK_X && ny >= 0 && ny < CHUNK_Y && nz >= 0 && nz < CHUNK_Z
               ? blocks[idx(nx, ny, nz)] !== AIR
-              : blockAt(ox + nx, ny, oz + nz) !== AIR;
+              : blockAt(ox + nx, ny + oy, oz + nz) !== AIR;
           if (occluded) continue;
 
           const s = f.shade;
@@ -72,7 +73,7 @@ export function buildChunkGeometry(chunk) {
   geom.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   geom.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
   geom.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-  geom.translate(ox, 0, oz);
+  geom.translate(ox, oy, oz);
   geom.computeBoundingSphere();
   return geom;
 }

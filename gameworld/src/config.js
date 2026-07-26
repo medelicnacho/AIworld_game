@@ -252,13 +252,28 @@ export const CHUNK_X = 16;
 // there was nowhere for an archipelago to climb into, and "higher and higher islands" was a
 // request the world had no room to answer. Costs memory per chunk and nothing else, because
 // fillChunk skips the empty air between the land and the sky rather than walking it.
-// 256, not more. The sky is PERIODIC (RELIEF.deckH) so the generator never runs out of
-// altitude — but a chunk is built and meshed in one piece on one frame, and each extra deck
-// of archipelago in it is another ~2ms of meshing. Measured at 512 it was 12.5ms a chunk,
-// which hitches every frame you are moving fast enough to need a new one. Raising this
-// further wants greedy meshing first, which mesher.js was written to accept behind its
-// existing interface.
+/**
+ * HOW TALL A LOADED CHUNK IS — a WINDOW on the world now, not the height of it.
+ *
+ * The world itself is unbounded upward: the sky repeats every RELIEF.deckH forever. What is
+ * bounded is how much of it is resident, and this is that. The window SLIDES with you (see
+ * WINDOW_STEP), so climbing does not run out of world — it just moves what is loaded.
+ *
+ * The reason that costs nothing visually: fog closes at VIEW_RADIUS * CHUNK_X * 0.95, which
+ * is about 106 blocks. A 256-tall window is already more than twice what you can see in any
+ * direction, so the part of it you give up at the bottom when you climb was invisible anyway.
+ *
+ * A window rather than vertical slabs because slabs multiply DRAW CALLS — the same disc of
+ * columns cut into thirds is three times the meshes — and draw call overhead, not vertex
+ * count, is what this renderer is short of.
+ */
 export const CHUNK_Y = 256;
+/**
+ * How far you climb before the window follows. Coarse on purpose: crossing a step re-streams
+ * every loaded chunk, so it wants to be rare, and half the window means you are never nearer
+ * than 64 blocks to an edge you cannot see anyway.
+ */
+export const WINDOW_STEP = 128;
 // ...and how tall the LAND may get, which is a separate question and must stay where it was.
 // Clamping terrain to the ceiling instead would have grown mountains into the new sky the
 // moment it was raised.
@@ -1398,6 +1413,15 @@ export const MOB = {
   // mob standing on a sky island strolled straight off the edge within seconds, because a
   // drop of any size passed the climb test — it is negative, and the test only had a ceiling.
   maxDrop: 4,
+  // HOW FAR UP A MOB CAN FIGHT. Every range a mob measured was flat — the same missing
+  // dimension the boss had, the fire patches had and the town walls had. On a surface it was
+  // the whole truth; with a sky full of islands it means a body on the ground two hundred
+  // blocks below you is at flat distance zero, so it bites you, shoots you, and charges you
+  // from somewhere you cannot see and cannot reach. That is the invisible damage.
+  //
+  // 18 is tighter than the boss's 32 because a mob is a body, not a siege engine: it should
+  // reach a ledge above it and nothing further.
+  reachY: 18,
   // How often a body that COULD be put on an island is. Islands with nothing on them are
   // scenery; the whole argument for having them is that taking one is a fight.
   /**

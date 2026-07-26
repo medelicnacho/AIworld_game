@@ -1785,7 +1785,7 @@ function frame(now) {
     acc -= FIXED_DT;
   }
 
-  streamer.update(player.x, player.z);
+  streamer.update(player.x, player.z, player.y);
   sanctuaries.update(dt, player.x, player.z);
   // The camera must settle BEFORE the gun reads it — firing off last frame's camera is a
   // subtle, maddening "my shots trail my aim" bug when you're turning fast.
