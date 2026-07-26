@@ -7,7 +7,7 @@
 
 import test from "node:test";
 import assert from "node:assert";
-import { wallBlocks, wallBlocksBody, tierSettlements, boundaryAt, WALL_H, sanctuaryUnder } from "./sanctuary.js";
+import { wallBlocks, wallBlocksBody, tierSettlements, boundaryAt, WALL_H, WALL_T, sanctuaryUnder } from "./sanctuary.js";
 import { groundY } from "./gen.js";
 import { PLAYER, SETTLE } from "../config.js";
 
@@ -172,4 +172,38 @@ test("a mob cannot be pushed into a wall, but one already in it can leave", asyn
   // Already stuck in it: allowed out, or a stranded body is welded there for ever.
   const stuck = { x: inWall.x, z: inWall.z, y: g, defender: false };
   assert.ok(mobs.wallOk(stuck, outside.x, outside.z), "a stranded body must be able to leave");
+});
+
+// A TOWN IS A RING. It was a star polygon, which gave the collision a much harder job — an
+// edge is a chord and dips inside its own corners, which is what put a 28-unit hole in a city
+// wall. One radius everywhere means there is nothing left to get wrong.
+test("a town wall is the same distance out on every bearing", () => {
+  for (let t = 0; t <= 4; t++) {
+    for (const s of tierSettlements(t)) {
+      for (let i = 0; i < 64; i++) {
+        assert.equal(boundaryAt(s, (i / 64) * Math.PI * 2), s.r,
+          `${s.id} is not round at bearing ${i}`);
+      }
+    }
+  }
+});
+
+test("...and every point on that ring stops a body", () => {
+  const s = tierSettlements(1).find((q) => !q.city && !q.sky);
+  const g = groundY(s.x, s.z);
+  let solid = 0;
+  for (let i = 0; i < 720; i++) {
+    const ang = (i / 720) * Math.PI * 2;
+    const x = s.x + Math.cos(ang) * s.r, z = s.z + Math.sin(ang) * s.r;
+    if (wallBlocksBody(x, g, z, PLAYER.height)) solid++;
+  }
+  assert.ok(solid / 720 > 0.9, `only ${(solid / 720 * 100).toFixed(0)}% of the ring blocks`);
+});
+
+test("the slide beats a sprint, so you cannot simply walk against it", () => {
+  assert.ok(PLAYER.wallSlide > PLAYER.sprintSpeed,
+    `wallSlide ${PLAYER.wallSlide} loses to a sprint (${PLAYER.sprintSpeed}) — you could stay up there`);
+  // ...and crosses the wall band fast enough to be a shove rather than a shuffle.
+  assert.ok(WALL_T * 2 / PLAYER.wallSlide < 0.5,
+    "it should have you off the parapet inside half a second");
 });

@@ -7,7 +7,7 @@
 import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY, SPRINT, SPIN } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
-import { wallBlocksBody, sanctuaryUnder } from "../world/sanctuary.js";
+import { wallBlocksBody, sanctuaryUnder, wallBlocks, boundaryAt } from "../world/sanctuary.js";
 import { isHostileSanctuary } from "../prog/factions.js";
 
 // Which keyboard code maps to which spell-bar slot index. Matches abilities.SLOT_KEYS order.
@@ -314,6 +314,27 @@ export function stepPlayer(dt) {
     }
   }
 
+  // OFF THE PARAPET. The wall is a solid band with a flat top, so anything that LANDS on it
+  // could walk the whole ring — over the gate, over the garrison, sniping into a town it
+  // never entered. A wall is a barrier, not a road.
+  //
+  // Only while STANDING on it. That single condition is what lets you still jump clean over a
+  // wall: in the air nothing touches you, and the slide only starts if you actually come to
+  // rest up there. Nudging velocity was tried first and lost — it competed with the input's
+  // own acceleration, so you could simply walk against it and stay.
+  let slideX = 0, slideZ = 0;
+  if (player.onGround) {
+    const w = wallBlocks(player.x, player.z);
+    if (w && player.y > w.plateau + 2) {
+      const ox = player.x - w.x, oz = player.z - w.z;
+      const od = Math.hypot(ox, oz) || 1;
+      // Toward the nearer face: outward if you are past the line, inward if not.
+      const side = od >= boundaryAt(w, 0) ? 1 : -1;
+      slideX = (ox / od) * side;
+      slideZ = (oz / od) * side;
+    }
+  }
+
   if (player.leapT > 0) {
     // The leap drives horizontal velocity only — vertical is left to gravity so it ARCS
     // rather than flying flat, which is what makes the landing read as a slam.
@@ -334,6 +355,12 @@ export function stepPlayer(dt) {
     // window — farther and quicker at once, exactly what speed and the Vault stat buy.
     player.vx = player.dodgeX * DODGE.speed * player.dashMult;
     player.vz = player.dodgeZ * DODGE.speed * player.dashMult;
+  } else if (slideX || slideZ) {
+    // OWNS horizontal velocity, exactly like the roll above — steering out of it is what made
+    // the first attempt useless. Faster than a sprint, so the wall band is behind you inside
+    // half a second, and not so fast that it flings you.
+    player.vx = slideX * PLAYER.wallSlide;
+    player.vz = slideZ * PLAYER.wallSlide;
   } else {
     const targetVx = dx * speed, targetVz = dz * speed;
     const blend = 1 - Math.exp(-(len > 0 ? PLAYER.accel : PLAYER.friction) * dt);

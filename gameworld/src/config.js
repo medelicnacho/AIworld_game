@@ -672,6 +672,18 @@ export const PLAYER = {
   // One block is walking; two or more is parkour. That line is what the terrain is built
   // against, and it is why a ledge means something now: the ones that stop you are the ones
   // you were meant to notice.
+  // YOU CANNOT STAND ON A WALL. The wall is a solid band with a flat top, so landing on the
+  // parapet let you walk the whole ring like a catwalk — over the gate, over the garrison,
+  // sniping down into a town you never entered. A wall is a barrier, not a road.
+  //
+  // Shoved sideways rather than blocked, and only while you are STANDING on it — in the air
+  // nothing touches you, so you can still jump clean over a wall; the slide only starts if you
+  // come to rest up there. It OWNS your movement while it runs, like a dodge roll: nudging
+  // velocity competed with your own acceleration and you could simply walk against it.
+  //
+  // 11 blocks/sec — above sprint (9.6), so the parapet is behind you inside half a second and
+  // there is no walking against it, but nowhere near fast enough to fling you off a ledge.
+  wallSlide: 11,
   stepHeight: 1,
   // The body snaps up instantly (physics stays honest); the EYE lags and catches up over
   // about an eighth of a second, so a staircase reads as a climb instead of a series of

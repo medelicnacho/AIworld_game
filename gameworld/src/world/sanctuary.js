@@ -21,7 +21,15 @@ export const RADIUS = 46;         // a town you walk around inside, not a pen
 export const WALL_T = 1.7;        // wall thickness
 export const WALL_H = 10;         // far above any jump height, at any level
 export const GATE_WIDTH = 9;      // the opening, in WORLD UNITS — see gateArc()
-export const CORNERS = [5, 9];    // a town has this many corners
+// A town is ROUND. It was a star polygon of five to nine corners, which gave every settlement
+// a distinctive silhouette and gave the collision a much harder job: an edge is a chord and
+// dips inside its own corners, which is what put a 28-unit hole in a city wall. A ring has one
+// radius everywhere, so "where is the wall on this bearing" stops being a ray-segment solve
+// and becomes a constant — cheaper on a hot path AND impossible to get wrong.
+//
+// The corner list stays, because the MESH still walks it to lay stone. Enough of them that the
+// ring reads as curved rather than faceted, all at the same radius.
+export const CORNERS = [26, 26];  // sides in the drawn ring; the collision is a true circle
 const SEG_W = 1.5;                // width of one wall block
 const KEEP_RANGE = 900;           // how far out settlements stay built as meshes
 
@@ -40,7 +48,7 @@ export const gateArc = (r) => GATE_WIDTH / r;
  * ray-segment solve, no point-in-polygon scan, and collision that cannot disagree with the
  * mesh because both read the same function.
  */
-const SHAPE_MIN = 0.68, SHAPE_SPAN = 0.58;
+const SHAPE_MIN = 1, SHAPE_SPAN = 0;      // one radius, everywhere: a circle
 /** The furthest a corner can ever reach, as a multiple of the nominal radius. Placement
  *  needs to know how much ground a settlement might claim BEFORE its shape is rolled, and
  *  a second hardcoded 1.26 that silently disagreed with makeShape would be a trap. */
@@ -50,8 +58,8 @@ function makeShape(rng, radius = RADIUS) {
   const n = CORNERS[0] + Math.floor(rng() * (CORNERS[1] - CORNERS[0] + 1));
   const corners = [];
   for (let i = 0; i < n; i++) {
-    // Even spacing plus jitter: irregular, but never two corners on top of each other.
-    const ang = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / n) * 0.6;
+    // Evenly spaced, no jitter — the ring is regular now, so the mesh should be too.
+    const ang = (i / n) * Math.PI * 2;
     const r = radius * (SHAPE_MIN + rng() * SHAPE_SPAN);
     corners.push({ ang, r, x: Math.cos(ang) * r, z: Math.sin(ang) * r });
   }
@@ -60,7 +68,16 @@ function makeShape(rng, radius = RADIUS) {
 }
 
 /** Distance from the centre to the wall along a bearing — the polygon's radius function. */
-export function boundaryAt(s, theta) {
+export function boundaryAt(s, _theta) {
+  // A CIRCLE: same distance on every bearing. This used to solve a ray against whichever edge
+  // the bearing fell in — correct, and the source of the hole that let you walk through a
+  // wall, because the early-out compared against the smallest CORNER while the edges between
+  // them dipped further in. There is nothing left to get wrong.
+  return s.r;
+}
+
+/** The old star-polygon solve, kept for the mesh, which still walks real corners. */
+export function polygonBoundaryAt(s, theta) {
   const c = s.corners, n = c.length;
   let t = theta;
   while (t < c[0].ang) t += Math.PI * 2;
@@ -90,6 +107,13 @@ export function boundaryAt(s, theta) {
  * rebounding at an angle nothing in the scene explains. So it uses the actual edge.
  */
 export function wallNormalAt(s, theta) {
+  // Radial, exactly, now that a town is a ring — the edge normal and the direction away from
+  // the centre are the same thing on a circle.
+  return { nx: Math.cos(theta), nz: Math.sin(theta) };
+}
+
+/** @deprecated the faceted version, from when towns were star polygons. */
+export function polygonNormalAt(s, theta) {
   const c = s.corners, n = c.length;
   let t = theta;
   while (t < c[0].ang) t += Math.PI * 2;
@@ -443,7 +467,12 @@ export function sanctuariesNear(x, z, range = 220) {
     const hi = Math.ceil(((a + half + Math.PI) / (Math.PI * 2)) * BUCKETS);
     for (let b = lo; b <= hi; b++) {
       for (const s of idx.buckets[((b % BUCKETS) + BUCKETS) % BUCKETS]) {
-        if (Math.hypot(s.x - x, s.z - z) <= range + s.rMax) out.push(s);
+        // + WALL_T, because the WALL stands astride the boundary and reaches that far past
+        // rMax. While towns were star polygons this never showed: the boundary varied by
+        // bearing so a point on the wall was almost always inside the largest corner. On a
+        // ring every wall point sits exactly AT rMax, and a point exactly on the line lost the
+        // comparison — so wallBlocks was asking about walls this never handed it.
+        if (Math.hypot(s.x - x, s.z - z) <= range + s.rMax + WALL_T) out.push(s);
       }
     }
   }
