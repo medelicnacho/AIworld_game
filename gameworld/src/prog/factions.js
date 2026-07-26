@@ -404,6 +404,10 @@ export function isHostileSanctuary(sanctuary) {
 export function territoryColorAt(x, z) {
   let best = null, bd = MOB.territory;
   for (const s of sanctuariesNear(x, z, MOB.territory)) {
+    // A SKY TOWN CLAIMS NO LAND. Its banner flies over its own platform, hundreds of blocks
+    // up; the ground under it belongs to whoever holds the ground. Without this a town in the
+    // air quietly recoloured the field war happening beneath it.
+    if (s.sky) continue;
     if (s.city || s.neutral || s.faction === null || s.faction === undefined) continue;
     const d = Math.hypot(s.x - x, s.z - z);
     if (d < bd) { bd = d; best = s; }

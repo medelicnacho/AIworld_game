@@ -68,6 +68,10 @@ export function rawHeight(wx, wz) {
 // keeps the dependency pointing one way instead of in a circle.
 let _flatten = null;
 export function setFlattenLookup(fn) { _flatten = fn; clearColumnCache(); }
+// Sky towns stand on a slab this module has to build but sanctuary.js has to decide — same
+// one-way indirection as the flattening above, for the same reason.
+let _skyPlatform = null;
+export function setSkyPlatformLookup(fn) { _skyPlatform = fn; clearColumnCache(); }
 
 /**
  * WHICH DECK of sky a height falls in. Deck 0 starts at the island layer's base and each is
@@ -214,6 +218,14 @@ function featuresRaw(wx, wz, h, deck) {
 
   const I = RELIEF.island, H = RELIEF.hollow;
   let out = null;
+
+  // A SKY TOWN'S PLATFORM WINS over anything the noise wanted here. It is flat, it is exactly
+  // where the town expects its ground to be, and nothing else may grow through it — an island
+  // erupting inside the walls would be a spire in the market square.
+  const town = _skyPlatform?.(wx, wz);
+  if (town && deck === deckOf(town.plateau)) {
+    return { iLo: town.plateau - RELIEF.skyPlatform, iHi: town.plateau };
+  }
 
   if (tierAt(wx, wz) >= I.fromTier) {
     const P = RELIEF.pebble;

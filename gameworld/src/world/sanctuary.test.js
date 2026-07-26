@@ -18,6 +18,10 @@ test("no settlement overlaps another in the same ring", () => {
     for (let i = 0; i < ss.length; i++) {
       for (let j = i + 1; j < ss.length; j++) {
         const a = ss[i], b = ss[j];
+        // Two settlements only contend for ground if they are ON the same ground. A sky town
+        // three hundred blocks over a field is not crowding it — that is the entire point of
+        // building one up there.
+        if (Math.abs(a.plateau - b.plateau) > 40) continue;
         const d = Math.hypot(a.x - b.x, a.z - b.z);
         const need = footprint(a) + footprint(b);
         if (d < need) bad.push(`${a.id} x ${b.id}: ${d.toFixed(0)} apart, needs ${need.toFixed(0)}`);
@@ -32,6 +36,7 @@ test("no settlement reaches into the next ring's", () => {
   for (let t = 0; t < TIERS; t++) {
     for (const a of tierSettlements(t)) {
       for (const b of tierSettlements(t + 1)) {
+        if (Math.abs(a.plateau - b.plateau) > 40) continue;
         const d = Math.hypot(a.x - b.x, a.z - b.z);
         const need = footprint(a) + footprint(b);
         if (d < need) bad.push(`${a.id} x ${b.id}: ${d.toFixed(0)} apart, needs ${need.toFixed(0)}`);

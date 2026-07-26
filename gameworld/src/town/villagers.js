@@ -11,7 +11,7 @@
 import * as THREE from "three";
 import { VILLAGE } from "../config.js";
 import { player } from "../state.js";
-import { groundY } from "../world/gen.js";
+import { settlementFloorAt } from "../world/sanctuary.js";
 import { sanctuariesNear } from "../world/sanctuary.js";
 import { GOODS } from "../ui/shop.js";
 import { mulberry32 } from "../rng.js";
@@ -185,7 +185,7 @@ export class Villagers {
         }
         v.x = v.s.x + Math.cos(v.ang) * v.rad;
         v.z = v.s.z + Math.sin(v.ang) * v.rad;
-        v.y = groundY(v.x, v.z) + (v.still ? 0 : Math.sin(v.bob) * 0.04);
+        v.y = settlementFloorAt(v.x, v.z) + (v.still ? 0 : Math.sin(v.bob) * 0.04);
         this.list.push(v);
       }
     }

@@ -234,7 +234,9 @@ test("the ground outside a gate flies the same colour as the garrison inside it"
   // Iron town could be Ash or Vale. Whose land you are on has to be readable from the field.
   const { tierSettlements } = await import("../world/sanctuary.js");
   for (const s of tierSettlements(1)) {
-    if (s.city || s.neutral) continue;
+    // A sky town flies its banner over its own platform; the land beneath it belongs to
+    // whoever holds the land, so there is nothing to check down here.
+    if (s.city || s.neutral || s.sky) continue;
     const garrison = FACTIONS[s.faction % FACTIONS.length].ally;
     for (const [dx, dz] of [[60, 0], [0, 60], [-55, -55]]) {
       assert.equal(territoryColorAt(s.x + dx, s.z + dz), garrison,

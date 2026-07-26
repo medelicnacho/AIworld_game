@@ -467,6 +467,9 @@ export const RELIEF = {
    * in one piece. Removing THAT means splitting chunks vertically and streaming slabs, which
    * multiplies draw calls — a separate piece of work, and the honest edge of this one.
    */
+  // How thick the slab under a sky town is. Lives here rather than with the rest of the
+  // settlement numbers because worldgen is what builds it, and worldgen reads RELIEF.
+  skyPlatform: 14,
   deckH: 96,
   // Each deck up gets a slightly easier threshold than the last, so the sky keeps thickening
   // the higher you climb instead of settling into one repeated density.
@@ -521,6 +524,16 @@ export const SETTLE = {
   // from inside (the walls are 10 tall and a double jump adds 2.5), so ordinary play never
   // touches it.
   roof: 24,
+  /**
+   * SKY TOWNS. Settlements standing on their own flat platform up in the archipelago —
+   * the same towns, with the same quartermasters, the same standing and the same counters.
+   *
+   * They are ADDED to each ring rather than converted from it: the frontier underneath keeps
+   * every town it had, and the sky gets its own. Without them the whole climb is a place to
+   * fight with nowhere to spend anything, and you have to come all the way down to sell.
+   */
+  skyTowns: 0.75,       // as a fraction of a ring's ground towns
+  skyDeckSpread: 3,     // how many decks up they are scattered through
   cityFromTier: 1,
   cityScale: 1.55,        // city radius = RADIUS * (cityScale + cityGrow * tier)
   cityGrow: 0.32,

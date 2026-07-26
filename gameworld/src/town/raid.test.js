@@ -214,10 +214,12 @@ test("wiping a garrison NEVER re-musters on the next frame — cleared means qui
   raids.update(0.016);
   const after = raids.state.get(s.id);
   assert.ok(after && after.sackedT > 0, "the emptied town enters its quiet period");
-  assert.equal([...world.entities.values()].filter((e) => e.defender).length, 0,
-    "and NOTHING respawns while it is quiet");
+  // Counted for THIS town (e.defender holds its id), not for the world. Sky towns put a
+  // second settlement within muster range of the same spot, and its garrison is not this
+  // one re-mustering — it is a different town doing its job.
+  const mine = () => [...world.entities.values()].filter((e) => e.defender === s.id).length;
+  assert.equal(mine(), 0, "and NOTHING respawns while it is quiet");
   raids.update(0.016);
-  assert.equal([...world.entities.values()].filter((e) => e.defender).length, 0,
-    "not on the frame after, either");
+  assert.equal(mine(), 0, "not on the frame after, either");
   void st;
 });

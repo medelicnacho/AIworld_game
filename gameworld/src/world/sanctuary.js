@@ -15,7 +15,8 @@
 import * as THREE from "three";
 import { WORLD_SEED, SETTLE } from "../config.js";
 import { hash2, mulberry32 } from "../rng.js";
-import { groundY, rawHeight, tierStart, tierWidth, tierAt, setFlattenLookup } from "./gen.js";
+import { groundY, rawHeight, tierStart, tierWidth, tierAt, setFlattenLookup, setSkyPlatformLookup } from "./gen.js";
+import { RELIEF } from "../config.js";
 
 export const RADIUS = 46;         // a town you walk around inside, not a pen
 export const WALL_T = 1.7;        // wall thickness
@@ -115,10 +116,14 @@ export function townCount(t) {
   return t === 0 ? SETTLE.townsBase : Math.min(SETTLE.townCap, 3 + 6 * t);
 }
 
-function build(key, x, z, radius, rng, city) {
+function build(key, x, z, radius, rng, city, skyY = 0) {
   const corners = makeShape(rng, radius);
   const rMax = Math.max(...corners.map((c) => c.r));
   return {
+    // A SKY TOWN stands on its own slab instead of on the land. Everything else about it —
+    // walls, faction, market, garrison — is identical, which is the point: it is a town, not
+    // a new kind of place with new rules to learn.
+    sky: skyY > 0,
     id: key, x, z, r: radius, corners, city,
     // WHOSE TOWN THIS IS. Towns fly one of the three colours; cities are neutral ground where
     // all three keep a house, so wherever you stand there is one place that always serves
@@ -136,7 +141,10 @@ function build(key, x, z, radius, rng, city) {
     // raw land, which was survivable when the raw land never rose more than a block; with
     // spires and chasms in it, a town is walls hanging over a canyon. The plateau is read
     // from the RAW land so this can never feed back into itself through heightAt().
-    plateau: rawHeight(x, z),
+    // The top solid block a body stands on. For a town on the ground that is the levelled
+    // land; for one in the sky it is the top of its platform. Same number, same meaning, so
+    // everything downstream can ask one question.
+    plateau: skyY > 0 ? skyY : rawHeight(x, z),
     flatInner: rMax,
     flatR: rMax * (city ? SETTLE.flatten : SETTLE.townFlatten),
   };
@@ -176,6 +184,29 @@ export function tierSettlements(t) {
       town.faction = (i + facOff) % 3;
       out.push(town);
     }
+    // AND THE SKY GETS ITS OWN. Added to the ring rather than taken out of it, on bearings
+    // offset half a slot from the ground towns so a sky town is rarely directly over one —
+    // the point is somewhere new to go, not a second storey on a place you already know.
+    // Their altitudes are dealt across the lower decks so the climb has counters at every
+    // stage of it rather than a single shelf of shops.
+    // A MULTIPLE OF THREE, like the ground count, so the colours deal out evenly here too —
+    // a ring that hands the sky to one faction is a ring where a player of the wrong colour
+    // finds no counter anywhere above the land.
+    const nSky = Math.max(3, Math.round(n * SETTLE.skyTowns / 3) * 3);
+    for (let i = 0; i < nSky; i++) {
+      const ang = ((i + 0.5) / nSky) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / nSky) * 0.6;
+      const r = lo + w * (0.15 + rng() * 0.7);
+      const deck = i % SETTLE.skyDeckSpread;
+      // Inside its deck rather than at the floor of it, so towns are not all on one level.
+      // Well clear of the tallest land (TERRAIN_CAP is 78), so a sky town is never at an
+      // altitude a ground town could also be at — which is what lets everything else treat
+      // "same height" as "same place" without a special case.
+      const y = Math.round(RELIEF.island.baseY + deck * RELIEF.deckH
+        + RELIEF.deckH * (0.62 + rng() * 0.3));
+      const town = build(`t${t}-sky${i}`, Math.cos(ang) * r, Math.sin(ang) * r, RADIUS, rng, false, y);
+      town.faction = (i + facOff + 1) % 3;
+      out.push(town);
+    }
     if (t >= SETTLE.cityFromTier) {
       // THE CITY HAS TO LOOK WHERE IT IS STANDING.
       //
@@ -200,7 +231,13 @@ export function tierSettlements(t) {
         const r = lo + w * (0.35 + rng() * 0.3);
         const x = Math.cos(ang) * r, z = Math.sin(ang) * r;
         let room = Infinity;
-        for (const s of out) room = Math.min(room, Math.hypot(s.x - x, s.z - z) - footprint(s));
+        // Only what stands on the same ground. A town three hundred blocks overhead is not
+        // crowding a city, and treating it as though it were pushed cities into their own
+        // ring's towns instead.
+        for (const s of out) {
+          if (s.sky) continue;
+          room = Math.min(room, Math.hypot(s.x - x, s.z - z) - footprint(s));
+        }
         if (!best || room > best.room) best = { x, z, room };
         if (room >= need) break;
       }
@@ -234,7 +271,34 @@ export function homeOfTier(t) {
 export function sanctuaryUnder(x, y, z, margin = 0) {
   const s = sanctuaryOf(x, z, margin);
   if (!s) return null;
-  return y <= groundY(x, z) + SETTLE.roof ? s : null;
+  return y <= settlementFloorAt(x, z) + SETTLE.roof ? s : null;
+}
+
+/** Which sky town's platform covers this column, or null. */
+function skyTownAt(x, z) {
+  const d = Math.hypot(x, z);
+  for (let t = Math.max(0, tierAt(d, 0) - 1); t <= tierAt(d, 0) + 1; t++) {
+    for (const s of tierSettlements(t)) {
+      if (!s.sky) continue;
+      const dx = s.x - x, dz = s.z - z;
+      if (dx * dx + dz * dz < s.flatR * s.flatR) return s;
+    }
+  }
+  return null;
+}
+setSkyPlatformLookup(skyTownAt);
+
+/**
+ * The floor a BODY stands on here — the town's own, wherever that is.
+ *
+ * Inside a town on the ground this is the levelled land, which groundY already answers. Inside
+ * a sky town it is the top of its platform, hundreds of blocks above what groundY would say.
+ * Walls, villagers, the sanctuary roof and the shot-blocking test all ask this now, so a town
+ * in the air is built on itself rather than on the world underneath it.
+ */
+export function settlementFloorAt(x, z) {
+  const s = skyTownAt(x, z);
+  return s ? s.plateau + 1 : groundY(x, z);
 }
 
 /** Every settlement whose centre lies within `range` of a point. */
@@ -270,6 +334,7 @@ setFlattenLookup((x, z) => {
   // and starting the sweep at 1 quietly excluded it.
   for (let t = Math.max(0, tierAt(d, 0) - 1); t <= tierAt(d, 0) + 1; t++) {
     for (const s of tierSettlements(t)) {
+      if (s.sky) continue;      // its ground is a slab in the air, not the land down here
       // Squared compare: this runs for every column of every chunk built.
       const dx = s.x - x, dz = s.z - z;
       if (dx * dx + dz * dz < s.flatR * s.flatR) return s;
@@ -299,7 +364,7 @@ const angDiff = (a, b) => Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Mat
  */
 export function wallBlocksBody(x, y, z, bodyH = 0) {
   if (!wallBlocks(x, z)) return false;
-  const g = groundY(x, z);
+  const g = settlementFloorAt(x, z) - 1;
   return y < g + WALL_H && y + bodyH > g - 1;
 }
 
@@ -332,7 +397,7 @@ export function wallRayDist(ox, oy, oz, dx, dy, dz, maxDist) {
   for (let t = STEP; t <= maxDist; t += STEP) {
     const x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
     // Above the parapet the shot clears the wall entirely — over the top is not through it.
-    if (y > groundY(x, z) + WALL_H) continue;
+    if (y > settlementFloorAt(x, z) + WALL_H) continue;
     if (wallBlocks(x, z)) return t;
   }
   return maxDist;
@@ -380,7 +445,7 @@ export class Sanctuaries {
         q.setFromAxisAngle(up, yaw);
         // BoxGeometry is centred, so the box is raised by half its height or the wall sinks
         // into the ground — which is why it read as knee-high before.
-        m.compose(pos.set(wx, groundY(wx, wz) + WALL_H / 2 - 0.6, wz), q, one);
+        m.compose(pos.set(wx, settlementFloorAt(wx, wz) + WALL_H / 2 - 0.6, wz), q, one);
         if (n < wall.instanceMatrix.count) wall.setMatrixAt(n++, m);
       }
     }
