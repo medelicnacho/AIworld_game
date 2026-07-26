@@ -37,6 +37,8 @@ export const player = {
   // How far the eye is still BEHIND the feet after an auto step-up, in blocks. Purely
   // cosmetic — nothing in the sim may read this.
   stepLift: 0,
+  // The spell budget. See ENERGY — it governs offence only, never escape.
+  energy: 100,
   jumpsLeft: 2,
   sprinting: false,
   dodgeT: 0, dodgeCd: 0, iframes: 0, dodgeX: 0, dodgeZ: 0,

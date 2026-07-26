@@ -9,7 +9,7 @@
 // buy them, which is what stops gold from becoming meaningless once you're farming a tier.
 
 import { player } from "../state.js";
-import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, WEAPONS, ARMOR, STAT_INFO, TIMEWARP, ORB, NOVA, CHAIN, SPRINT } from "../config.js";
+import { VILLAGE, FIRERING, DASH, WHIRL, RANK2, WEAPONS, ARMOR, STAT_INFO, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, ENERGY } from "../config.js";
 import { tierAt } from "../world/gen.js";
 import { sellValue, sortBag } from "../prog/gear.js";
 import { factionById, repProgress, stockFor, lockedFor, REP_TIERS, repForTurnIn, join, JOIN_LEVEL, FACTION_WEAPON, FACTION_PITCH }
@@ -103,7 +103,7 @@ export const GOODS = {
         name: "Ring of Fire",
         icon: "burst",
         desc: "A wall of flame erupts around you.",
-        cd: FIRERING.cd,
+        cd: FIRERING.cd, energy: ENERGY.firering,
         use: () => game.fireRing(),
       }) },
     { id: "dash", name: "Dash Strike", price: DASH.price, once: true,
@@ -115,7 +115,7 @@ export const GOODS = {
         name: "Dash Strike",
         icon: "arrow",
         desc: "Blink forward, untouchable, cutting through whatever you pass.",
-        cd: DASH.cd,
+        cd: DASH.cd, energy: ENERGY.dash,
         use: () => game.dashStrike(),
       }) },
     { id: "firering2", name: "Ring of Fire II", price: RANK2.fireringPrice, once: true,
@@ -136,7 +136,7 @@ export const GOODS = {
       apply: (game) => game.abilities.acquire({
         id: "dash2", name: "Dash Strike II", icon: "arrow", replaces: "dash",
         desc: `Blink forward, untouchable. ${RANK2.dashCharges} charges.`,
-        cd: DASH.cd, maxCharges: RANK2.dashCharges,
+        cd: DASH.cd, energy: ENERGY.dash, maxCharges: RANK2.dashCharges,
         use: () => game.dashStrike(),
       }) },
     { id: "whirl", name: "Whirlwind", price: WHIRL.price, once: true, minTier: WHIRL.minTier,
@@ -176,20 +176,20 @@ export const GOODS = {
         + `${NOVA.radius}m. ${NOVA.cd}s cooldown.`,
       apply: (game) => game.abilities.acquire({
         id: "nova", name: "Frost Nova", icon: "frost",
-        desc: "Damages and slows everything around you.", cd: NOVA.cd, use: () => game.frostNova(1),
+        desc: "Damages and slows everything around you.", cd: NOVA.cd, energy: ENERGY.nova, use: () => game.frostNova(1),
       }) },
     { id: "nova2", name: "Frost Nova II", price: Math.round(NOVA.price * 1.5), once: true, minTier: 2,
       desc: "The nova now ROOTS instead of slowing. Replaces Frost Nova.",
       apply: (game) => game.abilities.acquire({
         id: "nova2", name: "Frost Nova II", icon: "frost", replaces: "nova",
-        desc: "Damages and roots everything around you.", cd: NOVA.cd, use: () => game.frostNova(2),
+        desc: "Damages and roots everything around you.", cd: NOVA.cd, energy: ENERGY.nova, use: () => game.frostNova(2),
       }) },
     { id: "chain", name: "Chain Lightning", price: CHAIN.price, once: true, minTier: 1,
       desc: `A bolt that leaps between up to ${CHAIN.jumps} enemies, ${spellDamage(CHAIN.damage)} damage `
         + `falling each jump. ${CHAIN.cd}s cooldown.`,
       apply: (game) => game.abilities.acquire({
         id: "chain", name: "Chain Lightning", icon: "bolt",
-        desc: "Arcs from foe to foe.", cd: CHAIN.cd, use: () => game.chainLightning(),
+        desc: "Arcs from foe to foe.", cd: CHAIN.cd, energy: ENERGY.chain, use: () => game.chainLightning(),
       }) },
     { id: "sprint", name: "Sprint", price: SPRINT.price, once: true,
       desc: `Burst to ${Math.round((SPRINT.mult - 1) * 100)}% faster for ${SPRINT.dur}s. `

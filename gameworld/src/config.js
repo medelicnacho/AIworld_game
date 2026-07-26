@@ -1036,9 +1036,49 @@ export const ABILITY = {
 // fights got longer, so the toolkit comes back sooner. A flat second is deliberately shaped —
 // it means the most on the short, woven spells (Chain, Nova) and almost nothing on the big
 // panic buttons (Timewarp), so rotations get busier without emergencies getting cheap.
+/**
+ * ENERGY — the thing the ability bar never had: a shared cost.
+ *
+ * Eleven buttons is not eleven decisions when nothing competes for anything. A cooldown is a
+ * DELAY, not a cost: it stops you pressing the same button twice, and says nothing at all
+ * about whether pressing this one should mean not pressing that one. So every spell drew from
+ * its own private timer and a fight was never a budget, only a rotation.
+ *
+ * The failure state this is built around is NOT the empty bar. Nobody dies to an empty bar —
+ * they die to a plan that needed one more cast. It regenerates fast enough that you are never
+ * standing about waiting, and costs enough that two big spells back to back is a decision you
+ * have to have made on purpose.
+ *
+ * WHAT IT DOES NOT GOVERN: escape. Sprint, dodge, heal and potions are free, always. Being
+ * punished for a misjudgement is the point; being punished by ALSO losing the tool that would
+ * let you survive it turns a mistake into a death sentence, and makes the bar mean two things
+ * at once. It means exactly one thing — how much damage you can do right now.
+ */
+export const ENERGY = {
+  max: 100,
+  regen: 22,            // empty to full in about four and a half seconds
+  // The costs. Read them as a rotation: Nova then Dash is 65 and leaves you 35 — enough for
+  // one more small thing, never enough for a second Nova. That gap is where the game is.
+  dash: 25,
+  nova: 40,
+  chain: 35,
+  firering: 60,
+  // WHIRLWIND is charged UP FRONT, not by the second. It is a fixed 3.6s spin rather than a
+  // hold, so a drain would only be a fixed cost with extra steps — and it could run dry
+  // mid-spin and strip the invulnerability, which is the one thing this resource must never
+  // do. You either get the whole spin or you never started it. Dearer than a Nova because
+  // being untouchable for three seconds is worth more than any amount of damage.
+  whirl: 55,
+};
+
 export const DASH = {
   price: 120,
-  cd: 3,
+  // 0.8, down from 3 — ENERGY is what limits this now. A cooldown on top of a cost is
+  // double-gating: whichever is longer is the only one the player ever feels, and the other
+  // is a bar they watch instead of a decision they make. Long cooldowns are kept only for the
+  // big buttons (Ring of Fire, Timewarp), where the point is once-per-fight, not once-per-
+  // rotation.
+  cd: 0.8,
   speed: 46,
   time: 0.26,           // ~12 units of travel
   radius: 2.6,          // how close a mob must be to the line you cut
@@ -1086,9 +1126,9 @@ export const ORB = {
 // swing on each target, for an eight-second cooldown. A button you press once per fight has
 // to be worth more than a button you press five times a second, or there is no reason to
 // learn it. Against a deep-ring mob this is now most of its health rather than a fifth.
-export const NOVA = { price: 175, minTier: 0, cd: 8, radius: 11, damage: 260, slowMul: 0.5, slowT: 3, rootT: 1.6 };
+export const NOVA = { price: 175, minTier: 0, cd: 1.2, radius: 11, damage: 260, slowMul: 0.5, slowT: 3, rootT: 1.6 };
 // Chain Lightning: arcs from the nearest foe to the next, damage falling each jump.
-export const CHAIN = { price: 210, minTier: 1, cd: 7, range: 34, jumps: 5, jumpRange: 15, damage: 130, falloff: 0.8 };
+export const CHAIN = { price: 210, minTier: 1, cd: 1, range: 34, jumps: 5, jumpRange: 15, damage: 130, falloff: 0.8 };
 // Sprint: a burst of movement speed on demand (a movement spell, the first of several).
 export const SPRINT = { price: 150, minTier: 0, cd: 10, dur: 4, mult: 1.7 };
 

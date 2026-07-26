@@ -67,6 +67,25 @@
       #rep.flash .rep-fill { filter: brightness(1.9); }
       #rep .rep-txt { position: absolute; left: 2px; bottom: 8px; font-size: 10px; font-weight: 700;
         letter-spacing: .1em; text-shadow: 0 2px 5px #000c; }
+      /* ENERGY — the spell budget, directly under the ability bar it governs.
+         Read WITHOUT looking at it: the whole tension of the resource is the near-miss, the
+         moment it is visibly ALMOST enough for one more cast, and a number you have to focus
+         on to parse cannot carry that. So it is length and colour — amber while it fills,
+         white when it is full and everything is available, and a hard red flash when a cast
+         is refused, which is the only time it needs to shout. */
+      #energy { position: absolute; left: 50%; transform: translateX(-50%); bottom: 90px;
+        width: min(420px, 60vw); height: 7px; background: #1a1206cc;
+        border: 1px solid #4a3a12; border-radius: 4px; overflow: hidden; }
+      #energy .en-fill { height: 100%; width: 100%; border-radius: 3px;
+        background: linear-gradient(90deg, #c88a1e, #ffd45e);
+        box-shadow: 0 0 8px #ffc24a66; transition: width .06s linear, background .15s; }
+      #energy.full .en-fill { background: linear-gradient(90deg, #ffe9b0, #fffdf5);
+        box-shadow: 0 0 10px #ffeab8aa; }
+      #energy.starved { animation: enflash .3s ease-out; }
+      @keyframes enflash {
+        from { border-color: #ff5a4a; box-shadow: 0 0 14px #ff3b2ecc; }
+        to { border-color: #4a3a12; box-shadow: none; }
+      }
       /* JUMP CHARGES — chevrons under the character, just above the rest of the HUD.
          In a game about leaping between ledges, "do I have another jump" is a question you
          ask in mid-air with no time to look anywhere, so the answer sits directly below
@@ -514,9 +533,9 @@
         100% { opacity: 0; transform: translate(-50%,-58%) scale(1.0); }
       }
       body.running #crosshair { opacity: .9; }
-      #health, #ammo, #xp, #rep, #jumps { opacity: 0; transition: opacity .2s; }
+      #health, #ammo, #xp, #rep, #jumps, #energy { opacity: 0; transition: opacity .2s; }
       body.running #health, body.running #ammo, body.running #xp, body.running #rep,
-      body.running #jumps { opacity: 1; }
+      body.running #jumps, body.running #energy { opacity: 1; }
       /* "Move outward" nudge — shows when your zone has greyed out (little/no xp). */
       /* The sleep nudge: a quiet line while you stand in a safe town after dark. Teaches
          the ONE key the night wants without a tutorial — and only when it's usable. */
@@ -571,6 +590,7 @@
       <div id="ammo"></div>
       <div id="rep"></div>
       <div id="xp"></div>
+      <div id="energy"><div class="en-fill"></div></div>
       <div id="jumps"></div>
       <div id="bossbar"></div>
       <div id="alert"></div>

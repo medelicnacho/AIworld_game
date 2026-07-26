@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY, RAID, BUILD_TAG } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY, RAID, BUILD_TAG, ENERGY } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -291,6 +291,10 @@ const spinRing = (() => {
 let slamFx = 0, whirlTick = 0;
 
 function whirlwind() {
+  // Paid before anything happens, and refused outright if you cannot afford it — so the spin
+  // can never end early and leave you standing in the open without the invulnerability you
+  // committed to. Returning false spends nothing, exactly like every other refusal.
+  if (player.energy < ENERGY.whirl) { flashStarved(); return false; }
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
   dir.y = 0;
@@ -319,6 +323,7 @@ function whirlSlam() {
   whirlRing.visible = true;
   slamFx = 0.45;
   sfx.explosion(player.x, player.z, 1.3);
+  player.energy = Math.max(0, player.energy - ENERGY.whirl);
   player.whirlT = WHIRL.spinTime;
   whirlTick = 0;
 }
@@ -1130,6 +1135,26 @@ let bossTimer = 6;
 
 const hurtEl = document.getElementById("hurt");
 const subEl = document.getElementById("subtitle");
+const energyEl = document.getElementById("energy");
+const energyFill = energyEl.querySelector(".en-fill");
+let energyStarveT = 0;
+
+/** The bar. Width every frame (it moves constantly); the classes only when they change. */
+function drawEnergy() {
+  const f = Math.max(0, Math.min(1, player.energy / ENERGY.max));
+  energyFill.style.width = `${f * 100}%`;
+  energyEl.classList.toggle("full", f > 0.995);
+  if (energyStarveT > 0) energyStarveT -= 1;
+}
+
+/** A refused cast is the ONE moment this needs to shout — it is the mistake the whole
+ *  resource exists to make legible, and it happens while you are looking somewhere else. */
+function flashStarved() {
+  energyEl.classList.remove("starved");
+  void energyEl.offsetWidth;              // restart the animation
+  energyEl.classList.add("starved");
+}
+
 const jumpsEl = document.getElementById("jumps");
 let jumpsLeftShown = -1, jumpsMaxShown = -1;
 
@@ -1563,6 +1588,7 @@ attachInput(renderer.domElement, {
   ability: (i) => {
     if (inSafe) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; return; }
     const msg = abilities.use(i);
+    if (msg.includes("not enough energy")) flashStarved();
     if (msg) { tradeMsg = msg; tradeMsgT = 1.2; }
     else markCombat();
   },
@@ -1934,6 +1960,10 @@ function frame(now) {
   // it never started.
   if (player.leapPending && (player.onGround || player.leapT <= 0)) whirlSlam();
 
+  // ENERGY. Always climbing, so you are never standing about waiting for a bar — the cost of a
+  // misjudgement is the cast you could not make, not a minute of idling.
+  player.energy = Math.min(ENERGY.max, player.energy + ENERGY.regen * dt);
+
   if (player.whirlT > 0) {
     player.whirlT -= dt;
     player.iframes = Math.max(player.iframes, 0.2);   // untouchable for the whole spin
@@ -2137,6 +2167,7 @@ function frame(now) {
 
   drawBossBar();
   drawJumps();
+  drawEnergy();
 
   if (hurtT > 0) {
     hurtT -= dt;

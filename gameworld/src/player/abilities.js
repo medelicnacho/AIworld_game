@@ -15,6 +15,8 @@
 export const SLOT_KEYS = ["1", "2", "3", "4", "5", "6", "T", "Tab"];
 export const SLOTS = SLOT_KEYS.length;
 
+import { player } from "../state.js";
+
 export class Abilities {
   constructor(ctx) {
     this.ctx = ctx;
@@ -141,8 +143,13 @@ export class Abilities {
       const left = this.cooldownOf(i);
       return left > 0 ? `${a.name} — ${left.toFixed(1)}s` : `${a.name} not ready`;
     }
+    // ENERGY, checked here because this is the one door every cast passes through — a cost
+    // enforced at each caller is a cost somebody forgets. Refusing must NOT spend anything,
+    // exactly like an ability declining below.
+    if (a.energy && player.energy < a.energy) return `${a.name} — not enough energy`;
     // Declining (returning false) must not spend the cooldown.
     if (a.use() === false) return "";
+    if (a.energy) player.energy = Math.max(0, player.energy - a.energy);
     const st = this.stateOf(a);
     const max = a.maxCharges || 1;
     if (max > 1) {
