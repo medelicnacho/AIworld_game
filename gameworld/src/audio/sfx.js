@@ -73,6 +73,17 @@ export class Sfx {
   setVoiceVolume(v) { this.voice = Math.max(0, Math.min(2, v)); }
 
   /**
+   * Would a sound here be heard at all? No nodes created, so it is cheap enough to ask
+   * before committing anything — which matters because budget() used to be taken FIRST,
+   * meaning a faction war happening across the map could spend the whole voice budget on
+   * sounds too far away to hear and drop the ones that were actually about you.
+   */
+  audible(x, z, reach = MAX_DIST) {
+    if (x === undefined) return 1;
+    return Math.max(0, 1 - Math.hypot(x - player.x, z - player.z) / reach) ** 2;
+  }
+
+  /**
    * A budget for loud, overlapping sounds. A wiped elite pack can ask for a dozen
    * explosions in one frame; past a point they stop being distinguishable and only add
    * clipping, so the extras are simply not played.
@@ -491,11 +502,11 @@ export class Sfx {
   }
 
   /** Meteor impacts and grenades. `size` scales the length and the low thump. */
-  explosion(x, z, size = 1) {
-    if (!this.on || !this.budget()) return;
+  explosion(x, z, size = 1, reach = 150) {
+    if (!this.on || this.audible(x, z, reach) <= 0.001 || !this.budget()) return;
     const t = this.t;
     const dur = 0.75 * size;
-    const { input, gain } = this.place(x, z, 150);
+    const { input, gain } = this.place(x, z, reach);
     if (gain <= 0.001) return;
 
     const src = this.noise();
@@ -631,10 +642,11 @@ export class Sfx {
   }
 
   /** A fireball leaving a caster's hands — short, bright, positional. */
-  cast(x, z) {
-    if (!this.on || !this.budget(1, 160)) return;
+  cast(x, z, vol = 1, reach = 120) {
+    if (!this.on || this.audible(x, z, reach) <= 0.001 || !this.budget(1, 160)) return;
     const t = this.t, dur = 0.34;
-    const { input, gain } = this.place(x, z, 120);
+    const { input, gain: g0 } = this.place(x, z, reach);
+    const gain = g0 * vol;
     if (gain <= 0.001) return;
 
     const o = this.ctx.createOscillator();

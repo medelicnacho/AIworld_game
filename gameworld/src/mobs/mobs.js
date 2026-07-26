@@ -1281,7 +1281,10 @@ export class Mobs {
     slot.defender = !!e.defender; // a garrison's fireball flies INSIDE the walls
     slot.mesh.visible = true;
     slot.mesh.position.set(sx, sy, sz);
-    sfx.cast(sx, sz);
+    // A shot fired AT YOU is news. A shot fired at some other faction two hundred metres away
+    // is weather — half the level and barely half the range, so the war is a texture you hear
+    // around you rather than a drum kit playing over your own fight.
+    sfx.cast(sx, sz, target ? 0.4 : 1, target ? 65 : 120);
   }
 
   /** Dying bursts and burning ground. Both hurt the PLAYER only — a mob's own affix
@@ -1339,7 +1342,8 @@ export class Mobs {
       }
       if (hitMobTarget) {
         this.hitMob(hitMobTarget, b.dmg);
-        sfx.explosion(b.x, b.z, 0.4);
+        // Same rule: someone else being hit carries far less far than you being hit.
+        sfx.explosion(b.x, b.z, b.war ? 0.26 : 0.4, b.war ? 80 : 150);
         b.active = false; b.mesh.visible = false;
         continue;
       }
@@ -1347,7 +1351,12 @@ export class Mobs {
       // the town. (The adept champion's barrage died on the spot it was cast from without
       // this, which is why hostile towns read as safe.)
       if (b.t <= 0 || solidAt(b.x, b.y, b.z) || (!b.defender && sanctuaryOf(b.x, b.z, 0))) {
-        if (b.t > 0) sfx.explosion(b.x, b.z, 0.35);
+        // A MISS. This is the knocking that took over the mix, and the terrain is why: on flat
+        // ground a stray shot flew until it timed out, which is silent. RELIEF filled the world
+        // with terraces and spires, so now every stray war shot slams into rock and every one
+        // of those was as loud as a hit landing on a body. It is the least important sound in
+        // the game — a dull nearby thud, or nothing.
+        if (b.t > 0) sfx.explosion(b.x, b.z, 0.16, 55);
         b.active = false; b.mesh.visible = false;
         continue;
       }
