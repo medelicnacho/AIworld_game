@@ -417,16 +417,26 @@ export const RELIEF = {
    */
   mote: {
     scale: 0.125,       // ~8-unit cells — a couple of strides, not a single brick
-    thresh: 0.02,       // everywhere: these are the rungs, and a ladder needs a lot of them
+    thresh: 0.11,       // everywhere: these are the rungs, and a ladder needs a lot of them
     thick: 2,           // a foothold you can land on without pixel-hunting, still not a floor
     // ...AND FAR MORE OF THEM UP HIGH. Its own relaxation rather than the pebbles', and a big
     // one: the top of a deck is where the platforms thin out and the gaps between them get
     // long, so it is exactly where a route needs the most rungs. Down low the big islands
     // already carry you.
     threshHigh: 0.34,
-    dropMin: 2,
-    dropSpan: 88,       // scattered through the whole deck, not a band of it
     dropScale: 0.055,
+    // HOW HARD THE HEIGHT FIELD IS STRETCHED to cover a deck, top to bottom.
+    //
+    // fbm almost never reaches its own extremes — the tails are rare — so mapping it straight
+    // onto a deck's height piles motes into the middle and thins them out at BOTH ends. The
+    // ends are the deck boundaries, which is the one place a ladder cannot have a missing
+    // rung, and measuring found a 5-6 block dead band at every one of them: you could see the
+    // level above and there was nothing within reach of it.
+    //
+    // This clips the tails and stretches what is left across the whole deck, so the values
+    // that used to be rare extremes saturate instead — and the boundaries end up with MORE
+    // rungs than the middle rather than fewer.
+    spread: 0.15,
   },
 
   /**

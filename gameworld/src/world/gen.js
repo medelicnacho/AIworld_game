@@ -260,18 +260,28 @@ function featuresRaw(wx, wz, h, deck) {
         // whole height of it. Only reached when both larger tiers have already declined, so
         // it costs one field on the columns that would otherwise have had nothing at all.
         const M = RELIEF.mote;
+        // A MOTE IS NOT HUNG OFF THE PLATFORM LAYER — it takes its own place anywhere in the
+        // deck, top to bottom.
+        //
+        // Hanging them BELOW platY was what made the third level unreachable. Platforms only
+        // reach about 72% of a deck's height (the spire and hill shaping eats the rest of the
+        // headroom), motes only went further down from there, and so the top ~18 blocks of
+        // every deck held nothing at all — a dead band exactly where the next deck's floor
+        // begins. You could see the level above and there was no rung within reach of it.
+        // Spreading motes across the WHOLE deck closes every boundary, which is the one place
+        // a ladder cannot afford a missing rung.
         const mn = fbm(WORLD_SEED + 2711, sx * M.dropScale, sz * M.dropScale, 2);
-        const moteY = platY - (M.dropMin + (mn * 0.5 + 0.5) * M.dropSpan);
+        const u01 = Math.min(1, Math.max(0, ((mn * 0.5 + 0.5) - M.spread) / (1 - 2 * M.spread)));
+        const moteY = deckBase + u01 * (D - M.thick);
         const thrM = M.thresh - highness(moteY) * M.threshHigh;
         if (fbm(WORLD_SEED + 3121, sx * M.scale, sz * M.scale, 2) > thrM) {
           // Returned RIGHT HERE, before any shaping. A mote is one block; running it through
           // the land's hills-and-spires pipeline turned footholds into towers and left only
           // 2% of them actually one block tall, which is the opposite of a foothold.
-          const mLo = moteY - M.thick * 0.5;
-          if (mLo >= (deck === 0 ? h + I.gapMin : deckBase) && moteY + M.thick * 0.5 < deckBase + D) {
+          if (moteY >= (deck === 0 ? h + I.gapMin : deckBase) && moteY + M.thick < deckBase + D) {
             out = out || {};
-            out.iLo = mLo;
-            out.iHi = mLo + M.thick;
+            out.iLo = moteY;
+            out.iHi = moteY + M.thick;
           }
           return out;
         }
