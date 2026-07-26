@@ -81,6 +81,33 @@ export function boundaryAt(s, theta) {
   return hit > 0 ? hit : A.r;
 }
 
+/**
+ * Which way a wall FACES at this bearing — the outward unit normal of the edge standing there.
+ *
+ * A star polygon's wall is made of straight edges, and the direction away from the town centre
+ * is not the direction the stone faces: on a nine-corner town they can differ by twenty
+ * degrees or more, which is the difference between a shot glancing off convincingly and one
+ * rebounding at an angle nothing in the scene explains. So it uses the actual edge.
+ */
+export function wallNormalAt(s, theta) {
+  const c = s.corners, n = c.length;
+  let t = theta;
+  while (t < c[0].ang) t += Math.PI * 2;
+  while (t >= c[0].ang + Math.PI * 2) t -= Math.PI * 2;
+  let i = 0;
+  for (let k = 0; k < n; k++) {
+    const a0 = c[k].ang, a1 = k + 1 < n ? c[k + 1].ang : c[0].ang + Math.PI * 2;
+    if (t >= a0 && t < a1) { i = k; break; }
+  }
+  const A = c[i], B = c[(i + 1) % n];
+  const ex = B.x - A.x, ez = B.z - A.z;
+  const len = Math.hypot(ex, ez) || 1;
+  // Perpendicular to the edge, flipped to point AWAY from the centre.
+  let nx = ez / len, nz = -ex / len;
+  if (nx * (A.x + B.x) + nz * (A.z + B.z) < 0) { nx = -nx; nz = -nz; }
+  return { nx, nz };
+}
+
 /** How big a city is in tier `t` — they grow as you go out. */
 export function cityRadius(t) {
   return RADIUS * (SETTLE.cityScale + SETTLE.cityGrow * t);

@@ -26,7 +26,7 @@ import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, is
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
 import { ringAt, tierAt, tierStart, groundY, solidAt, surfaceNear } from "./world/gen.js";
-import { Sanctuaries, sanctuariesNear, boundaryAt, homeOfTier, sanctuaryUnder } from "./world/sanctuary.js";
+import { Sanctuaries, sanctuariesNear, boundaryAt, homeOfTier, sanctuaryUnder, wallNormalAt, wallBlocks, WALL_H } from "./world/sanctuary.js";
 import { attachInput, input, stepPlayer } from "./player/controller.js";
 import { CameraRig } from "./player/camera.js";
 import { Gun } from "./player/gun.js";
@@ -463,6 +463,7 @@ function cataclysmOrb(rank = 1) {
   orb = {
     x: player.x, y: player.y + 1.4, z: player.z,
     vx: dir.x * ORB.speed, vy: dir.y * ORB.speed + ORB.up, vz: dir.z * ORB.speed, rank, dist: 0,
+    bounced: 0,
   };
   orbMesh.visible = true;
   orbMesh.position.set(orb.x, orb.y, orb.z);
@@ -476,9 +477,32 @@ function updateOrb(dt) {
   const nx = orb.x + orb.vx * dt, ny = orb.y + orb.vy * dt, nz = orb.z + orb.vz * dt;
   orb.dist += Math.hypot(nx - orb.x, nz - orb.z);
   orbMesh.rotation.x += dt * 9; orbMesh.rotation.y += dt * 7;
+
+  // A TOWN WALL IS NOT VOXELS. It is analytic geometry the voxel test cannot see, so the orb
+  // used to sail straight through one and burst in the market behind it. It rebounds now —
+  // off the EDGE's own normal rather than the direction away from the town centre, which on a
+  // nine-corner town differ by twenty degrees or more and is the gap between a bounce that
+  // reads and one that looks like a bug.
+  const hitWall = orb.bounced < ORB.bounces ? wallBlocks(nx, nz) : null;
+  if (hitWall && ny < hitWall.plateau + WALL_H) {
+    const { nx: wx, nz: wz } = wallNormalAt(hitWall, Math.atan2(nz - hitWall.z, nx - hitWall.x));
+    const dot = orb.vx * wx + orb.vz * wz;
+    orb.vx = (orb.vx - 2 * dot * wx) * ORB.bounce;
+    orb.vz = (orb.vz - 2 * dot * wz) * ORB.bounce;
+    // Nudged back to the side it came from, or the next frame re-detects the same wall and it
+    // sticks to the stone rattling between two reflections.
+    orb.x += wx * 1.2; orb.z += wz * 1.2;
+    orb.bounced++;
+    sfx.hitConfirm(orb.x, orb.z, false);
+    orbMesh.position.set(orb.x, orb.y, orb.z);
+    orbLight.position.set(orb.x, orb.y, orb.z);
+    return;
+  }
+
   if (solidAt(nx, ny, nz) || ny <= groundY(nx, nz) || orb.dist > ORB.range) {
     const bx = orb.x, bz = orb.z;
-    blast(bx, groundY(bx, bz) + 1, bz, ORB.burstRadius, ORB.burstDamage, 9, false, false, false, "spell");
+    // On the floor it actually landed on — groundY answers with the land far below an island.
+    blast(bx, surfaceNear(bx, bz, orb.y) + 1, bz, ORB.burstRadius, ORB.burstDamage, 9, false, false, false, "spell");
     const opts = { r: ORB.poolRadius, dps: ORB.poolDps, life: ORB.poolLife, tick: ORB.poolTick };
     if (orb.rank >= 2) { opts.slowMul = ORB.slowMul; opts.slowT = ORB.slowT; }
     if (orb.rank >= 3) opts.rootT = ORB.rootT;
