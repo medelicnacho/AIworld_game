@@ -223,3 +223,26 @@ test("wiping a garrison NEVER re-musters on the next frame — cleared means qui
   assert.equal(mine(), 0, "not on the frame after, either");
   void st;
 });
+
+// A GARRISON BELONGS TO ITS TOWN, including which floor it stands on. spawnOne weighs every
+// floor over a column by how near it is to the PLAYER — right for a wild camp, wrong for a
+// garrison — so a sky town's defenders were dealt onto the land far beneath it and you would
+// walk into an empty market.
+test("a sky town's garrison musters in the town, not on the ground under it", async () => {
+  const { groundY } = await import("../world/gen.js");
+  const THREE = await import("three");
+  const { Mobs } = await import("../mobs/mobs.js");
+  const sky = tierSettlements(2).find((q) => q.sky);
+  assert.ok(sky, "tier 2 must have a sky town");
+  // Stand the player on the LAND beneath it — the case that used to pull the garrison down.
+  player.x = sky.x; player.z = sky.z; player.y = groundY(sky.x, sky.z);
+  const mobs = new Mobs(new THREE.Scene(), 0x9001, {});
+  const raids = new Raids(mobs, () => {}, () => {});
+  raids.muster(sky);
+  const garrison = [...world.entities.values()].filter((e) => e.defender === sky.id);
+  assert.ok(garrison.length > 0, "it must actually muster");
+  for (const e of garrison) {
+    assert.ok(Math.abs(e.y - (sky.plateau + 1)) < 3,
+      `a defender stood at y${e.y.toFixed(0)} instead of its town's y${sky.plateau + 1}`);
+  }
+});

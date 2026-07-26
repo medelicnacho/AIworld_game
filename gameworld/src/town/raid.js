@@ -96,7 +96,12 @@ export class Raids {
     const x = s.x + Math.cos(ang) * rad;
     const z = s.z + Math.sin(ang) * rad;
     const colour = FACTIONS[s.faction % FACTIONS.length].ally;
-    const e = this.mobs.spawnOne(x, z, packId, s.x, s.z, [], colour);
+    // ON ITS OWN TOWN'S FLOOR. Left to choose, spawnOne weighs every floor over the column by
+    // how near it is to the PLAYER — which is right for a wild camp and completely wrong for
+    // a garrison, whose whole identity is the town it belongs to. A sky town's defenders were
+    // being dealt onto the land two hundred blocks beneath it, so you would arrive to find the
+    // market empty and the guards standing in a field below.
+    const e = this.mobs.spawnOne(x, z, packId, s.x, s.z, [], colour, s.plateau + 1);
     // Garrison bodies are DESIGNED, not rolled — strip whatever the spawn table dealt.
     e.elite = false; e.caster = false; e.charger = false; e.flies = false;
     e.affixes = [];
