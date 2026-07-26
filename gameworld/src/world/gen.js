@@ -137,9 +137,58 @@ export function ringAt(wx, wz) {
   return Math.min(RINGS.length - 1, tierAt(wx, wz));
 }
 
+/**
+ * What is in the SKY and what is missing UNDERNEATH at this column — the whole of the world's
+ * third dimension, answered per column rather than per voxel.
+ *
+ * Both features are a 2D mask with a vertical profile: where the mask is strong there is a
+ * lens (of stone in the air, of air in the stone), thickest at the middle and tapering to
+ * nothing at the rim. That is the trick that makes this affordable at all — fillChunk keeps
+ * ONE evaluation per column instead of one per voxel, which is the difference between a
+ * chunk building in about a millisecond and in eighty.
+ *
+ * Returns null when the column is plain, which is most of them, so the common case costs a
+ * comparison.
+ */
+export function featuresAt(wx, wz, h) {
+  const grow = Math.min(1, tierAt(wx, wz) / RELIEF.fullTier);
+  if (grow <= 0) return null;              // the Commons keeps a plain sky and solid ground
+
+  const I = RELIEF.island, H = RELIEF.hollow;
+  let out = null;
+
+  const im = fbm(WORLD_SEED + 3301, wx * I.scale, wz * I.scale, 3);
+  const iStr = Math.max(0, (im - I.thresh) / (1 - I.thresh)) * grow;
+  if (iStr > 0.02) {
+    const half = I.thick * iStr;
+    // Clamped so an island can never punch through the top of the world.
+    const cy = Math.min(CHUNK_Y - 2 - half, h + I.gap + I.rise * iStr);
+    out = { iLo: cy - half, iHi: cy + half };
+  }
+
+  const hm = fbm(WORLD_SEED + 7703, wx * H.scale, wz * H.scale, 3);
+  const hStr = Math.max(0, (hm - H.thresh) / (1 - H.thresh)) * grow;
+  if (hStr > 0.02) {
+    const half = H.thick * hStr;
+    const cy = h - H.lid - H.depth * hStr;
+    out = out || {};
+    out.hLo = cy - half;
+    out.hHi = Math.min(cy + half, h - H.lid);   // the LID is never carved
+  }
+  return out;
+}
+
 /** THE FILL FUNCTION (D15). Everything else in the engine reads the world through here. */
-export function blockAt(wx, wy, wz, h = heightAt(wx, wz)) {
-  if (wy < 0 || wy >= CHUNK_Y || wy > h) return AIR;
+export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz, h)) {
+  if (wy < 0 || wy >= CHUNK_Y) return AIR;
+  // THE SKY comes first: an island is the only thing that can be solid above the land.
+  if (f && f.iHi !== undefined && wy >= f.iLo && wy <= f.iHi) {
+    return wy >= f.iHi - 1 ? GRASS : STONE;
+  }
+  if (wy > h) return AIR;
+  // Bitten out from under the lid — an overhang you can walk beneath, never a hole in the
+  // surface you walk on.
+  if (f && f.hHi !== undefined && wy >= f.hLo && wy <= f.hHi) return AIR;
   if (wy === h) {
     if (h <= SEA_LEVEL + 1) return SAND;
     if (h > 52) return SNOW;
@@ -147,6 +196,33 @@ export function blockAt(wx, wy, wz, h = heightAt(wx, wz)) {
   }
   if (wy > h - 4) return DIRT;
   return STONE;
+}
+
+/**
+ * WHICH GROUND? The question a world with more than one surface per column has to answer.
+ *
+ * groundY returns the land's own surface and always will — it is what spawning and the map
+ * mean by "the ground here". But a body standing on an island, or under an overhang, is on a
+ * DIFFERENT floor, and asking groundY where it should stand would walk it off into the air or
+ * up through a roof. This returns the surface nearest the height it is already at.
+ *
+ * Computed from the column's structure rather than scanned voxel by voxel, so it costs the
+ * same as asking for the height.
+ */
+export function surfaceNear(wx, wz, yRef) {
+  const x = Math.floor(wx), z = Math.floor(wz);
+  const h = heightAt(x, z);
+  const f = featuresAt(x, z, h);
+  if (!f) return h + 1;
+  let best = h + 1, bestD = Math.abs(yRef - (h + 1));
+  const consider = (y) => {
+    const d = Math.abs(yRef - y);
+    if (d < bestD) { best = y; bestD = d; }
+  };
+  if (f.iHi !== undefined) consider(Math.floor(f.iHi) + 1);     // the island's top
+  // The floor of a hollow is only standable if there is actually rock under it.
+  if (f.hLo !== undefined && f.hLo > 1) consider(Math.floor(f.hLo));
+  return best;
 }
 
 export function solidAt(wx, wy, wz) {
@@ -172,8 +248,12 @@ export function fillChunk(cx, cz) {
   for (let z = 0; z < CHUNK_Z; z++) {
     for (let x = 0; x < CHUNK_X; x++) {
       const h = heightAt(ox + x, oz + z);
+      const f = featuresAt(ox + x, oz + z, h);
       heights[z * CHUNK_X + x] = h;
-      for (let y = 0; y <= h; y++) blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h);
+      // Up to the LAND, or up to the island floating over it — whichever is higher. The
+      // loop used to stop at h, which is exactly the assumption a sky full of rock breaks.
+      const top = f && f.iHi !== undefined ? Math.min(CHUNK_Y - 1, Math.ceil(f.iHi)) : h;
+      for (let y = 0; y <= top; y++) blocks[idx(x, y, z)] = blockAt(ox + x, y, oz + z, h, f);
     }
   }
   return { blocks, heights, cx, cz, ox, oz };

@@ -295,6 +295,40 @@ export const RELIEF = {
   chasmScale: 0.008,
   chasmWidth: 0.13,
   chasmDepth: 12,
+
+  /**
+   * ISLANDS — rock in the sky, and the reason the world stops being a surface.
+   *
+   * Built from a 2D mask with a vertical profile rather than 3D noise: where the mask is
+   * strong there is a lens of stone, thicker at the middle and tapering to nothing at the
+   * rim. That keeps worldgen at ONE evaluation per column, which is the whole reason this is
+   * affordable — true 3D density would put chunk builds from ~1ms to ~80ms.
+   *
+   * They are only worth having because things live on them. An island nothing can reach is
+   * just a roof over an exploit; an island with a garrison on it and fliers circling it is a
+   * place, and taking it is a decision.
+   */
+  island: {
+    scale: 0.0021,      // ~480 units across — a place, not a stepping stone
+    thresh: 0.55,       // how much of the land gets one; the rest of the sky stays empty
+    gap: 15,            // least clearance between the land and the underside
+    rise: 12,           // stronger mask floats higher
+    thick: 8,           // half-thickness at full strength
+  },
+
+  /**
+   * HOLLOWS — the land bitten out from underneath: overhangs, undercuts, a roof to fight
+   * beneath. The LID is never carved, so the walking surface on top is exactly what it
+   * always was and everything that reads groundY keeps working. What you get is geometry on
+   * the cliff faces and chasm walls, which is where you actually meet it.
+   */
+  hollow: {
+    scale: 0.0055,
+    thresh: 0.5,
+    lid: 4,             // solid blocks always left on top — the roof you walk on
+    depth: 7,           // how far under the lid the hollow sits
+    thick: 6,
+  },
 };
 
 export const CONTINENT_SCALE = 0.0035;  // big landforms
@@ -444,8 +478,13 @@ Object.assign(WEAPONS, {
     // the one clawing up from the chasm below — the two places enemies now most often are. A
     // melee faction whose weapon only works on flat ground is a melee faction that cannot
     // play the game the terrain is asking you to play.
-    damage: 88, fireRate: 1.9, range: 9.5, coneDeg: 100, coneVertDeg: 140, knock: 12,
-    magSize: 0, reloadTime: 0, pellets: 1, auto: true, recoil: 0.004, recoilRecover: 0.7,
+    // ONE CLICK, ONE SWING. It used to be `auto`, so leaning on the button swung forever and
+    // the weapon played itself — melee stopped being a decision and became a state you held.
+    // fireRate 5 is the FLOOR between swings (0.2s), not the rate you get: the semi-auto
+    // latch means the trigger has to be released and pulled again every time, so how fast
+    // you actually cut is how fast you choose to.
+    damage: 88, fireRate: 5, range: 9.5, coneDeg: 100, coneVertDeg: 140, knock: 12,
+    magSize: 0, reloadTime: 0, pellets: 1, auto: false, recoil: 0.004, recoilRecover: 0.7,
     spreadHip: 0, spreadAim: 0, sound: "cleave",
     desc: "A wide swing in front of you that throws things back. Right-click to spin: "
       + "untouchable for a heartbeat, then damage all around you.",
@@ -1202,6 +1241,16 @@ export const MOB = {
   // that stepping behind a rock buys you a beat before they notice — which is the right
   // feel anyway: a moment of being missed, not an instant switch.
   losCheck: 0.45,
+  // How far off the land a body has to be before we pay for the "which floor am I on"
+  // question. Almost everything alive is standing on the land, and for those the cheap
+  // answer is the right one — only islanders and things under an overhang need the rest.
+  floorSlack: 2.5,
+  // A FLIER CHASES IN THREE DIMENSIONS. Hovering a fixed distance over the LAND meant an air
+  // mob would sail along underneath an island with you standing on top of it, which makes
+  // the sky a safe place and the fliers ornaments. Chasing, it climbs to your height plus
+  // this — so taking an island costs you the ground war and buys you the air war.
+  flyChaseLift: 3.2,
+  flyClimb: 0.07,       // how quickly it closes that gap; a hover, so smoothing not physics
 
   avoidArc: 1.05,         // radians it will veer to find a walkable line
 

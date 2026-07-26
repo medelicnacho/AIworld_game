@@ -15,7 +15,7 @@ import * as THREE from "three";
 import { MOB, PLAYER, RAID, WARCRY } from "../config.js";
 import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
-import { groundY, solidAt, tierAt, ringPressure } from "../world/gen.js";
+import { groundY, solidAt, tierAt, ringPressure, surfaceNear } from "../world/gen.js";
 import { terrainClear } from "../world/raycast.js";
 import { sfx } from "../audio/sfx.js";
 import { sanctuaryOf, boundaryAt, gateArc } from "../world/sanctuary.js";
@@ -343,6 +343,19 @@ export class Mobs {
   }
 
   /** Where this body sits vertically: on the ground, or hovering above it. */
+  /**
+   * WHICH FLOOR this body is on. A column can have several now — the land, the top of a sky
+   * island, the floor under an overhang — and asking groundY on an island answers with the
+   * ground far below, which walks the body off into the air.
+   *
+   * Gated on being noticeably off the land, because almost everything alive is standing on
+   * it and for those the cheap answer is the correct one.
+   */
+  floorAt(e, x = e.x, z = e.z) {
+    const g = groundY(x, z);
+    return Math.abs(e.y - g) < MOB.floorSlack ? g : surfaceNear(x, z, e.y);
+  }
+
   restY(e) {
     // MID-LEAP the ground is not the answer. Interpolating between the heights it left and
     // is heading for — rather than reading groundY under it — is what stops the body
@@ -351,8 +364,15 @@ export class Mobs {
       const p = 1 - e.leapT / MOB.leapDur;
       return e.leapY0 + (e.leapY1 - e.leapY0) * p + Math.sin(p * Math.PI) * MOB.leapArc;
     }
-    const g = groundY(e.x, e.z);
-    return e.flies ? g + MOB.flyHeight + Math.sin(e.wobble * 1.6) * MOB.flyBob : g;
+    const g = this.floorAt(e);
+    if (!e.flies) return g;
+    const bob = Math.sin(e.wobble * 1.6) * MOB.flyBob;
+    // Hovering over whatever floor is beneath it — UNLESS it is hunting you, in which case
+    // it climbs to your height. Eased rather than snapped: this is a hover, so it is
+    // smoothing, not physics, and it wants to look like a thing deciding to come up.
+    let want = g + MOB.flyHeight;
+    if (e.aggro) want = Math.max(want, player.y + MOB.flyChaseLift);
+    return e.y + (want + bob - e.y) * MOB.flyClimb;
   }
 
   /**
@@ -368,12 +388,12 @@ export class Mobs {
     if (e.leapT > 0 || e.leapCd > 0 || !e.aggro || e.flies) return false;
     const d = Math.hypot(vx, vz) || 1;
     const ux = vx / d, uz = vz / d;
-    const here = groundY(e.x, e.z);
+    const here = this.floorAt(e);
     // Furthest first: clearing a gap outright beats scrambling onto its near lip.
     for (let i = MOB.leapReach.length - 1; i >= 0; i--) {
       const reach = MOB.leapReach[i];
       const nx = e.x + ux * reach, nz = e.z + uz * reach;
-      const there = groundY(nx, nz);
+      const there = this.floorAt(e, nx, nz);
       if (there - here > MOB.leapClimb) continue;      // a spire is still a spire
       if (!this.wallOk(e, nx, nz)) continue;           // a wall is never leapt
       e.leapT = MOB.leapDur;
@@ -819,13 +839,13 @@ export class Mobs {
   tryMove(e, vx, vz, dt) {
     if (e.leapT > 0) return;              // committed: stepLeaps owns the body until it lands
     if (Math.hypot(vx, vz) < 1e-4) return;
-    const here = groundY(e.x, e.z);
+    const here = this.floorAt(e);
     for (const turn of [0, MOB.avoidArc * 0.5, -MOB.avoidArc * 0.5, MOB.avoidArc,
                         -MOB.avoidArc, MOB.avoidArc * 1.6, -MOB.avoidArc * 1.6]) {
       const c = Math.cos(turn), s = Math.sin(turn);
       const dx = (vx * c - vz * s) * dt;
       const dz = (vx * s + vz * c) * dt;
-      if (groundY(e.x + dx, e.z + dz) - here <= MOB.maxClimb
+      if (this.floorAt(e, e.x + dx, e.z + dz) - here <= MOB.maxClimb
           && this.wallOk(e, e.x + dx, e.z + dz)) {
         e.x += dx; e.z += dz;
         e.heading = Math.atan2(dx, dz);
