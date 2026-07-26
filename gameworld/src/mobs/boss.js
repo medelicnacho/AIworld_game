@@ -103,6 +103,9 @@ export class Boss {
       dmg: 1 + BOSS.damagePerTier * ring,
       volleyCd: 2.6,
       contactCd: 0,
+      // Seconds left on the HUD's engagement clock — see engage(). Starts at zero: a boss
+      // that has spawned somewhere behind you is not yet YOUR fight.
+      engaged: 0,
       phase: 1,
       charging: false,
       roarCd: BOSS.roarEvery[0],
@@ -192,6 +195,7 @@ export class Boss {
     const dmg = Math.min(raw, cap);
     const weak = tag === "bossWeak";
     this.alive.hp -= dmg;
+    this.engage();
     this.hitEvents.push({ x: this.alive.x, y: this.alive.y + 5.5, z: this.alive.z, amount: Math.round(dmg), weak });
     if (this.alive.hp <= 0) {
       const ring = this.alive.ring;
@@ -204,6 +208,15 @@ export class Boss {
     sfx.hitConfirm(this.alive.x, this.alive.z, weak);
     return { killed: false, weak, dmg, capped: dmg < raw };
   }
+
+  /**
+   * The fight is live, so the health bar is worth the top of the screen.
+   *
+   * Refreshed when you hit the boss AND when the boss hits you, because those mean the same
+   * thing — a bar that vanished while you were kiting a beam, healing, or reloading would be
+   * gone at exactly the moments you most want to know how much is left.
+   */
+  engage() { if (this.alive) this.alive.engaged = BOSS.barHold; }
 
   fireVolley() {
     const b = this.alive;
@@ -243,6 +256,7 @@ export class Boss {
 
     const b = this.alive;
     if (!b) return;
+    if (b.engaged > 0) b.engaged = Math.max(0, b.engaged - dt);
 
     const dx = player.x - b.x, dz = player.z - b.z;
     const dist = Math.hypot(dx, dz) || 1;

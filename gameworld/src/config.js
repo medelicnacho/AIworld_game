@@ -1164,6 +1164,11 @@ export const BOSS = {
   //
   // It scales with tier two ways: the cap is a fraction of a tier-scaled HP pool, and the
   // fraction itself tightens with depth — so the deep bosses are the hardest to burst.
+  // How long the boss health bar stays up after the last blow landed either way. Long
+  // enough to cover a full disengage — dodge out, heal, reload, come back — because a bar
+  // that blinked off every time you stopped shooting would be worse than one always on.
+  // Short enough that walking away from a fight clears the top of the screen.
+  barHold: 10,
   maxHitFraction: 0.03,     // ring 1: no single hit may exceed 3% of max HP (~34-hit floor)
   hitCapTighten: 0.06,      // and that shrinks: fraction / (1 + this * ring)
 

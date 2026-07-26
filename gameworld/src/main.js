@@ -1112,7 +1112,10 @@ let bossShown = false, bossEnraged = false;
  * second to change one number is how a HUD ends up costing more than the fight.
  */
 function drawBossBar() {
-  const b = boss.alive;
+  // Only while the fight is actually happening. A boss can be alive two hundred metres away
+  // for minutes; a permanent bar for a thing you are not fighting is furniture, and the
+  // whole point of taking the top of the screen was that it means something when it appears.
+  const b = boss.alive?.engaged > 0 ? boss.alive : null;
   if (!b) {
     if (bossShown) { bossEl.classList.remove("show", "enraged"); bossShown = false; }
     return;
@@ -2012,12 +2015,14 @@ function frame(now) {
       bossTimer = Math.min(bossTimer, BOSS.retry);
     }
   }
+  // Anything the boss lands on you counts as engagement too, so the bar stays up through a
+  // stretch where you are doing nothing but surviving.
   boss.update(dt,
-    (dmg, bx, bz) => damagePlayer(dmg, bx, bz, 9),
-    (dmg, mx, mz) => damagePlayer(dmg, mx, mz, 7),
+    (dmg, bx, bz) => { boss.engage(); damagePlayer(dmg, bx, bz, 9); },
+    (dmg, mx, mz) => { boss.engage(); damagePlayer(dmg, mx, mz, 7); },
     // The beam burns continuously, so it deals damage with NO knockback — being shoved
     // every frame while standing in it would fight the very movement it is demanding.
-    (dmg, bx, bz) => damagePlayer(dmg, bx, bz, 0));
+    (dmg, bx, bz) => { boss.engage(); damagePlayer(dmg, bx, bz, 0); });
 
   // Impact shake — applied AFTER the rig sets the camera, so it perturbs the final pose
   // rather than fighting the rig's own smoothing.
