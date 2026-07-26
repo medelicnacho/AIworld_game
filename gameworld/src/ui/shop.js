@@ -142,13 +142,16 @@ export const GOODS = {
     { id: "whirl", name: "Whirlwind", price: WHIRL.price, once: true, minTier: WHIRL.minTier,
       desc: `Leap forward and land for ${WHIRL.slamDamage} damage, then spin for `
         + `${WHIRL.spinTime}s — untouchable, faster, and shredding everything around you. `
-        + `${WHIRL.cd}s cooldown.`,
+        + `${WHIRL.cd}s cooldown once the spin ends.`,
       apply: (game) => game.abilities.acquire({
         id: "whirl",
         name: "Whirlwind",
         icon: "spiral",
         desc: "Leap, slam, then spin through whatever is left.",
-        cd: WHIRL.cd,
+        // THE COOLDOWN COUNTS FROM THE END OF THE SPIN, not the start of it. Adding spinTime
+        // here is the whole mechanism: the timer still begins on cast, but it now covers the
+        // channel as well, so what is left when you land is the full WHIRL.cd of exposure.
+        cd: WHIRL.cd + WHIRL.spinTime,
         use: () => game.whirlwind(),
       }) },
     { id: "orb", name: "Cataclysm Orb", price: ORB.price, once: true,

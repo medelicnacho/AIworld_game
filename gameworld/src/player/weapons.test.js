@@ -63,11 +63,15 @@ test("SPIN: sustained damage loses to swinging, and to Whirlwind", () => {
   // whole rotation and the cone stops being the weapon.
   assert.ok(spinPerSec < swingPerSec * 0.8,
     `spin ${spinPerSec}/s must clearly lose to swinging ${swingPerSec}/s`);
-  // Under Whirlwind: a purchased spell on a long cooldown must stay the heavier hitter, or
-  // a free weapon attack outclasses something the player paid for.
+  // Whirlwind is deliberately NOT the heavier hitter any more. It used to be, and being the
+  // best AoE in the kit on top of moving you and making you untouchable meant every other
+  // answer to a crowd was redundant. It is a commitment now — no shooting, no casting while
+  // it runs — so what you buy is the guard and the reposition, and its damage is allowed to
+  // lose to a weapon you can actually keep using.
   const whirlPerSec = WHIRL.spinDamage / WHIRL.spinTick;
-  assert.ok(spinPerSec < whirlPerSec,
-    `spin ${spinPerSec}/s must stay under Whirlwind's ${whirlPerSec}/s`);
+  assert.ok(whirlPerSec < swingPerSec,
+    `whirlwind ${whirlPerSec.toFixed(0)}/s should not out-damage swinging ${swingPerSec}/s — ` +
+    "it already gives you three seconds of invulnerability and a leap");
 });
 
 test("CANNON: a big blast that never hurts you — so the cost is LEADING a slow shell", () => {

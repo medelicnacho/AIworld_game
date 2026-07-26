@@ -191,6 +191,15 @@ export class Gun {
   }
 
   get canFire() {
+    // NOT MID-WHIRLWIND. A channel you can shoot through is not a commitment, it is a free
+    // buff on top of everything you were already doing — three seconds of untouchable uptime
+    // is only a decision if it costs you something you would otherwise be doing.
+    //
+    // Your WEAPON, and only your weapon. Locking spells out too was tried and reverted: it
+    // made the spin three seconds of watching, and a defensive tool that takes your whole kit
+    // away stops being something you want to press. Spells still cost energy, so the spin is
+    // paid for either way — this just leaves you something to do while it runs.
+    if (player.whirlT > 0) return false;
     return this.cooldown <= 0 && this.reloading <= 0 && this.mag > 0;
   }
 

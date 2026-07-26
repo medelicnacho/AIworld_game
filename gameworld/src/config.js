@@ -1095,16 +1095,25 @@ export const DASH = {
 export const WHIRL = {
   price: 260,
   minTier: 1,           // stocked from the first ring out
+  // THE GAP AFTER THE SPIN, not counting the spin itself. The timer used to start on cast,
+  // so 3.6 of the 12 seconds were spent mid-whirl and the real exposed gap was only 8.4 —
+  // you were untouchable for a third of your own cooldown. See the ability's cd in shop.js,
+  // which is this plus spinTime for exactly that reason.
   cd: 12,
   leapSpeed: 24,
   leapUp: 9.5,
   leapTime: 0.55,       // airtime cap; landing early triggers the slam early
   slamRadius: 10,
-  slamDamage: 150,
+  slamDamage: 80,       // the landing, cut with the spin for the same reason
   spinTime: 3.6,
   spinRadius: 7.0,      // matches the drawn ring exactly
   spinTick: 0.22,       // damage every this many seconds while spinning
-  spinDamage: 22,       // ~100/s sustained
+  // 9, down from 22 — about 40/s rather than 100/s. Whirlwind was three tools at once: it
+  // moves you, it makes you untouchable, and it hit everything around you harder than the
+  // spells that do nothing else. It is a COMMITMENT now rather than a free upgrade to
+  // standing still: you cannot shoot and you cannot cast while it runs, so the guard and the
+  // reposition are what you are buying and the damage is a bonus for aiming it well.
+  spinDamage: 9,
   spinSpeed: 1.5,       // and you move faster while you do it
 };
 
