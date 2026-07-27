@@ -729,7 +729,14 @@ function updateSpin(dt) {
       spinTick = SPIN.tick;
       // Flat to the rim, like Whirlwind: the ring you see is the ring that hits. Through the
       // GUN bucket — this is the weapon working, not a spell.
-      blast(player.x, player.y + 1, player.z, SPIN.radius, SPIN.damage, 4, false, true, false, "gun");
+      //
+      // vscale 1 — a BALL, not the default slab. The blast shape essay draws the line at
+      // "effects that erupt out of the player are balls"; the spin erupts out of the player,
+      // and at the slab's half-radius vertical it reached 3.3 blocks — a hunting flyer hovers
+      // at 3.2, so the spin's answer to the thing diving at your head was a coin flip at the
+      // exact altitude flyers live. Full radius in every direction now: spin under a flyer
+      // and it is IN the spin.
+      blast(player.x, player.y + 1, player.z, SPIN.radius, SPIN.damage, 4, false, true, false, "gun", 1);
     }
     if (player.spinT <= 0) {
       // Spin just ended — NOW the cooldown starts. Haste shortens it, the floor stops haste
