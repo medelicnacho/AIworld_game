@@ -26,6 +26,15 @@ export class Sfx {
     // Seeded (D14), like every other random number in the game — used to rough up the
     // crackle so repeated pops never land in an identical pattern.
     this.rng = mulberry32(0xC4AC1E);
+    // DECODED CLIPS, KEPT. playClip used to run decodeAudioData on EVERY play — a full copy
+    // of the wav bytes plus a fresh multi-second PCM buffer, per cry, per echo, forever. In a
+    // big battle that is a decode and a quarter-megabyte allocation firing every few hundred
+    // milliseconds at exactly the moment the frame can least afford it — and when a decode
+    // fails under that pressure the catch returns silence, which is precisely the reported
+    // "voices glitch out and stop playing". A WeakMap keyed on the raw buffer the caller
+    // already holds for the whole session: first play decodes, every later play is free, and
+    // dropping a clip drops its decode with it.
+    this.clips = new WeakMap();
   }
 
   /** Must be called from a user gesture — browsers refuse audio before one. */
@@ -631,11 +640,16 @@ export class Sfx {
    */
   async playClip(arrayBuffer, x, z, volume = 1, rate = 1, reach = 200, y = null) {
     if (!this.on || !arrayBuffer) return 0;
-    let buf;
-    try {
-      buf = await this.ctx.decodeAudioData(arrayBuffer.slice(0));
-    } catch {
-      return 0;
+    let buf = this.clips.get(arrayBuffer);
+    if (!buf) {
+      try {
+        // slice() because decodeAudioData detaches its input — the copy happens ONCE now,
+        // on the first play, instead of on all of them.
+        buf = await this.ctx.decodeAudioData(arrayBuffer.slice(0));
+      } catch {
+        return 0;
+      }
+      this.clips.set(arrayBuffer, buf);
     }
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
