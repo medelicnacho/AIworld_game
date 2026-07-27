@@ -386,6 +386,12 @@ export class Gun {
       player.kickZ = -fwd.z * w.barrageKickAcross;
       player.kickSpeed = w.barrageKick * planted;
       player.kickT = w.barrageKickHold;
+      // THE WINDOW IN WHICH A JUMP COMPOUNDS THIS (see controller's jump). Deliberately its
+      // own timer rather than kickT: kickT is how long the launch OWNS your horizontal
+      // velocity, which is a shorter and unrelated question. This one answers "are you
+      // still riding something you paid for", and it has to outlast the moment of firing
+      // by enough that pressing jump a beat later still reads as one combined intent.
+      player.launchT = w.barrageLaunchGrace;
       player.vy = Math.max(player.vy,
         -fwd.y * w.barrageKick * w.barrageKickUp * w.barrageKickAir);
       player.onGround = false;

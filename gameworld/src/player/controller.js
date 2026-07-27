@@ -433,6 +433,10 @@ export function stepPlayer(dt) {
   // nothing — you get your jumps back the moment you are standing on something real.
   if (player.onGround && !slideX && !slideZ) player.jumpsLeft = player.maxJumps;
 
+  // The launch grace ticks with the physics, not the frame — see the jump below, which
+  // reads it to tell a climb you PAID for from one you spammed.
+  if (player.launchT > 0) player.launchT -= dt;
+
   player.vy = Math.max(PLAYER.maxFall, player.vy + PLAYER.gravity * dt);
 
   // THE ROTOR. While the lance's beam SPINS, held space is lift — the sweep becomes a
@@ -442,15 +446,25 @@ export function stepPlayer(dt) {
   // own two-second clock is the fuel gauge, its cooldown is the flight's price, and no
   // jump charge is ever spent — which is what makes this a MOVE and not a bigger jump:
   // Iron's spin holds ground, Ash's leaves it.
-  if (player.lanceSpinT > 0 && input.jumpHeld) {
-    player.vy = Math.max(player.vy, LANCE_SPIN.lift);
+  // EITHER SPIN IS A ROTOR — Ash's beam and Iron's cleaver both lift you while they turn,
+  // and the gap between the two numbers is the faction line. Ash climbs onto a deck; Iron
+  // gets a HOP, enough to leave a crowd or take a ledge and not enough to reach the sky's
+  // floors. Iron's spin lasts longer, so the two are closer in total height than the lift
+  // numbers suggest — which is the right shape: Iron leaves the ground slowly and briefly,
+  // and is still the faction that has to come back down into the fight.
+  const rotorLift = player.lanceSpinT > 0 ? LANCE_SPIN.lift
+    : player.spinT > 0 ? SPIN.lift : 0;
+  if (rotorLift > 0 && input.jumpHeld) {
+    player.vy = Math.max(player.vy, rotorLift);
   }
 
   if (input.jumpQueued) {
     input.jumpQueued = false;
     // Space belongs to the rotor while the beam spins — the press that starts the climb
     // must not also burn an air jump.
-    if (player.lanceSpinT > 0) { /* held, not spent */ } else
+    // Space belongs to whichever rotor is turning — the press that starts a climb must
+    // never also burn an air jump, for either faction.
+    if (player.lanceSpinT > 0 || player.spinT > 0) { /* held, not spent */ } else
     // NOT OFF A WALL. Without this the slide is trivially beaten: hop, land, hop again, and
     // you are still standing on the parapet — the slide only owns you while you are on the
     // ground, so a jump is a free half-second of ignoring it. Refusing costs no jump charge;
@@ -460,24 +474,29 @@ export function stepPlayer(dt) {
     } else if (player.jumpsLeft > 0) {
       const fromGround = player.onGround;
       const boost = PLAYER.jumpSpeed * player.jumpMult * (fromGround ? 1 : PLAYER.airJumpScale);
-      // A JUMP CANCELS A FALL, BUT COMPOUNDS A CLIMB.
+      // THREE CASES, and the middle one is the whole reason this is not one line.
       //
-      // This used to SET the velocity outright, for a good reason that only covered half
-      // the cases: an air jump while falling fast should feel like a clean second launch
-      // rather than a rounding error against your downward momentum, and adding to a big
-      // negative number gives you nothing you can feel. That half is unchanged.
+      //   FALLING   -> set. An air jump mid-fall must feel like a clean second launch, not
+      //               a rounding error against a big negative number.
+      //   LAUNCHED  -> add. You paid six shells and a cooldown to be thrown upward; a jump
+      //               must not overwrite that and cap you back at jump speed. Two verbs
+      //               that both mean "up" never subtract.
+      //   OTHERWISE -> the higher of the two. A jump may never LOWER a climb, and may never
+      //               raise it beyond what one jump is worth.
       //
-      // The other half was a bug you could pay for. Fire the cannon at your feet and the
-      // recoil throws you up at several times jump speed — then jumping OVERWROTE it,
-      // capping you at a jump and deleting most of a launch that cost six shells and a
-      // cooldown. Two movement verbs that both mean "up" must never subtract, and the
-      // player pressing them in sequence is expressing exactly one intent.
+      // That last case is the fix for a bug the previous version shipped: "rising, it adds"
+      // let jumps compound on EACH OTHER, so spamming the key stacked boost on boost and a
+      // high-level character with a fistful of air jumps could climb most of the sky for
+      // free. The intent was always that a jump adds to momentum it did not create — the
+      // launch is the thing being combined with, and jumps are not launches.
       //
-      // So: rising, it ADDS; falling, it still sets. Both stay honest, and combining verbs
-      // is rewarded rather than punished — which is the whole promise of the parkour half
-      // of this game. The ceiling is not this line, it is the resources: shells, a
-      // cooldown, and a finite number of air jumps.
-      player.vy = player.vy > 0 ? player.vy + boost : boost;
+      // player.launchT is what makes "launched" a state rather than a guess (see gun.js).
+      // A guess would have been "am I rising fast?", which is the same trap in a costume:
+      // it cannot tell a paid launch from three free jumps in a row.
+      const launched = player.launchT > 0 && player.vy > 0;
+      player.vy = player.vy <= 0 ? boost
+        : launched ? player.vy + boost
+        : Math.max(player.vy, boost);
       player.jumpsLeft--;
       player.onGround = false;
     }

@@ -1114,6 +1114,11 @@ Object.assign(WEAPONS, {
     // kick) is what keeps the shove from being eaten by the air blend five frames in.
     barrageKick: 17,
     barrageKickHold: 0.4,
+    // How long a jump still COMPOUNDS the launch rather than merely failing to cut it.
+    // 1.1s: long enough that "fire, then jump" is one motion at human speed even if you
+    // are not frame-perfect, short enough that it cannot be saved up — jump late and you
+    // simply keep the climb you had, which is the ordinary rule and no punishment at all.
+    barrageLaunchGrace: 1.1,
     // The recoil is ANISOTROPIC, tuned in flight: the horizontal 15% under base (a level
     // blast was overshooting the disengage) and the climb 25% OVER it (the rocket jump is
     // the move worth building routes around, so it gets the headroom). Opposite-of-aim
@@ -1334,6 +1339,22 @@ export const SPIN = {
   // is shrinking any more. Left named rather than deleted so the next person to wonder "did
   // haste ever affect this" finds the answer instead of the silence.
   cdFloor: 1.2,
+  // THE CLEAVER IS A ROTOR TOO — hold SPACE while it spins and Iron leaves the ground,
+  // the same verb Ash's beam has. 3.81, which is 75% under the lance's lift on purpose,
+  // and the gap is the faction line rather than a balance figure.
+  //
+  // Ash climbs ONTO something: a full rotor clears the low flier deck with margin. Iron
+  // gets a HOP — about nine blocks over the whole spin, which takes a ledge, clears a
+  // crowd, or drops you back onto a fight from slightly above, and reaches none of the
+  // sky's floors. That boundary is the point: Iron is still the faction that has to come
+  // back down and stand in it, and a cleaver that could hold a deck would stop being the
+  // kit that has to be there.
+  //
+  // Note the spin's own length works against the gap — Iron turns for far longer than the
+  // lance does, so nine blocks against Ash's twenty-five is a much narrower ratio than
+  // 75% suggests. Slower and briefer is the correct shape for the melee faction's flight:
+  // it leaves the ground reluctantly.
+  lift: 3.81,
   radius: 6.6,
   tick: 0.25,
   // HALVED, from 18 — see the essay on `cd` above, which this number is the other half of.
@@ -1451,10 +1472,22 @@ export const LANCE_SPIN = {
   time: 1.62,
   cd: 2,                 // starts when the spin ENDS, like the cleaver's — see updateLanceSpin
   // THE ROTOR (asked for in play): hold SPACE while the beam spins and the sweep lifts
-  // you — Ash flies for as long as the spin lasts. 10.16, walked 6 -> 7 -> 8.4 -> 9.24
-  // -> 10.16 in flight, and this is the pass that went PAST a jump's 9.3 rather than up
-  // to it. Recorded plainly because the earlier essays named that number as a ceiling and
-  // it has been crossed on purpose.
+  // you — Ash flies for as long as the spin lasts. 12.7, walked 6 -> 7 -> 8.4 -> 9.24 ->
+  // 10.16 -> 12.7 in flight, well past a jump's 9.3 now. Recorded plainly because the
+  // earlier essays named that number as a ceiling and it has been crossed on purpose.
+  //
+  // WHAT IT REACHES IS THE POINT, and it now reaches something specific: a full hold
+  // climbs about 25 blocks, clearing the LOW FLIER DECK (flyLayers, 16) by nine. That is
+  // the number worth tuning against from here — the rotor is Ash's way onto a deck, so it
+  // should arrive with room to FIGHT rather than exactly level with the thing it came to
+  // kill, and nine blocks of margin is comfortably that.
+  //
+  // The high deck at 44 remains out of reach of one spin, and that is a boundary rather
+  // than a shortfall: it belongs to Vale's launch. Each faction's vertical verb reaching a
+  // DIFFERENT floor of the sky is what gives the two decks separate identities instead of
+  // making them the same place at two heights. The number to watch as this keeps climbing
+  // is not the jump any more — it is 44. Reach that in one spin and Ash quietly inherits
+  // Vale's floor, and the sky goes back to being one theatre.
   //
   // Why the jump survives being out-climbed. The two verbs never competed on speed alone:
   // a jump is INSTANT, free, unlimited, and available in the frame you want it, while
@@ -1467,7 +1500,7 @@ export const LANCE_SPIN = {
   // The real ceiling from here is not the jump, it is READABILITY — a climb fast enough
   // that you overshoot the ledge you aimed at stops being a route-maker and becomes a
   // thing you fight. That is a feel question, so it belongs to play, not to this comment.
-  lift: 10.16,
+  lift: 15.24,
   // HOW FAR THE BEAM REACHES WHILE IT SWEEPS. The lance shoots 78 blocks and does not stop at
   // the first thing it touches; a sweeping version of that would clear the horizon in every
   // direction at once, which is a screen-wipe rather than a defensive move. Keeping it far

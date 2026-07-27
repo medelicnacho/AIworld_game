@@ -98,6 +98,7 @@ export const FACTIONS = [
       "A wide melee arc that hits everything in front of you, high or low.",
       `${WEAPONS.cleaver.knockCharges} SHOVE charges throw what you hit backwards — spacing you spend and win back.`,
       `Right mouse SPINS: untouchable for ${SPIN.iframes} seconds while you cross ground or leave a fight.`,
+      "Hold SPACE while it spins and the spin LIFTS you — a hop, not a flight. Enough to take a ledge or clear a crowd; never enough to leave the fight to somebody else.",
       `Armour and Stamina — the only one that can stand in the middle of a pack, with ${Math.round(FACTION_BONUS.iron.health * 100)}% more health and ${Math.round(FACTION_BONUS.iron.armor * 100)}% more armour for swearing to it.`,
       "Weak to: range. Everything you fight, you have to reach first.",
     ],
