@@ -459,9 +459,25 @@ export function stepPlayer(dt) {
       // nothing — you have no footing to push off from
     } else if (player.jumpsLeft > 0) {
       const fromGround = player.onGround;
-      // SET the velocity rather than adding: an air jump while falling fast should feel
-      // like a clean second launch, not a rounding error against your downward momentum.
-      player.vy = PLAYER.jumpSpeed * player.jumpMult * (fromGround ? 1 : PLAYER.airJumpScale);
+      const boost = PLAYER.jumpSpeed * player.jumpMult * (fromGround ? 1 : PLAYER.airJumpScale);
+      // A JUMP CANCELS A FALL, BUT COMPOUNDS A CLIMB.
+      //
+      // This used to SET the velocity outright, for a good reason that only covered half
+      // the cases: an air jump while falling fast should feel like a clean second launch
+      // rather than a rounding error against your downward momentum, and adding to a big
+      // negative number gives you nothing you can feel. That half is unchanged.
+      //
+      // The other half was a bug you could pay for. Fire the cannon at your feet and the
+      // recoil throws you up at several times jump speed — then jumping OVERWROTE it,
+      // capping you at a jump and deleting most of a launch that cost six shells and a
+      // cooldown. Two movement verbs that both mean "up" must never subtract, and the
+      // player pressing them in sequence is expressing exactly one intent.
+      //
+      // So: rising, it ADDS; falling, it still sets. Both stay honest, and combining verbs
+      // is rewarded rather than punished — which is the whole promise of the parkour half
+      // of this game. The ceiling is not this line, it is the resources: shells, a
+      // cooldown, and a finite number of air jumps.
+      player.vy = player.vy > 0 ? player.vy + boost : boost;
       player.jumpsLeft--;
       player.onGround = false;
     }
