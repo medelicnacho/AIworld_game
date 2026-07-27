@@ -4,7 +4,7 @@
 // tunnel through a block, and cost scales with distance travelled rather than precision
 // wanted. This is what hitscan fire, and later line-of-sight checks, both ride on.
 
-import { solidAt, heightAt } from "./gen.js";
+import { solidAt } from "./gen.js";
 
 const EPS = 1e-8;
 
@@ -63,26 +63,40 @@ export function raycastVoxel(ox, oy, oz, dx, dy, dz, maxDist = 256) {
   };
 }
 
+/** Sight lines are sampled at most this many times; past that they simply get coarser. */
+const LOS_SAMPLES = 48;
+
 /**
- * Can these two points see each other past the LAND?
+ * Can these two points see each other past the WORLD?
  *
- * Terrain is a heightmap — no overhangs anywhere, by construction — so line of sight is
- * exactly "does the ground ever rise above the line between them". That makes this a march
- * over COLUMNS instead of a voxel DDA: a dozen height lookups rather than sixty solidAt
- * calls, which is what makes it cheap enough for the AI to ask at all.
+ * This used to march COLUMNS: terrain was a heightmap with no overhangs by construction, so
+ * "can it see me" was exactly "does the ground rise above the line", a dozen height lookups
+ * instead of sixty solid tests. The comment here promised that the day real overhangs arrived
+ * this would stop being exact and have to become a voxel test.
  *
- * If Stage 2 ever adds real overhangs this stops being exact and has to become a proper
- * raycastVoxel — the assumption is written here so that day is a search hit, not a surprise.
+ * THAT DAY ARRIVED WITH THE SKY ISLANDS, and this was never brought along. Every island,
+ * every overhang and every future interior was invisible to it, so mobs took aim through
+ * island floors and stared blankly through open air beneath them. Worse, it measured the line
+ * by its HORIZONTAL length and gave up when that was zero — anything directly below you had
+ * perfect sight of you through any amount of rock.
+ *
+ * So it asks the world what is actually there. solidAt reads the same fill function the
+ * terrain, the islands and everything else are built from (D15), which means this is correct
+ * for anything the world can ever contain rather than for one shape of it.
+ *
+ * Still a sampler and not a DDA: the AI asks this on a slow jittered clock (MOB.losCheck),
+ * never per frame, and a step of one block cannot tunnel through anything at least a block
+ * thick — which every wall in this game is. Long lines run out of samples and get coarser,
+ * degrading into a cheaper answer rather than an expensive one.
  */
-export function terrainClear(x0, y0, z0, x1, y1, z1, step = 3) {
+export function terrainClear(x0, y0, z0, x1, y1, z1, step = 1) {
   const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
-  const flat = Math.hypot(dx, dz);
-  if (flat < 1e-3) return true;
-  const n = Math.min(40, Math.max(2, Math.ceil(flat / step)));
+  const len = Math.hypot(dx, dy, dz);          // the TRUE length, vertical included
+  if (len < 1e-3) return true;
+  const n = Math.min(LOS_SAMPLES, Math.max(2, Math.ceil(len / step)));
   for (let i = 1; i < n; i++) {
     const t = i / n;
-    // heightAt is the TOP SOLID block, so a point is inside the land when y <= h.
-    if (y0 + dy * t <= heightAt(Math.floor(x0 + dx * t), Math.floor(z0 + dz * t))) return false;
+    if (solidAt(x0 + dx * t, y0 + dy * t, z0 + dz * t)) return false;
   }
   return true;
 }

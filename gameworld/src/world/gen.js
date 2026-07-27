@@ -5,11 +5,11 @@
 // mesher meshes that grid. Today blockAt is `y <= height(x,z)`. Adding caves later means
 // adding 3D noise to THIS ONE FUNCTION — the mesher, the streamer and collision never change.
 
-import { fbm } from "../rng.js";
+import { fbm, mulberry32, hash2 } from "../rng.js";
 import {
   WORLD_SEED, CHUNK_X, CHUNK_Y, CHUNK_Z, SEA_LEVEL, BASE_HEIGHT, TERRAIN_CAP,
   CONTINENT_SCALE, CONTINENT_AMP, HILL_SCALE, HILL_AMP, RING_SIZE, RING_WIDEN, RINGS, RELIEF,
-  RAMP_FREE, RAMP_KNEE,
+  RAMP_FREE, RAMP_KNEE, MOUNTAIN,
 } from "../config.js";
 
 export const AIR = 0, STONE = 1, DIRT = 2, GRASS = 3, SAND = 4, SNOW = 5;
@@ -33,8 +33,12 @@ export const BLOCK_COLOR = {
  * noise and are a separate, more expensive conversation.
  */
 function relief(wx, wz, h) {
-  // Ramped by ring: the Commons is where movement is taught, so it stays walkable.
-  const grow = Math.min(1, tierAt(wx, wz) / RELIEF.fullTier);
+  // Ramped by DISTANCE, not by ring. The Commons itself is where movement is taught and stays
+  // walkable, but a ring is 260 blocks wide — waiting for one to go by meant the whole tutorial
+  // zone AND its surroundings were a flat field, and the first thing the game shows you is the
+  // least interesting ground in it. Now the terraces start just outside the walls.
+  const d = Math.sqrt(wx * wx + wz * wz);
+  const grow = Math.min(1, (d - RELIEF.startR) / RELIEF.spanR);
   if (grow <= 0) return h;
 
   // TERRACES — snap toward a step, turning a smooth slope into plateaus with edges.
@@ -57,11 +61,120 @@ function relief(wx, wz, h) {
 }
 
 /** The land as the noise wrote it, before anything flattens it. */
-export function rawHeight(wx, wz) {
+/**
+ * THE MOUNTAIN OF A RING, if it has one — a pure function of the ring index, like everything
+ * else about where things are (D1). One per ring, on a seeded bearing, sitting at the ring's
+ * middle so it is squarely inside the band rather than straddling two.
+ *
+ * The Commons has none: ring 0 is where movement is taught and a hundred-block wall of rock
+ * across it teaches the wrong lesson. Its dungeon gate borrows ring 1's mountain, which is a
+ * short walk out and gives a new player somewhere to be going.
+ */
+export function mountainOfRing(ring) {
+  if (ring < 1) return null;
+  const rng = mulberry32(hash2(WORLD_SEED ^ 0x30017, ring, 0));
+  const a = rng() * Math.PI * 2;
+  const r = (tierStart(ring) + tierStart(ring + 1)) / 2;
+  return { ring, x: Math.round(Math.cos(a) * r), z: Math.round(Math.sin(a) * r) };
+}
+
+/**
+ * WHERE THE DOOR IS CUT. On the mountain's skirt rather than its peak — a gate you have to
+ * summit a mountain to reach is a gate you visit once — at a seeded bearing, so which side of
+ * the mountain it faces is part of learning the place.
+ *
+ * It lives here, beside the mountain, and not in world/dungeon.js, because the mountain has to
+ * LEVEL THE GROUND under its own doorway (see mountainLift) and worldgen cannot import the
+ * dungeon module without pointing the dependency in a circle. Everything else about a dungeon
+ * — what is inside it, what it costs, where you come out — is dungeon.js's business.
+ */
+export function gateOfRing(ring) {
+  const m = mountainOfRing(ring);
+  if (!m) return null;
+  const rng = mulberry32(hash2(WORLD_SEED ^ 0x6A7E, ring, 0));
+  const a = rng() * Math.PI * 2;
+  const r = MOUNTAIN.radius * MOUNTAIN.gateOut;
+  return {
+    id: `gate${ring}`, ring, mx: m.x, mz: m.z, bearing: a,
+    x: Math.round(m.x + Math.cos(a) * r),
+    z: Math.round(m.z + Math.sin(a) * r),
+    seed: hash2(WORLD_SEED ^ 0x0D00, ring, 0),
+  };
+}
+
+/** The dome on its own, with no doorway carved out of it — what the gate shelf levels FROM. */
+function domeLift(m, wx, wz) {
+  const d = Math.hypot(wx - m.x, wz - m.z);
+  if (d >= MOUNTAIN.radius) return 0;
+  const t = 1 - d / MOUNTAIN.radius;
+  const dome = Math.pow(t * t * (3 - 2 * t), MOUNTAIN.sharp);
+  const rough = fbm(WORLD_SEED + 0x51DE, wx * 0.035, wz * 0.035, 3) * MOUNTAIN.rough * dome;
+  return dome * MOUNTAIN.height + rough;
+}
+
+/** The mountains that could possibly cover a column — its own ring's, and its neighbours'. */
+function mountainsNear(wx, wz) {
+  const t = tierAt(wx, wz);
+  const out = [];
+  for (let k = Math.max(1, t - 1); k <= t + 1; k++) {
+    const m = mountainOfRing(k);
+    if (m) out.push(m);
+  }
+  return out;
+}
+
+/**
+ * How much a mountain raises this column. A smoothstep dome so the skirt eases into the land
+ * with no cliff at its edge, sharpened into a peak, roughened so it reads as rock.
+ *
+ * The gate's mouth is LEVELLED — a doorway on a 40-degree slope is a doorway you slide off.
+ * Same idea as a settlement flattening its own ground, and for the same reason.
+ */
+function mountainLift(wx, wz) {
+  let lift = 0;
+  for (const m of mountainsNear(wx, wz)) lift = Math.max(lift, domeLift(m, wx, wz));
+  return lift;
+}
+
+/** The land with its mountains on, before any doorway is levelled into it. */
+function baseHeight(wx, wz) {
   const continent = fbm(WORLD_SEED, wx * CONTINENT_SCALE, wz * CONTINENT_SCALE, 4);
   const hills = fbm(WORLD_SEED + 7717, wx * HILL_SCALE, wz * HILL_SCALE, 3);
   const h = relief(wx, wz, BASE_HEIGHT + continent * CONTINENT_AMP + hills * HILL_AMP);
-  return Math.max(1, Math.min(TERRAIN_CAP, Math.floor(h)));
+  const lift = mountainLift(wx, wz);
+  // A mountain is capped separately and HIGHER. TERRAIN_CAP keeps ordinary land out of the
+  // sky the islands live in; applying it to a mountain would file the peak off the one thing
+  // in the world that is supposed to stand above everything else.
+  if (lift > 0) return Math.min(MOUNTAIN.cap, Math.min(TERRAIN_CAP, h) + lift);
+  return Math.min(TERRAIN_CAP, h);
+}
+
+export function rawHeight(wx, wz) {
+  let h = baseHeight(wx, wz);
+  // THE DOORSTEP. A gate on a slope is a gate you slide off — and worse, one whose mouth is
+  // buried on the uphill side and hanging in the air on the downhill one. The ground within
+  // gateFlat of a gate is dragged to the height of the gate itself and eased back into the
+  // mountain across the last of that distance: a settlement levelling its own plot, at the
+  // scale of a doorway.
+  //
+  // Levelling the FINAL height and not just the mountain's share of it, because the terraces
+  // and spires underneath are what actually made the first doorstep fourteen blocks tall.
+  for (const m of mountainsNear(wx, wz)) {
+    const g = gateOfRing(m.ring);
+    if (!g) continue;
+    const dg = Math.hypot(wx - g.x, wz - g.z);
+    if (dg >= MOUNTAIN.gateFlat) continue;
+    // A FLAT CORE, then the blend. Easing from the very centre outward meant the only truly
+    // level spot was the single column the gate stands on, and by eight blocks out the ground
+    // was already 95% back to the mountainside it was supposed to be cutting into — a doorstep
+    // twenty-two blocks tall. The inner disc is dead flat; the easing happens outside it.
+    const inner = MOUNTAIN.gateFlat * 0.5;
+    const u = Math.max(0, (dg - inner) / (MOUNTAIN.gateFlat - inner));
+    const e = u * u * (3 - 2 * u);
+    const step = baseHeight(g.x, g.z);
+    h = step + (h - step) * e;
+  }
+  return Math.max(1, Math.floor(h));
 }
 
 // Settlements flatten the ground they stand on. gen.js cannot import sanctuary.js (sanctuary
@@ -73,6 +186,18 @@ export function setFlattenLookup(fn) { _flatten = fn; clearColumnCache(); }
 // one-way indirection as the flattening above, for the same reason.
 let _skyPlatform = null;
 export function setSkyPlatformLookup(fn) { _skyPlatform = fn; clearColumnCache(); }
+
+// AN INSTANCE SWAPS THE WORLD OUT. Same one-way indirection again, and for a bigger reason
+// than the other two: this module must not know that dungeons exist. It knows only that
+// something can stand in for the fill, and everything downstream of the fill — collision,
+// sight, the streamer, the mesher, every effect — follows without being told, because none of
+// it ever knew where the blocks came from. See world/dungeon.js.
+//
+// The shape is {blockAt(x,y,z), heightAt(), yRange()}: what is solid, what a column's "ground"
+// means in there, and which slice of Y is worth sweeping at all. Null is the open world.
+let _dungeon = null;
+export function setDungeon(d) { _dungeon = d; clearColumnCache(); }
+export function dungeonActive() { return _dungeon !== null; }
 
 /**
  * WHICH DECK of sky a height falls in. Deck 0 starts at the island layer's base and each is
@@ -125,6 +250,9 @@ export function heightAt(wx, wz) {
 }
 
 function heightRaw(wx, wz) {
+  // Inside an instance a column has exactly one honest answer, and it is not the mountain
+  // the instance happens to sit above. groundY, effect placement and the map all ask this.
+  if (_dungeon) return _dungeon.heightAt(wx, wz);
   const h = rawHeight(wx, wz);
   if (!_flatten) return h;
   const c = _flatten(wx, wz);
@@ -217,6 +345,28 @@ export function featuresAt(wx, wz, h, deck = 0) {
   return out;
 }
 
+/**
+ * A WEDGE, if this column has one — the sky's smallest foothold, and the only sloped one.
+ *
+ * Returns the shape or null. The caller returns it immediately: a wedge is a finished shape,
+ * and the island shaping downstream would flatten its slope into the same stepped lid every
+ * other island wears.
+ *
+ * The TILT is the whole trick. Sampling one smooth field at roughly wedge size means that
+ * across any single blob the value changes almost linearly — so the top of each one leans,
+ * consistently, from a one-block lip up to a thicker end, without any blob needing to know
+ * where its own edges are. Cheap enough to sit on the fallback path: one mask and one tilt.
+ */
+function wedgeAt(wx, wz, sx, sz, h) {
+  const W = RELIEF.wedge, I = RELIEF.island;
+  if (fbm(WORLD_SEED + 4409, sx * W.scale, sz * W.scale, 2) <= W.thresh) return null;
+  const drop = fbm(WORLD_SEED + 1223, sx * 0.02, sz * 0.02, 2) * 0.5 + 0.5;
+  const lo = h + W.above + drop * W.rise;
+  if (lo < h + I.gapMin) return null;         // never welded to the hill it floats over
+  const tilt = fbm(WORLD_SEED + 7717, sx * W.tiltScale, sz * W.tiltScale, 1) * 0.5 + 0.5;
+  return { iLo: lo, iHi: lo + W.thin + tilt * W.ramp };
+}
+
 function featuresRaw(wx, wz, h, deck) {
   const grow = Math.min(1, tierAt(wx, wz) / RELIEF.fullTier);
   if (grow <= 0) return null;              // the Commons keeps a plain sky and solid ground
@@ -234,6 +384,7 @@ function featuresRaw(wx, wz, h, deck) {
 
   if (tierAt(wx, wz) >= I.fromTier) {
     const P = RELIEF.pebble;
+    let wedge = null;
     // ONE DECK OF SKY. The same generator runs again every RELIEF.deckH blocks with the
     // coordinates shifted, so each deck is a different archipelago made the same way — and
     // there is no altitude at which islands stop. Climbing does not run out of world.
@@ -272,7 +423,21 @@ function featuresRaw(wx, wz, h, deck) {
       const thrP = P.thresh - highness(pebY) * P.threshHigh;
       const pm = fbm(WORLD_SEED + 6607, sx * P.scale, sz * P.scale, 2);
       if (pm > thrP) { half = P.thick * 0.5; cy = pebY; }
-      else {
+      else if (deck === 0 && (wedge = wedgeAt(wx, wz, sx, sz, h))) {
+        // A WEDGE — see RELIEF.wedge. Returned right here like a mote, and for the same
+        // reason: it is a shape in its own right, and running it through the land's
+        // hills-and-spires pipeline below would grind the slope off the one thing that has
+        // one. Only in the lowest deck, and only where nothing bigger already stands.
+        out = out || {};
+        out.iLo = wedge.iLo;
+        out.iHi = wedge.iHi;
+        // Named, because "a sloped foothold" and "the rim of a platform" produce similar
+        // numbers and anything that wants to tell them apart — a spawner deciding whether
+        // this is somewhere to make camp, a test checking the slope survived — cannot do it
+        // from iLo and iHi alone.
+        out.wedge = true;
+        return out;
+      } else {
         // ...and failing that, a MOTE: the smallest thing in the sky, scattered through the
         // whole height of it. Only reached when both larger tiers have already declined, so
         // it costs one field on the columns that would otherwise have had nothing at all.
@@ -346,7 +511,15 @@ function featuresRaw(wx, wz, h, deck) {
 }
 
 /** THE FILL FUNCTION (D15). Everything else in the engine reads the world through here. */
-export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz, h, deckOf(wy))) {
+export function blockAt(wx, wy, wz, h, f) {
+  // An instance stands in for the whole world (see setDungeon) — asked FIRST, so none of the
+  // terrain below is computed while you are inside one.
+  if (_dungeon) return _dungeon.blockAt(wx, wy, wz);
+  // Filled in only if the caller did not already have them. These were default parameter
+  // values, which JavaScript evaluates before the body runs — so the dungeon check above
+  // would have paid for a heightAt and a featuresAt on every voxel it never used.
+  if (h === undefined) h = heightAt(wx, wz);
+  if (f === undefined) f = featuresAt(wx, wz, h, deckOf(wy));
   // No ceiling. The sky repeats upward for ever (RELIEF.deckH) and the loaded WINDOW is what
   // is bounded, not the world — a height test here would put a lid back on it.
   if (wy < 0) return AIR;
@@ -383,6 +556,13 @@ export function blockAt(wx, wy, wz, h = heightAt(wx, wz), f = featuresAt(wx, wz,
  * every frame.
  */
 export function islandTopsAt(wx, wz, maxY = CHUNK_Y - 1) {
+  // AN INSTANCE HAS NO SKY. heightAt is routed through the dungeon but featuresAt is not, so
+  // without this the queries below answer with the OPEN WORLD's islands — perches at y=90 and
+  // y=130 that do not exist in the room you are standing in. The mob spawner weighs floors by
+  // altitude and picks one, so it was dealing camps onto phantom islands three hundred blocks
+  // under the dungeon floor, where the 3D despawn sweep deleted them on the same frame. Every
+  // spawn attempt burned, and the dungeon stayed empty however long you waited in it.
+  if (_dungeon) return [];
   const x = Math.floor(wx), z = Math.floor(wz);
   const h = heightAt(x, z);
   const out = [];
@@ -394,6 +574,7 @@ export function islandTopsAt(wx, wz, maxY = CHUNK_Y - 1) {
 }
 
 export function islandTopAt(wx, wz, near = RELIEF.island.baseY) {
+  if (_dungeon) return null;
   const x = Math.floor(wx), z = Math.floor(wz);
   const f = featuresAt(x, z, heightAt(x, z), deckOf(near));
   return f?.iHi !== undefined ? Math.floor(f.iHi) + 1 : null;
@@ -411,6 +592,8 @@ export function islandTopAt(wx, wz, near = RELIEF.island.baseY) {
  * same as asking for the height.
  */
 export function surfaceNear(wx, wz, yRef) {
+  // One floor in here, and it is the one under your feet. Same reason as islandTopsAt.
+  if (_dungeon) return _dungeon.heightAt(wx, wz) + 1;
   const x = Math.floor(wx), z = Math.floor(wz);
   const h = heightAt(x, z);
   // The deck you are STANDING IN — a body four hundred blocks up is asking about the sky
@@ -448,6 +631,34 @@ export function fillChunk(cx, cz, oy = 0) {
   const blocks = new Uint8Array(CHUNK_X * CHUNK_Y * CHUNK_Z);
   const heights = new Int16Array(CHUNK_X * CHUNK_Z);
   const ox = cx * CHUNK_X, oz = cz * CHUNK_Z;
+  // AN INSTANCE CANNOT RIDE THE RUNS BELOW. Everything after this point finds solids by
+  // asking heightAt and featuresAt where they are — the land's run, then each deck's island —
+  // and never sweeps a column, which is exactly what makes a chunk cost a millisecond instead
+  // of eighty. A dungeon is not on the land and is not an island, so those runs would step
+  // straight past it and build a chunk of pure air around the player.
+  //
+  // It sweeps instead, but only across the band the instance actually occupies (yRange): a
+  // couple of dozen layers rather than the window's 256, which is the same "never touch
+  // guaranteed nothing" discipline arriving at the same cost by a different road.
+  if (_dungeon) {
+    const [dLo, dHi] = _dungeon.yRange();
+    const lo = Math.max(0, dLo - oy), hi = Math.min(CHUNK_Y - 1, dHi - oy);
+    const layers = new Uint8Array(CHUNK_Y);
+    let yTop = 0;
+    for (let z = 0; z < CHUNK_Z; z++) {
+      for (let x = 0; x < CHUNK_X; x++) {
+        heights[z * CHUNK_X + x] = _dungeon.heightAt(ox + x, oz + z);
+        for (let y = lo; y <= hi; y++) {
+          const b = _dungeon.blockAt(ox + x, y + oy, oz + z);
+          if (b === AIR) continue;
+          blocks[idx(x, y, z)] = b;
+          layers[y] = 1;
+          if (y > yTop) yTop = y;
+        }
+      }
+    }
+    return { blocks, heights, cx, cz, ox, oy, oz, yTop, layers };
+  }
   // The highest solid voxel written, tracked as we go. The mesher needs it, and scanning a
   // 512-tall chunk backwards to find it would cost more than building the chunk did.
   let yTop = 0;

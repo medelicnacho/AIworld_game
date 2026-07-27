@@ -13,9 +13,10 @@
 // shape a settlement needs, so the green wanderers here are placeholders for souls.
 
 import * as THREE from "three";
-import { WORLD_SEED, SETTLE } from "../config.js";
+import { WORLD_SEED, SETTLE, MOUNTAIN, RELIEF } from "../config.js";
 import { hash2, mulberry32 } from "../rng.js";
-import { groundY, rawHeight, tierStart, tierWidth, tierAt, setFlattenLookup, setSkyPlatformLookup } from "./gen.js";
+import { groundY, rawHeight, tierStart, tierWidth, tierAt, mountainOfRing,
+         setFlattenLookup, setSkyPlatformLookup } from "./gen.js";
 
 export const RADIUS = 46;         // a town you walk around inside, not a pen
 export const WALL_T = 1.7;        // wall thickness
@@ -231,6 +232,32 @@ const _tiers = new Map();
  * Placed on evenly-spread bearings with jitter, at radii inside the band, so a ring is
  * populated all the way round rather than clumping on one side.
  */
+/**
+ * HOW FAR A SETTLEMENT MUST STAY FROM A MOUNTAIN.
+ *
+ * A town does not sit on the land, it REPLACES it: heightRaw levels everything inside flatR to
+ * the town's plateau and eases the wild ground back in around it. Drop one on a mountain and
+ * it does exactly that to the mountain — a hundred-block landmark with a flat disc bitten out
+ * of its flank, and, if the town were near enough the door, a dungeon entrance standing inside
+ * somebody's safe zone where no weapon works.
+ *
+ * The gap is the mountain's whole skirt plus the settlement's own flattened footprint, so the
+ * two never so much as touch at the edges.
+ */
+function mountainGap(radius) {
+  return MOUNTAIN.radius + radius * SHAPE_MAX * SETTLE.flatten + SETTLE.mountainGap;
+}
+
+/** Is this spot inside the exclusion zone of any mountain that could reach it? */
+function onMountain(x, z, need) {
+  const t = tierAt(x, z);
+  for (let k = Math.max(1, t - 1); k <= t + 1; k++) {
+    const m = mountainOfRing(k);
+    if (m && Math.hypot(x - m.x, z - m.z) < need) return true;
+  }
+  return false;
+}
+
 export function tierSettlements(t) {
   if (_tiers.has(t)) return _tiers.get(t);
   const rng = mulberry32(hash2(WORLD_SEED ^ 0x7139, t, 0));
@@ -251,9 +278,20 @@ export function tierSettlements(t) {
     // guarantees every ring holds all three — the offset just stops faction 0 from always
     // sitting at the same bearing in every tier.
     const facOff = Math.floor(rng() * 3);
+    const slice = (Math.PI * 2) / n;
+    const need = mountainGap(RADIUS);
     for (let i = 0; i < n; i++) {
-      const ang = (i / n) * Math.PI * 2 + (rng() - 0.5) * (Math.PI * 2 / n) * 0.7;
-      const r = lo + w * (0.2 + rng() * 0.6);
+      let ang = (i / n) * Math.PI * 2 + (rng() - 0.5) * slice * 0.7;
+      let r = lo + w * (0.2 + rng() * 0.6);
+      // OFF THE MOUNTAIN. Walk the RADIUS across the band first and only then edge along the
+      // bearing, because the dealt bearings are the entire reason towns never collide with one
+      // another — a town that wandered out of its own slice to dodge a mountain would solve
+      // this problem by causing the older one. Deterministic steps, not fresh rolls, so the
+      // dodge stays a pure function of the seed like everything else about placement (D1).
+      for (let k = 0; k < 12 && onMountain(Math.cos(ang) * r, Math.sin(ang) * r, need); k++) {
+        r = lo + w * (0.15 + ((k * 0.37) % 1) * 0.7);
+        if (k >= 6) ang = i * slice + ((k - 6) / 5 - 0.5) * slice * 0.8;
+      }
       const town = build(`t${t}-${i}`, Math.cos(ang) * r, Math.sin(ang) * r, RADIUS, rng, false);
       town.faction = (i + facOff) % 3;
       out.push(town);
@@ -288,6 +326,16 @@ export function tierSettlements(t) {
         for (const s of out) {
           if (s.sky) continue;
           room = Math.min(room, Math.hypot(s.x - x, s.z - z) - footprint(s));
+        }
+        // The mountain crowds a city exactly as another settlement would, and harder: a city
+        // is the biggest plateau in the game, so one landing on the ring's landmark would take
+        // the whole flank off it. Folded into `room` rather than rejecting the candidate, so a
+        // ring with nowhere perfect still gets its city — homeOfTier() is a respawn point and
+        // has to answer — it just gets the roomiest spot instead of the first one rolled.
+        const mg = mountainGap(cr);
+        for (let k2 = Math.max(1, t - 1); k2 <= t + 1; k2++) {
+          const m = mountainOfRing(k2);
+          if (m) room = Math.min(room, Math.hypot(m.x - x, m.z - z) - mg + need);
         }
         if (!best || room > best.room) best = { x, z, room };
         if (room >= need) break;
@@ -335,9 +383,19 @@ export function tierSettlements(t) {
         // clear of the tallest land (TERRAIN_CAP is 78), which is what lets everything else
         // treat "same height" as "same place" without a special case.
         const hFrac = ((k + 0.5) * 0.6180339887498949) % 1;
-        const y = Math.round(SETTLE.skyLow + Math.pow(hFrac, SETTLE.skyLowBias) * SETTLE.skySpan);
-        const town = build(`t${t}-sky${k}`, Math.cos(ang) * rr, Math.sin(ang) * rr,
-                           SETTLE.skyRadius, rng, false, y);
+        let y = Math.round(SETTLE.skyLow + Math.pow(hFrac, SETTLE.skyLowBias) * SETTLE.skySpan);
+        const sx = Math.cos(ang) * rr, sz = Math.sin(ang) * rr;
+        // MOUNTAINS BROKE THE PROMISE ABOVE. "Well clear of the tallest land" was true when the
+        // tallest land was TERRAIN_CAP at 78 and the lowest sky town sat at 88; a mountain
+        // reaches 168, so a low platform over one had rock coming up through its market square.
+        // Lifted rather than moved or dropped: altitude is the one thing a sky town is already
+        // free to vary, so the lattice keeps its spacing and the ring keeps its count.
+        //
+        // rawHeight, NOT heightAt — heightAt asks the flatten lookup, which asks the settlement
+        // list, which is the list being built right here.
+        const rock = rawHeight(Math.round(sx), Math.round(sz));
+        y = Math.max(y, rock + RELIEF.skyPlatform + SETTLE.skyClear);
+        const town = build(`t${t}-sky${k}`, sx, sz, SETTLE.skyRadius, rng, false, y);
         // Dealt round-robin like the ground count, so no ring hands its whole sky to one
         // faction and leaves a player of the wrong colour with no counter above the land.
         town.faction = (k + facOff + 1) % 3;
@@ -576,8 +634,15 @@ export function wallRayDist(ox, oy, oz, dx, dy, dz, maxDist) {
     const x = ox + dx * t, y = oy + dy * t, z = oz + dz * t;
     // Above the parapet the shot clears the wall entirely — over the top is not through it.
     // Measured against the wall's OWN town, for the same reason wallBlocksBody is.
+    //
+    // AND BELOW ITS FOOTINGS likewise. A wall stands ON its plateau; it does not hang down
+    // from it into the country underneath. With only the ceiling tested, every shot fired
+    // from low ground towards a town up on a hill died in mid-air the moment it crossed under
+    // the walls' column — an invisible barrier the height of the hill, running all the way to
+    // the bottom of the world. Whatever rock is actually down there is the voxel test's
+    // business, not this one's.
     const w = wallBlocks(x, z);
-    if (w && y <= w.plateau + WALL_H) return t;
+    if (w && y <= w.plateau + WALL_H && y > w.plateau - 1) return t;
   }
   return maxDist;
 }
@@ -601,20 +666,28 @@ export class Sanctuaries {
     // Walk the polygon EDGE BY EDGE, laying blocks along each straight run and turning at
     // the corners. Blocks overlap slightly (0.9 spacing on a 1.5 block) so no seam opens up,
     // least of all at a corner where two runs meet at an angle.
-    const perim = s.corners.reduce((acc, c, i) => {
-      const nx = s.corners[(i + 1) % s.corners.length];
-      return acc + Math.hypot(nx.x - c.x, nx.z - c.z);
-    }, 0);
-    const wall = new THREE.InstancedMesh(
-      this.wallGeo, this.wallMat, Math.ceil(perim / (SEG_W * 0.9)) + s.corners.length + 8);
+    // COUNT THE BLOCKS FIRST, with the same arithmetic that lays them. The budget used to be
+    // estimated from the perimeter — ceil(perim / spacing) + corners + 8 — and an estimate is
+    // the one thing it could not be, because the laying loop rounds UP per edge and lays
+    // steps+1 blocks on each. Twenty-six edges each rounding up their own fraction overran
+    // that guess by twelve blocks on every town in the world, and the `n < count` guard below
+    // dropped them in silence: about sixteen units of missing wall, near enough the size of
+    // the real eighteen-unit gate, sitting wherever the walk happened to end. A SECOND
+    // OPENING, indistinguishable from the true one, and solid — the collision geometry is
+    // analytic and knew nothing about any of this. Derive it, do not estimate it.
+    const stepsAt = s.corners.map((A, i) => {
+      const B = s.corners[(i + 1) % s.corners.length];
+      return Math.max(1, Math.ceil(Math.hypot(B.x - A.x, B.z - A.z) / (SEG_W * 0.9)));
+    });
+    const budget = stepsAt.reduce((acc, st) => acc + st + 1, 0);
+    const wall = new THREE.InstancedMesh(this.wallGeo, this.wallMat, budget);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
     const pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
     let n = 0;
     for (let i = 0; i < s.corners.length; i++) {
       const A = s.corners[i], B = s.corners[(i + 1) % s.corners.length];
       const ex = B.x - A.x, ez = B.z - A.z;
-      const len = Math.hypot(ex, ez);
-      const steps = Math.max(1, Math.ceil(len / (SEG_W * 0.9)));
+      const steps = stepsAt[i];               // the same number the budget was built from
       const yaw = -Math.atan2(ez, ex);        // lay the block's width along the edge
       for (let k = 0; k <= steps; k++) {
         const f = k / steps;
@@ -622,9 +695,17 @@ export class Sanctuaries {
         if (angDiff(Math.atan2(lz, lx), s.gate) < gateArc(Math.hypot(lx, lz))) continue;
         const wx = s.x + lx, wz = s.z + lz;
         q.setFromAxisAngle(up, yaw);
+        // ON ITS OWN TOWN'S PLATEAU, which is where the COLLISION puts it (wallBlocksBody) —
+        // and settlementFloorAt is not that. Sky towns and ground towns overlap on the map, so
+        // for any column where one sits over the other it answered with the wrong town's floor
+        // and flung that wall block a couple of hundred blocks into the air. What was left
+        // behind looked exactly like a gateway: a clean gap in the stonework, with the wall
+        // still solidly there. The same confusion wallBlocksBody was fixed for; the mesh was
+        // simply never brought along.
+        //
         // BoxGeometry is centred, so the box is raised by half its height or the wall sinks
         // into the ground — which is why it read as knee-high before.
-        m.compose(pos.set(wx, settlementFloorAt(wx, wz) + WALL_H / 2 - 0.6, wz), q, one);
+        m.compose(pos.set(wx, s.plateau + WALL_H / 2 - 0.6, wz), q, one);
         if (n < wall.instanceMatrix.count) wall.setMatrixAt(n++, m);
       }
     }

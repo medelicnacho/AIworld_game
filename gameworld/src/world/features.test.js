@@ -86,11 +86,22 @@ test("a plain column still just answers the land", () => {
 });
 
 // The budget this whole approach exists to protect.
+// THE BEST RUN, NOT THE AVERAGE — this is a benchmark, and a benchmark that reports the mean
+// is really reporting whatever else the machine was doing. It failed once during a session
+// where two test suites ran at the same time, which says nothing about the code and is exactly
+// the kind of flake that teaches people to re-run a suite instead of reading it.
+//
+// The cliff being guarded is ~80ms against a budget of ~1ms, so it is two orders of magnitude
+// wide: the FASTEST of several batches still catches a real regression instantly, and cannot
+// be pushed over the line by a noisy neighbour. Threshold stays where it was.
 test("a chunk still builds in about a millisecond", () => {
-  const t0 = performance.now();
-  for (let i = 0; i < 20; i++) fillChunk(300 + i, 300);
-  const ms = (performance.now() - t0) / 20;
-  assert.ok(ms < 8, `chunk build took ${ms.toFixed(2)}ms — the per-voxel cliff is ~80ms`);
+  let best = Infinity;
+  for (let batch = 0; batch < 3; batch++) {
+    const t0 = performance.now();
+    for (let i = 0; i < 20; i++) fillChunk(300 + i + batch * 20, 300);
+    best = Math.min(best, (performance.now() - t0) / 20);
+  }
+  assert.ok(best < 8, `chunk build took ${best.toFixed(2)}ms — the per-voxel cliff is ~80ms`);
 });
 
 // PEBBLES — the small ones. A chain is only crossable if the gap between two real platforms

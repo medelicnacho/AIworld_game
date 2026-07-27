@@ -38,6 +38,18 @@ export class ChunkStreamer {
     return [Math.floor(x / CHUNK_X), Math.floor(z / CHUNK_Z)];
   }
 
+  /**
+   * The world underneath changed — every resident chunk is now the wrong world.
+   *
+   * Reuses the window-change path rather than tearing the scene down: meshes stand until
+   * their replacements exist, and the rebuild runs nearest-first on the ordinary per-frame
+   * budget. Stepping into a dungeon is therefore the same kind of event as climbing out of
+   * the loaded window, which is a thing this already does smoothly several times a session.
+   */
+  invalidateAll() {
+    this.stale = new Set(this.loaded.keys());
+  }
+
   update(playerX, playerZ, playerY = 0) {
     const [pcx, pcz] = this.chunkOf(playerX, playerZ);
 
