@@ -571,8 +571,13 @@
         transform: translate(-50%, -100%); background: #0008; border: 1px solid #0009;
         border-radius: 2px; overflow: hidden; pointer-events: none; }
       #hpbars .hpbar i { display: block; height: 100%; background: #e2483d; }
-      #hpbars .hpbar.elite { width: 46px; height: 5px; border-color: #7a5c12; }
-      #hpbars .hpbar.elite i { background: #ffc84a; }
+      /* An elite's bar is BIGGER with a gold TRIM, but its fill is the same enemy red —
+         every bar on screen is something you are killing (allies wear none at all), so
+         the fill's one job is "enemy", and the star-ness lives in the size and the gold
+         edge, same as gold-scale reads on the body itself. A gold FILL looked like a
+         different resource, not a bigger threat. */
+      #hpbars .hpbar.elite { width: 46px; height: 5px; border-color: #b8901f; }
+      #hpbars .hpbar.elite i { background: #e2483d; }
       /* THE LOW-HEALTH BREATH. Same vignette shape as #hurt because it is the same language —
          danger comes from the edges — but deeper, wider and driven slowly. Its own element
          rather than a second use of #hurt: they overlap constantly (you are usually being hit

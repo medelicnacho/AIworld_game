@@ -120,9 +120,11 @@ export const GOODS = {
       }) },
     { id: "firering2", name: "Explosion! II", price: RANK2.fireringPrice, once: true,
       minTier: 1,
-      desc: `The same ball of fire on a ${RANK2.fireringCd}s cooldown instead of `
-        + `${FIRERING.cd}s, and anything that survives it is thrown clear. `
-        + `Replaces Explosion!`,
+      // SELLS THE SHOVE, NOT THE WAIT. This used to advertise a shorter cooldown, which
+      // stopped being true the day rank 1 dropped to a one-second one — and a shop that
+      // describes an upgrade by a number that no longer improves is a shop that lies.
+      desc: `The same ball of fire, and anything that survives it is thrown clear — `
+        + `a room emptied instead of a room hurt. Replaces Explosion!`,
       apply: (game) => game.abilities.acquire({
         id: "firering2", name: "Explosion! II", icon: "burst", replaces: "firering",
         // THE RANK KEEPS THE PRICE. This def replaces the rank-1 ability wholesale, and it
@@ -130,8 +132,7 @@ export const GOODS = {
         // FREE. In play that read exactly backwards: Explosion became the one spell that
         // always fired instantly, and every honestly-priced spell felt broken beside it.
         energy: ENERGY.firering,
-        desc: `A ball of fire bursts out of you; survivors are thrown clear. `
-          + `${RANK2.fireringCd}s cooldown.`,
+        desc: `A ball of fire bursts out of you; survivors are thrown clear.`,
         cd: RANK2.fireringCd,
         use: () => game.fireRing(true),
       }) },

@@ -13,6 +13,7 @@
 
 import * as THREE from "three";
 import { MOB } from "../config.js";
+import { isMyAlly } from "../prog/factions.js";
 
 const MAX = 28;
 const RANGE = 34;
@@ -49,6 +50,11 @@ export class HealthBars {
 
     for (const e of mobs) {
       if (e.hp >= e.maxHp && !e.elite) continue;          // unhurt and unremarkable
+      // YOUR OWN ARMY WEARS NO BAR. A health bar is a targeting aid — "how close is this
+      // one to dying" is a question you ask about things you are killing, and you cannot
+      // hurt an ally. The bars over friendly stars only cluttered a brawl with numbers
+      // about bodies that are not your problem; the minimap's green dot is their channel.
+      if (isMyAlly(e.faction)) continue;
       const d = Math.hypot(e.x - cam.x, e.z - cam.z);
       if (d > RANGE) continue;
       near.push({ e, d });

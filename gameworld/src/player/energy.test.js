@@ -8,7 +8,7 @@
 
 import test from "node:test";
 import assert from "node:assert";
-import { ENERGY, NOVA, DASH, CHAIN, FIRERING, WHIRL, HEAL, GRENADE } from "../config.js";
+import { ENERGY, NOVA, DASH, CHAIN, FIRERING, RANK2, WHIRL, HEAL, GRENADE } from "../config.js";
 import { Abilities } from "./abilities.js";
 import { GOODS } from "../ui/shop.js";
 
@@ -21,9 +21,27 @@ test("energy, not cooldown, is what limits the small spells", () => {
   }
 });
 
-test("...but the big button is still a cooldown, once per fight", () => {
-  assert.ok(FIRERING.cd > ENERGY.firering / ENERGY.regen,
-    "Explosion! should be gated by its cooldown — that is what makes it an event");
+// Explosion USED to be the exception that proved the rule — the one big button gated by a
+// fifteen-second cooldown rather than by its price. That was reversed in play (2026-07-27):
+// it now casts on a one-second cooldown for the dearest cost on the bar, which puts it under
+// the same law as everything else. The exception is gone, so what is pinned here is that it
+// went all the way over rather than landing in the invisible middle: a spell whose cooldown
+// and cost are comparable is a spell where neither is felt.
+test("even the big button is limited by its price now, not its cooldown", () => {
+  assert.ok(ENERGY.firering / ENERGY.regen > FIRERING.cd,
+    "Explosion's cost must outlast its cooldown, or the price is a bar nobody feels");
+  // Dearer than everything a character OWNS at level one, which is the tier it has to be
+  // rationed against: at a one-second cooldown its price is the only brake, and the widest
+  // radius in the kit must never be the cheapest way to spend a bar. (Chain costs more
+  // still, and that is fine — it is a different promise: single-target reach, not a room.)
+  for (const [name, cost] of [["Dash", ENERGY.dash], ["Heal", ENERGY.heal],
+                              ["Grenade", ENERGY.grenade], ["Nova", ENERGY.nova]]) {
+    assert.ok(ENERGY.firering > cost,
+      `Explosion must cost more than ${name} — it clears the room, and it does so every second`);
+  }
+  // ...and dear enough that a full bar cannot pour out three of them.
+  assert.ok(ENERGY.max / ENERGY.firering < 3,
+    "a full bar must not fund three Explosions — the widest radius in the kit needs a real floor");
 });
 
 // The exact edge the design is built around: an opener spends most of the bar and leaves you
@@ -105,4 +123,14 @@ test("no rank upgrade drops its spell out of the economy", () => {
     assert.equal(d.energy, base.energy,
       `${d.id} replaces ${d.replaces} but changes its energy cost from ${base.energy} to ${d.energy}`);
   }
+});
+
+// A RANK MUST NEVER BE A DOWNGRADE. Explosion II sold a shorter cooldown (11s against rank
+// 1's 15) until rank 1 dropped to one second — at which point two hundred and ten points
+// bought you an eleven-times-longer wait. That is the failure mode a rank system produces
+// every time a base number moves and its ranks do not follow, so it gets a tripwire rather
+// than a promise to remember.
+test("Explosion II is never worse than the Explosion you already own", () => {
+  assert.ok(RANK2.fireringCd <= FIRERING.cd,
+    `rank 2 waits ${RANK2.fireringCd}s against rank 1's ${FIRERING.cd}s — an upgrade that downgrades`);
 });

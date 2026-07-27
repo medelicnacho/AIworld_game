@@ -1073,12 +1073,24 @@ Object.assign(WEAPONS, {
     // clears a crowd along a line, this clears one in a ring — the speed faction's answer to
     // being surrounded, thrown from range.
     damage: 0,                     // all of it lands as splash; see blastDamage
-    // TWENTY-FOUR, because the magazine now feeds two different guns. Single shells are the
-    // aimed, leading shot this weapon was built around; the BARRAGE below eats six at a time,
-    // so a seven-round drum would have held one volley and a spare. Twenty-four is four
-    // volleys, or a long patient afternoon of single shells, or any mix — which is the choice
-    // the second trigger exists to create.
-    fireRate: 1.7, magSize: 24, reloadTime: 1.4, range: 130,
+    // THE DRUM FEEDS TWO GUNS, and both just got hungrier. Single shells are the aimed,
+    // leading shot the weapon was built around; the BARRAGE below eats six at a time.
+    //
+    // 3.4 AND 48 — both doubled together, and the pairing is the whole edit. Doubling the
+    // rate alone would have halved how long the drum lasts, turning the cannon's identity
+    // (a patient placed shell) into a reload animation with gaps of shooting in it. Doubled
+    // together, the SHAPE is preserved exactly — the same number of shells per drum, the
+    // same eight volleys' worth of choice — and only the tempo changes. It is the same
+    // weapon played at double speed rather than a different weapon.
+    //
+    // WHAT IT COSTS THE SECOND TRIGGER, stated plainly because it is a real loosening and
+    // not a free lunch: a barrage still eats six, so a doubled drum funds EIGHT launches
+    // instead of four and the flight ceiling before you run dry doubles with it. The drum
+    // is the brake on the recoil ride (weapons.test says so), and this halves that brake's
+    // grip. Left deliberately — Vale has been pointed at mobility all day — but it means
+    // the honest limit on flying is now the twelve-odd seconds a full drum buys, and the
+    // number to move if that reads as too long is `barrageShots`, not this line.
+    fireRate: 3.4, magSize: 48, reloadTime: 1.4, range: 130,
     // THE BARRAGE — right mouse. Not an aim: a projectile you have to LEAD is not a weapon
     // that wants a zoom, and pressing RMB on it did nothing but narrow your view. Six shells
     // at once in a cone, which turns the cannon from a placed-shot weapon into a wall when
@@ -1091,12 +1103,62 @@ Object.assign(WEAPONS, {
     barrageShots: 6,
     barrageCost: 6,
     barrageSpread: 0.16,   // cone half-angle in radians — a spread, not a shotgun blast
-    // FOUR SECONDS. At 0.9 the barrage was simply the better trigger: four volleys emptied
-    // the drum in under four seconds, so the cannon's identity — a slow shell you have to
-    // LEAD — was something you did while waiting for the real button. A four second gap makes
-    // the volley an ANSWER to a specific problem (something already on top of you) rather
-    // than the default, and puts the single aimed shell back in the space between.
-    barrageCd: 4,
+    // THE RECOIL (asked for in play): the volley THROWS YOU the opposite way it fires —
+    // aim down and it is a rocket jump, aim level and it is a disengage that opens the
+    // range the cannon wants anyway. Pure opposite-of-aim, no special cases, so the aim
+    // angle IS the control: steeper down means higher, flatter means further back. This
+    // completes the triangle the other two spins drew — Iron's holds ground, Ash's lifts
+    // off it, Vale's LEAVES in a hurry — and it rides the barrage's own cooldown and
+    // ammo, so movement and violence spend the same trigger.
+    // 17: near double a jump, launch-grade — and the hold (same mechanism as the wall
+    // kick) is what keeps the shove from being eaten by the air blend five frames in.
+    barrageKick: 17,
+    barrageKickHold: 0.4,
+    // The recoil is ANISOTROPIC, tuned in flight: the horizontal 15% under base (a level
+    // blast was overshooting the disengage) and the climb 25% OVER it (the rocket jump is
+    // the move worth building routes around, so it gets the headroom). Opposite-of-aim
+    // stays the rule; these two shape how hard each half of it throws.
+    barrageKickAcross: 0.85,
+    barrageKickUp: 1.25,
+    // THESE TWO SHAPE THE HORIZONTAL ONLY — planted feet absorb 65% of a sideways shove,
+    // the air amplifies it half again. The VERTICAL ignores both and always flies at the
+    // air value (see gun.js): a stance can brace against something pushing you sideways,
+    // which is what a stance is, but there is nothing to brace against when the force
+    // throws you off the ground entirely.
+    //
+    // That split was decided in play and it is the better rule. The first version taxed
+    // the climb too, which made a rocket jump require a hop first — a timing tax on the
+    // one move players already know how to want, since a rocket jump works from standing
+    // in every game that has ever had one. Now the ride reads cleanly: aim DOWN and you
+    // launch from anywhere, aim LEVEL and your boots decide whether it is an escape or a
+    // step back.
+    barrageKickGround: 0.35,
+    barrageKickAir: 1.5,
+    // 3 SECONDS — LONGER than the lance spin's clock, and the gap between them is the
+    // point. Both are second triggers, but they sell different kinds of movement: the
+    // rotor is a climb you HOLD and steer, paid for by committing two seconds of your
+    // attention to a spin; the recoil is INSTANT, aimed in one frame, and the strongest
+    // single launch in the game. Instant costs more than sustained — otherwise the
+    // cannon is simply the better mobility tool as well as the crowd answer.
+    //
+    // It went 4 -> 2 -> 3 -> 2.8 -> 1.5 across the day, and the argument moved with the
+    // WORLD rather than with the weapon. At two seconds the ride was "always available"
+    // and Vale read as a pinball that occasionally shoots — but that was judged against a
+    // sky nothing else was in. The sky is a theatre now: two decks of fliers, casters that
+    // shoot upward, a war overhead with its own colours. Being airborne stopped being an
+    // escape from the fight and became a place to have it, so the tool that gets you there
+    // should not be rationed like an escape. 1.7 is roughly one launch per engagement beat
+    // instead of one per lull.
+    //
+    // The damage price (barrageDamage) still does its own separate job — stopping the
+    // volley outclassing the aimed shell — but a per-shell discount cannot pace a MOVEMENT
+    // tool, because movement does not care what the shells did. Only the clock can, which
+    // is why this number is the one that moves whenever the sky's meaning changes.
+    barrageCd: 1.5,
+    // The per-shell discount that pays for the volley's other gifts — spread, panic
+    // coverage, and the recoil ride. A barrage that matched the placed shot per shell
+    // would BE the cannon; 15% under it keeps the slow led shell the marksman's answer.
+    barrageDamage: 0.85,
     pellets: 1, auto: false, recoil: 0.045, recoilRecover: 0.55,
     spreadHip: 0.05, spreadAim: 0.005, sound: "lob",
     // SLOW on purpose. With no self-damage and a huge blast, travel time is the ONLY skill
@@ -1105,7 +1167,18 @@ Object.assign(WEAPONS, {
     // `drop` is a gentle downward curve as it flies: a heavy shell should sag, and the small
     // arc is another thing to read into the lead. A touch of upward launch (upBias) makes it
     // lob rather than merely sag, so the curve reads as an arc.
-    speed: 34, drop: -12, upBias: 0.06,
+    // 53, up 25% twice (34 -> 42.5 -> 53). The shell stays a LED shot — that is the whole
+    // skill of the weapon, and a test pins it under hitscan speed — but the world it is
+    // aimed at has climbed: the sky now holds two decks of fliers, and a shell lobbed
+    // thirty blocks up spent so long travelling that a wheeling target had finished its
+    // whole manoeuvre before it arrived. Leading a moving thing is a skill; leading a thing
+    // that is already somewhere else is a guess.
+    //
+    // THE CEILING IS CLOSE NOW, and it is worth naming before the next pass: past about 60
+    // the shell stops being led at all — you point at a body and it dies, which is the one
+    // thing this weapon was designed never to be. The arc (`drop`) is the other half of the
+    // read and has not moved, so what is eroding is the TRAVEL time, not the trajectory.
+    speed: 53, drop: -12, upBias: 0.06,
     blastRadius: 10.5, blastDamage: 98,
     // IT DOES NOT HURT YOU. The opposite of the grenade rule, on purpose — an explosive fired
     // like a sidearm would kill you constantly up close, punishing the exact thing the speed
@@ -1128,7 +1201,10 @@ Object.assign(WEAPONS, {
     // travel time and no reach requirement belongs: the cleaver still hits harder but has to
     // get there, the cannon still clears more ground but has to be led. What the lance sells
     // is CERTAINTY — it is the only one that cannot miss.
-    dps: 142, range: 78,
+    // 196, up another 20% (142 -> 163 -> 196 across one sitting). LANCE_SPIN.damage is a
+    // RATIO against this number and is re-derived every single time it moves — see the
+    // essay there, and the formula, before touching either one alone.
+    dps: 196, range: 78,
     // UNUSED, and kept as a headstone like SPIN.cdFloor. Right mouse is the spin now, so the
     // lance cannot enter an aimed stance at all and nothing can read this — the rig is told
     // not to blend for beam weapons (see main), which is the same switch that fed this bonus.
@@ -1170,7 +1246,15 @@ Object.assign(WEAPONS, {
     // Set here rather than by growing the tank, deliberately: heatDown drains a fixed-size tank
     // at a fixed rate, so the tank governs RECOVERY and this governs the burn. Keeping them
     // apart is what let this move 14 -> 8 -> 12 without the cool-down drifting once.
-    heatUp: 0.146,                 // fraction of the bar per second while firing
+    // 0.292 — DOUBLED, so the tank fills in half the time (about twelve seconds of
+    // continuous fire became six). Paired with the damage climb rather than separate from
+    // it: the beam went 142 -> 163 -> 196 dps in one sitting, and a weapon that hits 38%
+    // harder while running just as long is simply a stronger weapon, not a different one.
+    // Halving the sustain turns that climb into a TRADE — the lance now deletes what it
+    // points at and cannot point for long, which is a sharper version of what it already
+    // was. The overheat lockout is unchanged, so the cost of misjudging it is the same
+    // cost it always was; what changed is how often you have to make the judgement.
+    heatUp: 0.292,                 // fraction of the bar per second while firing
     heatDown: 0.42,                // and per second while off it
     // 175% OF THE OLD TANK. The lance held 1.0 and burned 0.30 a second, so a trigger pull
     // was 3.3 seconds and then a 1.6s lockout — a rhythm where the weapon was unavailable
@@ -1353,8 +1437,37 @@ export const LOWHP = {
 };
 
 export const LANCE_SPIN = {
-  time: 2,
+  // 1.62 — a second ten-percent cut, paired again with a ten-percent raise to the climb,
+  // because the two are one decision: a HARDER, SHORTER spin. Held twice now, the shape
+  // is stable and worth naming: shortening and speeding by the same fraction leaves the
+  // altitude almost exactly where it was (~16.5 blocks) and changes only the DELIVERY —
+  // it arrives sooner, whips faster (~4.9 turns a second), and hands your other verbs
+  // back sooner. If a future pass wants a HIGHER ceiling rather than a snappier one, the
+  // number to move is `lift` alone; cutting `time` will never buy altitude.
+  //
+  // What each cut DOES buy silently is sweep-damage margin, because the beam you could
+  // have held instead got shorter too — see the ratio essay on `damage`, which had to be
+  // re-derived at this step.
+  time: 1.62,
   cd: 2,                 // starts when the spin ENDS, like the cleaver's — see updateLanceSpin
+  // THE ROTOR (asked for in play): hold SPACE while the beam spins and the sweep lifts
+  // you — Ash flies for as long as the spin lasts. 10.16, walked 6 -> 7 -> 8.4 -> 9.24
+  // -> 10.16 in flight, and this is the pass that went PAST a jump's 9.3 rather than up
+  // to it. Recorded plainly because the earlier essays named that number as a ceiling and
+  // it has been crossed on purpose.
+  //
+  // Why the jump survives being out-climbed. The two verbs never competed on speed alone:
+  // a jump is INSTANT, free, unlimited, and available in the frame you want it, while
+  // the rotor costs a committed ability, both hands, and a cooldown, and it only climbs
+  // while the spin runs. What the crossing changes is that Ash's answer to "get up there"
+  // is now decisively the spin rather than the jump — which is the faction's whole
+  // identity pointed at the sky, and defensible. What it would NOT survive is the rotor
+  // becoming free: if this ever stops costing the spin, the jump is dead.
+  //
+  // The real ceiling from here is not the jump, it is READABILITY — a climb fast enough
+  // that you overshoot the ledge you aimed at stops being a route-maker and becomes a
+  // thing you fight. That is a feel question, so it belongs to play, not to this comment.
+  lift: 10.16,
   // HOW FAR THE BEAM REACHES WHILE IT SWEEPS. The lance shoots 78 blocks and does not stop at
   // the first thing it touches; a sweeping version of that would clear the horizon in every
   // direction at once, which is a screen-wipe rather than a defensive move. Keeping it far
@@ -1385,17 +1498,29 @@ export const LANCE_SPIN = {
   // from being a column that reaches things standing far below you on a world made of ledges —
   // the same mistake the charge made with reachY, and it is not making it twice.
   height: 2.6,
-  // 28 A PASS ACROSS EIGHT PASSES, so 224 over the full spin against one body versus 284 for
-  // simply holding the beam on it. Deliberately the LOSING play single-target, exactly like the
-  // cleaver's spin: if spinning out-damaged your own trigger there would be no reason ever to
-  // stop. It wins only when there are several of them, which is the situation it exists for.
+  // 32 A PASS ACROSS EIGHT PASSES, so 256 over the full spin against one body versus 318 for
+  // holding the beam on it for the same 1.62s. Deliberately the LOSING play single-target,
+  // exactly like the cleaver's spin: if spinning out-damaged your own trigger there would be
+  // no reason ever to stop. It wins only when there are several of them, which is the
+  // situation it exists for.
   //
   // THE TOTAL IS THE TUNED NUMBER, not this one — and it is tuned against the beam, which is
-  // why it moved when the beam did. This sat at 38 for exactly as long as the lance dealt 190
-  // dps: the 25% weapon-damage pass took the trigger to 142 and quietly made the sweep the
-  // better single-target play, 304 against 284, inverting the one thing it was built around.
-  // A number that is really a RATIO has to be re-derived whenever either side of it moves.
-  damage: 28,
+  // why it moves every single time EITHER the beam's dps or the spin's DURATION does. The
+  // whole history, because this one line has inverted once already and nearly did again:
+  //   38, while the lance dealt 190 dps
+  //   28, after the 25% weapon pass took the trigger to 142 and the sweep silently became
+  //       the better single-target play at 304 vs 284 — the inversion, shipped and caught
+  //   32, following the +15% pass to 163 dps
+  //   26, after two 10% cuts to `time` shortened the beam you could have held instead: with
+  //       no edit to this line the sweep drifted 78% -> 87% -> 97% of holding, and 97% is
+  //       parity in everything but arithmetic
+  //   32, HERE, following the +20% pass to 196 dps — back to an earlier number by a
+  //       different road, which is exactly what a derived value does
+  //
+  // THE RULE, and the formula that keeps it: the sweep must sit around 80% of holding your
+  // own trigger. `0.8 x dps x time / turns`. Re-derive EVERY time either side moves — the
+  // margin erodes silently, from edits that never touch this number.
+  damage: 32,
   knock: 14,             // the opening shove, before the beam has swept anywhere
   /**
    * ...AND A MUCH SMALLER ONE EACH TIME THE BEAM COMES ROUND. 3, down from 8.
@@ -1701,15 +1826,31 @@ export const ENERGY = {
   // 25 and doing something it was never told to do. Fixed at the source (see controller), and
   // the price came home. Worth remembering the next time a number looks like it needs tripling.
   dash: 35,
-  nova: 60,
+  // 35, DOWN FROM 60. Nova is crowd CONTROL, not damage — it freezes, and what it buys is
+  // the second you needed rather than a corpse. At 60 the opener (Nova then Dash) spent 95
+  // of the bar and left 5, which read as "the control spell is the expensive one", and the
+  // player learns from a price: the expensive button is the strong button. It taught the
+  // wrong lesson about which of these two is the win condition. At 35 the pair costs 70 and
+  // leaves 30 — a Chain short, still no second Nova (see the burst test) — so the opener is
+  // a rotation you can complete instead of a bar you empty.
+  nova: 35,
   chain: 50,
-  // 35, down from 65 — the price war is over and the RHYTHM side won. The expensive-spells
-  // pass priced casts as rare events; in the hands, every gap read as a malfunction (three
-  // separate bug reports decoded to "the price, working silently"). The kit is settling at
-  // Dash/Whirl/Explosion all 35: a full bar is roughly three verbs of a sentence, and what
-  // actually rations the big spells is their cooldowns — Explosion's 15s most of all, which
-  // was always the once-per-fight gate no matter what the energy said.
-  firering: 35,
+  // 45, AND EXPLOSION CHANGED JOBS — read this with FIRERING.cd, which went 15s to 1s and
+  // its damage down 40% in the same breath. Those three numbers are one decision.
+  //
+  // It was the once-per-fight event: a fifteen-second gate and a screen-clearing 420, so
+  // the whole spell was a button you saved. Now it is a spell you CAST — cheap in time,
+  // dear in bar, and no longer able to end a fight by itself. That is a straight trade of
+  // impact for rhythm, and it is the trade this game keeps making because ENERGY is
+  // supposed to be the thing that says no. A fifteen-second cooldown says no far louder
+  // than any price, which made the price decorative on exactly the spell it most wanted
+  // to matter for.
+  //
+  // 45 is the dearest thing on the bar, deliberately: at one second the ONLY brake is the
+  // cost, so it has to be a real one. A full bar is two Explosions and nothing else, and
+  // the regen (~2s to earn one) is the real cadence — you can chain them, but only by
+  // spending your whole rotation on it and having no answer to anything that goes wrong.
+  firering: 45,
   // WHIRLWIND is charged UP FRONT, not by the second. It is a fixed 3.6s spin rather than a
   // hold, so a drain would only be a fixed cost with extra steps — and it could run dry
   // mid-spin and strip the invulnerability, which is the one thing this resource must never
@@ -1839,7 +1980,18 @@ export const HASTE = {
 // bigger numbers but a better VERSION of what you already know how to use.
 export const RANK2 = {
   fireringPrice: 210,
-  fireringCd: 11,        // one better than rank 1's 15, as before
+  // 1, TRACKING RANK 1. This was 11 against rank 1's 15 — the upgrade you bought WAS the
+  // shorter wait. When rank 1 dropped to a one-second cooldown, that made the rank-2 spell
+  // strictly worse than the free one: two hundred and ten points to wait eleven times as
+  // long. An upgrade that downgrades is the worst object a shop can sell, and it is the
+  // kind of bug a rank system produces every time a base number moves without its ranks.
+  //
+  // So rank 2 stops selling TIME and sells what it always also had: the shove. Rank 1
+  // clears the room, rank 2 clears it and throws the survivors off you — which is a better
+  // rank anyway by this game's own rule, since it changes what happens rather than how
+  // often. Pinned to FIRERING.cd rather than written as 1, so the next person to retune the
+  // base cooldown cannot re-open this hole by forgetting the rank exists.
+  get fireringCd() { return FIRERING.cd; },
   dashPrice: 230,
   dashCharges: 2,        // hold two, spend both, then wait two cooldowns
 };
@@ -1848,12 +2000,19 @@ export const RANK2 = {
 // the first real power spike, and it should feel like one on the walk home from buying it.
 export const FIRERING = {
   price: 90,
-  cd: 15,
+  // 1 SECOND, DOWN FROM 15 — Explosion stopped being an event and became a spell. See the
+  // essay on ENERGY.firering, which moved to 45 in the same decision: at a one-second
+  // cooldown the COST is the only brake left, which is exactly where this game keeps
+  // deciding the brake belongs. A fifteen-second gate says no louder than any price could,
+  // and that made the price decorative on the very spell it most wanted to matter for.
+  cd: 1,
   radius: 15,
-  // 420, up from 150. Fifteen seconds is the longest cooldown in the kit and the radius is
-  // the widest — that combination should read as "the room is now clear", and at 150 it read
-  // as a nudge. It still cannot delete a boss: bosses cap what any single hit may take.
-  damage: 420,
+  // 252, DOWN 40% from 420 — the other half of the same trade. 420 was priced against
+  // fifteen seconds of silence: a screen-clearing number you got once, which is a fair deal
+  // for a button you save. Cast every second or two it would simply be the whole game, so
+  // the impact comes down as the rhythm comes up. Still the widest radius in the kit, so
+  // what it buys is unchanged in KIND — the room clears, it just takes more than one press.
+  damage: 252,
   knock: 13,
   grow: 0.55,           // seconds for the wall of flame to reach full radius
   shove: 26,            // rank 2 only: how hard survivors are thrown outward
@@ -2166,17 +2325,32 @@ export const MOB = {
   // slow fireballs in a STRAIGHT line, aimed where you were when it left their hands. That
   // makes them a pure movement problem: the counter is to be somewhere else, not to out-DPS
   // them. Mixed into a melee pack they force you to keep moving while something closes.
-  casterChance: 0.4,      // of elites; a melee star is still the common case
-  // ZERO — the fliers are OUT (2026-07-27, decided in play; went 1.0 -> 0.25 -> 0 in one
-  // day). Two separate verdicts converged: they were GLITCHY — a hover built for a world
-  // that was one surface, forever fighting the sky's stacked floors — and their design
-  // job had already been retired: the air threat only meant something when the air held
-  // half the war, and that ended with the sky cut. A glitchy body doing a retired job is
-  // a removal, not a bug list. Elite casters now all fight from the ground, where their
-  // wind-up can actually be read. The flyer brain, shape and safety rails stay in code —
-  // this one number is the whole decision, and turning it back on is turning it back up.
-  flyChance: 0,
-  groundCasterChance: 0.2, // ranged that stays on the ground: common, not elite
+  casterChance: 0.55,     // of elites — ranged is the common star now, not the exception
+  // 0.6 OF EVERY CASTER — and read that against the structural change beside it (spawnOne):
+  // flight used to be reachable only through the ELITE branch, so however high this number
+  // went, fliers were capped by the star rate at a couple of percent of the world. The old
+  // 1.0 was not "every mob flies", it was "every rare star that happened to be ranged" —
+  // which is why cranking it never produced a sky and cutting it never emptied one.
+  //
+  // Now any caster can leave the ground, so this number finally means what it says. At 0.6
+  // the field measured 18% airborne; DOUBLED to 1.0 it is every caster, which puts roughly
+  // a third of everything alive in the air — the sky is now the same size theatre as the
+  // ground rather than a balcony over it. That also completes the split the war-targeting
+  // makes (fliers only war with fliers): two armies, two floors, both worth watching, and
+  // the ground caster becomes the rarity instead of the rule.
+  //
+  // The fliers went 1.0 -> 0.25 -> 0 -> back, and the two facts that justified the cut have
+  // both been answered: the GLITCH was fixed at the source (a hover recomputing its own
+  // floor mid-climb, and an easing so fast it stapled the body to your altitude — restY),
+  // and the air stopped being empty of PLAYERS once the rotor and the recoil launch made
+  // hovering a rotation. A sky with no predator is a refuge, and a refuge deletes the fight.
+  flyChance: 1.0,
+  // 0.34, up from 0.2 — a third of ordinary bodies are ranged now. This is the number that
+  // actually decides how ranged the world FEELS, because ordinary mobs outnumber stars
+  // fifteen to one: casterChance tunes the flavour of a rare encounter, this tunes the
+  // texture of every fight. Combined with flight no longer being elite-only, it is also
+  // what fills the sky — most of these take off.
+  groundCasterChance: 0.34,
   flyHitScale: 2.4,       // flyers get a generous hitbox — see targets()
   castMin: 11,            // closer than this and they back off — they don't want a brawl
   castMax: 34,
@@ -2198,7 +2372,19 @@ export const MOB = {
   // and mesa rims stay contested) and well inside castMax (its patience ends before its
   // range does, never the other way round — a caster that keeps caring past the edge of
   // its own shot is the treadmill again).
-  castVert: 14,
+  // 30, UP FROM 14 — ground casters shoot UP now, and that is the second half of giving
+  // the sky a predator. 14 was two storeys: a single rotor climb cleared it, so a player
+  // who went up was instantly unreachable by every ranged mob in the world and the deep
+  // sky became a place to stand and watch. 30 sits just under the shot's own reach
+  // (castMax), which is the real ceiling — patience must end before range does, or a
+  // caster spends its life aiming at something it can never hit.
+  //
+  // This is fair by the oldest rule in the game: a caster's wind-up is a visible tell and
+  // its shot is dodgeable, so being hit at altitude is still "I didn't move" and never "I
+  // couldn't have known". What it costs the flying factions is CAMPING, not mobility —
+  // you can still cross, climb, and escape, you simply cannot hover over a fight and be
+  // exempt from it. The sky is a route again rather than a refuge.
+  castVert: 30,
   // THE SKY PUTS DOWN THE BOW. Camps that settle a sky floor mostly arrive as melee: an
   // island's garrison exists to make TAKING the island a fight, and the fight worth having
   // up there is on its deck when you arrive — not artillery leaning over the rim into a
@@ -2209,11 +2395,28 @@ export const MOB = {
   skyCasterKeep: 0.2,
   castCd: 3.4,
   castWindup: 0.8,        // they stop and glow before releasing: the telegraph
-  ballSpeed: 12,          // slow enough to sidestep if you see it coming
+  // 22.5, up 50% then another 25% as the sky filled. It was tuned when a caster's target
+  // stood on the same ground it did, and
+  // at that range a slow ball is a fair read: you see the glow, you step, it passes. The
+  // sky changed the geometry — casters shoot UP now (castVert), and a shot climbing 30
+  // blocks at the old speed took long enough that a hovering player simply drifted out of
+  // its path without ever deciding to. A projectile that cannot catch what it is aimed at
+  // is a telegraph with no sentence after it.
+  //
+  // The TELL is untouched (castWindup): the wind-up is where the dodge is bought, and it
+  // is the same length it always was. What changed is the price of ignoring one. That is
+  // the right half of the pair to sharpen — being hit stays "I didn't move", never "I
+  // couldn't have known", because the warning still arrives just as early.
+  ballSpeed: 22.5,        // fast enough to punish a drift, slow enough to read the glow
   ballDamage: 24,
   ballRadius: 1.0,
   ballLife: 4.5,
-  ballPool: 32,
+  // 64, doubled with the caster population. A pool that runs dry does not queue the shot,
+  // it DROPS it — silently, so a sky full of casters would wind up, glow, and fire nothing,
+  // which reads as the game breaking rather than as a limit. The pool has to comfortably
+  // exceed how many balls can be in flight at once, and that number just doubled twice
+  // over (more casters, and each one now shooting a longer distance upward).
+  ballPool: 64,
 
   // --- SWARM: tiny, fast, fragile, and only dangerous in numbers ------------------
   // The question it asks is "do you have a crowd answer" — Ring of Fire finally has a
@@ -2517,7 +2720,63 @@ export const MOB = {
   // the sky a safe place and the fliers ornaments. Chasing, it climbs to your height plus
   // this — so taking an island costs you the ground war and buys you the air war.
   flyChaseLift: 3.2,
-  flyClimb: 0.07,       // how quickly it closes that gap; a hover, so smoothing not physics
+  // HOW FAST IT LABOURS UPWARD, in blocks a second — a SPEED, replacing an eased fraction
+  // that closed almost the whole gap within a second and made fliers feel stapled to the
+  // player's head ("it was following the character's vertical level").
+  //
+  // 1.5, walked 7 -> 3 -> 1.5 in play. A flier barely climbs now: every movement verb you
+  // own is several times this, so leaving its altitude is not an escape you execute, it is
+  // a decision you make and then simply have.
+  //
+  // That is a deliberate re-pointing of what a flier IS. It is no longer a pursuer — it is
+  // a body that OWNS an altitude. Meet it on its deck and it fights you; leave, and it
+  // keeps the deck rather than following you off it. Which is why the two flying LAYERS
+  // matter more than this number does: the sky's threat is now positional (there are
+  // things up there, at known heights, and you choose whether to be among them) rather
+  // than adhesive (a thing that comes wherever you go).
+  //
+  // What keeps that from being an exemption is the GROUND: casters shoot thirty blocks up
+  // and do not care what altitude you picked. You can out-climb the pursuer; you cannot
+  // out-climb the pressure.
+  flyClimbSpeed: 1.5,
+  // HOW LONG IT COMMITS TO A READING of your altitude before taking another. The speed cap
+  // above was only half the fix — a body climbing at a fixed rate toward your LIVE height
+  // is still a servo, just a slow one. This is the reaction time that makes it a creature:
+  // leap while it is committed and it finishes climbing to where you were.
+  //
+  // 4, up from 1.8 (and 1.8 was already the fix for "it follows perfectly"). Four seconds
+  // is long enough to be a CHARACTER TRAIT rather than latency: these things are slow to
+  // notice and slow to move, which is what makes catching one at your own altitude feel
+  // like you chose the fight. Combined with the crawl above, a body that loses your height
+  // has effectively lost you — and the honest consequence is that fliers are now something
+  // you go and kill rather than something that arrives.
+  flyChaseDelay: 4,
+  flyClear: 3,          // never closer than this to the land, whatever its deck says
+  // THE MEANDER — how hard a hunting flier refuses to hold a fixed point, and how fast its
+  // circle turns. Read the essay at the call site: a hovering body that settles into its
+  // firing band is a turret bolted to the sky, and a turret is something you shoot at your
+  // leisure. The wander is deliberately weaker than the band-keeping force, so it perturbs
+  // the caster's brain rather than overriding it — it wobbles the aim point, it does not
+  // decide where the aim point is.
+  flyWander: 1.0,
+  flyWanderRate: 0.85,
+  // TWO DECKS OF SKY, measured from wherever YOU are — which is what keeps the air stocked
+  // as you travel and, more importantly, as you CLIMB. Fliers used to be dealt onto
+  // whatever floor their camp stood on, so the sky was only populated where the world
+  // happened to provide a shelf, and going above the terrain meant going somewhere empty.
+  // Flight does not need a floor; that was the last place the old one-surface thinking was
+  // hiding.
+  //
+  // Two, not one, because a single altitude is a ceiling and two is a STAIRCASE: you can
+  // be fighting the low deck while the high one wheels above you, climb into it, and leave
+  // the first fight below. That is the same lesson the named rings teach horizontally — a
+  // gradient you can SEE beats a gradient you can only measure.
+  //
+  // 16 is a rotor climb away; 44 is a recoil launch away. Both numbers are deliberately
+  // pinned to a movement verb, so each deck is a place one of your tools can actually take
+  // you rather than an arbitrary height.
+  flyLayers: [16, 44],
+  flyLayerJitter: 5,    // spread within a deck, so a layer reads as a band not a sheet
 
   avoidArc: 1.05,         // radians it will veer to find a walkable line
 
@@ -2571,7 +2830,14 @@ export const MOB = {
   // fog and made the world read as empty. 22-58 keeps several in sight at once.
   spawnMin: 22,
   spawnMax: 58,
-  despawn: 105,
+  // 140, UP FROM 105 — every mob lasts longer and reaches further before fading, asked
+  // for in play after bodies kept evaporating mid-fight. This is affordable now in a way
+  // it was not this morning: the population itself was cut hard (maxAlive, maxAlivePerTier,
+  // the cap) for the laptop, so a wider circle holding fewer bodies costs less than the
+  // old tight circle packed with them. What it buys is that the world stops rearranging
+  // itself just outside your notice — camps you walked past are still there when you turn
+  // around, and a fight you backed away from is still a fight when you come back.
+  despawn: 140,
   // ALTITUDE COUNTS, AND COUNTS DOUBLE. The sweep above was flat distance, which was the whole
   // truth while the world was a surface. With a sky full of islands it meant that climbing to
   // a perch left every mob on the land below you inside "nearby" — ten metres away across the
@@ -2589,7 +2855,44 @@ export const MOB = {
   //
   // Nothing that could actually fight you is anywhere near this line: MOB.reachY is 18, so a
   // body 44 blocks above or below you was already unable to touch you, and you it.
-  despawnVScale: 2.4,
+  // 1.5, DOWN FROM 2.4 — the doubling was written for a world that no longer exists, and
+  // it had started deleting fights. Its argument was sound at the time: the sky held half
+  // the war, so climbing to a perch left a hundred unreachable bodies on the land below
+  // holding budget slots. Two things have changed since. The sky was emptied (skyWeight,
+  // flyChance 0), so there is no longer a second theatre stacked overhead to protect the
+  // budget from — and FLIGHT BECAME A VERB: the lance's rotor and the cannon's recoil
+  // both throw you tens of blocks up, mid-fight, on purpose. At 2.4 a rocket jump over
+  // your own brawl measured every enemy in it as a hundred blocks away and swept them.
+  // The game was punishing the exact movement it had just been built to sell.
+  //
+  // Altitude still counts for MORE than horizontal, because it should — sixty blocks down
+  // is a different level of the world with its own fight on it. It simply no longer counts
+  // so much that jumping is a way to delete the thing you are fighting.
+  despawnVScale: 1.5,
+  // A FIGHT YOU STARTED DOES NOT EVAPORATE. Reported in play: sniping with the lance, a
+  // wounded body simply faded, and the only way to finish it was to walk toward the thing
+  // you had deliberately engaged from range. That is the sweep punishing the one playstyle
+  // the longest-ranged weapon in the game exists for — and worse, it punishes it silently,
+  // so it reads as the mob escaping rather than as a budget doing its job.
+  //
+  // The altitude doubling above is what made it bite so early: a body 80 out and 40 BELOW
+  // measures as 160, so a downhill shot from a perch could cull a target well inside the
+  // lance's own 78-block reach. Correct for the budget, absurd for the fight.
+  //
+  // So: anything the PLAYER has damaged holds a grace period, and while it lasts the body
+  // is swept on a far longer leash instead of the ordinary one. Not immortal — see
+  // engagedDespawn — because a mob that outlived the ground it stands on is a worse bug
+  // than the one this fixes.
+  engagedGrace: 45,       // seconds a body remembers you hit it
+  // THE LONG LEASH, and it is pinned to the WORLD rather than chosen: VIEW_RADIUS chunks
+  // of terrain are loaded around you (7 x 16 = 112 blocks), and this sits just inside the
+  // far corner of that disc. The rule it encodes is the one asked for in play — an engaged
+  // body survives exactly as long as the ground it is standing on does. Past this the
+  // chunk itself is gone, and keeping a body alive over unloaded world means it is
+  // standing on nothing, falling forever, and still holding a slot in the alive budget.
+  // Flat, deliberately: no altitude doubling on this one, or the vertical exaggeration
+  // that caused the original complaint would come straight back in through the fix.
+  engagedDespawn: 150,
   // Deeper rings repopulate faster as well as holding more: a camp you clear at tier 8
   // is replaced almost at once, so the frontier never feels emptied.
   // 0.18, down from 0.3 — the budget only matters if the world can REACH it. A camp every

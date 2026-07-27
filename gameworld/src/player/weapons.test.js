@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
-import { WEAPONS, SPIN, WHIRL } from "../config.js";
+import { WEAPONS, SPIN, WHIRL, LANCE_SPIN } from "../config.js";
 import { FACTIONS, FACTION_WEAPON } from "../prog/factions.js";
 import { Gun } from "./gun.js";
 import { player } from "../state.js";
@@ -216,4 +216,42 @@ test("LANCE: heat makes it a weapon you manage, not a hose", () => {
   assert.ok((w.heatMax ?? 1) / w.heatDown > w.overheatLock,
     "a full cool must take longer than the lockout, or heat costs nothing");
   assert.ok(w.aimMult > 1, "aiming must pay, or RMB means nothing on this weapon");
+});
+
+// The barrage after it learned to THROW (the recoil): its price structure, pinned.
+test("BARRAGE: the drum is the brake, and the volley pays per shell", () => {
+  const w = WEAPONS.lobber;
+  // THE TWO RIDES ARE PACED IN DIFFERENT CURRENCIES, and an earlier version of this test
+  // got that wrong — it demanded the cannon's cooldown exceed the lance's on the grounds
+  // that "instant must cost more than sustained". But the cannon already pays in something
+  // the lance never touches: SIX SHELLS and the reload behind them. The clock is not its
+  // brake, the drum is. What must hold is that the drum is a real brake.
+  // Measured as FLIGHT TIME rather than as a share of the drum. The share was a proxy, and
+  // it broke the moment the magazine doubled for reasons that had nothing to do with the
+  // barrage — it failed while the thing it was protecting (a bounded flight) was still
+  // perfectly bounded. Ask the real question instead: how long can a full drum keep you
+  // in the air, and does it end?
+  const launches = Math.floor(w.magSize / w.barrageShots);
+  const flightSeconds = launches * w.barrageCd;
+  assert.ok(launches <= 8,
+    `a drum funds ${launches} launches — past this the ride stops having an end`);
+  assert.ok(flightSeconds <= 15,
+    `${flightSeconds.toFixed(0)}s of continuous flight on one drum is a flight mode, not a move`);
+  assert.ok(w.reloadTime > 0.5,
+    "and running dry has to hurt — the reload is the moment the sky hands you back");
+  // Both second triggers are rotation tools now rather than once-a-fight events; neither
+  // may drift back into being a button you save.
+  assert.ok(w.barrageCd < 4 && LANCE_SPIN.cd < 4,
+    "past four seconds a movement verb stops being a verb and becomes a spectator sport");
+  // ...and never a hold-to-fly: some gap has to exist, or the launch is a hover.
+  assert.ok(w.barrageCd > 0, "a zero cooldown makes the recoil a flight mode, not a move");
+  // Six-at-once plus a rocket ride must never also be the efficient trigger: each barrage
+  // shell hits under a placed one, or the volley simply IS the cannon.
+  assert.ok(w.barrageDamage < 1, "the volley must pay a per-shell price");
+  assert.ok(w.barrageDamage >= 0.7, "...but stay a weapon, not a blank");
+  // The stance rule, HORIZONTAL only: a level blast with your boots down is a step back,
+  // the same blast airborne is an escape. (The vertical deliberately ignores this — you
+  // cannot brace against a force that lifts you, so the rocket jump works from standing.)
+  assert.ok(w.barrageKickAir > w.barrageKickGround * 2,
+    "planted feet must visibly absorb a sideways shove — that contrast IS the lesson");
 });

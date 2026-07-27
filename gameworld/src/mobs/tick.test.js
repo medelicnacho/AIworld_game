@@ -8,7 +8,7 @@
 import test from "node:test";
 import assert from "node:assert";
 import { tickStride } from "./mobs.js";
-import { MOB } from "../config.js";
+import { MOB, PLAYER, LANCE_SPIN } from "../config.js";
 
 const calm = { aggro: false };
 const fighting = { aggro: true };
@@ -100,4 +100,26 @@ test("a caster gives up vertically before its shot gives out", () => {
 test("the sky keeps at most a fifth of its bows", () => {
   assert.ok(MOB.skyCasterKeep <= 0.2,
     `skyCasterKeep is ${MOB.skyCasterKeep} — the sky garrison is meant to be a melee fight`);
+});
+
+// THE SKY IS A ROUTE, NOT A REFUGE — the rule that brought the fliers back (2026-07-27).
+// Two factions gained flight the same day the last airborne enemy was cut, which left the
+// air uncontested: a rotation that never lands is a fight the enemy is excused from. These
+// pin the ordering that makes altitude a temporary advantage instead of an exemption.
+test("every climb the player owns out-runs a flier's", () => {
+  assert.ok(MOB.flyClimbSpeed < PLAYER.jumpSpeed,
+    "leaving the ground must always buy you distance — a flier that matches your jump is " +
+    "the 'stapled to your head' bug this replaced");
+  assert.ok(MOB.flyClimbSpeed < LANCE_SPIN.lift,
+    "the rotor must out-climb the thing chasing it, or Ash's whole verb is pointless");
+});
+
+test("...but no climb escapes the ground's ranged answer outright", () => {
+  // A caster's patience must clear a full rotor spin's worth of altitude, or going up is
+  // still an exemption from every ranged mob in the world.
+  assert.ok(MOB.castVert > LANCE_SPIN.lift * LANCE_SPIN.time,
+    `casters give up at ${MOB.castVert} blocks but a rotor climbs ` +
+    `${(LANCE_SPIN.lift * LANCE_SPIN.time).toFixed(0)} — the sky would be free again`);
+  // ...and patience still has to end before the shot does (the treadmill rule).
+  assert.ok(MOB.castVert < MOB.castMax, "patience past range is a caster aiming at nothing");
 });

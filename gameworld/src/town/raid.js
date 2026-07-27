@@ -147,6 +147,14 @@ export class Raids {
     const e = this.mobs.spawnOne(x, z, packId, s.x, s.z, [], colour, s.plateau + 1);
     // Garrison bodies are DESIGNED, not rolled — strip whatever the spawn table dealt.
     e.elite = false; e.caster = false; e.charger = false; e.flies = false;
+    // ...AND PUT IT BACK ON THE FLOOR. Clearing the flag is not enough: spawnOne has
+    // already settled the body's height, and a body that was dealt as a flier settled
+    // hovering — so stripping `flies` afterwards left a garrison floating a storey above
+    // its own market square. Harmless-looking, and it would have made a raid unwinnable
+    // for the one faction that has to reach what it kills. The deck is the same one this
+    // body was asked for, so this is a correction, not a second opinion.
+    e.y = s.plateau + 1;
+    e.deckY = e.y;
     e.affixes = [];
     e.defender = s.id;
     e.notice = RAID.notice;

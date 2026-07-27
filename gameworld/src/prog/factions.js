@@ -70,6 +70,7 @@ export const FACTIONS = [
     playstyle: [
       "A sustained beam that PIERCES and sweeps wide — it does not stop at the first thing it touches, and it catches the bodies beside your target.",
       `Right mouse SPINS the beam around you for ${LANCE_SPIN.time}s — everything it passes over is thrown back, and you take ${Math.round(LANCE_SPIN.mitigation * 100)}% less while it runs.`,
+      "Hold SPACE while it spins and the sweep is a ROTOR — the beam carries you upward for as long as the spin lasts. Iron's spin holds ground; yours leaves it.",
       `No magazine: it runs on HEAT. About ${Math.round(WEAPONS.lance.heatMax / WEAPONS.lance.heatUp)} seconds of continuous fire, then a forced cool-down.`,
       `Strength raises every kind of damage you deal — and swearing to Ash adds ${Math.round(FACTION_BONUS.ash.damage * 100)}% on top of everything, from level one.`,
       "Weak to: crowds while it cools, and anything that reaches you during the lockout.",
@@ -82,7 +83,7 @@ export const FACTIONS = [
     weapon: "Vale Cannon",
     playstyle: [
       "Lobs a heavy shell that BURSTS in a wide circle. It travels slowly, so you must lead it.",
-      `Right mouse fires a barrage of ${WEAPONS.lobber.barrageShots} at once — the answer when something is already on you.`,
+      `Right mouse fires a barrage of ${WEAPONS.lobber.barrageShots} at once — and the RECOIL throws you the opposite way it fires. Aim down to rocket skyward, aim level to blast yourself out of reach.`,
       "Never hurts you, however close it lands. The skill is reading where things will be.",
       `Agility makes you faster and sharpens your dash — and Vale itself grants ${Math.round(FACTION_BONUS.vale.speed * 100)}% speed and ${Math.round(FACTION_BONUS.vale.haste * 100)}% shorter cooldowns.`,
       "Weak to: fast single targets, and anything close enough that leading is impossible.",

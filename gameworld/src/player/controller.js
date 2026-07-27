@@ -32,6 +32,10 @@ export const input = {
   dodgeQueued: false, dodgeFwd: 0, dodgeRight: 0,
   // Jump is EDGE-triggered, not held: one press = one jump. A held-key check would let you
   // bunny-hop forever by leaning on space, and would burn both air jumps in a single frame.
+  // jumpHeld is the exception, and it drives exactly ONE thing: the lance spin's rotor
+  // (see the gravity block) — a lift you HOLD is the whole point of a rotor, and it never
+  // touches the jump charges.
+  jumpHeld: false,
   jumpQueued: false,
 };
 
@@ -98,7 +102,7 @@ export function attachInput(canvas, hooks = {}) {
     }
     // !e.repeat: the OS fires keydown repeatedly while a key is held — without this, one
     // long press would queue a jump every few milliseconds.
-    if (e.code === "Space" && !e.repeat) input.jumpQueued = true;
+    if (e.code === "Space") { input.jumpHeld = true; if (!e.repeat) input.jumpQueued = true; }
     if (e.code === "KeyR") hooks.reload?.();
     if (e.code === "KeyF" && !e.repeat) hooks.interact?.();
     if (e.code === "KeyC" && !e.repeat) hooks.drink?.();
@@ -132,7 +136,11 @@ export function attachInput(canvas, hooks = {}) {
     keys.add(e.code);
     refresh();
   });
-  window.addEventListener("keyup", (e) => { keys.delete(e.code); refresh(); });
+  window.addEventListener("keyup", (e) => {
+    if (e.code === "Space") input.jumpHeld = false;
+    keys.delete(e.code);
+    refresh();
+  });
   // Drop held keys ONLY once we have genuinely stopped receiving input. While pointer lock
   // is active we are still getting events, so clearing would be a lie about what's held.
   //
@@ -399,8 +407,10 @@ export function stepPlayer(dt) {
     // are on the keys. Vertical is left to gravity: this governs the ACROSS, which is the half
     // the movement blend was quietly deleting.
     player.kickT -= dt;
-    player.vx = player.kickX * DODGE.kickOut;
-    player.vz = player.kickZ * DODGE.kickOut;
+    // kickSpeed lets other launches ride this ownership at their own strength — the
+    // cannon's recoil (gun.js barrage) is the first. Unset means the wall kick's own.
+    player.vx = player.kickX * (player.kickSpeed || DODGE.kickOut);
+    player.vz = player.kickZ * (player.kickSpeed || DODGE.kickOut);
   } else if (slideX || slideZ) {
     // OWNS horizontal velocity, exactly like the roll above — steering out of it is what made
     // the first attempt useless. Faster than a sprint, so the wall band is behind you inside
@@ -425,8 +435,22 @@ export function stepPlayer(dt) {
 
   player.vy = Math.max(PLAYER.maxFall, player.vy + PLAYER.gravity * dt);
 
+  // THE ROTOR. While the lance's beam SPINS, held space is lift — the sweep becomes a
+  // rotor and Ash flies for as long as the spin lasts. max(), not assignment, so a dash
+  // or a jump taken into the spin keeps its speed and the rotor catches you on the way
+  // down; release space (or let the spin end) and gravity resumes mid-thought. The spin's
+  // own two-second clock is the fuel gauge, its cooldown is the flight's price, and no
+  // jump charge is ever spent — which is what makes this a MOVE and not a bigger jump:
+  // Iron's spin holds ground, Ash's leaves it.
+  if (player.lanceSpinT > 0 && input.jumpHeld) {
+    player.vy = Math.max(player.vy, LANCE_SPIN.lift);
+  }
+
   if (input.jumpQueued) {
     input.jumpQueued = false;
+    // Space belongs to the rotor while the beam spins — the press that starts the climb
+    // must not also burn an air jump.
+    if (player.lanceSpinT > 0) { /* held, not spent */ } else
     // NOT OFF A WALL. Without this the slide is trivially beaten: hop, land, hop again, and
     // you are still standing on the parapet — the slide only owns you while you are on the
     // ground, so a jump is a free half-second of ignoring it. Refusing costs no jump charge;
@@ -485,6 +509,7 @@ export function stepPlayer(dt) {
     player.vy = DODGE.kickUp;
     player.kickX = kickX / len;
     player.kickZ = kickZ / len;
+    player.kickSpeed = 0;                 // the wall kick flies at its own strength
     player.kickT = DODGE.kickHold;        // the arc is committed — see the branch above
     player.vx = player.kickX * DODGE.kickOut;
     player.vz = player.kickZ * DODGE.kickOut;

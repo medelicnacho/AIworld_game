@@ -3124,8 +3124,8 @@ function frame(now) {
   // The lobber's shells in flight. Bursts route through the same blast() as everything else
   // — main decides what an explosion touches — but through the GUN damage bucket, and they
   // never hurt the one who fired them (WEAPONS.md: the cost is leading the shot, not fear).
-  gun.updateShells(dt, (sx, sy, sz) => {
-    blast(sx, sy, sz, WEAPONS.lobber.blastRadius, WEAPONS.lobber.blastDamage,
+  gun.updateShells(dt, (sx, sy, sz, dmgScale = 1) => {
+    blast(sx, sy, sz, WEAPONS.lobber.blastRadius, WEAPONS.lobber.blastDamage * dmgScale,
           8, false, false, false, "gun");
     sfx.explosion(sx, sz, 0.9);
     markCombat();

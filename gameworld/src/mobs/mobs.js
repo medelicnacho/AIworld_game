@@ -17,7 +17,7 @@ import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby, gridKey, REGION_SIZE } from "../state.js";
 import { groundY, solidAt, tierAt, ringPressure, surfaceNear, islandTopsAt } from "../world/gen.js";
 import { terrainClear } from "../world/raycast.js";
-import { dungeonSpawnPoint, dungeonFaction, dungeonGarrisonLeft,
+import { dungeonSpawnPoint, dungeonFaction, dungeonGarrisonLeft, inDungeon,
          noteDungeonKill, clampToRoom } from "../world/dungeon.js";
 import { sfx } from "../audio/sfx.js";
 import { sanctuaryOf, sanctuaryOfIn, boundaryAt, gateArc, sanctuaryUnder,
@@ -361,13 +361,16 @@ export class Mobs {
     // Ranged comes in two flavours. Elite casters FLY (red, point-down); ordinary ones
     // hold their ground (violet). Same standoff brain, entirely different problem: one you
     // must look up for, the other closes the horizontal gap with you.
-    let caster = false, flies = false;
-    if (elite) {
-      caster = this.rng() < MOB.casterChance;
-      if (caster) flies = this.rng() < MOB.flyChance;
-    } else {
-      caster = this.rng() < MOB.groundCasterChance;
-    }
+    // FLIGHT IS NO LONGER AN ELITE PRIVILEGE. It used to be reachable only through the
+    // elite branch, so the number of fliers in the world was capped by the STAR RATE — a
+    // few percent — and no value of flyChance could ever produce a sky worth contesting.
+    // "Way more fliers" is structurally impossible until any caster can leave the ground,
+    // so now the two rolls are independent: what KIND of fighter it is, and then whether
+    // that fighter flies.
+    let caster = elite
+      ? this.rng() < MOB.casterChance
+      : this.rng() < MOB.groundCasterChance;
+    let flies = caster && this.rng() < MOB.flyChance;
     // A charger is an ordinary body that fights differently — never a caster, since
     // "closes the gap violently" and "refuses to close the gap" are opposite answers.
     const charger = !caster && !elite && this.rng() < MOB.chargerChance;
@@ -415,7 +418,7 @@ export class Mobs {
     return Math.abs(e.y - g) < MOB.floorSlack ? g : surfaceNear(x, z, e.y);
   }
 
-  restY(e) {
+  restY(e, dt = 0) {
     // MID-LEAP the ground is not the answer. Interpolating between the heights it left and
     // is heading for — rather than reading groundY under it — is what stops the body
     // snapping vertically the instant it crosses the cliff edge it is jumping over.
@@ -423,15 +426,46 @@ export class Mobs {
       const p = 1 - e.leapT / MOB.leapDur;
       return e.leapY0 + (e.leapY1 - e.leapY0) * p + Math.sin(p * Math.PI) * MOB.leapArc;
     }
-    const g = this.floorAt(e);
-    if (!e.flies) return g;
+    if (!e.flies) return this.floorAt(e);
+    // IT MUST NOT BE GLUED TO YOUR ALTITUDE. This is the flier complaint in one sentence:
+    // "it was following the character's vertical level". The old easing pulled 7% of the
+    // remaining gap PER FRAME, which at sixty frames a second closes almost the whole gap
+    // in under a second — so a flier mirrored every jump, every rotor climb, every recoil
+    // launch, instantly. It did not read as a creature chasing you; it read as a thing
+    // stapled to your head.
+    //
+    // A CLIMB IS A SPEED, not a fraction. It labours upward at flyClimbSpeed and no faster,
+    // which is what turns altitude into a real (temporary) advantage: leap thirty blocks
+    // and you have bought yourself seconds while it comes after you — and it IS coming,
+    // which is the whole point of putting a predator back in the sky. Frame-rate
+    // independent for free, where a per-frame fraction never was.
+    // A FLIER HOVERS OVER A REMEMBERED DECK, NEVER A RE-ASKED ONE. This is the whole
+    // reason fliers were cut as "glitchy", and it was a feedback loop rather than a rough
+    // edge: floorAt answers "which surface is nearest my CURRENT altitude", so on a world
+    // of stacked sky decks a climbing flier kept changing its own answer — it rose, the
+    // nearest surface became the deck above, its target rose with it, and it chased its
+    // own reference between floors. That reads exactly like a body glitching.
+    //
+    // So the deck is chosen ONCE, at spawn, the same way a camp picks the floor it stands
+    // on, and it never moves. Hunting overrides it with YOUR altitude, which is a
+    // reference that cannot argue back. No surface query on this path at all now — which
+    // also takes a per-frame cost off the hottest loop in the game.
     const bob = Math.sin(e.wobble * 1.6) * MOB.flyBob;
-    // Hovering over whatever floor is beneath it — UNLESS it is hunting you, in which case
-    // it climbs to your height. Eased rather than snapped: this is a hover, so it is
-    // smoothing, not physics, and it wants to look like a thing deciding to come up.
-    let want = g + MOB.flyHeight;
-    if (e.aggro) want = Math.max(want, player.y + MOB.flyChaseLift);
-    return e.y + (want + bob - e.y) * MOB.flyClimb;
+    // e.chaseY, not player.y — the altitude it last LOOKED at, refreshed on its own slow
+    // clock (see the flier block in update). This is what turns following into chasing.
+    let want = e.aggro
+      ? (e.chaseY ?? player.y) + MOB.flyChaseLift
+      : (e.deckY ?? groundY(e.x, e.z)) + MOB.flyHeight;
+    // ...and never inside the land, whatever the deck says. An idle flier drifting over
+    // rising ground would otherwise wade into a hillside, and a hunting one would follow
+    // you into it. groundY is the cheap cached heightfield, so this guard is nearly free.
+    want = Math.max(want, groundY(e.x, e.z) + MOB.flyClear);
+    want += bob;
+    // dt 0 means "place it", not "move it" — spawn and the leap arc want the answer, not
+    // a journey toward it.
+    if (dt <= 0) return want;
+    const step = MOB.flyClimbSpeed * dt;
+    return e.y + Math.max(-step, Math.min(step, want - e.y));
   }
 
   /**
@@ -490,6 +524,29 @@ export class Mobs {
    */
   farFrom(x, y, z) {
     return Math.hypot(x - player.x, z - player.z, (y - player.y) * MOB.despawnVScale);
+  }
+
+  /**
+   * MAY THIS BODY BE SWEPT for being far away? One place, because the sweep is asked twice
+   * (the all-entities pass and the in-loop check) and two copies of a leash rule is how
+   * one of them ends up not knowing about the other.
+   *
+   * A body the player has damaged recently rides a longer, FLAT leash — see MOB.engagedGrace.
+   * The flatness is the point: the altitude doubling is what culled downhill snipes inside
+   * the lance's own range, so the reprieve must not inherit it.
+   */
+  sweepable(e) {
+    // IN A FIGHT WITH YOU covers two cases, and it has to cover both or the rule has a
+    // hole you can feel: something you have DAMAGED (engagedT — you shot it from range,
+    // it may never have reached you) and something HUNTING you (aggro, and not merely
+    // brawling another clan — the war's own scraps are theatre and sweep normally).
+    // Either way it rides the long FLAT leash, because the altitude term is exactly what
+    // was deleting fights the moment you left the ground.
+    const fighting = (e.engagedT || 0) > 0 || (e.aggro && !e.warFoeId);
+    if (fighting) {
+      return Math.hypot(e.x - player.x, e.z - player.z) > MOB.engagedDespawn;
+    }
+    return this.farFrom(e.x, e.y, e.z) > MOB.despawn;
   }
 
   /**
@@ -586,6 +643,40 @@ export class Mobs {
     // even though the world was full of them. A camp is a camp: it picks its ground once and
     // its bodies stand on it, and what you find is twelve of them rather than one.
     e.y = wantY === null ? this.pickFloor(x, z) : this.floorNearest(x, z, wantY);
+    // AN AIR BODY IS BORN IN THE AIR, and its deck is a BAND rather than a surface.
+    //
+    // Fliers were being dealt onto whatever floor their camp stood on and then hovering a
+    // fixed height over it, which meant the sky was only ever populated where the WORLD
+    // happened to provide a shelf — and when you climbed above the terrain, the air around
+    // you was empty because nothing had a floor up there to be born on. Flight does not
+    // need a floor. That was the last place the old one-surface thinking was still hiding.
+    //
+    // So an air body seeds relative to YOUR altitude (never below its own terrain), which
+    // is what keeps the sky stocked as you travel: the spawner already runs continuously as
+    // ground streams in, so climbing into empty air now fills it the same way walking into
+    // empty land does. Deliberately a BAND and deliberately spread — they arrive above and
+    // around you at their spawn distance and fly IN, rather than materialising overhead,
+    // because a body that appears on top of you is a jump-scare and not a threat you read.
+    //
+    // Not in a dungeon: a room is nine blocks tall and the ceiling is the ceiling.
+    //
+    // THE DECK IT WILL HOVER OVER FOR LIFE, for everything else. Chosen here, with the same
+    // floor the rest of its camp is standing on, and never re-asked — see restY for why a
+    // flier that recomputes its own floor while climbing chases its own tail between decks.
+    // deckY is a REFERENCE, not a position: restY hovers flyHeight above it and clamps the
+    // result against the land, so the band below is aimed at where the body should come to
+    // REST and the hover height is subtracted back out here.
+    // TWO LAYERS, AND A CAMP SHARES ONE. The layer comes from the PACK id, not a per-body
+    // roll, for exactly the reason the ground floors already work that way: choose per body
+    // and a dozen fliers scatter across every altitude, so both layers read half-empty and
+    // you meet singles instead of formations. Keyed off the pack, a war party arrives as a
+    // war party at one height — and the pack after it arrives at the other.
+    const layers = MOB.flyLayers;
+    const layer = layers[packId % layers.length]
+      + (this.rng() - 0.5) * 2 * MOB.flyLayerJitter;   // a band, never a plane
+    e.deckY = (e.flies && !inDungeon())
+      ? player.y - MOB.flyHeight + layer
+      : e.y;
     e.y = this.restY(e);
     return e;
   }
@@ -764,6 +855,18 @@ export class Mobs {
         // o.defender: town fighters are out of the war (see the attention block) — a garrison
         // the field could whittle down is a garrison that is sometimes not there.
         if (!o || o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction || o.defender) continue;
+        // EACH ARMY FIGHTS IN ITS OWN ELEMENT: fliers war with fliers, the ground with the
+        // ground. Without this the two wars bled into each other in ways that read as the
+        // AI being broken — a melee body would lock onto an enemy flier it could never
+        // reach and stand under it swinging at nothing, and a flier would drift down to
+        // brawl infantry, which is the one thing a flier should never do. Splitting them
+        // also makes the sky a THEATRE rather than a backdrop: dogfights happen up there
+        // between colours, on their own floor, and you can watch one from below and decide
+        // whether to climb into it.
+        //
+        // The player is the standing exception, handled where the war target is chosen: get
+        // close enough to be noticed and you outrank whatever either army was doing.
+        if (!!o.flies !== !!e.flies) continue;
         const dx = o.x - e.x, dz = o.z - e.z;
         const d2 = dx * dx + dz * dz;
         if (d2 < bd2) { bd2 = d2; best = o; }
@@ -994,6 +1097,11 @@ export class Mobs {
     // touched this", so the thing you shot thinks frame-perfect and the war doesn't get to
     // buy your full attention by flashing itself red.
     e.playerHurtT = HURT_FLASH;
+    // ENGAGED. A fight you started does not evaporate because you started it from range —
+    // this buys the body a long, flat leash against the distance sweep (see sweepable).
+    // Set here because this is the one door every source of player damage comes through,
+    // so the lance, a grenade, a spell and a stray blast all count as "you engaged it".
+    e.engagedT = MOB.engagedGrace;
     e.aggro = true;
     e.aggroT = MOB.loseInterest;
     this.alert(e);                    // being shot at is a pack-wide event
@@ -1162,7 +1270,11 @@ export class Mobs {
       // — the recurring "two champions, then everyone appears" glitch. The only ways a
       // defender leaves the world are dying and its whole town standing down.
       if (e.defender) continue;
-      if (this.farFrom(e.x, e.y, e.z) > MOB.despawn) this.despawn(e.id);
+      // The engagement grace ticks HERE, not in the brain loop below — that loop only ever
+      // sees bodies already inside despawn range, so a body sniped from beyond it would
+      // hold its reprieve forever, which is the immortality this was written to avoid.
+      if (e.engagedT > 0) e.engagedT -= frameDt;
+      if (this.sweepable(e)) this.despawn(e.id);
     }
     // EMPTY CAMPS GO WITH THEIR BODIES, by the same 3D measure. Judging a camp home flat
     // while sweeping its members in 3D is the worst of both: climb to a perch, every mob on
@@ -1237,7 +1349,7 @@ export class Mobs {
       // DYING or by their town's atomic eviction (raid.js) — never by this line.
       // farFrom, not `dist` — `dist` is the FLAT distance every range check below rides on
       // (chase, melee, ranged) and must stay flat. Only the sweep counts altitude.
-      if (this.farFrom(e.x, e.y, e.z) > MOB.despawn) { if (!e.defender) this.despawn(e.id); continue; }
+      if (this.sweepable(e)) { if (!e.defender) this.despawn(e.id); continue; }
 
       // THE DISTANCE TICK (see MOB.farTick). A far body thinks on a stride, and each think
       // covers the skipped time exactly — `dt` from here down is the per-body step. On a
@@ -1283,7 +1395,24 @@ export class Mobs {
       }
       if (e.slowT > 0) e.slowT -= dt;
       if (e.rootT > 0) e.rootT -= dt;
-      if (e.flies) e.wobble += dt;       // the hover bob, independent of any wandering
+      if (e.flies) {
+        e.wobble += dt;                  // the hover bob, independent of any wandering
+        // IT NOTICES YOUR ALTITUDE; IT DOES NOT TRACK IT. Capping the climb SPEED was only
+        // half the fix — the target was still your live height, so the body remained a
+        // servo: rise and it rose, fall and it fell, always the same distance behind. What
+        // reads as a creature is a DECISION, so it takes a reading of where you are, then
+        // commits to that reading for a beat before looking again. Leap while it is
+        // committed and it finishes climbing to where you WERE, which is the moment you
+        // get to be somewhere else.
+        //
+        // Staggered per body, like every other clock in this file, so a flock does not all
+        // glance up on the same frame and move as one machine.
+        e.chaseT = (e.chaseT || 0) - dt;
+        if (e.chaseT <= 0) {
+          e.chaseT = MOB.flyChaseDelay * (0.65 + this.rng() * 0.7);
+          e.chaseY = player.y;
+        }
+      }
       // ONE INVARIANT, checked in one place: a charge sound belongs to a charge in progress.
       // A run can be broken off by a dozen things — knockback, a root, losing you at the
       // sanctuary line, being leashed home — and most of them skip the charger branch below
@@ -1307,7 +1436,7 @@ export class Mobs {
         const od = Math.hypot(ox, oz) || 1;
         e.x += (ox / od) * MOB.speed * 2.5 * dt;
         e.z += (oz / od) * MOB.speed * 2.5 * dt;
-        e.y = this.restY(e);
+        e.y = this.restY(e, dt);
         e.aggro = false;
         e.lungeT = 0;
         reindex(e);
@@ -1443,7 +1572,7 @@ export class Mobs {
         if (this.wallOk(e, knx, knz)) { e.x = knx; e.z = knz; }
         else e.kT = 0;                            // splat: the wall keeps the momentum
         e.lungeT = 0;
-        e.y = this.restY(e);
+        e.y = this.restY(e, dt);
         reindex(e);
         this.sync(e, ux, uz);
         continue;
@@ -1470,7 +1599,7 @@ export class Mobs {
           onPlayerHit?.(e);
           runAffix(e, "onHitPlayer", this.fx);
         }
-        e.y = this.restY(e);
+        e.y = this.restY(e, dt);
         reindex(e);
         this.sync(e, ux, uz);
         continue;
@@ -1539,7 +1668,7 @@ export class Mobs {
             e.rushVoice = sfx.chargeRush(e.x, e.z, MOB.chargeTime + 0.5);
           }
         }
-        e.y = this.restY(e);
+        e.y = this.restY(e, dt);
         reindex(e);
         this.sync(e, ux, uz);
         continue;
@@ -1563,7 +1692,7 @@ export class Mobs {
         // and the moment you come back to its floor, it fights.
         if (!e.flies && Math.abs(cty - (e.y + 1.1)) > MOB.castVert) {
           e.aggro = false; e.aggroT = 0; e.burstLeft = 0;
-          e.y = this.restY(e);
+          e.y = this.restY(e, dt);
           reindex(e);
           this.sync(e, ux, uz);
           continue;
@@ -1616,6 +1745,22 @@ export class Mobs {
           vz += cuz * want * 1.4;
           vx += -cuz * e.bias * 0.6;      // and drift sideways so they're not static targets
           vz += cux * e.bias * 0.6;
+          // A FLIER NEVER HANGS STILL. On the ground the sideways bias above is enough —
+          // a body shuffling in a firing line reads as alive. In the air it does not:
+          // nothing about hovering is anchored, so a flier holding a range band looked
+          // like a turret bolted to the sky, and a turret is a thing you shoot at your
+          // leisure rather than a thing you track.
+          //
+          // So it MEANDERS around you — its own slow circle, at its own pace, phased off
+          // its personal bias so a flock never wheels in formation. It still keeps the
+          // band (that is the caster's brain, untouched); it simply refuses to arrive at
+          // a fixed point and stop, which is what makes a sky full of these read as
+          // circling predators instead of floating furniture.
+          if (e.flies) {
+            const w = e.wobble * MOB.flyWanderRate + e.bias * 9;
+            vx += Math.cos(w) * MOB.flyWander;
+            vz += Math.sin(w) * MOB.flyWander;
+          }
         }
       } else if (e.aggro) {
         // Against an enemy mob a creature COMMITS — it closes and brawls rather than circling.
@@ -1727,7 +1872,7 @@ export class Mobs {
       } else {
         this.tryMove(e, vx, vz, dt);
       }
-      e.y = this.restY(e);
+      e.y = this.restY(e, dt);
       reindex(e);
       this.sync(e, ux, uz);
     }

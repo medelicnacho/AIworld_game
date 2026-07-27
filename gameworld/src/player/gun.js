@@ -302,10 +302,11 @@ export class Gun {
    * single shot does — two copies of a launch is how a volley ends up with different gravity,
    * a different arc or a different lifetime from the thing it is supposed to be six of.
    */
-  launchShell(dir, w = this.weapon) {
+  launchShell(dir, w = this.weapon, dmgScale = 1) {
     const slot = this.shells.find((s) => !s.active);
     if (!slot) return false;
     slot.active = true;
+    slot.dmgScale = dmgScale;      // the barrage's per-shell discount rides the shell
     slot.x = player.x + dir.x * 0.7; slot.y = player.y + 1.35; slot.z = player.z + dir.z * 0.7;
     slot.vx = dir.x * w.speed; slot.vz = dir.z * w.speed;
     // A small upward launch on top of the aim so the shell ARCS rather than sagging — it
@@ -362,10 +363,33 @@ export class Gun {
         .addScaledVector(right, Math.cos(a) * rr)
         .addScaledVector(upv, Math.sin(a) * rr)
         .normalize();
-      this.launchShell(dir, w);
+      this.launchShell(dir, w, w.barrageDamage || 1);
     }
     sfx.lob();
     this.recoil += w.recoil * 2.2;
+    // THE RECOIL THROWS YOU (see barrageKick): straight opposite the aim, riding the wall
+    // kick's velocity ownership so the air blend cannot eat the shove. kickX/kickZ carry
+    // the aim's HORIZONTAL share unnormalised — fire straight down and nearly all of the
+    // kick is climb; fire level and all of it is escape. vy through max(), never
+    // assignment: aiming UP mid-air must not slam you into the ground, it just doesn't
+    // lift — the sky is not a direction the cannon punishes.
+    if (w.barrageKick) {
+      // PLANTED FEET ABSORB THE SHOVE, NEVER THE LIFT. A stance braces against something
+      // pushing you sideways — that is what a stance IS — and there is nothing to brace
+      // against when the force throws you off the ground entirely. So the horizontal
+      // half reads the ground (barrageKickGround), and the vertical half always flies at
+      // full air strength: the rocket jump works from standing, the way a rocket jump
+      // does in every game that has one. Read BEFORE the launch clears onGround, or the
+      // ground you were standing on never counts.
+      const planted = player.onGround ? w.barrageKickGround : w.barrageKickAir;
+      player.kickX = -fwd.x * w.barrageKickAcross;
+      player.kickZ = -fwd.z * w.barrageKickAcross;
+      player.kickSpeed = w.barrageKick * planted;
+      player.kickT = w.barrageKickHold;
+      player.vy = Math.max(player.vy,
+        -fwd.y * w.barrageKick * w.barrageKickUp * w.barrageKickAir);
+      player.onGround = false;
+    }
     // ...and the volley that empties it starts the next one immediately, so the gun is
     // already working on the answer by the time you notice the drum is dry.
     if (this.mag <= 0) this.reload();
@@ -669,7 +693,7 @@ export class Gun {
         // A direct hit bursts ON the body, not at the last empty step before it.
         const bx = body ? nx : s.x, by = body ? ny : s.y, bz = body ? nz : s.z;
         this.spawnBurst(bx, by, bz, w.blastRadius);
-        onBurst?.(bx, by, bz);
+        onBurst?.(bx, by, bz, s.dmgScale ?? 1);
         s.active = false;
         s.mesh.visible = false;
         continue;
