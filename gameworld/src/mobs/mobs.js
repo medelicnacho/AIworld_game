@@ -14,13 +14,14 @@
 import * as THREE from "three";
 import { MOB, PLAYER, RAID, WARCRY, DUNGEON } from "../config.js";
 import { player } from "../state.js";
-import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
+import { addEntity, removeEntity, reindex, world, nearby, gridKey, REGION_SIZE } from "../state.js";
 import { groundY, solidAt, tierAt, ringPressure, surfaceNear, islandTopsAt } from "../world/gen.js";
 import { terrainClear } from "../world/raycast.js";
 import { dungeonSpawnPoint, dungeonFaction, dungeonGarrisonLeft,
          noteDungeonKill, clampToRoom } from "../world/dungeon.js";
 import { sfx } from "../audio/sfx.js";
-import { sanctuaryOf, boundaryAt, gateArc, sanctuaryUnder, wallBlocks, WALL_H } from "../world/sanctuary.js";
+import { sanctuaryOf, sanctuaryOfIn, boundaryAt, gateArc, sanctuaryUnder,
+         wallBlocksIn, sanctuariesNear, WALL_H } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
 import { AFFIXES, rollAffixes, runAffix, affixHidden, affixLabel } from "./affixes.js";
 import { isMyAlly, isHostileSanctuary, territoryColorAt } from "../prog/factions.js";
@@ -43,6 +44,48 @@ export function inFireSlab(py, fy, height = MOB.fireHeight) {
   return py < fy + height && py + PLAYER.height > fy;
 }
 
+/**
+ * THE DISTANCE TICK: how often this body gets to think, in frames (see the MOB.farTick
+ * essay). 1 means every frame. A pure function of the body and its distance so the rule can
+ * be tested without a world around it.
+ *
+ * Committed states are promises — a lunge mid-air, a charge mid-run, a wind-up mid-glow —
+ * and a promise kept at half rate is a body teleporting through the most-watched moment of
+ * its life. They always think at full rate, as does anything hurt moments ago: the thing
+ * you just shot is the thing you are looking at.
+ */
+export function tickStride(e, lodD, stampede = false) {
+  if (e.leapT > 0 || e.lungeT > 0 || e.windT > 0 || e.rushT > 0 || e.recoverT > 0
+      || e.castT > 0 || (e.burstLeft || 0) > 0 || (e.playerHurtT || 0) > 0) return 1;
+  // THE STAMPEDE. The distance rules below all keep a floor of full-rate thinking near
+  // the player — and in a HUGE fight that floor exempts nearly everyone, which is why
+  // the biggest battles stayed the most expensive (the black box read 17-21ms of mob
+  // brains a frame with the audio starving in lockstep). When the processed crowd passes
+  // MOB.stampede, the floors give way: a crowd too big to watch individuals is a crowd
+  // where nobody can tell who is thinking. What NEVER strides — committed attacks and
+  // the just-shot above, and bodies hunting YOU below — is exactly what you can tell.
+  if (stampede) {
+    if (!e.aggro) return MOB.calmStride;
+    if (e.warFoeId) return MOB.stampedeStride;
+    // Even a body hunting YOU strides in a stampede — but only past arm's reach. A chaser
+    // at fifteen paces deciding at half rate is invisible; the moment it reaches you, its
+    // attack is a committed state and the exemptions above snap it to frame-perfect. The
+    // knife range itself never strides: what is close enough to touch you is close enough
+    // to watch.
+    if (lodD > MOB.warTick) return MOB.farStride;
+    return 1;
+  }
+  if (!e.aggro && lodD > MOB.calmTick) return MOB.calmStride;
+  if (lodD > MOB.farTick) return MOB.farStride;
+  // THE WAR IS THEATRE, even up close. A body whose target is another MOB is a fight you
+  // watch, not a fight you are in — its blows land on its own clock either way, and past
+  // arm's length nobody can tell a brawl deciding at half rate from one deciding at full.
+  // The moment it turns on you (warFoeId cleared, or you touch it) it is frame-perfect
+  // again — the two exemptions above outrank this line by construction.
+  if (e.warFoeId && lodD > MOB.warTick) return MOB.farStride;
+  return 1;
+}
+
 export class Mobs {
   constructor(scene, seed = 0x5EED, fx = {}) {
     this.scene = scene;
@@ -53,6 +96,13 @@ export class Mobs {
     this.packs = new Map();           // packId -> {x, z}
     this.nextPack = 1;
     this.spawnTimer = 0;
+    // neighbours() answers into these SAME slots every ask. It runs for every body every
+    // frame, and a fresh array of fresh {o, d} pairs per ask was ~4000 small objects a
+    // frame in a big fight — cost that never shows on a profile line because it is paid
+    // later, all at once, as a collector pause. Exactly the "smooth then hitches" shape.
+    // Safe because every caller consumes the answer before asking again.
+    this._nbrOut = [];
+    this._nbrPool = Array.from({ length: MOB.maxNeighbours }, () => ({ o: null, d: 0 }));
     this.killed = 0;
     this.born = 0;
 
@@ -275,14 +325,28 @@ export class Mobs {
       }
       this._m.compose(this._p.set(vx, e.y, vz), this._q, this._s.set(sc, sc, sc));
       mesh.setMatrixAt(i, this._m);
-      mesh.setColorAt(i, this.colorOf(e));
+      // COLOUR ONLY WHEN THE SLOT CHANGES HANDS. A body's colour is decided at birth —
+      // faction, elite — and never again, but this wrote and re-uploaded every colour
+      // every frame: a cost that grows with every body the world adds, for zero pixels
+      // of difference ("it just infinitely makes more and more mobs" — and each one was
+      // billing the GPU forever). Slots follow iteration order, which is stable between
+      // frames except at spawn and death, so most frames now upload nothing at all.
+      const slots = (this._slotIds ??= {})[shape] ??= [];
+      if (slots[i] !== e.id) {
+        mesh.setColorAt(i, this.colorOf(e));
+        slots[i] = e.id;
+        (this._colorDirty ??= {})[shape] = true;
+      }
       idx[shape] = i + 1;
     }
     for (const k of Object.keys(this.meshes)) {
       const m = this.meshes[k];
       m.count = idx[k];
       m.instanceMatrix.needsUpdate = true;
-      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      if (m.instanceColor && this._colorDirty?.[k]) {
+        m.instanceColor.needsUpdate = true;
+        this._colorDirty[k] = false;
+      }
     }
   }
 
@@ -309,6 +373,12 @@ export class Mobs {
     const charger = !caster && !elite && this.rng() < MOB.chargerChance;
     return {
       ring, elite, caster, flies, charger,
+      // The war-target clock starts at a RANDOM phase, not at zero. Born at zero, every
+      // body in a pack came due on the same frame forever after — and profiling the worst
+      // frame found exactly that: a thundering herd of simultaneous war rescans costing
+      // thirty times the average frame's share. Stagger is free at birth and impossible
+      // to retrofit later, because synchronized clocks re-synchronize every wave.
+      warThink: this.rng() * 0.4,
       maxHp: hp, hp,
       damage: MOB.damage * (1 + MOB.damagePerRing * ringPressure(ring, MOB.rampDamage))
         * (elite ? MOB.eliteDamage : 1),
@@ -656,6 +726,16 @@ export class Mobs {
       // Inside four walls the scatter has to stay inside them — see clampToRoom.
       const at = clampToRoom(hx + Math.cos(ang) * r, hz + Math.sin(ang) * r);
       const e = this.spawnOne(at.x, at.z, id, hx, hz, null, faction, packY);
+      // THE SKY PUTS DOWN THE BOW (MOB.skyCasterKeep): a wild camp on a sky floor arrives
+      // mostly melee — an island garrison exists to make TAKING the island a fight, not to
+      // lean artillery over the rim into a war below that it isn't part of. Dungeons are
+      // exempt (`inst`): their garrison is a designed encounter on its own floor. Fliers
+      // are exempt: the red diamond at your altitude is the sky's honest ranged threat.
+      // The roll is drawn unconditionally so the RNG stream doesn't depend on the floor.
+      const bowRoll = this.rng();
+      if (!inst && e.caster && !e.flies
+          && e.y - groundY(at.x, at.z) > MOB.castVert
+          && bowRoll >= MOB.skyCasterKeep) e.caster = false;
       // Marks it as one of THIS instance's defenders, so the garrison counts itself and
       // nothing out in the world can be mistaken for part of it.
       if (inst) e.inst = true;
@@ -670,13 +750,24 @@ export class Mobs {
    */
   enemyMobNear(e, range) {
     if (!MOB.factionWar) return null;
-    let best = null, bd = range;
-    for (const o of nearby(e.x, e.z, range)) {
-      // o.defender: town fighters are out of the war (see the attention block) — a garrison
-      // the field could whittle down is a garrison that is sometimes not there.
-      if (o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction || o.defender) continue;
-      const d = Math.hypot(o.x - e.x, o.z - e.z);
-      if (d < bd) { bd = d; best = o; }
+    // Hand-walked buckets, squared distances — same treatment as neighbours(), same
+    // profiled reason: several hundred war rethinks a second in a giant fight, and a
+    // nearest-search never needs a single square root, only a winner.
+    let best = null, bd2 = range * range;
+    const gx0 = Math.floor((e.x - range) / REGION_SIZE), gx1 = Math.floor((e.x + range) / REGION_SIZE);
+    const gz0 = Math.floor((e.z - range) / REGION_SIZE), gz1 = Math.floor((e.z + range) / REGION_SIZE);
+    for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) {
+      const ids = world.regions.get(gridKey(gx, gz));
+      if (!ids) continue;
+      for (const id of ids) {
+        const o = world.entities.get(id);
+        // o.defender: town fighters are out of the war (see the attention block) — a garrison
+        // the field could whittle down is a garrison that is sometimes not there.
+        if (!o || o === e || o.kind !== "mob" || o.hp <= 0 || o.faction === e.faction || o.defender) continue;
+        const dx = o.x - e.x, dz = o.z - e.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bd2) { bd2 = d2; best = o; }
+      }
     }
     return best;
   }
@@ -896,6 +987,13 @@ export class Mobs {
     if (isMyAlly(e.faction)) return null;
     e.hp -= amount;
     e.hurtT = HURT_FLASH;
+    // The distance tick's exemption, and specifically YOURS. hurtT alone can't carry it:
+    // war blows set hurtT too, so in a giant brawl everything is perpetually "just hurt"
+    // and the whole battle would exempt itself from the stride — the bigger the fight, the
+    // less the stride would do, which is backwards. This timer only ever means "the player
+    // touched this", so the thing you shot thinks frame-perfect and the war doesn't get to
+    // buy your full attention by flashing itself red.
+    e.playerHurtT = HURT_FLASH;
     e.aggro = true;
     e.aggroT = MOB.loseInterest;
     this.alert(e);                    // being shot at is a pack-wide event
@@ -923,14 +1021,33 @@ export class Mobs {
     return { killed: false, elite: e.elite, ring: e.ring, faction: e.faction, affixes: affixLabel(e) };
   }
 
+  // THE HOTTEST QUESTION IN THE GAME — profiled, not presumed: in a staged 700-body war
+  // this one scan was 45% of the whole sim frame. So it walks its buckets by hand instead
+  // of through nearby()'s generator: the bounding BOX of the radius touches four buckets
+  // where the generator's centred square touched nine, candidates are rejected on SQUARED
+  // distance (no root until a body is actually kept, and it keeps at most eight), and with
+  // numeric bucket keys the whole ask allocates nothing but its answer.
   neighbours(e) {
-    const out = [];
-    for (const o of nearby(e.x, e.z, MOB.neighborRadius)) {
-      if (o === e || o.kind !== "mob") continue;
-      const d = Math.hypot(o.x - e.x, o.z - e.z);
-      if (d < MOB.neighborRadius) {
-        out.push({ o, d });
-        if (out.length >= MOB.maxNeighbours) break;   // a sample is enough; bounds dense cost
+    const out = this._nbrOut;
+    out.length = 0;
+    const R = MOB.neighborRadius, R2 = R * R;
+    const gx0 = Math.floor((e.x - R) / REGION_SIZE), gx1 = Math.floor((e.x + R) / REGION_SIZE);
+    const gz0 = Math.floor((e.z - R) / REGION_SIZE), gz1 = Math.floor((e.z + R) / REGION_SIZE);
+    for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) {
+      const ids = world.regions.get(gridKey(gx, gz));
+      if (!ids) continue;
+      for (const id of ids) {
+        const o = world.entities.get(id);
+        if (!o || o === e || o.kind !== "mob") continue;
+        const dx = o.x - e.x, dz = o.z - e.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < R2) {
+          const slot = this._nbrPool[out.length];
+          slot.o = o;
+          slot.d = Math.sqrt(d2);
+          out.push(slot);
+          if (out.length >= MOB.maxNeighbours) return out;  // a sample is enough
+        }
       }
     }
     return out;
@@ -953,16 +1070,31 @@ export class Mobs {
    * to punch through walls the walk respected.
    */
   wallOk(e, nx, nz) {
+    // THE WILD IS THE COMMON CASE — profiled: walls were a fifth of the whole sim, and
+    // almost every ask came from a body nowhere near a town, re-deriving "no wall for
+    // miles" from ring maths seven candidate headings a frame. So each body REMEMBERS
+    // which settlements could possibly concern it, and re-asks only once it has strayed a
+    // few strides from where it last looked. Settlement placement is a pure function of
+    // the seed — the memory can never go stale by the world changing, only by the body
+    // moving, and the refresh distance (4) plus the biggest single step a body takes sits
+    // well inside the gather radius (10). In the open field the list is empty and the
+    // whole wall question costs a length check.
+    const wdx = e.x - (e._wallX ?? 1e9), wdz = e.z - (e._wallZ ?? 1e9);
+    if (wdx * wdx + wdz * wdz > 16) {
+      e._walls = sanctuariesNear(e.x, e.z, 10);
+      e._wallX = e.x; e._wallZ = e.z;
+    }
+    if (e._walls.length === 0) return true;
     // NOT INSIDE THE STONE. This asked only which side of a boundary a body was on, which is
     // the right question for "may it enter the town" and no question at all about the wall
     // ITSELF — a wall is a band of solid roughly WALL_T either side of that boundary, and
     // nothing stopped a shove parking a body in the middle of it. You could watch a mob
     // standing waist-deep in masonry. A body already inside one is let out (a knockback or a
     // shape change can strand one there, and refusing every move would weld it in place).
-    const w = wallBlocks(nx, nz);
-    if (w && Math.abs(e.y - (w.plateau + 1)) < WALL_H && !wallBlocks(e.x, e.z)) return false;
-    const from = sanctuaryOf(e.x, e.z, 1.5);
-    const to = sanctuaryOf(nx, nz, 1.5);
+    const w = wallBlocksIn(e._walls, nx, nz);
+    if (w && Math.abs(e.y - (w.plateau + 1)) < WALL_H && !wallBlocksIn(e._walls, e.x, e.z)) return false;
+    const from = sanctuaryOfIn(e._walls, e.x, e.z, 1.5);
+    const to = sanctuaryOfIn(e._walls, nx, nz, 1.5);
     if (to === from) return true;                 // no boundary crossed
     if (!e.defender) return !to;                  // wild: out fine, in never
     const s = to || from;                         // whichever wall is being crossed
@@ -1001,9 +1133,20 @@ export class Mobs {
     this.tryLeap(e, vx, vz);
   }
 
-  update(dt, onPlayerHit) {
+  // `frameDt`, not `dt`: inside the per-mob loop below, `dt` is the PER-BODY step — the
+  // frame's time plus whatever the distance tick skipped for this body — so that a striding
+  // body moves and cools down at exactly the speed a full-rate one does. Everything outside
+  // the loop runs on the raw frame time.
+  update(frameDt, onPlayerHit) {
+    this.frameNo = (this.frameNo | 0) + 1;
+    this.warScans = 0;                 // this frame's war-rescan allowance — see the budget
+    // Last frame's crowd decides THIS frame's stampede state (see tickStride) — reading
+    // the count mid-loop would flip the rule partway through and tick half the crowd on
+    // each side of it. One frame of lag on a threshold is invisible; a split brain isn't.
+    this.stampede = (this._crowd || 0) > MOB.stampede;
+    this._crowd = 0;
     // Bodies in the air move first, before any AI branch gets a chance to forget them.
-    this.stepLeaps(dt);
+    this.stepLeaps(frameDt);
     // Sweep anything you've walked away from FIRST. The nearby() loop below only sees mobs
     // within despawn range, so its `dist > despawn` cleanup never fires for mobs abandoned in
     // a ring you've left — they'd persist frozen far behind you and, because the alive budget
@@ -1046,7 +1189,7 @@ export class Mobs {
     for (const e of this.entities()) { alive++; if (e.inst) instAlive++; }
 
     const cap = this.budget();
-    this.spawnTimer -= dt;
+    this.spawnTimer -= frameDt;
     if (alive < cap.alive && this.packs.size < cap.packs && this.spawnTimer <= 0) {
       this.spawnTimer = cap.interval;
       this.spawnPack(instAlive);
@@ -1096,7 +1239,27 @@ export class Mobs {
       // (chase, melee, ranged) and must stay flat. Only the sweep counts altitude.
       if (this.farFrom(e.x, e.y, e.z) > MOB.despawn) { if (!e.defender) this.despawn(e.id); continue; }
 
+      // THE DISTANCE TICK (see MOB.farTick). A far body thinks on a stride, and each think
+      // covers the skipped time exactly — `dt` from here down is the per-body step. On a
+      // skipped frame the body still falls, hovers and stays findable (restY + reindex);
+      // it just doesn't decide anything.
+      this._crowd++;
+      const dt = frameDt + (e.tickDebt || 0);
+      const stride = tickStride(e, dist + Math.abs(player.y - e.y) * 2, this.stampede);
+      if (stride > 1 && (e.id + this.frameNo) % stride !== 0) {
+        // A SKIPPED FRAME NOW COSTS NOTHING AT ALL. It used to keep restY + reindex +
+        // sync "so the body still falls, hovers and stays findable" — but hovering was
+        // the FLIERS (gone), falling mid-leap is stepLeaps' own pass, and a body that
+        // did not move cannot have changed buckets or facing. Paying upkeep on a body
+        // between thoughts was a third of the crowd's whole bill for literally no
+        // observable difference.
+        e.tickDebt = dt;
+        continue;
+      }
+      e.tickDebt = 0;
+
       if (e.hurtT > 0) e.hurtT -= dt;
+      if (e.playerHurtT > 0) e.playerHurtT -= dt;
       if (e.atkCd > 0) e.atkCd -= dt;
 
       // THE HERBALIST'S PULSE: while the fight is on, every few seconds the whole garrison
@@ -1178,9 +1341,19 @@ export class Mobs {
       if (MOB.factionWar && !e.defender) {
         e.warThink = (e.warThink || 0) - dt;
         if (e.warThink <= 0) {
-          e.warThink = 0.2 + this.rng() * 0.2;
-          const found = this.enemyMobNear(e, MOB.warRange);
-          e.warFoeId = found ? found.id : 0;
+          // THE SCAN BUDGET — the other half of the birth-stagger above. Stagger spreads
+          // the herd; the budget is the guarantee: however the clocks drift back into
+          // step, a frame never runs more than its allowance of full-radius searches.
+          // A body over budget just asks again in a few frames — against a 0.2s rethink
+          // cadence, nobody can tell a war target acquired 50ms late.
+          if (this.warScans >= MOB.warScanBudget) {
+            e.warThink = 0.05;
+          } else {
+            this.warScans++;
+            e.warThink = 0.2 + this.rng() * 0.2;
+            const found = this.enemyMobNear(e, MOB.warRange);
+            e.warFoeId = found ? found.id : 0;
+          }
         }
         if (e.warFoeId) {
           const c = world.entities.get(e.warFoeId);
@@ -1189,7 +1362,13 @@ export class Mobs {
         }
       }
       if (warFoe && !playerSafe && dist < MOB.noticeRange
-          && dist < Math.hypot(warFoe.x - e.x, warFoe.z - e.z)) warFoe = null;
+          && dist < Math.hypot(warFoe.x - e.x, warFoe.z - e.z)) {
+        warFoe = null;
+        // ...and the cached war target goes with it. The distance tick reads warFoeId as
+        // "this body's fight is not with the player" — a body that just chose YOU over the
+        // war must not keep striding on the strength of a foe it abandoned.
+        e.warFoeId = 0;
+      }
       const foe = warFoe;
       const foeMob = warFoe;                                  // the override is always an enemy MOB now
       if (foe) { e.aggro = true; e.aggroT = MOB.loseInterest; }
@@ -1375,6 +1554,20 @@ export class Mobs {
         const cdx = ctx - e.x, cdz = ctz - e.z;
         const cdist = Math.hypot(cdx, cdz) || 1;
         const cux = cdx / cdist, cuz = cdz / cdist;
+        // ITS FIGHT IS ON ITS OWN FLOOR (MOB.castVert). A target too far above or below is
+        // not a target — the wind-up can't be read across floors and the band means nothing
+        // vertically — so a ground-bound caster drops the hunt and goes about its business
+        // rather than holding a range band forever against something it will never reach.
+        // Fliers are exempt: closing that gap is what a flier IS. If the pack re-alerts it
+        // next frame this clears again — the net is a body that wanders instead of churns,
+        // and the moment you come back to its floor, it fights.
+        if (!e.flies && Math.abs(cty - (e.y + 1.1)) > MOB.castVert) {
+          e.aggro = false; e.aggroT = 0; e.burstLeft = 0;
+          e.y = this.restY(e);
+          reindex(e);
+          this.sync(e, ux, uz);
+          continue;
+        }
         // CAN IT SEE YOU? Asked on its own slow, jittered clock rather than every frame.
         e.losT -= dt;
         if (e.losT <= 0) {
@@ -1551,8 +1744,13 @@ export class Mobs {
 
     for (const parent of babies) {
       const ang = this.rng() * Math.PI * 2;
-      this.spawnOne(parent.x + Math.cos(ang) * 1.6, parent.z + Math.sin(ang) * 1.6,
+      const kid = this.spawnOne(parent.x + Math.cos(ang) * 1.6, parent.z + Math.sin(ang) * 1.6,
                     parent.pack, parent.homeX, parent.homeZ, null, parent.faction, parent.y);
+      // Sky camps breed like they spawn — mostly without the bow (see spawnPack) — or an
+      // island garrison quietly re-arms its artillery one birth at a time.
+      const bowRoll = this.rng();
+      if (kid.caster && !kid.flies && kid.y - groundY(kid.x, kid.z) > MOB.castVert
+          && bowRoll >= MOB.skyCasterKeep) kid.caster = false;
       this.born++;
     }
 
@@ -1561,9 +1759,9 @@ export class Mobs {
       if (!seenPacks.has(id) && this.packCount(id) === 0) this.packs.delete(id);
     }
 
-    this.updateBalls(dt, onPlayerHit);
-    this.updateGround(dt);
-    this.updatePops(dt);
+    this.updateBalls(frameDt, onPlayerHit);
+    this.updateGround(frameDt);
+    this.updatePops(frameDt);
     this.render();
   }
 

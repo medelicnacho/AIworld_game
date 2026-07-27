@@ -198,6 +198,17 @@ export const WARCRY = {
   // every fighter runs its mouth on a short personal clock, and the only battlefield
   // limit is a narrow gap that keeps voices from landing on the same instant. With six
   // mobs on you that lands roughly two lines a second, overlapping, from six directions.
+  // FOUR SPEAKER SLOTS, owned by MOBS — not a cap on sounds, a cap on who may speak at
+  // all (asked for in play: "only four mobs can be talking at a time"). Every fighter in
+  // earshot asks to speak on a short personal clock, which in a giant fight is hundreds
+  // of asks a second all running the voice machinery just to be refused at the end; with
+  // slots, all but four are turned away at the front door for the price of a Map peek.
+  // Four is also where the EAR tops out: past four overlapping voices "many warriors"
+  // becomes mush, and every extra line only spends mix headroom drowning the ones already
+  // talking. Chatter, hails and echoes need a slot; the TELEGRAPH cries (charge, aggro,
+  // arm) walk past the door — a scream that exists to be dodged is information, it is
+  // already rationed by its own cooldowns, and information does not queue.
+  maxSpeakers: 4,
   chatterGap: 0.5,        // battlefield-wide minimum between chatter lines
   fightCd: 0.6,           // in-combat lines can come almost back to back
   fightChance: 0.9,
@@ -1213,15 +1224,27 @@ export const SPIN = {
   // long, committal spin that was asked for while giving the danger somewhere to live.
   time: 2.5,
   iframes: 2.5,          // = time: guarded start to finish, on purpose
-  // 1.2, DOWN FROM 2.5 — chosen in play, eyes open. The essay above warned that past about
-  // half uptime a guard stops being timed and becomes maintained, and at this gap the cycle
-  // is 68% untouchable, precisely the number it warned about. The playtest verdict was that
-  // the longer gap starved the weapon: Iron has to STAND IN the fight, and 2.5 exposed
-  // seconds against a pack that respaces in one was most of the brawl spent backpedalling.
-  // If hard-mode fights stop asking anything of an Iron player, this number is why — raise
-  // the GAP, never shorten the spin. Still flat, still counts from the spin's END, and still
-  // deliberately deaf to haste: a safety window that scales is a telegraph deleter.
-  cd: 1.2,
+  // 1.5 — AND THE DAMAGE WAS CUT IN HALF TO PAY FOR IT. Read these two numbers together;
+  // separately each one looks like a nudge and together they are a change of job.
+  //
+  // The old argument treated the gap as the only dial: a long spin that is also good damage
+  // is a button you hold down, so the gap had to be stretched until being untouchable cost
+  // you something. That works, but it pays for safety with DEAD TIME, and dead time is the
+  // worst thing you can sell an Iron player — theirs is the one kit that has to stand in the
+  // fight, so a long wait is spent backpedalling out of it.
+  //
+  // Cutting the damage pays for the safety directly instead. The spin is now clearly the
+  // WRONG button for killing things: swinging beats it against anything you could have
+  // reached. So it stops being an attack you also survive inside of and becomes what it is
+  // best at — a guard, a shove, and a way to CROSS ground while nothing can touch you. You
+  // can have it often, and having it often costs you your damage while it runs.
+  //
+  // That is a better question than the old one. "Can I afford to be safe right now?" is
+  // answered by a timer; "is this worth not attacking for?" is answered by the fight.
+  //
+  // Still flat, still counted from the spin's END, and still deliberately deaf to haste: a
+  // safety window that scales with gear is a telegraph deleter.
+  cd: 1.5,
   // UNUSED, and kept only as a headstone. Haste no longer touches the spin's cooldown at all
   // (see updateSpin) — a floor exists to stop a shrinking number reaching zero, and nothing
   // is shrinking any more. Left named rather than deleted so the next person to wonder "did
@@ -1229,12 +1252,19 @@ export const SPIN = {
   cdFloor: 1.2,
   radius: 6.6,
   tick: 0.25,
-  // Per tick, and deliberately the WEAKEST sustained damage in the kit: under the cleaver's
-  // swings (so spinning on cooldown is a loss against one target) and under Whirlwind (a
-  // purchased spell on a long cooldown must stay the heavier hitter, or a free weapon
-  // attack outclasses something you paid for). It wins only when surrounded — which is
-  // exactly when you want it for the shove and the guarded window anyway.
-  damage: 18,
+  // HALVED, from 18 — see the essay on `cd` above, which this number is the other half of.
+  //
+  // It was already the weakest sustained damage in the kit on purpose. Now it is not close:
+  // spinning is a real LOSS against anything you could have swung at, and it does not catch
+  // up by hitting a crowd either — a pack you spin through takes noticeably less than a pack
+  // you wade into. That is the point. The spin's payment is the guarded window and the shove
+  // that opens it, and a defensive button that also happens to be good damage is a button
+  // with no cost, which is a button with no decision attached.
+  //
+  // The floor this must stay above: ZERO would be cleaner still, but a spin that does nothing
+  // reads as a bug the first time you use it on something already nearly dead. It has to
+  // visibly hurt. It just must never be the reason anything died.
+  damage: 9,
   knock: 9,              // one shove on the opening beat, not a permanent force field
   speed: 1.25,           // you move a little faster while spinning
 };
@@ -2137,11 +2167,46 @@ export const MOB = {
   // makes them a pure movement problem: the counter is to be somewhere else, not to out-DPS
   // them. Mixed into a melee pack they force you to keep moving while something closes.
   casterChance: 0.4,      // of elites; a melee star is still the common case
-  flyChance: 1.0,         // ...and elite casters take to the air
+  // ZERO — the fliers are OUT (2026-07-27, decided in play; went 1.0 -> 0.25 -> 0 in one
+  // day). Two separate verdicts converged: they were GLITCHY — a hover built for a world
+  // that was one surface, forever fighting the sky's stacked floors — and their design
+  // job had already been retired: the air threat only meant something when the air held
+  // half the war, and that ended with the sky cut. A glitchy body doing a retired job is
+  // a removal, not a bug list. Elite casters now all fight from the ground, where their
+  // wind-up can actually be read. The flyer brain, shape and safety rails stay in code —
+  // this one number is the whole decision, and turning it back on is turning it back up.
+  flyChance: 0,
   groundCasterChance: 0.2, // ranged that stays on the ground: common, not elite
   flyHitScale: 2.4,       // flyers get a generous hitbox — see targets()
   castMin: 11,            // closer than this and they back off — they don't want a brawl
   castMax: 34,
+  // A CASTER'S FIGHT IS ON ITS OWN FLOOR. Its whole design is a conversation at mid-range:
+  // it holds a band, it glows, and you dodge or break line of sight. Every part of that
+  // conversation assumes you share a floor — a wind-up thirty blocks below your feet is a
+  // telegraph you cannot see, and a target thirty blocks above the band is one the band
+  // means nothing against. So a ground-bound caster gives up on any target further than
+  // this above or below it and goes about its business, instead of holding a range band for
+  // the rest of its life against something it will never reach. That treadmill was most of
+  // what "a sky full of ranged mobs" cost: not the shots — the shots mostly couldn't land
+  // (castMax is 3D, and the sky starts past it) — but the hundreds of frames of a fighter's
+  // full attention, spent adding nothing.
+  //
+  // Fliers are exempt: closing the vertical gap is their entire identity, and the red
+  // diamond at your altitude is the sky's one HONEST ranged threat.
+  //
+  // 14: taller than any melee reach (a caster still out-guns a biter upward, so terraces
+  // and mesa rims stay contested) and well inside castMax (its patience ends before its
+  // range does, never the other way round — a caster that keeps caring past the edge of
+  // its own shot is the treadmill again).
+  castVert: 14,
+  // THE SKY PUTS DOWN THE BOW. Camps that settle a sky floor mostly arrive as melee: an
+  // island's garrison exists to make TAKING the island a fight, and the fight worth having
+  // up there is on its deck when you arrive — not artillery leaning over the rim into a
+  // war it isn't part of. This keeps roughly one archer in five, so a perch can still
+  // surprise you without the air over every battle being a weather of unreadable shots.
+  // Sky TOWNS and dungeons are exempt: their garrisons are designed encounters on their own
+  // floor, and you are on it when you meet them.
+  skyCasterKeep: 0.2,
   castCd: 3.4,
   castWindup: 0.8,        // they stop and glow before releasing: the telegraph
   ballSpeed: 12,          // slow enough to sidestep if you see it coming
@@ -2240,16 +2305,66 @@ export const MOB = {
   // the map tidies into blocs; lower it and the war goes back to being confetti.
   territory: 140,
   warRange: 17,          // a mob engages an enemy-faction mob within this
+  // How many full-radius war-target searches ONE FRAME may run. The steady load fits well
+  // under this (a few hundred bodies on ~0.3s clocks is ~25 a frame); it exists for the
+  // waves — clocks drifting into step and coming due together — which profiling caught
+  // costing thirty times the average frame. Over-budget bodies retry a few frames later,
+  // invisibly against a 0.2s rethink cadence.
+  warScanBudget: 32,
   factionDamage: 0.65,   // mob-vs-mob hits for this fraction of their damage-to-you
 
   // --- steering: emergent movement, no substrate required -------------------------
   // The brain decides INTENT (close, hold, lunge); these decide HOW the body gets there.
   // Same seam as PLAN §4 — a mob brain and a soul brain will drive the same locomotion.
+  // THE DISTANCE TICK. Every body used to pay the same per-frame price — flocking, terrain
+  // probes, steering — whether it was the knife at your throat or a camp milling ninety
+  // units away. In a big fight the second kind outnumbers the first ten to one: the war
+  // between two camps at the edge of earshot is THEATRE, and theatre was billed at the
+  // same rate as the fight you are actually in.
+  //
+  // So attention now costs what it is worth. A body far from you thinks on a longer stride
+  // — every 2nd frame if it is fighting (the war stays believable, just cheaper), every
+  // 3rd if it is calm — and each think covers the skipped time exactly, so nothing moves
+  // slower, it just decides less often. Altitude counts double in "far", the same
+  // philosophy as the despawn sweep: sixty blocks up is another world, not another street.
+  //
+  // What NEVER strides: anything committed (a lunge, a charge, a wind-up, a leap, a
+  // barrage — a committed attack is a promise about where a body will be, and promises are
+  // kept at full rate), and anything you just hurt — the thing you shot is the thing you
+  // are looking at.
+  // Tightened (64/48 -> 48/40) when the fights stayed heavy: camps spawn 22-58 out, so at
+  // 64 the entire fight thought at full rate and the stride only ever trimmed the horizon.
+  // 48 puts the BRAWL'S EDGE on the stride while everything you are actually trading blows
+  // with stays frame-perfect — committed attacks and anything you just hurt never stride,
+  // whatever their distance, so nothing that can touch you gets cheaper to watch.
+  farTick: 48,            // past this (flat + 2x altitude), a FIGHTING body strides
+  farStride: 2,
+  calmTick: 40,           // past this, a CALM body strides longer
+  calmStride: 3,
+  // A GIANT fight is mostly not about you: three clans brawling means most bodies are
+  // fighting EACH OTHER, and a fight you watch does not need the frame-perfect attention
+  // of a fight you are in. Bodies locked on another mob stride from arm's length out —
+  // anything targeting YOU, mid-attack, or that you just shot still never strides.
+  warTick: 24,            // past this, a body brawling with ANOTHER MOB strides
+  // THE STAMPEDE THRESHOLD: when more bodies than this are being processed around you,
+  // the full-rate floors above give way — close war-brawlers halve their thinking, calm
+  // bodies stretch to a third, and only what concerns YOU (committed attacks, your own
+  // hunters, anything you just shot) stays frame-perfect. 200 is past the point where a
+  // human can track individuals in the mass anyway; below it, the ordinary rules return.
+  stampede: 200,
+  // How rarely the WAR thinks during one — a brawl between two mobs updating three times
+  // a second reads identically to one updating sixty, because its blows land on cooldown
+  // clocks either way. This is the deepest stride in the game and it applies only to
+  // fights the player is neither in nor the target of.
+  stampedeStride: 3,
   neighborRadius: 10,     // who counts as "nearby" for flocking
   // In a dense pile-up, EVERY mob scanning EVERY neighbour is the O(n²) that lags. Flocking
   // only needs a SAMPLE, so we stop after this many — the motion looks identical, the cost
   // stops exploding. This is the single biggest knob for big-group performance.
-  maxNeighbours: 12,
+  // 8, down from 12. Flocking is a SAMPLE, not a census — the spread and the shove read
+  // identically off eight neighbours, and in the dense brawls where this matters most it
+  // is a third of the per-body cost gone exactly where the frame is tightest.
+  maxNeighbours: 8,
   separation: 2.8,        // below this they actively push apart — no stacking, ever
   sepForce: 3.4,
   alignForce: 1.0,        // match your neighbours' heading: a pack moves as one body
@@ -2369,27 +2484,34 @@ export const MOB = {
   // means the sky wins four votes to one. Weighting each perch slightly under the ground
   // corrects for that count rather than adding a preference on top of it.
   //
-  // 2.2, WITH THE BUDGET NEARLY DOUBLED TO MATCH — and the pairing is the whole point.
+  // 0.6, WALKED BACK FROM 2.2, WITH THE BUDGET WALKED BACK TO MATCH — the same pairing as
+  // the raise, run in reverse, for the same reason: the two numbers only mean anything
+  // together.
   //
-  // The ask was "far more in the sky, the same on the ground", and those two are only
-  // compatible if the POOL grows. Weighting alone is zero-sum: every camp moved onto an
-  // island is one taken off the land, so any attempt to fill the sky by re-weighting empties
-  // the floor again — which is the exact bug that started this whole sequence.
+  // 2.2 was tuned to an ask ("far more in the sky, the same on the ground") that play has
+  // now reversed twice over: at 2.2 MORE THAN HALF of all camps stood in the air — measured
+  // again over four thousand real columns, ground share 46% — and a big ground fight was
+  // paying rent on a second, bigger fight hanging over it that mostly could not touch you
+  // and that you mostly could not read. The sky's job in this game is to be a place you GO
+  // — a ladder, a perch, a garrison worth taking — not where the war lives. The war lives
+  // on the land, because the land is where you can read it.
   //
-  // So the two moved together, and the arithmetic is deliberate rather than eyeballed.
-  // Measured over four thousand real columns with the player standing on the ground: the
-  // ground's share falls 70% -> 36%, and the budget rises x1.96, which leaves the ground
-  // holding the same ABSOLUTE number it did before and multiplies the sky by 4.2.
-  skyWeight: 2.2,
+  // Below even the "honest" 0.8: several sky floors still stack over every column, so a
+  // per-floor thumb under the land is what keeps the sky a scatter of held positions
+  // rather than a crowd. Measured at 0.6: ground share 71%, and with skyCrowd walked back
+  // in step the ground's ABSOLUTE count is unchanged (x1.34 base before, x1.35 after)
+  // while the sky holds roughly a THIRD of the bodies it did.
+  skyWeight: 0.6,
   skyAffinity: 55,      // blocks of altitude over which a floor's share falls away
   // The world grew a sky, so the crowd budget grows with it — otherwise populating the air
   // just empties the ground, and the frontier you walk through gets quieter the more there
   // is above it.
-  // The whole population budget, multiplied, because a world with levels holds more fights
-  // than a world with one. Every mob still has to be somewhere you could reach it — the 3D
-  // sweep (despawnVScale) is what keeps this from being spent on bodies a hundred blocks
-  // below your feet.
-  skyCrowd: 2.9,
+  // 1.9, DOWN FROM 2.9 — the other half of skyWeight's walk-back, derived not eyeballed:
+  // this is the multiplier at which the ground keeps the exact body count it has today
+  // while the sky drops to about a third. Every cost in a fight — brains, bars, dots, the
+  // fleet upload — scales with the living, so this is also the single biggest lever on the
+  // worst frame, pulled in the one place that was holding bodies the fight didn't need.
+  skyCrowd: 1.9,
   // A FLIER CHASES IN THREE DIMENSIONS. Hovering a fixed distance over the LAND meant an air
   // mob would sail along underneath an island with you standing on top of it, which makes
   // the sky a safe place and the fliers ornaments. Chasing, it climbs to your height plus
@@ -2412,18 +2534,33 @@ export const MOB = {
   // The count drops hard at the base and the ramp steepens to make it up, so the Commons is
   // a handful of mobs you can read while the deep stays a horde. (GEAR.md G5/G6 take this
   // further into the MMO direction: fewer, meatier mobs.)
-  maxAlive: 188,          // scaled by MOB.skyCrowd — see budget()
-  maxAlivePerTier: 114,   // tier 1: ~305 · tier 3: ~640 · deep rings ride the cap
+  // TRIMMED ~22% (188/114 -> 146/90) when the sky emptied, because the war CONCENTRATED:
+  // bodies that used to spread across three floors above you now almost all stand on
+  // yours, so a pool that felt right split across theatres reads as a flood delivered to
+  // one ("waaaay more enemies spawning on the ground"). The pool was sized for two
+  // theatres; it is one theatre now, and it shrinks toward its one-theatre size — the
+  // ground keeps a real horde, it just stops receiving the sky's share of it too.
+  maxAlive: 146,          // scaled by MOB.skyCrowd — see budget()
+  // 60, DOWN FROM 90 — the deep-water flood, drained (2026-07-27, from level-50 play on a
+  // laptop: "so many mobs it's just overwhelming"). Density-as-difficulty stops working
+  // past the point where the crowd stops being READABLE: at fifty levels deep the world
+  // held over a thousand bodies, which for the one faction that must STAND IN the fight
+  // is not pressure, it is weather — and it is also the single biggest number behind the
+  // worst frame. GEAR.md already chose this direction (fewer, meatier mobs); the depth
+  // keeps its menace through stats, elites and affixes, which scale forever anyway.
+  maxAlivePerTier: 60,    // deep rings ride the cap
   // Raised with the sky. The deep rings sit ON this cap, so skyCrowd alone would have done
   // nothing out there — the extra bodies the air needs would have been taken straight off the
   // ground instead of added.
-  // 950. Raised alongside the skyWeight fix rather than instead of it: rebalancing the
-  // SPLIT alone would have moved bodies off the islands to fill the ground, which is not
-  // what was asked for. More of both means a bigger pool as well as a fairer share.
-  // x1.96 on the old 1500 — the figure that keeps the GROUND's count flat while the sky
-  // fills. This is the number to walk back first if the deep rings ever stutter: the
-  // per-voxel mesher gives out long before the AI does.
-  maxAliveCap: 2940,
+  // 1900, WALKED BACK FROM 2940 in step with skyCrowd (2940 x 1.9/2.9). The old essay here
+  // promised this was "the number to walk back first if the deep rings ever stutter" — the
+  // deep rings stuttered, and a promise a config makes to its future self is kept or it
+  // was never worth writing. The deep rings ride this cap, so the deep-ring horde thins by
+  // the same third the rest of the world did — and stays a horde.
+  // ...then to 1500 riding the one-theatre trim, then to 900 with the deep-water drain
+  // (see maxAlivePerTier): the cap is where the deepest rings actually live, so it is
+  // the number a level-50 session breathes through.
+  maxAliveCap: 900,
   maxPacks: 23,
   maxPacksPerTier: 18,
   maxPacksCap: 196,

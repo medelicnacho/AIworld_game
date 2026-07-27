@@ -63,9 +63,35 @@ scene.background = SKY;
 scene.fog = new THREE.Fog(SKY, VIEW_RADIUS * CHUNK_X * 0.45, VIEW_RADIUS * CHUNK_X * 0.95);
 
 const camera = new THREE.PerspectiveCamera(CAMERA.fov, innerWidth / innerHeight, 0.1, 2000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// NO MSAA (2026-07-27, asked for in play: lower the graphics — the audience machine is a
+// LAPTOP). Multisampling multiplies fill cost on exactly the integrated GPUs this ships
+// to, and it is the one graphics cost the frame timer cannot see — the render() number
+// only measures handing work over, not the GPU paying for it. A flat-shaded voxel game
+// wears hard edges as a style; the jaggies it buys back are the cheapest ugliness we own.
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+// ADAPTIVE RESOLUTION — the pixel count now answers to the frame clock, because the black
+// box proved the audio was never drowning in sounds: it was starved of CPU by the whole
+// machine pegging in big fights, and the fattest silent line item was drawing up to 4x the
+// pixels of native (devicePixelRatio 2, squared) for a flat-shaded blocky look that barely
+// rewards them. Ceiling 1.5: still crisp on a dense screen, 44% fewer pixels than 2.0. And
+// when the measured frame runs hot the ratio steps DOWN toward 1.0 — softer for a while
+// beats stuttering, the exact bargain the audio shed already makes — then climbs back the
+// moment the machine breathes. Steps are small and rare (every 2.5s) so the change reads
+// as nothing at all in motion.
+const PR_CEIL = Math.min(devicePixelRatio, 1.25);   // laptop ceiling — see the essay above
+let pixelRatio = PR_CEIL;
+renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
+setInterval(() => {
+  const want = frameMs.total > 24 ? Math.max(1.0, pixelRatio - 0.25)
+    : frameMs.total < 14 ? Math.min(PR_CEIL, pixelRatio + 0.25) : pixelRatio;
+  if (want !== pixelRatio) {
+    pixelRatio = want;
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(innerWidth, innerHeight);
+    frameMs.pr = pixelRatio;             // rides the black box (see sfx frameVitals)
+  }
+}, 2500);
 document.body.appendChild(renderer.domElement);
 
 const hemi = new THREE.HemisphereLight(0xbcd8f0, 0x4a4a44, 0.85);
@@ -2895,7 +2921,12 @@ const frameMs = { sim: 0, mobs: 0, hud: 0, render: 0, total: 0,
   // is exactly what "it lags in big fights" feels like. The peak line names the frame that
   // actually hurt: if one section owns it, that section is guilty; if the total spikes and
   // NO section does, the time went between the timers — which is the signature of GC.
-  peak: 0, peakLine: "", peakAge: 0 };
+  peak: 0, peakLine: "", peakAge: 0, fps: 60, pr: 0 };
+// The frame's vitals ride the audio black box (sfx's pulse posts them to .vitals.log in
+// dev) — because the last mystery cracked only when the AUDIO log was read NEXT TO the
+// frame cost: a crawling audio clock beside a hot frame is starvation, beside a cool frame
+// it's the audio's own fault. One recorder, both patients.
+sfx.frameVitals = frameMs;
 
 // innerHTML ONLY WHEN IT CHANGED. Seven HUD blocks rebuilt their markup every frame whether
 // anything moved or not — health, ammo, xp, rep, points, the weapon dials, the boss bar —
@@ -3443,7 +3474,11 @@ function frame(now) {
     `in   fwd ${input.fwd >= 0 ? " " : ""}${input.fwd} str ${input.right >= 0 ? " " : ""}${input.right}` +
     `  ${input.aimHeld ? "AIM" : "---"}${input.aim ? "*" : " "}` +
     `  ${player.dodgeT > 0 ? "ROLL" : "    "}  ${player.onGround ? "grnd" : "air "}\n` +
-    `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ms ${frameMs.total.toFixed(1)} = sim ${frameMs.sim.toFixed(1)} + mobs ${frameMs.mobs.toFixed(1)} + hud ${frameMs.hud.toFixed(1)} + gpu ${frameMs.render.toFixed(1)}   ${frameMs.peakLine}`;
+    `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ms ${frameMs.total.toFixed(1)} = sim ${frameMs.sim.toFixed(1)} + mobs ${frameMs.mobs.toFixed(1)} + hud ${frameMs.hud.toFixed(1)} + gpu ${frameMs.render.toFixed(1)}   ${frameMs.peakLine}\n` +
+    // The voice path's vitals, on screen because its one historical failure mode is dying
+    // SILENTLY: vox = lines sounding right now · fails = decodes that refused (should stay
+    // 0 forever) · ctx = the audio engine's own state (anything but "running" is the story).
+    `vox  ${sfx.speaking || 0}   fails ${sfx.voiceFails || 0}   ctx ${sfx.ctx ? sfx.ctx.state : "none"}`;
 
   // Overwatch-style HUD: big health bottom-left, big ammo bottom-right.
   const hpFrac = player.maxHp > 0 ? player.hp / player.maxHp : 0;
@@ -3531,6 +3566,7 @@ function frame(now) {
   lap.at("render");
   const frameTotal = performance.now() - frameT0;
   frameMs.total += (frameTotal - frameMs.total) * 0.05;
+  frameMs.fps = fps;
   frameMs.peakAge += dt;
   if (frameTotal > frameMs.peak || frameMs.peakAge > 4) {
     frameMs.peak = frameTotal;

@@ -419,13 +419,30 @@ export class Minimap {
     }
 
     // Mobs — red for a threat, GOLD for an elite, GREEN for your own army (an ally).
+    //
+    // Batched into one painted path PER COLOUR, not one per dot. A giant fight puts a few
+    // hundred dots on this map, and a few hundred separate fills a frame made the map
+    // itself a cost of exactly the battles it exists to explain. Same dots, three paints.
+    // The range test runs BEFORE the rotation: toMap turns the world, it never stretches
+    // it, so distance survives the turn and the cheap squared test can stand at the gate.
+    const dotBuckets = { "#5fe08a": [], "#ffd24a": [], "#ff6b6b": [] };
     for (const e of mobs.entities()) {
-      const m = this.toMap(e.x - player.x, e.z - player.z);
-      if (Math.hypot(m.mx, m.my) > RANGE) continue;
+      const ddx = e.x - player.x, ddz = e.z - player.z;
+      if (ddx * ddx + ddz * ddz > RANGE * RANGE) continue;
+      const m = this.toMap(ddx, ddz);
       const ally = isMyAlly(e.faction);
+      dotBuckets[ally ? "#5fe08a" : e.elite ? "#ffd24a" : "#ff6b6b"]
+        .push(R + m.mx * scale, R - m.my * scale, e.elite ? 3.8 : 2.6);
+    }
+    for (const col in dotBuckets) {
+      const pts = dotBuckets[col];
+      if (!pts.length) continue;
       ctx.beginPath();
-      ctx.arc(R + m.mx * scale, R - m.my * scale, e.elite ? 3.8 : 2.6, 0, Math.PI * 2);
-      ctx.fillStyle = ally ? "#5fe08a" : e.elite ? "#ffd24a" : "#ff6b6b";
+      for (let i = 0; i < pts.length; i += 3) {
+        ctx.moveTo(pts[i] + pts[i + 2], pts[i + 1]);
+        ctx.arc(pts[i], pts[i + 1], pts[i + 2], 0, Math.PI * 2);
+      }
+      ctx.fillStyle = col;
       ctx.fill();
     }
 

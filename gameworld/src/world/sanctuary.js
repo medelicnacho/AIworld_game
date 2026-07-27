@@ -539,7 +539,13 @@ export function sanctuariesNear(x, z, range = 220) {
 
 /** The settlement containing this point (within `margin` of its wall), or null. */
 export function sanctuaryOf(x, z, margin = 0) {
-  for (const s of sanctuariesNear(x, z, 0)) {
+  return sanctuaryOfIn(sanctuariesNear(x, z, 0), x, z, margin);
+}
+
+/** sanctuaryOf against a caller-supplied candidate list — same split, same reason as
+ *  wallBlocksIn. */
+export function sanctuaryOfIn(list, x, z, margin = 0) {
+  for (const s of list) {
     const dx = x - s.x, dz = z - s.z;
     const dd = Math.hypot(dx, dz);
     if (dd > s.rMax + margin) continue;
@@ -606,7 +612,14 @@ export function wallBlocksBody(x, y, z, bodyH = 0) {
 export function wallBlocks(x, z) {
   // Range 0: sanctuariesNear already pads by each settlement's own rMax, so a wall test
   // only needs the ones it could possibly be standing in.
-  for (const s of sanctuariesNear(x, z, 0)) {
+  return wallBlocksIn(sanctuariesNear(x, z, 0), x, z);
+}
+
+/** The same wall test against a CALLER-SUPPLIED candidate list. Split out so a hot caller
+ *  can gather the candidates once and ask many times — the gather (ring maths, tier
+ *  buckets, angles) costs more than every test it feeds. See Mobs.wallOk. */
+export function wallBlocksIn(list, x, z) {
+  for (const s of list) {
     const dx = x - s.x, dz = z - s.z;
     const d = Math.hypot(dx, dz);
     // rInner, not rMin — see build(). The smallest CORNER is not the closest the wall comes.

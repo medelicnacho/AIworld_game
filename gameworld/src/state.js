@@ -17,8 +17,15 @@ import { groundY } from "./world/gen.js";
 // question local again.
 export const REGION_SIZE = 24;   // world units per region bucket
 
+// The key is a NUMBER, not a string. Measured in a staged 700-body war: the flocking scan
+// alone asked for buckets thousands of times a frame, and every ask minted a fresh
+// "12,-3"-style string — the sim was spending real frame time manufacturing garbage for
+// the collector. A grid cell packs into one exact integer (unique for |cell| < 32768,
+// which at 24 units a cell is ~780k world units of frontier — the despawn ring will never
+// see the edge). Same Map, same buckets, no alloc per ask.
+export const gridKey = (gx, gz) => (gx + 0x8000) * 0x10000 + (gz + 0x8000);
 export const regionKey = (x, z) =>
-  `${Math.floor(x / REGION_SIZE)},${Math.floor(z / REGION_SIZE)}`;
+  gridKey(Math.floor(x / REGION_SIZE), Math.floor(z / REGION_SIZE));
 
 export const world = {
   time: 0,
@@ -122,7 +129,7 @@ export function* nearby(x, z, radius = REGION_SIZE) {
   const cx = Math.floor(x / REGION_SIZE), cz = Math.floor(z / REGION_SIZE);
   for (let dz = -r; dz <= r; dz++) {
     for (let dx = -r; dx <= r; dx++) {
-      const ids = world.regions.get(`${cx + dx},${cz + dz}`);
+      const ids = world.regions.get(gridKey(cx + dx, cz + dz));
       if (!ids) continue;
       for (const id of ids) {
         const e = world.entities.get(id);

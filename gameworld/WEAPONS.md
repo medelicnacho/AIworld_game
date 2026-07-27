@@ -37,28 +37,62 @@ main damage.
 **Right click.** A spin, on a cooldown.
 
 - ~2.5 seconds of spinning
-- **untouchable for the first ~0.6s only**
-- decent damage all around you, but **less per second than swinging**
+- **untouchable the whole time** — a guard that expires halfway through is a guard you cannot
+  plan around, so however long it lasts, it lasts completely
 - one shove on the opening beat, to clear room
-- 5s cooldown, floored at 2.5s no matter how much Haste is stacked
+- **very little damage** — deliberately the worst way to kill anything you own
+- a short cooldown, flat, and **deaf to Haste**: a safety window that scales with gear is a
+  telegraph deleter
 
-### Why the invulnerability is a window, not the whole spin
+### How the guard is paid for — and why it stopped being paid for with time
+
+*(Revised 2026-07-27. The original argument is preserved below, because it was right about the
+danger and wrong about the remedy.)*
+
+The danger is real and unchanged: a defensive button with high uptime stops being something
+you *time* and becomes a state you *live in*, and a player who is never hittable cannot be
+reached by meteors, charges, telegraphs, or "being hit is always a failure to move."
+
+The first remedy was to pay for the guard with **time** — stretch the gap until being
+untouchable cost you a long, exposed wait. That works, and it charges the wrong currency.
+Iron is the one kit that has to *stand in* the fight, so a long wait is spent backpedalling
+out of the thing the whole weapon is built to do. It made the faction safe *and* passive.
+
+The remedy now is to pay with **damage**. The spin is the clearly wrong button for killing
+things — swinging beats it against anything you could have reached, and it does not make it
+up on a crowd either. So it can come round often, because having it costs you your offence
+for as long as it runs.
+
+That is a better question to hand a player. *"Can I afford to be safe right now?"* is answered
+by looking at a timer. *"Is this worth not attacking for?"* is answered by looking at the
+fight.
+
+And it gives the defensive faction the best identity available to it: not the one that cannot
+be hurt, but **the one that is best at reading incoming damage** — because the guard is cheap
+enough to use freely and useless enough that using it badly still costs you the kill.
+
+> **The floor:** zero damage would be cleaner still, but a spin that does nothing reads as a
+> bug the first time you catch something already nearly dead with it. It has to visibly hurt.
+> It just must never be the reason anything died.
+
+<details>
+<summary>The original argument, kept for the record</summary>
 
 The first proposal was three seconds untouchable on a four second cooldown. That is safe
 three seconds out of every four, and with cooldown reduction it finishes *while you are still
-spinning* — permanently invulnerable. That deletes the game: meteors, charges, telegraphs and
-"being hit is always a failure to move" cannot reach a player who is never hittable.
+spinning* — permanently invulnerable.
 
 For scale, everything else in the game runs at roughly **a quarter uptime**: the dodge is
 0.2s safe on a 0.7s cooldown, Whirlwind is 3.6s safe on a 13s cooldown.
 
 Making the untouchable part a **window at the start** turns *press to be safe* into *press at
-the right moment* — a skill, and specifically the skill the whole game already teaches: read
-the thing coming at you and answer it. Miss the timing and you have spent the move, you are
-mid-spin, and the meteor still lands.
+the right moment* — a skill, and specifically the skill the whole game already teaches.
 
-That also gives the defensive faction the best identity available to it: not the one that
-cannot be hurt, but **the one that is best at reading incoming damage**.
+*What play showed:* a guard that expires mid-spin is unplannable, and a long gap starves the
+weapon. Both halves of that lesson are in the current design — the guard covers the whole
+spin, and the gap is short. Damage is what pays for it now.
+
+</details>
 
 ### Why the cone and the spin need each other
 
@@ -67,17 +101,22 @@ complete kit alone — which is why they are one weapon rather than two features
 
 ### The damage relationship
 
-**Swinging must out-damage spinning over time.** The cone is bread and butter; the spin costs
-a cooldown, so if it also paid more damage it would become the whole rotation.
+**Swinging out-damages spinning, and not narrowly.** The cone is bread and butter. The spin
+is not a second way to deal damage that happens to be safe — it is a *guard you buy with your
+damage*, and the price has to be visible or it is not a price.
 
-But the cone hits **in front** and the spin hits **all around**. So the spin loses on a single
-target and wins when you are swamped — which is exactly when you also want it for the
-knockback and the untouchable window. The defensive use and the offensive use point the same
-way, which makes it a clean read: *cone for damage, spin for crowds and for the moment
-something is about to land on you.*
+The original version had the spin losing on a single target and winning when swamped, so that
+the defensive use and the offensive use pointed the same way. That reads well on paper and in
+play it meant the answer to being surrounded was always the same button. Now it loses in both
+cases. What the spin wins is **the moment** — the shove that opens room, the seconds nothing
+can touch you, the ground you cross while untouchable.
 
-Also: **well under Whirlwind.** That is a purchased spell on a long cooldown and it should
-stay the heavier hitter, or a free weapon attack outclasses something you paid for.
+The clean read is no longer *cone for damage, spin for crowds.* It is:
+
+> **Cone to kill. Spin to survive, to reposition, or to buy a second.**
+
+Also: **well under Whirlwind.** That is a purchased spell on a long cooldown and it must stay
+the heavier hitter, or a free weapon attack outclasses something you paid for.
 
 ### Iron needs a way in
 
