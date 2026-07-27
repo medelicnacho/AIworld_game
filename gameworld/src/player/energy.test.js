@@ -75,7 +75,12 @@ test("the tools you escape with are never priced", () => {
 // it is not — that turns a mistake into a death sentence.
 test("whirlwind is affordable from a full bar, and never runs dry mid-spin", () => {
   assert.ok(ENERGY.whirl <= ENERGY.max, "it must be castable at all");
-  assert.ok(ENERGY.whirl > ENERGY.nova, "invulnerability should cost more than damage");
+  // The old assertion here — "invulnerability should cost more than damage" — was retired by
+  // decree: Whirlwind is priced as a rhythm spell now, paired with Dash, and the ration on
+  // being untouchable is its long cooldown rather than its price. What must still hold is
+  // that the pair leaves room to mend, or the melee sentence ends every fight at zero.
+  assert.ok(ENERGY.max - ENERGY.dash - ENERGY.whirl >= ENERGY.heal,
+    "dash + whirl must leave a heal behind");
   // Charged up front, so the spin's length is irrelevant to whether it can finish.
   assert.ok(WHIRL.spinTime > 0);
 });

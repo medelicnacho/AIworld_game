@@ -638,6 +638,15 @@ export class Sfx {
    * toward someone made almost no audible difference. A voice should get louder as you
    * approach it; that is most of what makes it feel like it is coming from a body.
    */
+  /** Decode a clip into the cache WITHOUT playing it — so the first cry of a battle costs
+   *  what the hundredth does. Failure is fine; playClip will simply try again on use. */
+  async prime(arrayBuffer) {
+    if (!this.ctx || !arrayBuffer || this.clips.has(arrayBuffer)) return;
+    try {
+      this.clips.set(arrayBuffer, await this.ctx.decodeAudioData(arrayBuffer.slice(0)));
+    } catch { /* first real play retries */ }
+  }
+
   async playClip(arrayBuffer, x, z, volume = 1, rate = 1, reach = 200, y = null) {
     if (!this.on || !arrayBuffer) return 0;
     let buf = this.clips.get(arrayBuffer);

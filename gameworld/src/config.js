@@ -1684,14 +1684,13 @@ export const ENERGY = {
   // mid-spin and strip the invulnerability, which is the one thing this resource must never
   // do. You either get the whole spin or you never started it. Dearer than a Nova because
   // being untouchable for three seconds is worth more than any amount of damage.
-  // 65, NOT 85 — the third number in this file that turned out to be a RATIO. Dash is the
-  // APPROACH: it is how you enter a fight, and Whirlwind is the melee sentence you enter it
-  // to say. At 85 it was the single ability in the game priced above what a dash leaves
-  // behind (100 - 35 = 65), so "dash in, whirlwind" — the most natural combo the kit has —
-  // was the one combo that stalled for a second while everything else fired instantly. It
-  // presented as a weird delay on one button, because it was invisible arithmetic on one
-  // button. Still dearer than Nova, which its own note below demands.
-  whirl: 65,
+  // 35, by decree, after two rounds of the same lesson (85 priced it out of the dash combo;
+  // 65 fixed the combo but still made it the dearest button). The old rule here was
+  // "invulnerability costs more than damage"; the new one is that Whirlwind is a RHYTHM
+  // spell, priced like Dash so the pair reads as one sentence — dash in, whirl — with 30
+  // left over for a heal. What still guards it: a 15.6s cooldown, which is the real ration
+  // on being untouchable, and always was.
+  whirl: 35,
   // THE TWO YOU START WITH. They were free while they lived on their own keys outside the
   // bar; now that they are spells they pay like spells, and the price is what makes them
   // decisions. Thirty each is deliberately under a third of the pool: a Nova and a heal still

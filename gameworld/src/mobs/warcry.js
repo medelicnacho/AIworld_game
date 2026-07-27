@@ -218,7 +218,30 @@ export class WarCries {
     }
   }
 
+  /**
+   * WARM EVERY THROAT BEFORE THE WAR NEEDS ONE. The decode cache means a line is only ever
+   * decoded once — but "once" used to land mid-battle, on the line's first use, which is how
+   * a session's first big fight got its voices a beat late while everything after was clean.
+   * Decoded here, sequentially (38 parallel decodes would be its own little lag spike), the
+   * moment the audio context exists. Every bin: taunts, war lines, hails, and whatever the
+   * lab has persisted.
+   */
+  async primeAll() {
+    for (const bins of [this.taunts, this.cache, this.hails]) {
+      for (const list of bins.values()) {
+        for (const entry of list) await this.sfx.prime?.(entry.wav);
+      }
+    }
+  }
+
   update(dt) {
+    // Audio contexts are born from a user gesture, so the warm-up waits for one — polled
+    // here because update is the one place that runs every frame regardless of how the
+    // session began (fresh, loaded, or mid-reload with IndexedDB lines still arriving).
+    if (!this.primed && this.sfx.ctx) {
+      this.primed = true;
+      this.primeAll();
+    }
     if (!WARCRY.enabled) return;
     this.globalCd = Math.max(0, this.globalCd - dt);
     this.hailCd = Math.max(0, this.hailCd - dt);
