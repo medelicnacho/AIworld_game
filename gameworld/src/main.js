@@ -383,10 +383,11 @@ const spinRing = (() => {
 let slamFx = 0, whirlTick = 0;
 
 function whirlwind() {
-  // Paid before anything happens, and refused outright if you cannot afford it — so the spin
-  // can never end early and leave you standing in the open without the invulnerability you
-  // committed to. Returning false spends nothing, exactly like every other refusal.
-  if (player.energy < ENERGY.whirl) { flashStarved(); return false; }
+  // The COST lives on the bar slot now (energy: ENERGY.whirl in the shop def), checked and
+  // charged by abilities.use like every other spell — up front, which is what the config's
+  // own comment always claimed. It was checked here and deducted at the SLAM, which meant
+  // the bar had no idea this spell had a price: refused casts flashed but never said why,
+  // on the one ability whose price made refusal common.
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
   dir.y = 0;
@@ -415,7 +416,6 @@ function whirlSlam() {
   whirlRing.visible = true;
   slamFx = 0.45;
   sfx.explosion(player.x, player.z, 1.3);
-  player.energy = Math.max(0, player.energy - ENERGY.whirl);
   player.whirlT = WHIRL.spinTime;
   whirlTick = 0;
 }

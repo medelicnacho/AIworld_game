@@ -9,6 +9,8 @@
 import test from "node:test";
 import assert from "node:assert";
 import { ENERGY, NOVA, DASH, CHAIN, FIRERING, WHIRL, HEAL, GRENADE } from "../config.js";
+import { Abilities } from "./abilities.js";
+import { GOODS } from "../ui/shop.js";
 
 test("energy, not cooldown, is what limits the small spells", () => {
   for (const [name, cost, cd] of [
@@ -76,4 +78,26 @@ test("whirlwind is affordable from a full bar, and never runs dry mid-spin", () 
   assert.ok(ENERGY.whirl > ENERGY.nova, "invulnerability should cost more than damage");
   // Charged up front, so the spin's length is irrelevant to whether it can finish.
   assert.ok(WHIRL.spinTime > 0);
+});
+
+// AN UPGRADE MAY SHARPEN A SPELL; IT MAY NEVER DELETE THE PRICE. Rank defs replace the base
+// ability wholesale (see acquire), so a rank that forgets to declare `energy` silently makes
+// the spell FREE — which happened to Explosion II, and read in play as "every spell has a
+// weird delay except Explosion". The bug is invisible in code because the field is simply
+// absent; this walks every replacement chain and demands the cost survives the upgrade.
+test("no rank upgrade drops its spell out of the economy", () => {
+  const a = new Abilities({});
+  const seen = new Map();          // id -> def, in shop order (base before its ranks)
+  for (const g of GOODS.adept || []) {
+    const before = new Set(a.owned.map((o) => o.id));
+    g.apply({ abilities: a });
+    for (const d of a.owned) if (!before.has(d.id)) seen.set(d.id, d);
+  }
+  for (const d of seen.values()) {
+    if (!d.replaces) continue;
+    const base = seen.get(d.replaces);
+    if (!base || base.energy === undefined) continue;   // a free line stays free — its call
+    assert.equal(d.energy, base.energy,
+      `${d.id} replaces ${d.replaces} but changes its energy cost from ${base.energy} to ${d.energy}`);
+  }
 });

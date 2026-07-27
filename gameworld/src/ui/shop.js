@@ -125,6 +125,11 @@ export const GOODS = {
         + `Replaces Explosion!`,
       apply: (game) => game.abilities.acquire({
         id: "firering2", name: "Explosion! II", icon: "burst", replaces: "firering",
+        // THE RANK KEEPS THE PRICE. This def replaces the rank-1 ability wholesale, and it
+        // declared a cooldown but no energy — so buying the upgrade quietly made Explosion
+        // FREE. In play that read exactly backwards: Explosion became the one spell that
+        // always fired instantly, and every honestly-priced spell felt broken beside it.
+        energy: ENERGY.firering,
         desc: `A ball of fire bursts out of you; survivors are thrown clear. `
           + `${RANK2.fireringCd}s cooldown.`,
         cd: RANK2.fireringCd,
@@ -152,6 +157,11 @@ export const GOODS = {
         // here is the whole mechanism: the timer still begins on cast, but it now covers the
         // channel as well, so what is left when you land is the full WHIRL.cd of exposure.
         cd: WHIRL.cd + WHIRL.spinTime,
+        // Declared HERE like every other spell, not checked privately inside the cast.
+        // Whirlwind was the one ability whose cost the bar could not see, so when it was
+        // refused for energy the player got a subtle flash and no words — every other spell
+        // says "not enough energy". A refusal that cannot explain itself reads as a bug.
+        energy: ENERGY.whirl,
         use: () => game.whirlwind(),
       }) },
     { id: "orb", name: "Cataclysm Orb", price: ORB.price, once: true,
