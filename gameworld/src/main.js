@@ -1645,7 +1645,7 @@ function drawWeaponCds() {
     const tail = `<span class="wr-n ${short ? "short" : ""}">×${shells}</span>`;
     html += cdDial("BARRAGE", gun.barrageCd, w.barrageCd, false, tail);
   }
-  wpncdEl.innerHTML = html;
+  setHtml(wpncdEl, html);
 }
 
 function drawBossBar() {
@@ -1659,9 +1659,9 @@ function drawBossBar() {
   }
   const enraged = b.phase === 2;
   if (!bossShown || enraged !== bossEnraged) {
-    bossEl.innerHTML = `<div class="bb-top"><span>${enraged ? "BOSS HEALTH · ENRAGED" : "BOSS HEALTH"}</span>`
+    setHtml(bossEl, `<div class="bb-top"><span>${enraged ? "BOSS HEALTH · ENRAGED" : "BOSS HEALTH"}</span>`
       + `<span class="bb-hp"></span></div>`
-      + `<div class="bb-track"><div class="bb-fill"></div></div>`;
+      + `<div class="bb-track"><div class="bb-fill"></div></div>`);
     bossEl.classList.add("show");
     bossEl.classList.toggle("enraged", enraged);
     bossShown = true; bossEnraged = enraged;
@@ -2760,8 +2760,37 @@ let overlaysCleared = false;
 const AUTOSAVE_EVERY = 25;      // seconds; the backstop under the event-driven saves
 let autosaveT = AUTOSAVE_EVERY;
 
+// WHERE THE FRAME GOES, by section — exponential averages, drawn on the stats line that
+// already reports fps. Big fights get slow and "big fight" touches five systems at once, so
+// without this every optimization is a guess about which one. The cost of measuring is five
+// performance.now() calls a frame, which is nothing against what it saves in wrong guesses.
+const frameMs = { sim: 0, mobs: 0, hud: 0, render: 0, total: 0 };
+
+// innerHTML ONLY WHEN IT CHANGED. Seven HUD blocks rebuilt their markup every frame whether
+// anything moved or not — health, ammo, xp, rep, points, the weapon dials, the boss bar —
+// which is seven parses and style recalcs a frame for text that is nearly always identical
+// to the last one. drawJumps() has done it right for ages ("redrawn only when the count
+// actually changes"); this is that idea made cheap enough that no call site has an excuse.
+// The last string is kept on the element itself so a block cannot desync from its cache.
+const setHtml = (el, html) => {
+  if (el.__lastHtml !== html) { el.__lastHtml = html; el.innerHTML = html; }
+};
+const lap = (() => {
+  let t0 = 0;
+  return {
+    start: () => { t0 = performance.now(); },
+    at: (name) => {
+      const n = performance.now();
+      frameMs[name] += (n - t0 - frameMs[name]) * 0.05;
+      t0 = n;
+    },
+  };
+})();
+
 function frame(now) {
   requestAnimationFrame(frame);
+  lap.start();
+  const frameT0 = performance.now();
   const dt = Math.min((now - last) / 1000, MAX_CATCHUP);
   last = now;    // updated even while paused, so resuming never simulates the gap
 
@@ -2993,7 +3022,7 @@ function frame(now) {
   }
 
   drawWeaponCds();
-  pointsEl.innerHTML = `${player.points} <small>POINTS</small>`;
+  setHtml(pointsEl, `${player.points} <small>POINTS</small>`);
   const paint = (el, def, left, ready, charges = undefined) => {
     el.classList.toggle("up", !!def && ready);
     el.classList.toggle("empty", !def);
@@ -3021,8 +3050,10 @@ function frame(now) {
   });
 
   gun.update(dt);
+  lap.at("sim");
   mobs.update(dt, hurtPlayer);
   villagers.update(dt);
+  lap.at("mobs");
   townVoice.update(dt);    // fire-and-forget inside; never awaited from the loop
   warcries.update(dt);     // bakes in town, ticks its budgets everywhere
   raids.update(dt);
@@ -3269,7 +3300,7 @@ function frame(now) {
     `in   fwd ${input.fwd >= 0 ? " " : ""}${input.fwd} str ${input.right >= 0 ? " " : ""}${input.right}` +
     `  ${input.aimHeld ? "AIM" : "---"}${input.aim ? "*" : " "}` +
     `  ${player.dodgeT > 0 ? "ROLL" : "    "}  ${player.onGround ? "grnd" : "air "}\n` +
-    `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}`;
+    `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ms ${frameMs.total.toFixed(1)} = sim ${frameMs.sim.toFixed(1)} + mobs ${frameMs.mobs.toFixed(1)} + hud ${frameMs.hud.toFixed(1)} + gpu ${frameMs.render.toFixed(1)}`;
 
   // Overwatch-style HUD: big health bottom-left, big ammo bottom-right.
   const hpFrac = player.maxHp > 0 ? player.hp / player.maxHp : 0;
@@ -3278,12 +3309,12 @@ function frame(now) {
   // "stop pushing and heal", a sixth is "you are about to die", and above that the number is
   // the only thing worth reading.
   healthEl.className = hpFrac < 0.17 ? "low" : hpFrac < 0.35 ? "warn" : "";
-  healthEl.innerHTML =
+  setHtml(healthEl,
     `<div class="hp-lvl">LVL ${player.level} <span class="hp-word">HEALTH</span></div>`
     + `<div class="hp-top"><span class="hp-num">${Math.max(0, Math.round(player.hp))}</span>`
     + `<span class="hp-max">/ ${Math.round(player.maxHp)}</span>`
     + `${dr ? `<span class="hp-arm">◆ ${dr}% ARMOR</span>` : ""}</div>`
-    + `<div class="hp-track"><div class="hp-fill" style="width:${Math.max(0, Math.min(100, hpFrac * 100))}%"></div></div>`;
+    + `<div class="hp-track"><div class="hp-fill" style="width:${Math.max(0, Math.min(100, hpFrac * 100))}%"></div></div>`);
 
   // The weapon panel now answers a second question. LMB state was always here (ammo /
   // reload / stowed); the faction weapons put something real on RMB too, and a cooldown you
@@ -3310,14 +3341,14 @@ function frame(now) {
     // beside the shove, because they are the same question and answering them in two
     // different shapes made the player learn the HUD twice.
     const rc = "";
-    ammoEl.innerHTML =
+    setHtml(ammoEl,
       `<div class="am-name" style="${w.color ? `color:${w.color}` : ""}">${w.name}${gun.loadout.length > 1 ? " ⟳" : ""}</div>`
-      + `<div class="am-row">${left}${rc}</div>`;
+      + `<div class="am-row">${left}${rc}</div>`);
   }
 
   const xpPct = Math.round(levelProgress() * 100);
-  xpEl.innerHTML = `<div class="xp-fill" style="width:${xpPct}%"></div>`
-    + `<div class="xp-txt">LVL ${player.level} · ${player.xp}/${xpToNext(player.level)} XP</div>`;
+  setHtml(xpEl, `<div class="xp-fill" style="width:${xpPct}%"></div>`
+    + `<div class="xp-txt">LVL ${player.level} · ${player.xp}/${xpToNext(player.level)} XP</div>`);
 
   // Reputation, directly above XP, in your faction's colour. Only exists once you have
   // sworn — and it flashes when standing lands, so a turn-in reads on the bar, not just in
@@ -3334,9 +3365,9 @@ function frame(now) {
       repEl.classList.toggle("flash", repFlashT > 0);
       const pr = repProgress(rep);
       const pct = Math.round(pr.frac * 100);
-      repEl.innerHTML = `<div class="rep-fill" style="width:${pct}%;background:${f.color}"></div>`
+      setHtml(repEl, `<div class="rep-fill" style="width:${pct}%;background:${f.color}"></div>`
         + `<div class="rep-txt" style="color:${f.color}">${f.name.toUpperCase()} · ${pr.name.toUpperCase()}`
-        + `${pr.need ? ` ${pr.have}/${pr.need}` : ""} REP</div>`;
+        + `${pr.need ? ` ${pr.have}/${pr.need}` : ""} REP</div>`);
     }
   }
 
@@ -3352,7 +3383,10 @@ function frame(now) {
       : "➤ Your XP here is fading — push to the next ring";
   }
 
+  lap.at("hud");
   renderer.render(scene, camera);
+  lap.at("render");
+  frameMs.total += (performance.now() - frameT0 - frameMs.total) * 0.05;
 }
 requestAnimationFrame(frame);
 
