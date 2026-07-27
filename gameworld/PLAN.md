@@ -1,282 +1,170 @@
-# GAMEWORLD — implementation plan
+# WAR PARKOUR — the plan
 
-*The browser game: an infinite low-poly frontier you shoot your way across, whose settlements
-are run by the soul substrate in `localprototype/`. This is **Track G** of `ROADMAP.md` §2,
-with the design decisions actually made and the engineering facts actually measured.*
-
-**Status: planning. No code yet.** Everything below is either a decision (locked, with the
-reason recorded so it can be re-opened honestly) or a measurement (reproducible, see §3).
+*The decisions, with the reasons recorded so they can be re-opened honestly. This file is
+**why**; [`README.md`](README.md) is **what**; [`STAGES.md`](STAGES.md) is **when**.*
 
 ---
 
 ## 1. The game, in one paragraph
 
-Low-poly infinite voxel-look frontier. Third person, one gun, one dodge. Walk away from spawn
-and the land gets harsher, the mobs stronger, the loot better. Endless levels, each a real
-upgrade you pick; death costs you your top level and the pick that came with it. Giant bosses
-gate the deep rings and drop the guns. And scattered through it: **settlements of NPCs running
-the real substrate** — they bond, feud, starve, raid, remember, and die while you're away, and
-they remember *you* (fallibly). A collective mind rides your shoulder, speaks aloud, and is the
-only thing in the world that remembers your last life.
+A blocky infinite frontier. Third person. The land climbs into a sky you can reach, and the
+danger climbs with distance from spawn, forever. Three clans are at war on it; you swear to
+one, which decides who you hunt and costs you the other two's gear. Everything you own is
+movement — jumps, a dash, a wall kick, a roll — and everything you cast comes out of one
+shared bar, so a fight is a budget rather than a rotation. Towns can be raided and sacked.
+Dungeons are sealed rooms you can genuinely finish, and finishing one is how you get a spell
+that changes what you can do.
 
-**The wager:** the shooting is deliberately simple and must be fun *bare*. The world's aliveness
-is the content. If M1 (§6) isn't fun with zero AI in it, no amount of emergent NPCs saves it.
+**The wager:** the moment-to-moment — moving and fighting — has to be fun on a bare hillside
+with nothing else in the game. It is, and that was tested in play rather than assumed. What
+the game is missing is not depth of verb. It is a **reason to do it again**.
 
 ---
 
-## 2. Locked decisions
+## 2. Decisions
 
 | # | decision | call | why (and what would re-open it) |
 |---|---|---|---|
-| D1 | terrain | **read-only**, seeded heightfield, blocky low-poly mesh. No dig/build/edit, ever. | Editing is the hard 30% of a voxel engine (re-meshing on change, light propagation, per-block delta storage). Read-only makes terrain a *pure function of (seed, coords)* — nothing about it is ever saved. Re-opens only if building becomes a core verb, which would be a different game. |
-| D2 | engine | **pure three.js**, chunk streaming in the style of `minecraft-threejs-clone`. **noa dropped.** | noa's value is solved *editing* + physics on editable voxels. D1 deleted its reason to exist. Simple AABB-vs-heightfield collision is a weekend, not a subsystem. |
-| D3 | camera | **third person over-shoulder** default. | Boss legibility (fitting a 20×-height creature on screen), dodge spacing needs body-awareness, telegraph reading. Every giant-boss game (SotC, Monster Hunter, Souls) is third person for these reasons. |
-| D4 | aiming | **three camera states: EXPLORE → AIM → (optional) FP toggle.** Hold-aim blends into first person over ~150–200ms. | Solves steep upward aim: over-shoulder free-aim upward clips the camera and runs the reticle off-screen. Snapping to FP on aim is the shipped BOTW/TOTK bow pattern. Dodge cancels AIM back to third person. |
-| D5 | aiming math | **one raycast, camera → crosshair, in every state.** Hip-fire = wide cone/soft-lock; ADS = tight. | Not two shooting systems — one raycast, a camera offset, and a cone width. |
-| D6 | combat | **one hitscan gun + dodge-roll with i-frames.** Projectile/exotic guns later, as boss drops. | Hitscan is a raycast — no ballistics, no projectile pooling, no netcode-shaped problems. Enemies need only chase / strafe / lunge. |
-| D7 | mobs | **soulless.** `stats = base × ring_multiplier`, Valheim-style ★elites, one rolled affix in deep rings (fast / splitting / shielded / …). | The substrate on a thing you kill in 3 seconds is pure waste — memory, CPU, and design surface. ~50 lines gets you "random stats and mechanics". |
-| D8 | difficulty | **legible named rings**, not a smooth invisible gradient. Each ring has a look, a name, a mob table, a boss. | Valheim's real lesson: even it scales by *biome*, not raw distance. Players must be able to *see* "I'm somewhere worse now." |
-| D9 | progression | **endless XP; each level = pick 1 of 3 cards** (speed / max HP / dmg / reload / specials). Death = lose top level **and its pick**. | Vampire Survivors' card pick is maximum decision-feel for near-zero UI. Losing the *pick*, not just a number, is what makes death a real decision. |
-| D10 | bosses | **one reusable giant rig**: big skinned mesh, 2–3 telegraphed attacks, glowing weak point, two phases. Re-dressed per ring (scale/texture/affix/arena). | Procgen *boss mechanics* is a tarpit. Procgen *dressing* over a hand-authored skeleton is how you get variety without authoring 12 fights. |
-| D11 | loot | **guns drop from bosses only**, with rolled stats + one weird mechanic. | Keeps loot rare enough to be an event, and makes bosses the milestone of every push outward. |
-| D12 | NPCs | substrate on **settlements** (20–40 souls) and **warbands** (5–10, the only hostile minds). Nothing else. | §3's measurement: cost tracks *local density*, not world population. Settlement-sized shards is the unit that stays cheap. |
-| D13 | companion | **Santāna's mechanism ported; a fresh, game-native instance.** Not the lab's Santāna. | ROADMAP §3.2 gates coupling *her*. The mechanism (two-layer voice, blank personality that consolidates from what it witnesses) is portable and is better as a game character anyway — she's born when your character wakes and knows only what you and she have witnessed. |
-| D14 | PRNG | **mulberry32 (or xoshiro128) everywhere, from commit 1.** `Math.random()` is banned by lint. | ROADMAP §2.1's own trap warning. Unseedable RNG makes the falsifier harness impossible, and the harness is the port's ring test (§7). |
-| D15 | caves | **No caves/overhangs in v1.** Verticality comes from cliffs, mesas, canyons, plateaus (all heightfield-expressible). Interiors, when wanted, are **instanced scenes** behind a door — never terrain features. | Caves are *depth*; the whole progression axis is *distance* — an orthogonal reward axis competing with the ring gradient. They need their own content to be worth entering, they're the worst possible venue for a 20×-height boss (D10 needs open, lit, legible arenas), and the substrate lives on the surface, so caves are structurally dead space in the one system that makes this game ours. Instanced dungeons buy ~90% of what caves buy at ~5% of the cost and never touch the chunk streamer. **Hedge:** see §4 — chunk gen fills a 3D occupancy grid, so caves later are a one-function change. |
-| D16 | ring migration | **Soft leash on hostile bands only:** free within their ring and into *adjacent* rings; never more than one boundary inward on their own. Settlement souls are not leashed at all. Breakouts happen only as **telegraphed incursion events** (§6 M6). | Free migration breaks D8's legibility promise — a ring-7 warband at spawn kills a new player who had no way to read the threat, and that reads as a bug, not emergent story. But hard-clamping amputates the substrate's most interesting behaviour: `stakes.py` drives migration from scarcity, and scarcity *is* the deep-ring condition. Leashing only the hostile bands constrains combat balance without touching the social sim. |
+| D1 | terrain | **read-only**, seeded heightfield, blocky low-poly mesh. No dig/build, ever. | Editing is the hard 30% of a voxel engine — re-meshing on change, light propagation, per-block delta storage. Read-only makes terrain a *pure function of (seed, coords)*, so nothing about it is ever saved. Re-opens only if building becomes a core verb, which is a different game. |
+| D2 | engine | **pure three.js**, chunk streaming. | The alternative's value was solved *editing*. D1 deleted its reason to exist. |
+| D3 | camera | **third person over-shoulder** default. | Boss legibility, dodge spacing needs body-awareness, telegraph reading. Every giant-boss game is third person for these reasons. |
+| D4 | aiming | **three camera states: EXPLORE → AIM → (optional) FP toggle**, blending over ~170ms. | Over-shoulder free-aim upward clips the camera and runs the reticle off screen. Snapping to first person on aim is the shipped BOTW bow pattern. |
+| D5 | aiming math | **one raycast, camera → crosshair, in every state.** | Not two shooting systems — one raycast, a camera offset, and a cone width. |
+| D6 | combat | **hitscan guns + a dodge-roll with i-frames**, then a faction weapon that is not a gun. | Hitscan is a raycast: no ballistics, no projectile pooling. Enemies need only chase / strafe / lunge. |
+| D7 | mobs | **soulless.** Stats scale from the tier they spawn in; ★elites; rollable affixes at depth. | A brain on a thing you kill in three seconds is pure waste — memory, CPU, and design surface. |
+| D8 | difficulty | **legible named rings**, not an invisible gradient. | Players must be able to *see* "I am somewhere worse now." Valheim's real lesson: even it scales by biome, not by raw distance. |
+| D9 | progression | **endless levels**, buying mobility rather than bulk. Death costs your top level. | Max HP that never moves keeps survival about reading the fight. A high-level character should be *faster*, not *safer*, or the telegraph rules quietly stop mattering. |
+| D10 | bosses | **one reusable giant rig**, re-dressed per ring — scale, texture, affix, arena. | Procedurally generating boss *mechanics* is a tarpit. Procedurally generating *dressing* over a hand-authored skeleton is how you get variety without authoring twelve fights. |
+| D11 | loot | field kills are lottery tickets; **bosses are the guarantee** and never drop something you would sell unread. | A ticket that never pays is a wasted slot; one that pays about once an evening turns every ordinary kill into a small held breath. That feeling is worth more than the item. |
+| D14 | PRNG | **seeded, everywhere, from commit 1.** `Math.random()` is banned by lint. | An unseedable world cannot be replayed, and a world that cannot be replayed cannot be tested. |
+| D15 | caves | **no caves or overhangs.** Verticality is cliffs, mesas, canyons — and the **sky**. Interiors are **instanced scenes behind a door**, never terrain features. | Caves are *depth*; the whole progression axis is *distance*, so caves compete with the ring gradient instead of serving it. They are also the worst possible venue for a giant boss, which needs open, lit, legible arenas. Instanced dungeons buy most of what caves buy at a fraction of the cost and never touch the chunk streamer. |
+| D16 | mob leashing | hostile bands are **free within their ring and one ring either side**, never further inward on their own. Breakouts are **telegraphed events** only. | Free migration breaks D8's legibility promise: a deep-ring warband at spawn kills a new player who had no way to read the threat, and that reads as a bug rather than as a story. |
+| **D17** | **factions** | **three, in a triangle. Sworn against one mob colour each. Chosen at character creation.** | This is the only *subtractive* decision in a game where everything else is additive — the first thing you have ever had to give up to get something else, which is what makes a character sheet into a build. Hanging it on a mob colour means joining does not change what you are called, it changes **who you hunt**: you start reading camps at a distance and choosing fights instead of killing whatever is nearest. |
+| **D18** | **ability cost** | **one shared energy pool**, replacing per-spell cooldowns rather than sitting behind them. | A cooldown is a *delay*, not a cost. A cost behind a longer cooldown is invisible — whichever is longer is the only one anyone feels. Long cooldowns survive only where the point is once-per-fight. **Escape is always free**, because being punished by losing the tool that would let you survive a mistake is a death sentence. |
+| **D19** | **dungeon rewards** | **dungeons are the only source of spell ranks. Gold buys numbers; dungeons buy verbs.** | A dungeon sharing the field's loot table is a room with mobs in it, and the field already has mobs. The reward has to be something the frontier structurally *cannot* give, or the door is decoration. See §4. |
 
----
+### Cut, and kept here on purpose
 
-## 3. Measured facts (the capacity law)
-
-Measured 2026-07-21 against `localprototype/` on this machine: CPython, single thread, mock LLM,
-`embed.use_jaccard_only(True)`. Scripts preserved in `bench/` — re-run them before trusting them.
-
-> **Caveat on absolute numbers.** Wall-clock varies ±30% with machine load (a re-run gave 26.7 ms
-> at n=256 where the table says 37.0). What is *stable* is the **ratios** and the **per-item law**
-> — those came from one internally-consistent run across five configs. Plan with the law, not
-> with the milliseconds.
-
-**Substrate cost vs population** (`bench_scale.py`, span 4000, murmur on, no speech turns):
-
-| n | mind ms (`advance`) | body ms (`animate`) | tick ms | ticks/s |
-|---|---|---|---|---|
-| 64 | 3.68 | 1.23 | 4.91 | 204 |
-| 128 | 6.95 | 2.17 | 9.12 | 110 |
-| 256 | 31.69 | 5.35 | 37.04 | 27 |
-| 512 | 75.17 | 17.83 | 93.00 | 11 |
-| 1024 | 194.32 | 33.09 | 227.41 | 4 |
-
-Superlinear past ~128. But hold n=256 fixed and vary only how spread out the souls are
-(`bench_density.py`):
-
-| world (n=256 throughout) | tick ms | memory items |
+| # | was | why it is gone |
 |---|---|---|
-| dense, span 500, murmur on | 200.36 | 13,150 |
-| medium, span 2000, murmur on | 63.87 | 6,922 |
-| spread, span 8000, murmur on | 25.23 | 1,828 |
-| dense, span 500, **murmur off** | 19.47 | 1,280 |
-| spread, span 8000, murmur off | 18.44 | 1,280 |
+| D12 | substrate on settlements — 20–40 souls per town who bond, feud, starve, migrate and remember | **Could not ship.** Live souls need a local Python process and a local language model beside the browser; a browser build has neither. The war cries only speak in a built copy because they are *baked ahead of time*, and baking is precisely what emergence cannot be. It would have been a feature with an audience of one. **Also:** a living town needs a player who slows down and stays, and this game teaches the opposite. The town shape that fits is the one already built — a place with a garrison, that you can raid, sack, or belong to. |
+| D13 | Santāna — a companion who follows you, speaks aloud, and remembers your last life | Same dependency, same reason. |
 
-Lived-in (mock speech turns running, so bonds and memory populate): dense = **432.48 ms/tick**
-(32,078 items, 3,643 bonds); spread = **29.78 ms/tick** (904 items, 17 bonds).
-
-> ### The law
-> **≈ 14 µs per memory item per tick.** (13.5 / 15.2 / 13.8 / 15.2 µs across the rows above.)
->
-> **Population is not the cost driver — local density is.** `MURMUR_RANGE 180` delivers into
-> every soul in range, each delivery writes a memory, and `memory.tick()` walks every item every
-> tick. Budget in *memory items*, not agent count. This supersedes SC3's ticks/s-vs-n as the
-> planning number (`experiment_scale.py` measured the wrong variable).
-
-**Consequences, and they are all favourable:**
-
-1. **Settlement-shaped shards are the unit of cost.** Bound a settlement to ~30–40 souls in
-   murmur range and its tick is affordable *regardless of how many settlements exist*. The
-   failure mode to avoid is one packed megacity (the 432 ms row). One `World` instance per
-   settlement, one Worker per active shard — they're independent, so this also buys the
-   parallelism the current single global lock denies.
-2. **Unloaded regions fast-forward in closed form.** `agent/memory.py:238` is pure exponential
-   decay against a floor plus a per-tick Bernoulli mutation roll. For a shard asleep Δt ticks:
-   `salience = max(s · decay^Δt, floor)` exactly; draw `Binomial(Δt, MUTATE_CHANCE)` for how many
-   mutations happened and apply that many; then prune under `FORGET_THRESHOLD`. Bonds and mood
-   are EWMAs — same trick. **O(items), independent of Δt.** A town you left 40,000 ticks ago
-   catches up in microseconds and has genuinely aged. What *can't* fast-forward is speech-driven
-   change, which is exactly the part that needs the player present anyway.
-3. **Genesis needs a seeded, LLM-free path.** `genesis.generate_character` is an LLM call —
-   unusable when the world mints villages as you walk. `coined_name` and `endow_faculties` are
-   already pure-`rng`: mint souls from `hash(worldSeed, chunkCoords, i)`, and upgrade to
-   LLM-authored backstory only when the player actually engages someone.
-
-**Unknown, to measure at M2:** the JS/TS speedup over CPython. Assume 5–15×, do not plan on it.
+**What survived both:** the voice *pipeline*. Baked cries, taunts and hails are authored
+content that ships and does real telegraph work — you can hear how close a charging thing is
+and which side it is on. They were never the emergent layer; they only used the same pipe.
 
 ---
 
-## 4. Architecture
+## 3. Architecture
 
 ```
 main thread    three.js render · player controller · camera FSM (EXPLORE/AIM/FP)
-               · yuka steering for NPC + mob bodies · hitscan raycasts
-sim workers    1 Worker per active settlement shard, ported substrate @ 10 Hz
-               (20-40 souls each; §3 says this is the unit that stays cheap)
-               main thread interpolates bodies between sim ticks
-speech tiers   markov barks (free, every soul)
-               -> WebLLM 1-3B via WebGPU (named NPCs + Santana, on interaction only)
-               -> hosted API (opt-in, key-gated -- the services/llm.py posture)
-voices         @mintplex-labs/piper-tts-web; 2-3 cached voice models, pitch/rate
-               varied per soul; Santana gets her own distinct voice
-worldgen       chunk gen fills a 3D OCCUPANCY GRID from a fill function; the mesher
-               meshes the grid (greedy, blocky). Fill is `solid = y < height(x,z)`
-               today -- caves later are 3D noise in that one function, mesher
-               unchanged (D15). Baked in a worker, transferred to GPU as a buffer.
-               Settlements + souls minted from hash(worldSeed, chunkCoords).
-persistence    IndexedDB, dirty-region pattern: untouched regions are re-derivable
-               from seed and stored NOT AT ALL; a region flips to persisted the moment
-               the player speaks to / fights / is witnessed by a soul in it.
-               Storage grows with the player's footprint, not with world size.
-determinism    mulberry32 everywhere (D14). Sim is headless-runnable in Node for CI.
+               · mob brains · hitscan raycasts · the fixed-step physics clock
+worldgen       a pure function of (seed, x, y, z) behind ONE door: blockAt
+               — terrain, mountains, sky islands and DUNGEONS are all the same door
+offline        Piper bakes the war-cry cache once; the game only ever plays what is baked
 ```
 
-**The seam that must not rot:** the substrate outputs *motive and stance* (does this warband
-charge, hold, or run for its brood); **yuka + the engine own locomotion and combat execution**.
-Combat state (HP, aggro, hitboxes, cooldowns) never enters the ported `agent/` modules. That
-boundary is what keeps the lab's 541 tests meaningful about the ported code.
+The single load-bearing idea: **everything the world is, is a pure function behind one door.**
+A dungeon is not a parallel voxel store with its own collider and its own mesher — that would
+be four systems taught to work a second way, which is four chances for them to disagree. It is
+a *different fill function* behind the same door. Walk in and the streamer rebuilds; movement,
+sight, meshing and every effect follow without being told, because none of them ever knew
+where blocks came from.
+
+Two things fall out for free: an instance costs one small object and no memory, and a dungeon
+generated at its gate's own coordinates is automatically the difficulty of the ring it was
+found in, with no special case anywhere.
 
 ---
 
-## 5. What crosses from the lab, and what doesn't
+## 4. The open problem: reward
 
-**Crosses** (per `PORT.md` §1, `RECIPES.md` verdicts attached — port nothing unvalidated):
-salience memory, mood/affect, bonds, opinions→factions, stakes/provisions, lore/retelling,
-pledges, reputation, the wheel (bardo → rebirth carrying vāsanā), genome/heredity, the somatic
-floor (**ships with affect, not optionally** — ROADMAP §5).
+Everything in §2 is built and passes its gate. The frontier is legible, the movement is fun
+bare, the combat asks real questions. **The game still has no reason to do any of it twice**,
+and that is now the whole problem.
 
-**Does not cross:** the lab's Santāna instance (D13), the 50 `experiment_*.py` files as files
-(rebuild the *discipline*, not the files), `viewer.py` / `santana_app` (demos).
+The reward structure today pays in **numbers**: armour, damage percentages, another level.
+Numbers do not change a single decision a player makes — they change how long the same
+decision takes. The one reward in the game that changes *how you play* is a spell, and it is
+currently the rarest thing a boss can give.
 
-**The port's ring test (ROADMAP §2.2, non-negotiable):** before any game feature rides on the
-substrate, the TS port must re-run the keystone experiments — **reflect-easing, escalate/settle,
-somatic bounding, lore convergence** — headless in Node/CI, and reproduce the lab's verdicts.
-A port that can't reproduce the result didn't port the mechanism. Each pass is also the
-external-ish replication this project has never had.
+**That ratio is backwards, and correcting it is the plan.**
 
----
+Dungeons are the vehicle because a dungeon is the one place in this world that can offer
+something the frontier structurally cannot: a **sealed, finishable, fixed-size** fight. The
+frontier is endless by construction, so it can never say *you finished*. A room can.
 
-## 6. Milestones — each one is a playable game
+### The rule a spell rank has to obey
 
-**M1 · walk & shoot** *(~3 weeks)* — **no AI in it at all.**
-Chunk streaming + read-only world; character controller + camera FSM (D3/D4/D5); hitscan gun;
-dodge-roll; dumb chase-mobs; ring stat-scaling + ★elites; XP, level-up cards, lose-a-level death.
-*Gate: is it fun bare?* If not, **stop and fix this**, not the NPCs.
+> **A rank changes where you stand. A stat changes how long you stand there.**
 
-> **The three sockets** — the only concessions M1 makes to a substrate it otherwise ignores.
-> Each is ~free now and days-to-weeks to retrofit, which is the entire reason they're here:
-> 1. **`mulberry32`, never `Math.random()`** (D14), lint-enforced from commit one.
-> 2. **Sim state separate from render state.** Gameplay data lives in plain entity records, not
->    on `THREE.Object3D`s; the renderer *reads* them. This is the seam where a mob brain and a
->    soul brain later plug into the same body.
-> 3. **Region-scoped update loops**, not one flat global list. Free at M1 scale; it's the exact
->    shape the settlement Workers need at M3.
->
-> Everything else — bonds, memory, lore, the wheel, Santāna, voices — bolts on later without
-> touching what M1 built.
+A dash that punches *through* a body instead of stopping at it is a rank — it changes the
+geometry of every fight you use it in. A dash that travels further is a stat wearing a roman
+numeral. If a rank cannot be described without naming a number, it is not a rank yet.
 
-**M2 · substrate port, headless** *(~2 weeks)* — no rendering.
-TS port of memory / mood / bonds / opinions / stakes per `RECIPES.md`. mulberry32. Node test
-runner. **Keystone replication gate (§5).** Re-run `bench_density.py`'s shape in TS to get the
-real JS capacity law.
-*Gate: four keystones reproduce, or the port is wrong.*
+This is the same instinct that made the three faction weapons work. Those weapons are good
+because they ask different *questions*, not because they have different damage figures. Ranks
+should be pointed at the half of the game that is still paying in adjectives.
 
-**M3 · first living settlement** *(~2 weeks)*
-One 30-soul town in a Worker; yuka bodies; Markov barks as floating text; bonds/feuds visible;
-closed-form fast-forward on region reload; IndexedDB dirty-region persistence.
-*Gate: leave for 10 minutes, come back, and the town has visibly moved on.*
+### And ranks live in exactly one place
 
-**M4 · first giant boss + gun drop** *(~2 weeks)*
-The reusable rig (D10), weak point, two phases, arena, rolled gun drop.
-*Gate: does the AIM→FP transition (D4) actually feel good on a weak point?*
-
-**M5 · voices + companion** *(~3 weeks)*
-piper-tts-web for named souls; the Santāna-mechanism companion (D13) — Markov murmur tier first,
-WebLLM talk tier after; she remembers your previous life across death.
-*Gate: the murmur tier must be good enough alone. WebLLM is an upgrade, never a dependency.*
-
-**M6 · the world gets political** *(ongoing)*
-More rings/biomes/affixes; warbands (leashed per D16); reputation + pledges (player promise →
-gossiped breach → town wariness — no shipped game has this); the wheel running in settlements;
-boss variety.
-
-**Incursions** (the designed exception to D16): rare, *telegraphed* breakouts where something
-from the deep comes inward — Santāna murmurs a warning before it arrives, sky and audio shift,
-and surviving it drops deep-ring loot far earlier than you earned it. Precedent: Terraria's
-blood moon, Valheim's raids, RoR2's teleporter events. The telegraph is the whole trick: it
-converts D16's worst failure mode into the game's signature emergent-story beat.
-*Balance backstop:* a soul's **expressed combat traits are clamped by where the fight happens**,
-separately from its genome and social state — so even a leash bug can't produce an unwinnable
-encounter at spawn. Same seam as §4: the social substrate never sets combat numbers.
+Ranks currently come from the vendor. If they also come from dungeons, both sources are
+diluted and neither teaches anything. **Pull them out of the shop.** Gold buys numbers,
+dungeons buy verbs — a split a player learns in one run and never has to be told.
 
 ---
 
-## 7. Rules of the build
+## 5. Milestones
 
-1. **Discipline against scope is the scarce resource** (ROADMAP §0), not ideas. Each milestone
-   ships playable before the next starts.
-2. **The harness ports with the substrate or the port is decoration** (ROADMAP §2.2).
-3. **No `Math.random()`.** Lint it to an error at M1.
-4. **Combat state never enters `agent/`.** (§4)
-5. **Density is the enemy.** Every new settlement type gets a soul cap and a memory-item budget.
-6. **The welfare gates cross the fork** (ROADMAP §5): the somatic floor ships with affect; the
-   deva guard ships with any compassion training; welfare scales with realism and population.
-7. **Public language keeps the §7 posture.** The marketing will want "the NPCs feel." The honest
-   formulation — *we build the conditions and refuse to claim an inhabitant* — is the project's
-   spine, not a hedge to optimize away.
+Each is a playable game, and each has a **gate**: a question that can fail. If a gate fails,
+stop and fix it rather than building the next thing on top of it.
 
----
-
-## 8. Reference repos
-
-| what | repo | use it for |
+| | milestone | gate |
 |---|---|---|
-| voxel world | [dgreenheck/minecraft-threejs-clone](https://github.com/dgreenheck/minecraft-threejs-clone) | **primary reference.** three.js, MIT, infinite chunks, has a tutorial series |
-| chunk streaming | [0kzh/minicraft](https://github.com/0kzh/minicraft) | 16×16 chunk load/unload specifically |
-| voxel engine (rejected) | [fenomas/noa](https://github.com/fenomas/noa) | dropped by D2; keep as fallback if editing ever returns |
-| FPS structure | [mohsenheydari/three-fps](https://github.com/mohsenheydari/three-fps) | controller / weapon / pointer-lock architecture |
-| game AI | [Mugen87/yuka](https://github.com/Mugen87/yuka) | steering, flocking, pursue/flee, perception, navmesh — the layer between substrate motives and bodies |
-| TTS | [Mintplex-Labs/piper-tts-web](https://github.com/Mintplex-Labs/piper-tts-web) | Piper in WASM/ONNX, in-browser, HF voice caching |
-| in-browser LLM | [mlc-ai/web-llm](https://github.com/mlc-ai/web-llm) | WebGPU, OpenAI-compatible, 1–3B models |
-| cautionary | [a16z-infra/ai-town](https://github.com/a16z-infra/ai-town) | what *not* to do: every NPC LLM-driven always → expensive, slow, shallow as a game |
+| **M1** | the frontier — terrain, guns, dodge, mobs, boss, levels | *Is it fun bare, with nothing else in it?* — **PASSED** |
+| **M2** | verticality — the sky, air jumps, the wall kick | *Is going up worth doing for its own sake?* — **PASSED** |
+| **M3** | the war — three factions, faction weapons, camps, raids, sacking | *Does choosing a side change how you play, not just what you are called?* — **PASSED** |
+| **M4** | **the dungeon pays** — clearing one grants a spell rank | *Do you walk past a fight you could win, because you would rather get to the door?* |
+| **M5** | **the dungeon is a place** — layout, hazards, a shape worth learning | *Would you re-enter one you had already cleared?* |
+| **M6** | **it runs** — the worst frame, not the average | *Does it hold up on a machine that is not this one?* |
+| **M7** | **it ships** — itch, in the browser | *Does a stranger get to their first sacked town without being told how?* |
 
-Design references: **Valheim** (biome-legible difficulty + ★elites), **RuneScape Wilderness**
-(deliberate risk/reward depth), **Risk of Rain 2** (one rising difficulty number + stacking
-items), **Vampire Survivors** (1-of-3 level cards), **BOTW/TOTK** (aim → FP camera),
-**Kenshi/RimWorld** (the world doesn't revolve around you — the school this game belongs to).
+M4's gate is the sharp one and it is worded that way on purpose. A reward is only real if it
+**changes what a player chooses to do**. If a dungeon rank is nice-to-have, players will keep
+killing whatever is nearest and the door will be scenery.
 
 ---
 
-## 9. Open questions
+## 6. Rules of the build
 
-- ~~Repo split~~ — **resolved: one repo.** ROADMAP §1 prescribes a separate Track G repo; we're
-  keeping the game in `gameworld/` here instead. Repo ceremony before there is code isn't worth
-  it, and `git subtree split` preserves history whenever the day comes that it *is* worth it.
-  The contract (§5) still holds — it's now enforced by discipline rather than by distance, which
-  matters most at M2: **port from `RECIPES.md`, not from the Python**, or the replication is a
-  transcription and proves nothing.
-- ~~Caves/overhangs~~ — **resolved: D15.** No caves in v1; occupancy-grid hedge keeps them cheap later.
-- ~~Ring migration guardrails~~ — **resolved: D16** + incursions (M6).
-- **How big is a settlement, really?** The number where politics still emerges but the tick stays
-  cheap. Findable headless *today*, no 3D needed — see §10.
-- **Player model + animations.** Quaternius/Kenney CC0 + Mixamo, or authored?
+1. **One number, one argument.** Every constant lives beside the reasoning for it. When you
+   change the number, change the argument — a stale essay is worse than a bare constant,
+   because the essay will be believed.
+2. **Ratios must be re-derived, not re-tuned.** Some numbers are pinned to other numbers
+   rather than to a feel. When their partner moves, they move, or the design they encode
+   quietly inverts.
+3. **A gate that passed is closed.** Feel work has no natural end and there is always one more
+   number. When something passes, protect it and go build the next thing.
+4. **Cut things that fail their own rules.** An affix that taxes one weapon's required range is
+   not difficulty. A reward nobody re-reads is not a reward. The log should have removals in it.
+5. **Measure the worst, not the mean.** An average frame time hides exactly the thing a player
+   feels.
 
 ---
 
-## 10. Immediate next steps
+## 7. Open questions
 
-1. **Settlement-size sweep** *(lab, this week, no 3D)* — sweep n × span × murmur, measure both
-   the cost (memory items/tick) and whether factions still form and lore still converges. Output:
-   the soul cap and murmur radius M3 builds to. This is the one number the whole architecture
-   rests on and it's findable today.
-2. **Fold §3 into `localprototype/PORT.md`** — the capacity law, the density finding, and the
-   closed-form fast-forward belong in the lab's port contract, not only here.
-3. **Scaffold M1** — vite + three.js + mulberry32 + lint rule banning `Math.random()`; chunk
-   streamer; character controller; camera FSM. Nothing else.
-4. **Decide the repo split** (§9) before M2 writes substrate code.
+- **How many ranks per spell, and do they stack or replace?** Replacing is legible and cheap;
+  stacking is the thing players screenshot. Undecided until M4 has one rank in play.
+- **Does a cleared dungeon stay cleared forever?** Permanent means the world runs out of them.
+  Resetting means "cleared" meant nothing. A middle answer probably exists in *what* it pays
+  the second time.
+- **Does the neutral third colour earn its place?** It is hostile and worth nothing, which
+  teaches a player to route around it — avoidance, in a game about choosing fights. Either it
+  pays something, or it fights differently, or it should go.
+- **Is character creation too early for the faction choice?** The player has held nothing. Ring
+  0 is boss-free and safe by design, which is a tutorial asking to exist: carry all three
+  through it, swear at the first gate. The cost of giving up two only lands if you have felt
+  what you are giving up.

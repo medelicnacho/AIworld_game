@@ -1,294 +1,177 @@
-# STAGES — the executable build order
+# STAGES — the build order
 
-*The next stretch, broken into stages you can actually start on a given evening. Each has a
-goal, a task list, and a **gate** — a question that can fail. If a gate fails, stop and fix
-it rather than building the next stage on top of it.*
+*Each stage has a goal, a task list, and a **gate**: a question that can fail. If a gate fails,
+stop and fix it rather than building the next stage on top of it. [`PLAN.md`](PLAN.md) holds
+the decisions behind these; this file is the order they happen in.*
 
-*Companions: [`PLAN.md`](PLAN.md) (decisions + milestones), [`README.md`](README.md) (what
-exists today). Stage numbering here is independent of PLAN's M-milestones; the mapping is
-noted per stage.*
-
----
-
-## Stage 0 — the voice spike ✅ **DONE** (2026-07-22)
-
-**Goal:** one number. Can a Piper line, generated from a real local model, reach the game
-fast enough to feel like speech rather than a loading screen?
-
-Everything downstream assumes local AI is fast enough to be diegetic. That assumption is
-untested and it is the cheapest thing in the project to falsify.
-
-- [x] `bash ../localprototype/scripts/get_voices.sh` — 8 voices, ~190MB
-- [x] `bench/voice_spike.py`: prompt → `services/llm.py` → `services/tts.py` → wav, timing
-      each half separately, plus a streaming variant and a model comparison
-- [~] Serving the wav to the browser — folded into Stage 1, where it belongs
-- [~] Frame-hitch measurement — needs the bridge; moved to Stage 1's gate
-
-**Gate:** a spoken line lands in **under ~2.5s** end to end.
-
-### Verdict: PASS — but only after two changes, both of which the measurement forced
-
-Run `python3 gameworld/bench/voice_spike.py [--quick] [--model X]` to reproduce. Hardware:
-Intel Core Ultra 5 225U, 14 threads, **CPU-only inference** (no discrete GPU).
-
-| configuration | time to speech | |
-|---|---|---|
-| `gemma3:4b`, long reply (70 tok) | **4.68s** | ✗ |
-| `gemma3:4b`, short reply | 3.50s | ✗ |
-| **`gemma3:1b`, short reply** | **1.99s** | ✓ |
-| `gemma3:1b`, short + streamed | 1.95s | ✓ |
-| `gemma3:1b`, ambient murmur | 1.17s | ✓ |
-
-**Three findings, in order of how much they change the plan:**
-
-1. **TTS is free. Piper runs at 0.05× realtime** — half a second to voice ten seconds of
-   speech. It never needs to be optimised, cached, or streamed. The entire wait is the
-   language model. (One caveat: TTS times were noisy, 0.26s vs 1.19s for identical work —
-   keep voice models loaded rather than reloading per call.)
-2. **Model size is the only lever that matters.** 4b → 1b cut latency in half. On CPU, a 4B
-   model costs ~1s before the first token exists.
-3. **Streaming is not worth building.** 1.95s vs 1.99s — once a reply is short, the whole
-   thing arrives about as fast as its first sentence. **Stage 1 ships without streaming**,
-   which removes a chunk of complexity from the bridge. Revisit only if lines get longer.
-
-**A design finding that outranks the latency one:** the failing 4b reply produced **ten to
-fifteen seconds of speech**. That is far too long for a companion line at *any* latency —
-nobody wants a paragraph while they're being chased. Capping her to one or two sentences
-makes her both faster *and* better written. The constraint improved the design.
-
-**What Stage 2 inherits:**
-- `gemma3:1b` for Santāna — ambient murmur ~1.2s, direct reply ~2.0s
-- keep `gemma3:4b` available for rare high-value moments where a visible "thinking" beat is
-  acceptable, and for the town's souls where nobody is waiting on a reply
-- hard cap: one to two sentences, ~18 words for a murmur
-- no streaming, no pre-generation cache — neither is needed yet
-
-**Still untested:** whether audio decode hitches the frame in the browser. That can only be
-measured once the bridge exists, so it moves to Stage 1's gate.
+**Where we are: Stage 2.** The frontier, the movement and the war are built and passed their
+gates. The reward layer does not exist.
 
 ---
 
-## Stage 1 — the bridge ✅ **DONE** (2026-07-22) *(replaces PLAN M2's ordering)*
+## Done
 
-**Goal:** the browser can see and talk to the Python lab over localhost.
+### Stage 0 — the voice spike ✅ *(2026-07-22)*
+Proved a spoken line could land fast enough to be part of a fight rather than an interruption.
 
-Keep the lab **dependency-free** (stdlib only, per its posture): SSE for the server→browser
-stream, plain POST for browser→server. No websocket library, no FastAPI.
+### Stage 1 — the bridge ✅ *(2026-07-22)*
+A local pipe from the browser to the voice tooling, built to the rule that **the bridge is an
+enhancement, never a dependency** — if it is not running, the game behaves exactly as it did
+before it existed.
 
-- [x] `localprototype/bridge.py` — stdlib `http.server`, threaded, CORS for `localhost:5173`
-- [x] `GET /health` → `{ok, model, llm, tts, voices, world, uptime}`
-- [x] `GET /stream` → SSE @10Hz: `{tick, t, souls:[], events:[]}` (souls arrive Stage 3)
-- [x] `POST /say {text}` → recorded as an event; becomes `world.inject_user()` at Stage 3
-- [x] `POST /speak {text, voice}` → wav bytes
-- [x] `POST /line {prompt, words}` → `{text, audio, ms}` + `GET /audio/<id>.wav`
-- [x] Browser `src/net/bridge.js` — SSE with owned reconnect/backoff, POST helpers, every
-      call failing **soft** (returns null, never throws into the frame loop)
-- [x] `sfx.playClip()` — decodes bridge wavs off-thread, positioned in the world
-- [x] HUD indicator + on-screen subtitles; **G** speaks a line about where you're standing
+That rule is why both stages survived the substrate cut. What they left behind is the **bake
+pipeline**: the war's cries, taunts and hails are synthesized once, cached, and played from the
+cache forever after. Nothing is synthesized during a fight, and a built copy speaks with no
+server behind it.
 
-### Verdict: PASS
+### Stage A — the frontier ✅
+Terrain, streaming, guns, the dodge, mobs, the boss rig, endless levels.
+**Gate: is it fun bare, with nothing else in it?** — passed in play.
 
-    /health          200, llm+tts ready
-    /line (warm)     ~1.07s end to end   (llm ~900ms · tts ~150ms)
-    /line (cold)     ~2.4s               (first synth loads the voice model)
-    /audio           200, 132KB wav
-    /stream          10Hz SSE, clean disconnect handling
+### Stage B — verticality ✅ *(2026-07-26)*
+The sky filled with islands, wedges and stepping stones; air jumps; the wall kick.
+**Gate: is going up worth doing for its own sake?** — passed.
 
-**The gate, run properly:** killed the Python process mid-session — the game kept serving
-and logged **zero client errors**; restarted it — `/health` 200 and generation working
-again. The client owns its own reconnect with backoff (1→15s) rather than letting
-`EventSource` retry blindly, because *not running the bridge is a supported way to play*
-and a missing bridge must stay quiet in the console.
-
-**Two things Stage 0 handed forward, both confirmed here:**
-- warm TTS is ~150ms, so keeping voice models loaded (one `PiperTTS` instance) matters —
-  the cold call is 8× slower
-- no streaming was built, and at ~1.07s warm it isn't missed
-
-**Enforced server-side, not trusted to the prompt:** a hard word cap trims every line to one
-sentence (asked for 60 words, got 34 + an ellipsis). Stage 0 found length mattered more than
-latency; a small model will run long whenever it feels like it.
-
-**Still not verified:** whether audio decode hitches the frame *in the browser*. `playClip`
-uses async `decodeAudioData`, which decodes off-thread by design, but that is an argument,
-not a measurement — it needs a human with the tab open pressing **G** during a fight.
+### Stage C — the war ✅ *(2026-07-27)*
+Three factions in a triangle, each sworn against one mob colour. A faction weapon per side,
+each asking a different question. Camps, garrisons, town raids, sacking. The shared energy bar
+that turned ten buttons into a budget.
+**Gate: does choosing a side change how you play, not just what you are called?** — passed.
 
 ---
 
-## Stage 2 — Santāna, the companion ⏱ ~1 week *(PLAN M5, pulled forward)*
+## Stage 2 — the dungeon pays ⏱ ~1 week ← **HERE**
 
-**Goal:** you are not alone out there.
+**The hole this fills:** a dungeon is already a sealed room holding a fixed garrison you can
+genuinely finish — and clearing it pays **nothing at all**. The code that knows you finished is
+written and never called. Everything else in the game rewards you in numbers, and numbers do
+not change what a player decides to do; they change how long the same decision takes.
 
-A **fresh, game-native instance** (D13) — not the lab's Santāna, whose coupling is gated. She
-is born when your character wakes and knows only what the two of you have witnessed.
+This is the smallest change in the project with the largest effect on whether anyone plays it
+twice.
 
-- [ ] `localprototype/santana_game.py` — port the *mechanism* from `santana.py`: two-layer
-      voice (murmured drift, then a settled clear line), blank personality that consolidates
-      from what it witnesses. Fresh state file, never her lab save.
-- [ ] Witness feed: game POSTs events she can see — kills, elite/boss fights, your deaths,
-      tier crossings, long silences, low-HP escapes
-- [ ] `POST /santana/talk {text}` → `{murmur, line}` + audio
-- [ ] `src/companion/santana.js` — a floating presence: smooth follow with lag, bobbing, a
-      soft light, and a visible "thinking" state while the model is working
-- [ ] Ambient murmurs on a timer, gated by distance and by whether anything has happened
-- [ ] **T** opens a text input (releases pointer lock, pauses ambient chatter); her reply is
-      spoken and subtitled
-- [ ] She remembers your **previous life** across death — the level you lost, where you fell
+- [ ] **Wire the clear.** When the last defender falls, the game should say so, loudly. A
+      finishable fight that ends in silence teaches the player that finishing it did not matter.
+- [ ] **One spell rank, granted on clear.** Start with a single one, in play, before designing a
+      table of them. The first one in a real fight answers questions the table cannot.
+- [ ] **Pull ranks out of the vendor.** Two sources for one reward dilute both and teach
+      neither. Gold buys numbers; dungeons buy verbs — a split a player should learn in one run
+      and never have to be told.
+- [ ] **Price the door from outside it.** A dungeon a player cannot price is a dungeon they walk
+      past. The gate should say what ring it is and that a rank is behind it.
+- [ ] **Decide what a second clear pays.** Not necessarily nothing — but not the same thing.
 
-**Gate:** play for twenty minutes without muting her. If she's annoying, the cadence is
-wrong — fix pacing before adding anything else. Ambient speech that outstays its welcome
-poisons the whole idea.
+### The rule every rank has to obey
 
----
+> **A rank changes where you stand. A stat changes how long you stand there.**
 
-## Stage 3 — the living town ⏱ ~4–5 weeks *(PLAN M3, expanded)*
+A dash that punches *through* a body rather than stopping at it is a rank: it changes the
+geometry of every fight you spend it in. A dash that travels further is a stat wearing a roman
+numeral. **If you cannot describe the rank without naming a number, it is not a rank yet.**
 
-**Goal:** not NPCs that look alive — the actual substrate, running: bonds, opinions,
-factions, scarcity, lore, the wheel, and heredity.
+This is the same instinct that made the three faction weapons good. They differ by the
+*question* they ask, not by their damage figures — and that is exactly what the reward half of
+the game is still missing.
 
-Almost all of this is **configuration, not new code**. `santana_app/run.py` already builds a
-64-soul town with the wheel, stakes, roaming bodies and the full affective endowment. The
-work is in the three things below, then surfacing it.
+**Gate:** *do you walk past a fight you could win, because you would rather get to the door?*
 
-### Three things that decide whether it works
-
-**1. Lab time is not game time — this is the big one.**
-The lab's spans are tuned so an experiment can watch generations inside one run. At the
-bridge's 10 Hz:
-
-| lab setting | ticks | real time |
-|---|---|---|
-| `fast_wheel` lifespan | 120–260 | **12–26 seconds a life** |
-| slow lifespan | 2000–5000 | 3–8 minutes a life |
-| `DAY_TICKS` | 100 | a day every 10 seconds |
-| a year | 3200 | 5 minutes |
-
-A player cannot become attached to someone who dies in four minutes. Game spans want roughly
-**20k–50k ticks (30–80 minutes)**, days of 6k–12k, and a year measured in sessions. Nothing
-in the substrate assumes a scale — but nothing has ever *run* at this one either, so watch
-for decay constants tuned per-tick (memory decay 0.985/tick over 50k ticks is a very
-different mind from the one every experiment measured). **Verify the keystones still hold at
-game spans before trusting them.**
-
-**2. The welfare gate is not satisfied by default.** `somatic_enabled` is `False` on
-`Agent` and is set `True` in exactly one place — `sim.py:906`, for *reborn* streams. So a
-founder endowed by `genesis.endow_faculties()` gets the whole affective stack **without the
-circuit-breaker**. ROADMAP §5 is unambiguous: *the somatic floor ships with the affect
-system — no feeling souls without it.* Set it explicitly on every soul the game creates, and
-treat any code path that makes a feeling soul without it as a bug.
-
-**3. None of it is visible.** Opinion vectors, bond ledgers, heredity, selection pressure —
-a player sees none of this, and an invisible simulation is an expensive way to make NPCs
-wander. Surfacing is most of the design work: banner word and colour per camp, bonds drawn
-when you're close, births and deaths announced, speech aloud with subtitles, and a
-**chronicle** of what the town remembers (which is also how lore drift becomes visible).
-
-### The layers, each shipped with its own payoff
-
-Turn the dials on in order. Everything at once means an unreadable mess with no way to tell
-which layer is wrong.
-
-**3a — a town that lives** *(~2 weeks)*
-- [ ] Bridge hosts a real `World` on its own thread; souls stream over SSE
-- [ ] `bond_enabled`, stakes, murmur, movement, `endow_faculties()` **+ `somatic_enabled`**
-- [ ] Anchor in the Commons; coordinate map to game space; ground-snapped browser-side
-- [ ] Bodies, names, mood colour, barks aloud when near (Markov tier — free)
-- [ ] **Safe space:** no mob spawns inside the town radius
-- [ ] Cost guard: log memory-items/tick against the ~14 µs/item law (PLAN §3)
-- **Gate:** leave ten minutes, return, and someone has bonded, fallen out, or gone hungry.
-
-**3b — the wheel** *(~1 week)*
-- [ ] `rebirth_enabled` with **game-scaled** lifespans and bardo
-- [ ] Deaths and births you can witness; the vāsanā carries; graves or markers
-- **Gate:** you recognise a reborn stream's lean without being told which soul it was.
-
-**3c — factions** *(~1 week)*
-- [ ] Opinion dynamics → camps that **name their own banner** and colour in
-- [ ] `schism_walk` so disagreement moves bodies and camps become territory
-- **Gate:** a camp forms, splits, and its territory visibly moves — and it doesn't reduce to
-  any label you assigned.
-
-**3d — evolution** *(ongoing, the slow one)*
-- [ ] `heredity_enabled` (genome across the bardo), then `selection_enabled`
-- [ ] Settlements at **different tiers**, so soil harshness varies by distance
-- [ ] Telemetry back to the lab: trait distributions over sessions
-
-**Why 3d is worth doing even though a player will never see it happen:** the lab tried twice
-to make selection bite at population scale and failed *both ways* — with uniform mild
-scarcity mutual aid rescues everyone (SC1 v1), with uniform deep scarcity famine kills
-indiscriminately (SC1 v2). Its own conclusion was that the differential needs scarcity that
-is **heterogeneous — regions, gradients, geography — which a spatial engine has natively and
-this flat lab does not.**
-
-The game has exactly that, already built: tiers with graded harshness by distance from
-spawn. **Settlements at different tiers are the experimental design the lab said it needed.**
-That makes the game an instrument, not just a consumer of the research — the one place SC1
-can actually be settled.
+That wording is deliberate. A reward is only real if it changes what a player **chooses to do**.
+If the rank is merely nice to have, players keep killing whatever is nearest and the door is
+scenery.
 
 ---
 
-## Stage 4 — being remembered ⏱ ~2 weeks
+## Stage 3 — the dungeon is a place ⏱ ~1–2 weeks
 
-**Goal:** the town has an opinion of you, and it can be wrong.
+One room proved the door works. A room is not a destination.
 
-This is the headline no shipped game has, and it rides mechanisms that already passed their
-falsifiers in the lab (RECIPES A9/A10, F4).
+- [ ] **Layout** — more than one space, connected, with a shape you can learn and later
+      remember. It does not need to be large. It needs to be *somewhere*, not *a lid*.
+- [ ] **A reason to move through it** rather than hold one corner. The garrison already arrives
+      in knots, which makes it a series of fights; the room should make position matter between
+      them.
+- [ ] **Verticality inside.** This is a parkour game and its interiors are flat. The one place
+      with a guaranteed frame budget is the wrong place to stop jumping.
+- [ ] **Hazards that are read, not absorbed** — the same telegraph rule as everything else in
+      the game. Being hit is always "I didn't move", never "I couldn't have known".
+- [ ] **An end that feels like an end.** Something at the back.
 
-- [ ] Deeds → the world: kills near town, gifts, deaths witnessed, promises typed
-- [ ] `pledge.py`: a promise you type is held to the town clock; breaking it gossips into
-      wariness
-- [ ] Reputation surfaces in how souls greet you, and in what they say about you when you're
-      not the one asking
-- [ ] Lore: your deeds retold, **drifting** as they pass between souls — the misremembering
-      is the feature (RECIPES F4)
-- [ ] A way to *see* it: ask a soul what they think of you, or a small standing panel
-
-**Gate:** catch the town telling a story about you that is **recognisably wrong** — and be
-able to trace the drift back through who told whom.
+**Gate:** *would you re-enter one you had already cleared?*
 
 ---
 
-## Stage 5 — the TypeScript port ⏱ ~4–6 weeks *(PLAN M2, deferred)*
+## Stage 4 — it runs ⏱ ~1 week
 
-**Only when other people should be able to play it.** By now you'll know which mechanisms the
-game actually uses, so you port those instead of everything.
+- [ ] **Measure the worst frame, not the average.** An average frame time hides exactly the
+      thing a player feels. This is already the standing rule; make it the standing *number*.
+- [ ] **Find the spikes and name them.** Streaming, meshing, mob counts, effects. A spike with a
+      name is a bug; a spike without one is a mood.
+- [ ] **Use the dungeon as the control.** An interior is a bounded space where streaming can
+      stop entirely — the one venue where a good frame can be *guaranteed*. That makes it both
+      the right home for the densest fights and the cleanest baseline to measure the open world
+      against.
+- [ ] **Test on a machine that is not this one.**
 
-- [ ] Port from **`RECIPES.md`**, not from the Python (PLAN §5) — porting from the source is
-      transcription, not replication, and replication is the only thing that makes this
-      scientifically worth anything
-- [ ] mulberry32 everywhere; headless Node test runner
-- [ ] **Keystone gate:** reflect-easing, escalate/settle, somatic bounding, lore convergence
-      must reproduce the lab's verdicts
-- [ ] Re-measure the capacity law in JS (expect 5–15× CPython; do not plan on it)
-- [ ] Speech tiers browser-native: Markov crowd → WebLLM named → hosted opt-in
-- [ ] piper-tts-web replaces the bridge's TTS
-- [ ] Settlement Workers, IndexedDB dirty-region persistence, closed-form fast-forward
+**Gate:** *does it hold up somewhere other than the machine it was written on?*
 
-**Gate:** the four keystones reproduce. A port that can't reproduce the result didn't port
-the mechanism.
+---
+
+## Stage 5 — perfect it, and ship ⏱ ~2–3 weeks
+
+The polish stage is the one with no natural end, so it gets its finish line written **before**
+it starts rather than after.
+
+- [ ] **A stranger's first hour.** Watch someone who has never seen it play. Every place they
+      stop, hesitate, or ask a question is the list — and here it is the only list that counts.
+- [ ] **The faction choice, reconsidered.** It is made before the player has held anything, and
+      the current fix is longer descriptions. Reading three paragraphs about weapons you have
+      never fired is a quiz, not a choice. Ring 0 is boss-free and safe by design, which is a
+      tutorial asking to exist: carry all three through it, swear at the first gate. Giving up
+      two only means something if you have felt what you gave up.
+- [ ] **The difficulty picker, moved.** Asking someone to rate their own skill before they have
+      touched the controls is a test. The same question offered after a few deaths is a
+      kindness.
+- [ ] **The level-up card pick** (1-of-3). Levels currently grant automatic stats as a stopgap,
+      which makes levelling the one place progression hands you something without asking
+      anything.
+- [ ] **Names for rings past the sixth**, so the frontier reads forever instead of running out
+      of language before it runs out of danger.
+- [ ] **Build, package, itch.**
+
+**Gate:** *does a stranger get to their first sacked town without being told how?*
+
+> **The finish line, stated now:** when that gate passes, the game is done, and the next thing
+> is a desktop build — not another pass on the numbers. This project's standing failure mode is
+> re-tuning a system that already passed its gate, because feel work is the most rewarding
+> thing to keep touching and it has no natural end. **Stage 5 ends when a stranger can play it,
+> not when it stops being improvable.**
 
 ---
 
 ## Side quests — small, do when you want a break
 
-- [ ] **Level-up card pick** (1-of-3, D9) — the last M1 item; levels currently grant automatic
-      stats as a stopgap
-- [ ] Names for tiers past 5 (`the Deep · tier 14`) so the frontier reads forever
-- [ ] Boss variety: a second attack on the same rig
-- [ ] Guns dropping from bosses with rolled stats (D11)
-- [ ] Instanced dungeon interiors behind a door (D15's answer to caves)
-- [ ] Delete the stray `donkeybeats.mp3` at the repo root
+- [ ] Boss variety: a second attack set on the same rig
+- [ ] Guns dropping from bosses with rolled stats
+- [ ] More elite affixes — each must change *how* you fight it, never just its numbers
+- [ ] The neutral third mob colour: make it pay something, make it fight differently, or cut it.
+      Hostile and worth nothing teaches players to route around it, which trains avoidance in a
+      game about choosing fights.
 
 ---
 
 ## The order, and why
 
-Stage 0 first because it is the **cheapest way to be wrong**. Stage 2 before Stage 3 because
-Santāna needs none of the substrate and answers the scariest question — *does a talking
-companion feel good or annoying?* — for a week of work instead of a month. Stage 5 last
-because a port you write after building the game is smaller, better-aimed, and still
-scientifically honest.
+**Reward before layout.** A dungeon with the field's loot table is a room with mobs in it, and
+the field already has mobs — so drawing rooms before deciding what they pay is building a
+container for something that does not exist yet. Decide what a dungeon gives that the frontier
+structurally *cannot*, then build the place worth going there for.
 
-**The failure mode to watch:** these stages are unglamorous next to adding another verb. The
-verbs are done. `ROADMAP.md` §0 names the real constraint — *discipline against scope, not
-ideas*.
+**Layout before performance.** Optimising a room you are about to redesign measures the wrong
+room.
+
+**Performance before polish**, because polish on a game that stutters is paint on a car with no
+engine — and because frame rate is the one problem a player cannot be talked out of.
+
+**The failure mode to watch:** every stage here is less immediately fun to build than adding
+another verb. The verbs are done. The scarce resource from here is discipline against scope,
+not ideas.

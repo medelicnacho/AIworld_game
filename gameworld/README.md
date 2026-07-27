@@ -1,20 +1,15 @@
-# gameworld
+# War Parkour
 
-**An infinite low-poly frontier where the danger, the loot, and eventually the people all
-scale with how far you dare to walk from spawn.**
+**A blocky infinite frontier with three clans at war on it. You swear to one, and everything
+you own is movement.**
 
-Third-person shooter over read-only voxel-look terrain, endless levels, giant telegraphed
-bosses. The long game — the reason this exists at all — is the layer that isn't built yet:
-**settlements of NPCs running the soul substrate in [`../localprototype/`](../localprototype/)**,
-who bond, feud, starve, remember you (fallibly), and get on with their lives while you're
-away. Plus **Santāna**, a collective mind that follows you, speaks aloud, and is the only
-thing in the world that remembers your last life.
+Third-person shooter over read-only voxel terrain. The land climbs into a sky full of
+islands, the horizon gets harsher the further you walk from spawn, and every camp, town and
+dungeon in the world flies one of three colours. Choosing a colour is the first real decision
+in the game, because it decides who you hunt — and it costs you the other two.
 
-Right now the game half is real and playable. The living half is next.
-
-- **[`STAGES.md`](STAGES.md)** — the executable build order: stages, tasks, and the gate on each.
-- **[`PLAN.md`](PLAN.md)** — the decisions with their reasons (D1–D16), the measured capacity
-  law, the milestones and their gates. Read that for *why*; this file is *what and how*.
+The name says what it is. **Parkour**: jumps, wall kicks, dashes, and a sky you climb. **War**:
+three armies who shout at each other, towns you can sack, dungeons you can clear.
 
 ---
 
@@ -32,130 +27,233 @@ that folder to remove it). Put it on PATH:
 export PATH="$HOME/.local/opt/node/bin:$PATH"
 ```
 
-Other scripts: `npm run build` · `npm run lint` (ESLint, with `no-undef` **on** — it catches
-missing imports that Vite builds cleanly and only explode at runtime).
+Other scripts: `npm run build` · `npm test` · `npm run lint` (ESLint, with `no-undef` **on** —
+it catches missing imports that Vite builds cleanly and only explode at runtime).
 
 ## Controls
 
 | | |
 |---|---|
 | **WASD** | move · **Shift** sprint |
-| **Space** | jump — press again in the air to double jump |
-| **double-tap WASD** | dodge-roll in that direction (0.22s i-frames) |
-| **LMB** | fire (hold for auto) · **R** reload |
-| **RMB** | aim — blends the camera to first person, tightens spread 10× |
-| **E** | grenade · **Q** heal (1.5s channel, breaks if you move or get hit) |
+| **Space** | jump — press again in the air, three jumps at level one and more as you level |
+| **double-tap WASD** | dodge-roll in that direction · roll into a wall to **kick off it** |
+| **LMB** | your faction weapon's main attack · **R** reload |
+| **RMB** | its second trigger — the spin, the barrage, the sweep |
+| **1–6** | the ability bar · **Q** heal · **E** grenade |
+| **RMB (guns)** | aim — blends the camera to first person, tightens spread 10× |
 | **F5** | sticky first-person toggle · **[** **]** look speed (saved between sessions) |
 | **M** | music · **B** summon/dismiss a boss (dev) |
 
 ---
 
-## What's implemented
+## The three pillars
 
-### World
+### 1. Distance is the progression system
+
+There are no zone gates and no level requirements on the map. The world simply gets harder
+the further you walk, forever, and the experience worth having is always further out than
+where you are standing. **The reward for getting stronger is permission to be somewhere.**
+
+Six named rings — *the Commons · the Fallows · the Reach · the Waste · the Ashlands · the
+Deep* — give the gradient a face, because a player has to be able to *see* "I am somewhere
+worse now." Past the sixth the names run out and the difficulty does not: the frontier keeps
+climbing so that an endless game never runs out of danger to sell you.
+
+Levelling buys **mobility, not bulk**. Your maximum health never moves — a meteor is as lethal
+at level forty as at level four — so survival stays a question of reading the fight rather
+than of outgrowing it. What you gain is damage, speed, jump height, and another jump in the
+air every ten levels. A high-level character is *faster*, not *safer*.
+
+### 2. Everything is movement
+
+Verticality is the second axis the frontier is measured on. The land throws up cliffs, mesas
+and canyons; above it hangs a sky of islands, wedges and stepping stones that thickens as it
+climbs, so "up" is a direction with content in it and not just a ceiling.
+
+The kit that gets you there is deliberately a **rhythm you can drop, not a ladder you ride**:
+
+- **Air jumps** — three at level one, another every ten levels.
+- **The wall kick** — roll into a wall and you go up *and out*, thrown near forty degrees. It
+  clears about three blocks and carries you fourteen across, so a wall becomes a way to cross
+  a chasm or leave a fight. It spends your roll, which is what keeps it honest.
+- **The dash**, which grows with every point of speed you own.
+
+And the movement answers *combat* questions, not just terrain ones: a charge or a lunge can
+be **jumped**. That is the seam where "parkour" and "shooter" stop being two words stuck
+together.
+
+### 3. The war, and the side you take
+
+Three mob colours are already fighting each other out there. Three factions are sworn against
+them in a triangle — no two share an ally or an enemy — and joining one puts you on a colour's
+side:
+
+| | |
+|---|---|
+| **your colour** | its camps and garrisons are your army. They fight beside you. |
+| **your enemy** | the only colour that pays reputation when you cut it down. |
+| **the third** | neither. Hostile, worth nothing. |
+
+**Reputation is access; points are price.** Climbing the ladder does not hand you gear, it
+earns you the *right to buy* it. Neither shortcuts the other — points alone is money-grinding,
+reputation alone is kill-counting — so a full kit means playing the way your faction wants for
+a long time.
+
+**The cost is the other two.** Rival towns stay safe and still mend you; they simply will not
+sell you their kit. You give up two thirds of the best gear in the game by choosing, and that
+is the entire point. *A choice with no cost is a menu.*
+
+Each faction's weapon asks a different **question**, which is what makes the choice change how
+you fight rather than what you are called:
+
+| | the question it asks |
+|---|---|
+| **Iron — the cleaver** | *range and commitment.* You have to be there. |
+| **Vale — the lobber** | *prediction.* Travel time and splash: where will they be? |
+| **Ash — the lance** | *lines.* Where can I stand so this crosses four of them? |
+
+---
+
+## What else is implemented
+
+### The world
 Seeded infinite terrain, a **pure function of (seed, coords)** — nothing about it is ever
-saved, because it can always be re-derived. No digging or building, ever (D1), which deletes
-the hard 30% of a voxel engine: no re-meshing on edit, no lighting propagation, no per-block
-delta store.
+saved, because it can always be re-derived. No digging or building, ever, which deletes the
+hard 30% of a voxel engine. Face-culled blocky meshing with per-face shading: the low-poly
+look comes from hard edges and flat shading, so there is no asset pipeline at all.
 
-Chunk generation fills a **3D occupancy grid** from a fill function and the mesher meshes the
-grid. Today that function is `solid = y < height(x,z)`; adding caves later is 3D noise in
-that one function and the mesher never changes (D15). Face-culled blocky meshing with
-per-face shading — the low-poly look comes from hard edges and flat shading, so there's no
-asset pipeline. Streaming loads a 7-chunk disc, builds 2 per frame, and drops with hysteresis
-so walking a boundary doesn't thrash.
+**Towns** are walled refuges placed by the same pure function. A round wall, one gateway, a
+vendor, a healer, and a garrison in the town's war colour. Your own colour's garrison ignores
+you. **A rival's garrison is a raid** — it hunts you inside the walls, its traders take up
+arms as champions, and killing the last defender **sacks the town** for a boss-sized payout.
 
-### Difficulty by distance (D8)
-Two functions, deliberately different:
+**Dungeons** are a different world entered in place: the world is a pure function behind one
+door, so a dungeon is simply a *different* pure function behind that same door. Walk in and
+the ground changes; movement, sight, meshing and every effect follow without being told.
+Costs no memory, needs no difficulty plumbing — a dungeon in a ring-nine mountain is a
+ring-nine dungeon — and never touches the chunk streamer.
 
-- **`tierAt()` is uncapped** and drives every stat, XP value, and elite rate. The world keeps
-  getting harder forever — endless levels against finite difficulty means eventually
-  outrunning the game.
-- **`ringAt()` is capped** at six because we only wrote six names: *the Commons · the Fallows ·
-  the Reach · the Waste · the Ashlands · the Deep*. Names and map tint only.
+### Energy — the bar that finally costs something
+Eleven buttons was never eleven decisions, because nothing competed for anything. **A cooldown
+is a delay, not a cost**: it stops you pressing the same button twice and says nothing about
+whether pressing *this* one should mean not pressing *that* one.
 
-One ring is 260 world units (~32s of sprinting). Mobs gain **+55% HP, +40% damage, +6% speed**
-per tier, and elites get a further **+15% HP** per tier on top.
+So the abilities share one pool. The design is one line long: an opener of two spells leaves
+you enough for a third and never enough to repeat the first. The failure state it is built
+around is not the empty bar — nobody dies to an empty bar — it is **the plan that needed one
+more cast**. Cooldowns survive only where the point is once-per-fight rather than
+once-per-rotation.
 
-### Camera (D3/D4/D5)
-Three states: **EXPLORE** (third person, centred) → **AIM** (blends to first person over
-~170ms) → **FP** (sticky toggle). Aiming pulls to first person because over-shoulder free-aim
-upward clips the camera and runs the reticle off screen — the BOTW bow pattern.
+**Escape is always free.** Sprint, dodge, heal and potions cost nothing. Being punished for a
+misjudgement is the point; being punished by *also* losing the tool that would let you survive
+it is a death sentence. The bar means exactly one thing: how much damage you can do right now.
 
-Orientation comes from yaw/pitch directly, never `lookAt()`. Offsets move the camera's
-*position*; they must never rotate it. That's what makes **one raycast — camera through
-crosshair — exact in every state**, so third and first person share a single shooting path.
+And the bar is **six slots against ten abilities**, so carrying a spell costs leaving one home.
 
-### Combat
-- **Gun**: hitscan on a voxel DDA raycast (Amanatides–Woo — can't tunnel a block, cost scales
-  with distance not precision). 12 damage, 7.5/s, 18-round mag. **Hip spread 0.022 vs 0.002
-  aimed** — accuracy is what ADS buys, which makes D4's camera pull a tactical choice.
-- **Dodge**: 0.30s roll, 0.22s i-frames, direction locked for the duration. Committing is what
-  makes it a dodge instead of a speed boost. Cancels ADS.
-- **Grenade**: ballistic arc, detonates on contact with the world (same `solidAt()` the player
-  collides against), 90 damage falling off to 25% at 6.5 units — and **you take half**.
-  Max 3, +1 per kill.
-- **Heal**: 45 HP over a 1.5s channel that breaks on movement *or* damage. The root is the
-  cost; the boss's volley gaps are where you pay it.
+### Mobs and bosses
+Stats roll from the tier they spawn in; **★elites** are bigger, gold and much tougher. Three
+states: **chase** with a sideways bias so packs arrive as a spread rather than a stack,
+**strafe** while the attack cools — the window you shoot into — and a **committed lunge** that
+cannot course-correct, which is what makes dodging one a read rather than a coin flip.
 
-### Mobs (D7 — soulless on purpose)
-Stats roll from the tier they spawn in; **★elites** at 6% + 6%/tier are bigger, gold, and
-much tougher. Three-state brain: **chase** with a per-mob sideways bias so packs arrive as a
-spread rather than a stack, **strafe** while the attack cools (the window you shoot into), and
-a **committed lunge** that can't course-correct — which is what makes dodging one a read
-rather than a coin flip. 14 alive at a time, so cost is bounded by count, not world size.
+One reusable boss rig, re-dressed per tier: a glowing core that takes extra, and a second
+phase below half health with faster, bigger volleys. **Every source of damage is telegraphed**,
+and the chain is long on purpose — roar, then a charge you can *see* because the core swells
+and goes hot, then ground markers, then impact.
 
-The substrate goes on settlements later, never on things you kill in three seconds.
+> Being hit is always "I didn't move", never "I couldn't have known."
 
-### The giant boss (D10)
-One reusable rig, re-dressed per tier. 850 HP × (1 + tier), a **glowing core that takes ×2.5**,
-and a second phase below 50% with faster, bigger volleys.
+That is the line between a boss and a damage tax, and it is what lets a fight be long without
+being tedious. It is also a rule with teeth: the Dying Burst affix was cut for breaking it —
+an explosion on death is not a difficulty, it is a tax on the one weapon that has to be in
+close, and it punished a choice the game asked the player to make.
 
-**Every source of damage is telegraphed**, and the chain is long on purpose:
+### The war has a voice
+Camps shout. One voice raises a cry and the band takes it up, staggered and overlapping, each
+throat pitched differently. Your own colour **hails** you as you pass, because an army that
+only screams at enemies and says nothing to its own reads as texture rather than a side you
+belong to.
 
-> roar → **1.25s charge** (a *state*, not just a sound — the core swells and goes hot, so it
-> reads with audio off) → **1.3s ground markers** → impact
+The cries are **positional** — gain by distance, pan by angle — which makes a scream usable as
+a telegraph: you can hear how *close* the thing charging you is, and which side it is on. All
+of it is baked ahead of time into a cache, so nothing is ever synthesized during a fight and a
+built copy speaks with no server behind it.
 
-Being hit is always "I didn't move", never "I couldn't have known". That's the line between a
-boss and a damage tax, and it's what lets the fight be long without being tedious. 60% of
-meteors track you (standing still is never safe); the rest rain around the boss.
-
-### Progression (D9)
-Endless levels. Kill value scales with **tier**, level cost with **level^1.55**, and their
-ratio is the entire curve:
-
-| level | trash needed (tier 0 / 3 / 5) | elites needed (tier 0 / 3 / 5) |
-|---|---|---|
-| 1 | 4 / 1 / 1 | 1 / 0 / 0 |
-| 10 | 148 / 40 / 27 | 21 / 6 / 4 |
-| 20 | 433 / 118 / 79 | 62 / 17 / 11 |
-| 35 | 1031 / 281 / 187 | 147 / 40 / 27 |
-
-Trash near spawn becomes worthless while packs in the deep still add up, and elites go from
-nice to essential. **To keep levelling you must walk further out** — distance *is* the
-progression system.
-
-**Levels buy mobility, not bulk.** Max HP never moves (a meteor is as lethal at level 40 as at
-level 4 — survival stays about reading telegraphs), but you gain compounding **damage ×1.09**,
-**speed ×1.02**, **jump ×1.015** per level, plus **an extra air jump every 10 levels**, and a
-full heal on each level-up. Death costs your top level and drops you halfway to earning it
-back.
-
-### Sound — synthesized, zero asset files
-No downloads, no licences, no megabytes in git. Roars are detuned sawtooths sliding *down*
-through a soft-clip curve (falling pitch is what reads as "huge") plus bandpassed noise for
-breath; explosions are noise through a collapsing lowpass plus a sub thump; the charge cue is
-a rising alarm whose tremolo *accelerates*. All positional — gain by distance, pan by angle —
-because with six rocks in the air, hearing which side they're on is how you read the volley.
-The looping soundtrack (`public/audio/`) starts on pointer lock, since browsers refuse audio
-before a gesture.
+### Sound, otherwise synthesized
+Roars are detuned sawtooths sliding *down* through a soft-clip curve — falling pitch is what
+reads as "huge" — plus bandpassed noise for breath. Explosions are noise through a collapsing
+lowpass and a sub thump. The charge cue is a rising alarm whose tremolo *accelerates*. No
+asset pipeline, no licences, no megabytes in git.
 
 ### Minimap
-Terrain baked north-up offscreen and rotated at draw time (turning your head must not
-re-sample the heightfield), shaded by elevation and tinted by ring. Ring boundaries drawn as
-circles centred on spawn. Mobs as dots, elites gold, boss always visible clamped to the rim.
-**Spawn compass**: a marker in range, a rim arrow with distance when out of range — every
-threat is defined by distance from spawn, so which way home is should never be a guess.
+Terrain baked north-up offscreen and rotated at draw time, shaded by elevation and tinted by
+ring, with ring boundaries as circles centred on spawn. Mobs as dots, elites gold, the boss
+always visible clamped to the rim. Every threat in this game is defined by distance from
+spawn, so **which way home is should never be a guess**.
+
+---
+
+## Where this is going
+
+The frontier, the war and the movement are built and they pass their fun gates. **What is
+missing is the reason to do any of it twice** — and the plan from here is four steps long.
+[`STAGES.md`](STAGES.md) has the tasks and the gate on each; [`PLAN.md`](PLAN.md) has the
+decisions and their reasons.
+
+**1. Dungeons pay in verbs.** *(next)*
+A dungeon is already a sealed room with a fixed garrison you can genuinely finish. Clearing
+one currently pays **nothing at all**. It should pay the one reward in this game that changes
+how you play rather than what your numbers say: **a rank on a spell you own**.
+
+The condition on a rank is that it has to change *where you stand*, not how big the number is.
+A dash that punches *through* a body instead of stopping at it is a rank. A dash that goes
+further is a stat with a roman numeral on it.
+
+Gold buys numbers. Dungeons buy verbs. A player should learn that split in one run.
+
+**2. Dungeons become places.** One room proved the door works. Layout, hazards and a shape
+worth learning are what make it somewhere you go rather than an arena with a lid.
+
+**3. Performance.** Measured on the *worst* frame, not the average — an average frame time is
+a number that hides exactly the thing the player feels. The dungeon helps here rather than
+hurting: an interior is a bounded space where streaming can stop, so it is the one venue in
+the game where a good frame can be *guaranteed*, which makes it the right home for the
+densest fights.
+
+**4. Perfect what is here, and ship it.** Itch first, in the browser. Steam later, as a
+desktop build.
+
+---
+
+## What was cut, and why
+
+This project began as a frontier whose real content was going to be **settlements of NPCs
+running a live social substrate** — souls who bond, feud, starve, remember you fallibly, and
+get on with their lives while you are away — plus a companion who followed you and spoke.
+That layer is **cut**, and the reasons are worth keeping written down.
+
+**It could not ship to the audience the game is aimed at.** Live souls need a local Python
+process and a local language model running beside the browser. An itch build has neither. The
+war cries only speak in a built copy because they are *baked ahead of time*, and baking is
+exactly the thing emergence cannot be. The feature would have been experienced by an audience
+of one.
+
+**The game had already voted.** The plan's own wager was that the shooting should stay
+deliberately simple because the aliveness was the content. What actually got built over the
+following month was three faction weapons that ask different questions, a shared energy
+economy, a war with sides, sky islands and a wall kick. The shooting did not stay simple — it
+became the game. That is discovery, not failure, but a plan that does not admit it keeps
+charging rent: it justifies deferring reward work forever on the grounds that the *real*
+content is still coming.
+
+**And the two halves teach opposite habits.** A living town needs a player who slows down and
+stays. War Parkour teaches you to never stop moving, read the colour, and choose the fight.
+The town shape that *does* fit this game is the one already in it: a place with a garrison,
+that you can raid, sack, or belong to.
+
+**What survives the cut:** the war's voice. Baked cries, taunts and hails are authored content
+that ships and does real telegraph work — they were never the emergent layer, they just used
+the same pipe.
 
 ---
 
@@ -164,81 +262,40 @@ threat is defined by distance from spawn, so which way home is should never be a
 ```
 src/
   rng.js          mulberry32, hash2, value noise, fbm — EVERY random number
-  config.js       every tunable in the game
+  config.js       every tunable in the game, and the reasoning beside it
   state.js        sim state: plain entity records, region-bucketed
   main.js         fixed-step physics clock / per-frame render clock
-  world/          gen (the fill function) · mesher · streamer · raycast
-  player/         controller · camera · gun · grenade · heal
-  mobs/           mobs · boss
-  prog/           xp — the curve and every level-scaled stat
-  ui/             minimap
+  world/          gen · mesher · streamer · raycast · sanctuary · dungeon · events
+  player/         controller · camera · gun · grenade · heal · abilities
+  mobs/           mobs · boss · affixes · warcry
+  town/           raid · villagers · chat · voice
+  prog/           xp · gear · factions · save
+  ui/             minimap · shop · inventory · healthbars · nameplates
   audio/          music · sfx (procedural)
-bench/            python: the substrate capacity benchmarks behind PLAN.md §3
 ```
 
 ### Three rules the code holds to
 
-1. **No `Math.random()`** — lint-enforced (D14). An unseedable world can't be replayed, and a
-   sim that can't be replayed can't be falsified.
-2. **Sim state is not render state.** Gameplay lives in plain records; meshes only *read*
-   them. That seam is where a soul brain plugs into the same body a mob uses.
-3. **Systems don't learn each other's names.** The gun takes `{id,x,y,z,r}` spheres; grenades
-   report a position and radius. `main.js` decides what those touch — so bosses, souls, and
+1. **No `Math.random()`** — lint-enforced. An unseedable world cannot be replayed, and a world
+   that cannot be replayed cannot be tested.
+2. **Sim state is not render state.** Gameplay lives in plain records; meshes only *read* them.
+3. **Systems do not learn each other's names.** The gun takes spheres; grenades report a
+   position and a radius. `main.js` decides what those touch — so bosses, dungeons and
    whatever comes next drop in without editing them.
 
-Tuning is nearly all in `src/config.js`. Look speed is tunable live in-game and persists.
-
----
-
-## Where this is going
-
-Milestones and gates live in [`PLAN.md §6`](PLAN.md). **M1 is essentially complete** — the
-game is playable end to end and has passed its gate ("is it fun bare, with no AI in it?").
-The only M1 item outstanding is the **level-up card pick** (1-of-3, D9); levels currently
-grant automatic stats as a deliberate stopgap.
-
-The next stretch is the part this project actually exists for:
-
-**1. The bridge + Santāna** *(next)*
-`gemma3:4b` runs locally via Ollama and Piper is installed — the whole AI stack is already
-here. Rather than porting 28k lines of validated substrate to TypeScript first, expose the
-Python lab over localhost and let the browser be a *view* of it. Santāna arrives first: a
-presence that follows you, murmurs about what you've both seen, and answers when you type.
-She needs none of the substrate, and she de-risks the scariest unknown — voice latency, and
-whether a talking companion feels good or annoying.
-
-**2. One town in the Commons**
-Ring 0 is already boss-free, so it's the natural home. 20–30 real souls with bonds and
-opinions, a no-spawn radius making it a genuine safe space, Markov barks aloud through Piper.
-This is where the project becomes the thing it set out to be.
-
-**3. Reputation, pledges, factions**
-The town remembers you — fallibly. Promises you type can be broken and gossiped into
-wariness (`pledge.py`). Nothing shipped has this.
-
-**4. The TypeScript port**, when other people should be able to play it. It doesn't
-disappear, it moves later and gets smaller: by then you'll know which mechanisms the game
-actually uses. The keystone-replication gate still stands — it gates *shipping* the port, not
-prototyping the design.
-
-**The scarce resource from here is discipline against scope, not ideas** (`ROADMAP.md` §0).
-The town is not cheap, and it's the thing worth having.
+Tuning is nearly all in `src/config.js`, where every number is written down beside the
+argument for it. **When you change a number, change the argument** — a constant with a stale
+essay beside it is worse than a bare constant, because the essay will be believed.
 
 ---
 
 ## Honest status
 
-**Verified:** lint and build green; the XP, damage, and boss-HP curves checked numerically;
-terrain generation checked by transliterating `rng.js`/`gen.js` to Python (uniform hash,
-heights 20–44, nothing clamped, adjacent columns never differ by more than 1 block); the dev
-server reports zero client-side runtime errors.
+**Verified:** the full test suite and lint are green. The XP, damage and boss-health curves
+check out numerically. Terrain generation was verified by transliterating the generator to
+Python — heights land in range, nothing clamps, and adjacent columns never differ by more than
+one block.
 
-**Not verified by the assistant:** none of it has ever been *looked at*. There was no browser
-automation available while this was built — every judgement about how it looks and feels is
-the author's. Two runtime crashes shipped and were caught only by reading Vite's client error
-log, which is why `no-undef` is now on.
-
-**Not a claim about anyone's inner life.** When the souls arrive, they build the *conditions*
-of a self — continuity, memory, drift — and a learning, talking NPC is a more convincing
-surface, so it warrants more care in how it's framed to players, not a stronger claim. See
-`FINDINGS.md` §7 and `PLAN.md` §7.
+**Not verified:** how it *looks*. Almost every judgement about feel in this repo is the
+author's, made in play. That is the right authority for feel and the wrong one for bugs, which
+is why the lint rule that catches runtime-only crashes is switched on and stays on.

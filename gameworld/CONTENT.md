@@ -117,18 +117,26 @@ Approach (the honest cost is in the multi-boss rewrite):
 Gate: you can walk a ring, find and kill its bosses one by one, see the ring empty of them,
 and come back later to find some respawned — with no boss ever conjured out of thin air at you.
 
-## 4. Town NPC ideas (for when the substrate lands)
+## 4. Town NPC ideas — and none of them need a simulation
 
-- **Bounty keeper** — names a specific elite pack ("the Burning star west of town"),
-  double points on it. Cheap: pick a live pack, tag it, check the kill. First quest-shaped
-  thing, no quest system needed.
-- **Gate warden** — a town NPC with a gun who actually shoots hostiles that come within
-  range of the gate. Makes safety feel *defended* rather than decreed.
-- **Caravan** — a walking mini-town: 3 pack animals + 2 guards travelling between
-  settlements on the roads the nomad bands already walk. Protect it (or just travel with
-  it) for points. Reuses folk band movement wholesale.
-- **The hermit** — one NPC in the wilds per tier, sells ONE random affix-ware cheap.
-  Reason to explore off the town bearings.
+*These were filed under "for when the substrate lands." That was a mis-filing, and it is worth
+correcting rather than deleting: **every one of them is authored content that works today.**
+The living-NPC layer is cut (see `PLAN.md` D12), and these survive it untouched, because what
+makes them good was never emergence — it was that each one gives the player a **reason to go
+somewhere specific**.*
+
+- **Bounty keeper** — names a specific elite pack ("the Burning star west of town"), double
+  points on it. Cheap: pick a live pack, tag it, check the kill. The first quest-shaped thing
+  in the game and it needs no quest system. It is also the first sentence the town ever says
+  about the world.
+- **Gate warden** — a town NPC with a gun who actually shoots hostiles that come within range
+  of the gate. Makes safety feel *defended* rather than decreed.
+- **Caravan** — a walking mini-town: pack animals and guards travelling between settlements.
+  Protect it, or just travel with it, for points. *(Note: the roaming folk bands this was
+  going to reuse were removed from the game. It needs its own simple pathing now, which is a
+  smaller job than it was but no longer free.)*
+- **The hermit** — one NPC in the wilds per tier, sells ONE random affix-ware cheap. A reason
+  to explore off the town bearings.
 
 ## 5. The implementation plan — slices C1–C7, each with a gate
 
@@ -181,9 +189,13 @@ The last two questions (cover, priority-under-pressure), then the first genuinel
 skeleton once the attack-set pool feels thin.
 
 ### C7 — town content: Bounty keeper · Gate wardens · Caravan · Hermit ⏱ ~1 week
-Deliberately LAST among the combat slices but before the substrate: these are also the
-fake-data narration groundwork — a bounty keeper naming a real elite pack is the first
-sentence the town ever says about the world, and it needs no simulation behind it.
+Deliberately LAST among the combat slices, and it outlived the layer it was once queued behind:
+a bounty keeper naming a real elite pack is the first sentence the town ever says about the
+world, and it needs no simulation behind it. **This slice is now the town's whole answer**, not
+a warm-up for one.
+
+Sequence it after the dungeon stages in `STAGES.md` — a bounty is a reason to go somewhere, and
+the game's first job is to make *arriving* worth it.
 - **Gate:** a new player finds and completes a bounty without being told the system exists.
 
 Sources: [RoR2 elite design analysis](https://parryeverything.com/2021/08/13/the-elites-of-risk-of-rain-2-efficient-design-and-the-fundamentals-of-real-time-combat/) ·

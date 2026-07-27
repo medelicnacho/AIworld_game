@@ -1,11 +1,49 @@
-# VOICE.md — light emergent speech in friendly towns
+# VOICE.md — speech in the world
 
-*The plan for the first thing in this world that talks. Written before any of it is built,
+*The plan for the first thing in this world that talks. Written before any of it was built,
 because the arguments are the part that gets lost — the cadence numbers are easy to re-derive
 and the reasons a whole class of design was refused are not.*
 
-**Scope, decided up front: friendly towns only.** Not mobs, not rival war-camps, not the
-frontier. The reasons are D1 and D2 below and they are the spine of the whole document.
+---
+
+> ## ⚠ Status, 2026-07-27 — read this before believing anything below
+>
+> This document was written for a game whose content was going to be **living NPCs**. That
+> layer is **cut** (`PLAN.md` D12/D13). What follows is still worth keeping, because most of
+> its reasoning survived the cut and one of its central decisions was **proven wrong by play**
+> — which is the more useful half.
+>
+> ### What ships
+> **The war's voice.** Camps shout: a lead cry, packmates echoing it staggered and
+> overlapping, and hails when your own colour passes you. All **baked ahead of time** into a
+> cache and played from it, so nothing is synthesized during a fight and a built copy speaks
+> with no server behind it. This is the voice feature that actually works, and it is the one
+> this document said not to build.
+>
+> ### D1 was wrong, and the reason is worth more than the rule
+> D1 below says **friendly towns only, never mobs** — because spending voice on a body you
+> delete in three seconds teaches the player that talking is wallpaper.
+>
+> The game did the opposite and it is one of the best things in it. The argument missed a
+> distinction: it assumed voice can only do **characterisation**, where it is true that a
+> three-second body cannot carry it. War cries do a different job — they are a **telegraph**.
+> Positional, so you can hear which side a thing is on and how close it is. Legible over
+> gunfire, which is why all three clans ended up speaking in the voice that carries rather
+> than three flavourful ones.
+>
+> **The correct rule is not "never mobs." It is: voice must do a job.** Characterisation is
+> one job and needs a persistent body. Telegraphing is another, and needs only to be heard.
+>
+> ### What is cut
+> - **Santāna** — the companion. With her goes D7's reservation of a voice for her.
+> - **The living town's settled LLM lines.** The machinery still runs against a local model if
+>   one happens to be up; treat it as a workshop toy, not a feature. **In any built copy the
+>   towns are quiet**, and that is now the intended state rather than a degraded one.
+> - Everything below that plans Stage 2 or Stage 3.
+>
+> ### What is still true
+> §0 — **silence is the resource** — is the best idea in this file and it is exactly why the
+> war cries needed a one-voice-at-a-time gate and cooldowns rather than more lines. Keep it.
 
 ---
 
