@@ -1668,17 +1668,13 @@ export const ENERGY = {
   dash: 35,
   nova: 60,
   chain: 50,
-  // 65, NOT 90. Dash and Explosion are the two spells a character is now handed at level one,
-  // and at 90 they could not be used together from a full bar at all -- 35 + 90 is 125, so the
-  // starting kit did not combo with itself. It read in play as "the game will not let me cast
-  // in the air": you dash, you are short by 25, the bar covers it 1.14s later, and you happen
-  // to land at 1.22s. The ground got the credit for something the wallet was doing.
-  //
-  // 65 makes the pair come to EXACTLY the pool. Dash into a crowd and detonate is affordable
-  // once, from full, and leaves you with nothing -- which is the shape every good opener in
-  // this game has. Still dearer than the 60 it started at, so the expensive-spells pass holds;
-  // it is only the one number that had to answer to a combo the player is given for free.
-  firering: 65,
+  // 35, down from 65 — the price war is over and the RHYTHM side won. The expensive-spells
+  // pass priced casts as rare events; in the hands, every gap read as a malfunction (three
+  // separate bug reports decoded to "the price, working silently"). The kit is settling at
+  // Dash/Whirl/Explosion all 35: a full bar is roughly three verbs of a sentence, and what
+  // actually rations the big spells is their cooldowns — Explosion's 15s most of all, which
+  // was always the once-per-fight gate no matter what the energy said.
+  firering: 35,
   // WHIRLWIND is charged UP FRONT, not by the second. It is a fixed 3.6s spin rather than a
   // hold, so a drain would only be a fixed cost with extra steps — and it could run dry
   // mid-spin and strip the invulnerability, which is the one thing this resource must never
