@@ -35,14 +35,65 @@ export class Sfx {
     // already holds for the whole session: first play decodes, every later play is free, and
     // dropping a clip drops its decode with it.
     this.clips = new WeakMap();
+    // WHO IS SPEAKING is a SWEPT LIST, not a counter. It was a counter, incremented on
+    // start and decremented on the line's end event — and a counter that ever misses one
+    // decrement is wrong FOREVER: the four-throat ceiling reads it, so one missed event
+    // locked the gate shut and the war went permanently mute ("voices shut off
+    // completely"). A line's end time is knowable the moment it starts (duration ÷ rate),
+    // so the list heals itself by arithmetic on every read — no event can be missed,
+    // because no event is needed.
+    this._live = [];        // { buf, until } for every line in the air
+    this.voiceFails = 0;    // decodes that refused — should read 0 forever
+    this._evts = [];        // black-box events, drained by the pulse (dev)
+    // The armor verdict survives the session (see the escalation in the pulse): a machine
+    // that proved too weak for the responsive buffer opens armored next time.
+    try { this._armor = localStorage.getItem("sfx-armor"); } catch { this._armor = null; }
+  }
+
+  /** Lines in the air right now — swept on every read, so it can never stick. Reading it
+   *  is also what restores the duck (see playClip): the HUD reads it every frame, which
+   *  makes the HUD itself the watchdog. */
+  get speaking() {
+    if (!this._live.length) return 0;
+    const n = this.ctx ? this.ctx.currentTime : 1e12;
+    const before = this._live.length;
+    this._live = this._live.filter((v) => v.until > n);
+    if (before && !this._live.length && this.sfxBus) {
+      this.sfxBus.gain.setTargetAtTime(1, n, 0.25);   // the last speaker left: din returns
+    }
+    return this._live.length;
   }
 
   /** Must be called from a user gesture — browsers refuse audio before one. */
   unlock() {
     if (this.ctx) { if (this.ctx.state === "suspended") this.ctx.resume(); return; }
+    this._buildGraph();
+  }
+
+  /**
+   * Build the whole output graph on a fresh context. Split from unlock() because the
+   * graph is REBUILDABLE mid-session now: a fight's worth of underruns can kill Chrome's
+   * audio renderer outright — after which every WebAudio sound is silent forever while
+   * the music (an <audio> element, its own pipeline) plays on, which is exactly the
+   * reported death: "attack sounds, hit sounds and voices stop; the music doesn't." The
+   * watchdog below notices the corpse and calls revive().
+   */
+  _buildGraph() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    this.ctx = new AC();
+    // "balanced", not the default "interactive": interactive asks the OS for the smallest
+    // buffer it will grant, and the smallest buffer is the STUTTER — one busy stretch and
+    // the renderer misses its deadline audibly, again and again, until it gives up. A
+    // slightly deeper buffer costs a few tens of milliseconds of latency, which positional
+    // cues in a third-person fight absorb without anyone noticing, and buys the headroom
+    // that keeps the renderer alive through exactly the fights this game sells.
+    //
+    // ...and THE ARMOR (this._armor): if the machine proves too weak even for balanced —
+    // the pulse catching the clock crawling again and again — the graph rebuilds itself
+    // once with the deep "playback" buffer: sound a breath later that cannot stutter.
+    // Self-escalating, never a settings menu; the recorder showed seventy crawl episodes
+    // on a laptop whose fights sit right at the frame cost where its audio starts to lose.
+    this.ctx = new AC({ latencyHint: this._armor || "balanced" });
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.9 * this.volume;
     // A limiter on the way out. Twenty overlapping explosions sum well past 1.0 and clip
@@ -57,6 +108,91 @@ export class Sfx {
     limiter.connect(this.ctx.destination);
     this.voices = 0;
 
+    // TWO LANES INTO THE LIMITER, because one lane was eating the voices. Every sound used
+    // to sum straight into master, and in a giant fight the barrage slammed the limiter
+    // into constant heavy reduction — which crushed indiscriminately, so spoken lines were
+    // ground to nothing under the explosions (the reported "voices cut off / vanish"), and
+    // the sheer summed level is where the crackle lives. So: battlefield one-shots ride
+    // sfxBus, spoken lines ride voiceBus, and WHILE A LINE SPEAKS THE BATTLEFIELD STEPS
+    // BACK — dialogue ducks the din, the oldest rule in game audio. The duck pulls the
+    // fight to arm's length, not out of the room (0.55: explosions still land, words win),
+    // fast in (a spoken line is instant information), lazy out (so back-to-back chatter
+    // doesn't pump the mix).
+    // Telegraphs are deliberately NOT on the ducked bus: your own gun, your own hurt, and
+    // the charge rumble (tracker) stay on master — the sounds that keep you alive must
+    // never be quietened by someone talking.
+    this.sfxBus = this.ctx.createGain();
+    this.sfxBus.connect(this.master);
+    this.voiceBus = this.ctx.createGain();
+    this.voiceBus.connect(this.master);
+
+    // THE PULSE — every build, not just dev. One reading nothing else can take: whether
+    // the audio clock is still ADVANCING while the context claims "running". A stalled
+    // clock under a running flag is the renderer's corpse — nothing up here can prevent
+    // that death, but it can be noticed and answered. Two missed beats before acting,
+    // because a brutal GC pause can straddle a single sample: four silent seconds under a
+    // "running" flag is not a hiccup. In dev the same pulse also streams to the black box
+    // (vite.config.js appends it to .vitals.log), so a bad session can be read afterwards
+    // instead of asked about mid-fight.
+    this._evts = this._evts || [];
+    if (import.meta.env.DEV) {
+      this.ctx.addEventListener("statechange", () => this._evts.push(`state->${this.ctx.state}`));
+    }
+    this._lastClock = -1;
+    this._lastWall = 0;
+    this._stall = 0;
+    this._shed = false;
+    if (this._pulseId) clearInterval(this._pulseId);
+    this._pulseId = setInterval(() => {
+      const c = this.ctx.currentTime;
+      const wall = this._lastWall ? (Date.now() - this._lastWall) / 1000 : 0;
+      this._lastWall = Date.now();
+      const running = this.ctx.state === "running";
+      const stalled = running && c === this._lastClock;
+      // THE CRAWL RATIO — how much audio time passed per second of real time. 1.0 is a
+      // healthy renderer; the black box caught fights at 0.6-0.8, which IS the stutter,
+      // measured. Below 0.94 the shed engages (see budget) and the fight gets quieter
+      // until the clock keeps up again; hysteresis so it doesn't flap at the boundary.
+      if (running && wall > 1 && wall < 10 && this._lastClock >= 0 && !stalled) {
+        const crawl = (c - this._lastClock) / wall;
+        if (crawl < 0.94 && !this._shed) {
+          this._shed = true;
+          this._evts.push(`shed-on:${crawl.toFixed(2)}`);
+          // Repeated drowning is the machine's verdict, not a bad moment — and a verdict
+          // is REMEMBERED: two episodes escalate to the playback buffer (see _armor in
+          // _buildGraph) and the machine is marked in localStorage, so every future
+          // session on this laptop opens already armored instead of re-proving its
+          // weakness through two more stutters. Armor never comes back off on its own;
+          // clearing site data is the appeal process.
+          if ((this._shedCount = (this._shedCount || 0) + 1) === 2 && this._armor !== "playback") {
+            this._armor = "playback";
+            try { localStorage.setItem("sfx-armor", "playback"); } catch { /* private mode */ }
+            this._evts.push("armor->playback");
+            console.info("[sfx] audio keeps crawling — rebuilding with the deep playback buffer");
+            this.revive();
+            return;
+          }
+        } else if (crawl > 0.99 && this._shed) { this._shed = false; this._evts.push("shed-off"); }
+      }
+      this._stall = stalled ? this._stall + 1 : 0;
+      this._lastClock = c;
+      if (import.meta.env.DEV) {
+        const f = this.frameVitals;
+        fetch("/__vitals", {
+          method: "POST",
+          body: JSON.stringify({ t: Date.now(), clock: +c.toFixed(2), stalled, shed: this._shed,
+            vox: this.speaking, fails: this.voiceFails, state: this.ctx.state,
+            frame: f ? { ms: +f.total.toFixed(1), gpu: +f.render.toFixed(1),
+              mobs: +f.mobs.toFixed(1), fps: Math.round(f.fps || 0), pr: f.pr || 0 } : null,
+            evts: this._evts.splice(0) }),
+        }).catch(() => {});
+      }
+      if (this._stall >= 2) {
+        console.warn("[sfx] audio renderer died (clock stalled while running) — rebuilding the graph");
+        this.revive();
+      }
+    }, 2000);
+
     // One second of white noise, reused by every noise-based sound. Seeded like everything
     // else (D14) — an exception you have to remember is worse than a one-line fix.
     const n = this.ctx.sampleRate;
@@ -64,6 +200,28 @@ export class Sfx {
     const d = this.noiseBuf.getChannelData(0);
     const rnd = mulberry32(0x1103E);
     for (let i = 0; i < n; i++) d[i] = rnd() * 2 - 1;
+  }
+
+  /**
+   * The renderer died; long live the renderer. Closes the corpse and builds a fresh graph
+   * — the decoded voice cache survives (AudioBuffers do not belong to a context), every
+   * in-flight one-shot is simply gone (it was inaudible anyway: the renderer was dead),
+   * and the next sound plays on the new engine. If the browser insists a context born
+   * outside a user gesture stays suspended, any key or click revives it — and in an
+   * action game, one of those arrives within the second.
+   */
+  revive() {
+    this._evts?.push("revived");
+    try { this.ctx?.close(); } catch { /* it was already a corpse */ }
+    this.ctx = null;
+    this._live = [];
+    this._buildGraph();
+    if (this.ctx && this.ctx.state === "suspended") {
+      this.ctx.resume();
+      const kick = () => this.ctx?.resume();
+      window.addEventListener("keydown", kick, { once: true });
+      window.addEventListener("mousedown", kick, { once: true });
+    }
   }
 
   get on() { return this.ctx && !this.muted; }
@@ -100,10 +258,34 @@ export class Sfx {
    * explosions in one frame; past a point they stop being distinguishable and only add
    * clipping, so the extras are simply not played.
    */
-  budget(cost = 1, ms = 220) {
-    if (this.voices >= 10) return false;
+  budget(cost = 1, ms = 220, kind = "misc") {
+    // TWO CEILINGS AND A PRESSURE VALVE, and all three exist because the black box caught
+    // the renderer CRAWLING: during a big fight the audio clock advanced 1.2-1.6s per 2s
+    // of wall time — the engine drowning in its own graph, which is the stutter, and at
+    // its worst the silence. So:
+    //
+    //   PER KIND, FOUR (asked for in play): the fifth simultaneous copy of the same
+    //   attack sound is not information, it is the same information again, louder.
+    //
+    //   GLOBAL, SEVEN: past seven loud one-shots the ear stops counting events and hears
+    //   one roar — the extras only spend renderer headroom.
+    //
+    //   THE SHED (this._shed, set by the pulse): while the renderer is measurably
+    //   drowning, both ceilings halve — the fight gets QUIETER instead of the audio
+    //   getting BROKEN, and everything returns the moment the clock keeps up again.
+    //   Telegraph sounds are exempt from the shed: the boss's roar and the charge alarm
+    //   are why positional audio exists, and they must survive exactly the fights that
+    //   trigger it.
+    const vital = kind === "roar" || kind === "wind";
+    const shed = this._shed && !vital;
+    const k = this._kinds?.get(kind) || 0;
+    if (k >= (shed ? 2 : 4) || this.voices >= (shed ? 3.5 : 7)) return false;
     this.voices += cost;
-    setTimeout(() => { this.voices = Math.max(0, this.voices - cost); }, ms);
+    (this._kinds ??= new Map()).set(kind, k + 1);
+    setTimeout(() => {
+      this.voices = Math.max(0, this.voices - cost);
+      this._kinds.set(kind, Math.max(0, (this._kinds.get(kind) || 1) - 1));
+    }, ms);
     return true;
   }
 
@@ -124,11 +306,11 @@ export class Sfx {
   }
 
   /** Distance gain + stereo pan for a world position, chained into the master bus. */
-  place(x, z, reach = MAX_DIST, y = null) {
+  place(x, z, reach = MAX_DIST, y = null, bus = null) {
     const g = this.ctx.createGain();
     const pan = this.ctx.createStereoPanner();
     if (x === undefined) {                    // non-positional (your own gun)
-      g.connect(this.master);
+      g.connect(this.master);                 // yours is never ducked — see the bus essay
       return { input: g, gain: 1 };
     }
     const dx = x - player.x, dz = z - player.z;
@@ -144,7 +326,7 @@ export class Sfx {
     const inv = 1 / (dist || 1);
     pan.pan.value = Math.max(-1, Math.min(1, (dx * inv) * rx + (dz * inv) * rz));
     g.connect(pan);
-    pan.connect(this.master);
+    pan.connect(bus || this.sfxBus || this.master);
     return { input: g, gain: falloff };
   }
 
@@ -277,7 +459,7 @@ export class Sfx {
 
   /** The boss. `big` is the spawn/phase-change roar; the quiet one is ambient dread. */
   roar(x, z, big = false) {
-    if (!this.on || !this.budget(2, 1200)) return;
+    if (!this.on || !this.budget(2, 1200, "roar")) return;
     const t = this.t;
     const dur = big ? 1.9 : 1.25;
     const { input, gain } = this.place(x, z, 200);
@@ -402,7 +584,7 @@ export class Sfx {
    * than merely that danger exists. A warning with no timing in it is only half a warning.
    */
   chargeWind(x, z, dur = 0.75) {
-    if (!this.on || !this.budget(1, 400)) return;
+    if (!this.on || !this.budget(1, 400, "wind")) return;
     const t = this.t;
     const { input, gain } = this.place(x, z, 95);
     if (gain <= 0.001) return;                 // too far to matter; don't clutter the mix
@@ -530,7 +712,7 @@ export class Sfx {
 
   /** Meteor impacts and grenades. `size` scales the length and the low thump. */
   explosion(x, z, size = 1, reach = 150) {
-    if (!this.on || this.audible(x, z, reach) <= 0.001 || !this.budget()) return;
+    if (!this.on || this.audible(x, z, reach) <= 0.001 || !this.budget(1, 220, "explosion")) return;
     const t = this.t;
     const dur = 0.75 * size;
     const { input, gain } = this.place(x, z, reach);
@@ -665,26 +847,50 @@ export class Sfx {
         // slice() because decodeAudioData detaches its input — the copy happens ONCE now,
         // on the first play, instead of on all of them.
         buf = await this.ctx.decodeAudioData(arrayBuffer.slice(0));
-      } catch {
+      } catch (err) {
+        // NEVER AGAIN SILENTLY. A decode that fails is a voice line that simply doesn't
+        // exist as far as the player can hear, and the last time this path swallowed its
+        // failures it took days to learn that "voices stopped playing" WAS this catch.
+        // byteLength is the tell: 0 means the buffer arrived detached (something consumed
+        // it), anything else means the bytes themselves wouldn't decode.
+        this.voiceFails = (this.voiceFails || 0) + 1;
+        console.warn(`[sfx] voice decode FAILED (#${this.voiceFails}, ${arrayBuffer.byteLength} bytes):`, err?.message || err);
+        this._evts?.push(`decode-fail:${arrayBuffer.byteLength}b`);
         return 0;
       }
       this.clips.set(arrayBuffer, buf);
     }
+    // NEVER THE SAME LINE TWICE AT ONCE. Two copies of one recording a beat apart is not
+    // "two warriors" — it is comb-filtered mud that reads as crackling, broken speech. An
+    // echo landing on its own lead, or two mobs picking the same bark, sounded exactly
+    // like the voices glitching out. One line, one throat, at a time; the caller simply
+    // loses this play, and silence beats garble.
+    const wasSpeaking = this.speaking;             // the getter sweeps as a side effect
+    if (this._live.some((v) => v.buf === buf)) return 0;
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = rate;
-    const { input, gain } = this.place(x, z, reach, y);
+    const { input, gain } = this.place(x, z, reach, y, this.voiceBus);
     const g = this.ctx.createGain();
     g.gain.value = (gain ?? 1) * volume * this.voice;
     src.connect(g);
     g.connect(input);
+    // The duck (see the bus essay in unlock): while anyone speaks, the battlefield steps
+    // back. The dip holds while ANY line is in the air; the restore lives in the speaking
+    // sweep — which runs on every read, including the HUD's — so a missed end event can
+    // never leave the fight quietened, or the four-throat gate locked, forever.
+    if (wasSpeaking === 0) {
+      this.sfxBus.gain.cancelScheduledValues(this.t);
+      this.sfxBus.gain.setTargetAtTime(0.55, this.t, 0.05);
+    }
+    this._live.push({ buf, until: this.t + buf.duration / rate + 0.2 });
     src.start();
     return buf.duration;
   }
 
   /** A fireball leaving a caster's hands — short, bright, positional. */
   cast(x, z, vol = 1, reach = 120) {
-    if (!this.on || this.audible(x, z, reach) <= 0.001 || !this.budget(1, 160)) return;
+    if (!this.on || this.audible(x, z, reach) <= 0.001 || !this.budget(1, 160, "cast")) return;
     const t = this.t, dur = 0.34;
     const { input, gain: g0 } = this.place(x, z, reach);
     const gain = g0 * vol;
@@ -852,7 +1058,7 @@ export class Sfx {
   /** Grenade throw. */
   /** Selling — a bright two-note coin chime, the little "cha-ching" of a sale. */
   sell() {
-    if (!this.on || !this.budget(0.7, 160)) return;
+    if (!this.on || !this.budget(0.7, 160, "ui")) return;
     const t = this.t;
     const { input } = this.place();
     const notes = [880, 1320];
@@ -872,7 +1078,7 @@ export class Sfx {
 
   /** Level up — a triumphant rising arpeggio with a shimmer on top. The "do-da-ba-da". */
   levelUp() {
-    if (!this.on || !this.budget(1.2, 400)) return;
+    if (!this.on || !this.budget(1.2, 400, "ui")) return;
     const t = this.t;
     const { input } = this.place();
     const notes = [523, 659, 784, 1047, 1319];   // C E G C E — ascending, bright
@@ -903,7 +1109,7 @@ export class Sfx {
 
   /** Picking a drop off the ground — a light rising blip, quick and clean. */
   pickup() {
-    if (!this.on || !this.budget(0.5, 120)) return;
+    if (!this.on || !this.budget(0.5, 120, "ui")) return;
     const t = this.t;
     const { input } = this.place();
     const o = this.ctx.createOscillator();
@@ -924,7 +1130,7 @@ export class Sfx {
    * a blue upgrade sounds like an event and a grey one like putting on socks.
    */
   equip(rarity = "common") {
-    if (!this.on || !this.budget(1, 220)) return;
+    if (!this.on || !this.budget(1, 220, "ui")) return;
     const t = this.t;
     const { input } = this.place();
     // The thunk of the piece settling on — all tiers get it.
@@ -956,7 +1162,7 @@ export class Sfx {
 
   /** Shotgun: a deep, wide BOOM — noise swept down through a lowpass with a fat sub thump. */
   shotgunBlast() {
-    if (!this.on || !this.budget()) return;
+    if (!this.on || !this.budget(1, 220, "shotgun")) return;
     const t = this.t, dur = 0.3;
     const { input } = this.place();
     const src = this.noise();
@@ -984,7 +1190,7 @@ export class Sfx {
 
   /** Sniper: a sharp CRACK over a rolling low boom — the loudest, most deliberate shot. */
   sniperCrack() {
-    if (!this.on || !this.budget()) return;
+    if (!this.on || !this.budget(1, 220, "sniper")) return;
     const t = this.t;
     const { input } = this.place();
     // The crack: a brief burst of high, distorted noise.
@@ -1021,7 +1227,7 @@ export class Sfx {
 
   /** The pump/bolt rack — two crisp mechanical clicks. The other half of "bam ka-chunk". */
   rack() {
-    if (!this.on || !this.budget(0.5, 200)) return;
+    if (!this.on || !this.budget(0.5, 200, "rack")) return;
     const t = this.t;
     const { input } = this.place();
     for (let i = 0; i < 2; i++) {
@@ -1049,7 +1255,7 @@ export class Sfx {
    * no impact mark, so the ear is the only place a whiff can be told from a connect.
    */
   cleave(hit = false) {
-    if (!this.on || !this.budget(0.5, 120)) return;
+    if (!this.on || !this.budget(0.5, 120, "cleave")) return;
     const t = this.t;
     // The air: noise swept downward through a bandpass — a heavy thing moving fast.
     const air = this.noise();
@@ -1080,7 +1286,7 @@ export class Sfx {
 
   /** The lobber's report: a hollow THOOMP, the mortar-tube cousin of a gunshot. */
   lob() {
-    if (!this.on || !this.budget(0.5, 150)) return;
+    if (!this.on || !this.budget(0.5, 150, "lob")) return;
     const t = this.t;
     const o = this.ctx.createOscillator();
     o.type = "sine";
@@ -1186,7 +1392,7 @@ export class Sfx {
    * `weak` (a headshot / weak-point) sharpens and brightens it so aim gets an audible reward.
    */
   hitConfirm(x, z, weak = false) {
-    if (!this.on || !this.budget(0.5, 90)) return;
+    if (!this.on || !this.budget(0.5, 90, "hit")) return;
     const t = this.t;
     const { input, gain } = this.place(x, z, 130);
     if (gain <= 0.001) return;
@@ -1221,7 +1427,7 @@ export class Sfx {
    * elite gets a lower, longer version, because a star going down should feel earned.
    */
   killThud(x, z, big = false) {
-    if (!this.on || !this.budget(1, 130)) return;
+    if (!this.on || !this.budget(1, 130, "kill")) return;
     const t = this.t;
     const dur = big ? 0.34 : 0.2;
     const { input, gain } = this.place(x, z, 150);

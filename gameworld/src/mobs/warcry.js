@@ -71,6 +71,15 @@ export class WarCries {
     }
     this.cache = new Map([[0, []], [1, []], [2, []]]);   // colour -> [{text, wav}]
     this.hails = new Map([[0, []], [1, []], [2, []]]);   // the friendly cache
+    // THE SPEAKER SLOTS — the four-throat ceiling moved from the SOUNDS to the MOBS.
+    // Capping concurrent clips still let every fighter in earshot run the whole voice
+    // machinery every second just to be refused at the end; in a giant fight that was
+    // hundreds of hopefuls per second all "processing voice lines". Now a mob must OWN
+    // one of four slots to get past the front door at all — the refusal is one Map peek,
+    // and at most four bodies ever run anything deeper. Slots are leased, not counted:
+    // each carries the moment it frees, derived from the line's own length, so a missed
+    // event can never wedge a slot shut (same argument as sfx's swept speaking list).
+    this.speakers = new Map();     // mobId -> when the slot frees (audio-clock seconds)
     // The hardcoded floor — filled first, kept forever, and PER FACTION: each clan
     // taunts in its own throat, through the same voices table the war-cries use.
     this.taunts = new Map([[0, []], [1, []], [2, []]]);
@@ -129,7 +138,7 @@ export class WarCries {
               // A COPY PER SHELF. decodeAudioData DETACHES the buffer it is handed, so three
               // clans sharing one ArrayBuffer means the second and third get an empty one and
               // two of the three armies fall silent after the first shout.
-              bin.push({ text: entry.text, wav: wav.slice(0) });
+              this.admit(bin, entry.text, wav.slice(0));
             }
           }
         }
@@ -186,7 +195,7 @@ export class WarCries {
           // Only lines still in the config list — re-toning the taunts retires old audio.
           const bin = this.taunts.get(Number(colour) % 3);
           if (bin && WARCRY.taunts.includes(text) && !bin.some((t) => t.text === text)) {
-            bin.push({ text, wav });
+            this.admit(bin, text, wav);
             n++;
           }
         } else if (kind === "cry" || kind === "hail") {
@@ -194,7 +203,7 @@ export class WarCries {
           const cap = kind === "cry" ? WARCRY.cachePerFaction : WARCRY.hailPerFaction;
           const bin = bins.get(Number(colour) % 3);
           if (bin && bin.length < cap && !bin.some((t) => t.text === text)) {
-            bin.push({ text, wav });
+            this.admit(bin, text, wav);
             n++;
           }
         }
@@ -232,6 +241,19 @@ export class WarCries {
         for (const entry of list) await this.sfx.prime?.(entry.wav);
       }
     }
+  }
+
+  /**
+   * A line joins the arsenal through here, never by a bare push — because the warm-up pass
+   * runs ONCE, at the first user gesture, and anything arriving after it (the disk arsenal
+   * waking a beat late, every line baked mid-session) used to play its first battle COLD:
+   * the decode landed mid-fight, which is the literal "voice lines lag" symptom. Priming on
+   * arrival costs nothing at rest and closes the race for good; before the audio context
+   * exists prime() no-ops and the one-shot pass still covers everything already shelved.
+   */
+  admit(bin, text, wav) {
+    bin.push({ text, wav });
+    this.sfx.prime?.(wav);
   }
 
   update(dt) {
@@ -325,7 +347,7 @@ export class WarCries {
       const wav = this.borrowLine(colour, text, this.taunts)
         || await this.bake(`taunt${colour}`, (sig) => this.bridge.speak(text, model, pace, sig));
       if (wav) {
-        bin.push({ text, wav });
+        this.admit(bin, text, wav);
         this.persist(`${WARCRY.voiceRev}|taunt|${colour}|${text}`, text, wav);
         console.info(`[warcry] taunt loaded for colour ${colour} `
           + `${bin.length}/${WARCRY.taunts.length}: "${text}"`);
@@ -387,7 +409,7 @@ export class WarCries {
 
   stashHail(colour, text, wav) {
     const bin = this.hails.get(colour);
-    bin.push({ text, wav });
+    this.admit(bin, text, wav);
     if (bin.length > WARCRY.hailPerFaction) bin.shift();
     this.persist(`${WARCRY.voiceRev}|hail|${colour}|${text}`, text, wav);
     console.info(`[warcry] baked hail for colour ${colour}: "${text}"`);
@@ -440,7 +462,7 @@ export class WarCries {
 
   stash(colour, text, wav) {
     const bin = this.cache.get(colour);
-    bin.push({ text, wav });
+    this.admit(bin, text, wav);
     if (bin.length > WARCRY.cachePerFaction) bin.shift();
     this.persist(`${WARCRY.voiceRev}|cry|${colour}|${text}`, text, wav);
     console.info(`[warcry] baked for colour ${colour}: "${text}"`);
@@ -451,9 +473,50 @@ export class WarCries {
    * the audio telegraph), a pack noticing you sometimes does, a garrison arming always.
    * Budget gates keep a battlefield from becoming a playground.
    */
+  /** Sweep expired leases; report whether this mob could hold a throat right now. */
+  slotFree(e) {
+    const now = this.sfx.ctx ? this.sfx.ctx.currentTime : 0;
+    for (const [id, until] of this.speakers) if (until <= now) this.speakers.delete(id);
+    // Under the audio shed (the renderer measurably drowning), the war drops from four
+    // throats to two: voices are the longest-running sounds in the mix, and a fight the
+    // machine can barely render does not need a quartet. Back to four the moment the
+    // clock keeps up — the shed's own hysteresis decides when.
+    const cap = this.sfx._shed ? 2 : WARCRY.maxSpeakers;
+    return this.speakers.has(e.id) || this.speakers.size < cap;
+  }
+
+  /**
+   * Play a line in this mob's throat, leasing it a speaker slot. `overflow` is the
+   * telegraph exemption: a scream that exists to be dodged takes a fifth throat rather
+   * than waiting for one. The lease starts nominal and is refined to the line's true
+   * length once the clip reports it — or released at once if the play refused, so a
+   * mob that said nothing never sits on a throat someone else could use.
+   */
+  voice(e, wav, x, z, vol, rate, reach, y, overflow = false) {
+    // The overflow has a ROOF: telegraphs may take a fifth and sixth throat over a full
+    // house, never a seventh. The black box caught six voices in the air mid-crawl — a
+    // bypass with no ceiling is how "four at a time" quietly becomes "as many as scream".
+    if (!this.slotFree(e) && (!overflow || this.speakers.size >= WARCRY.maxSpeakers + 2)) return false;
+    const now = this.sfx.ctx ? this.sfx.ctx.currentTime : 0;
+    this.speakers.set(e.id, now + 2.5);
+    // Promise.resolve, because the duration may arrive now (a test's stub) or later (the
+    // real decoder) — the lease doesn't care which, only what it says.
+    Promise.resolve(this.sfx.playClip(wav, x, z, vol, rate, reach, y)).then((d) => {
+      if (!d) this.speakers.delete(e.id);
+      else this.speakers.set(e.id, now + d / (rate || 1) + 0.25);
+    });
+    return true;
+  }
+
   cry(e, kind = "aggro") {
     if (!WARCRY.enabled || !e) return false;
     const colour = (e.faction || 0) % 3;
+    // THE FRONT DOOR. Every fighter in earshot asks to speak on a short personal clock —
+    // hundreds of asks a second in a giant fight — and this is where all but four of them
+    // are turned away, for the price of one Map peek. Telegraph kinds walk past the door:
+    // a charge scream is information, and information does not queue.
+    const telegraph = kind === "charge" || kind === "arm" || kind === "aggro";
+    if (!telegraph && !this.slotFree(e)) return false;
     // A HAIL is its own channel: friendly cache, natural pitch, no echoes — a greeting is
     // a voice, not a warband — and its own battlefield cooldown, so courtesy never eats
     // the war's budget (or vice versa).
@@ -462,8 +525,8 @@ export class WarCries {
       const bin = this.hails.get(colour);
       if (!bin.length) return false;
       const { text, wav } = bin[(this.rng() * bin.length) | 0];
+      if (!this.voice(e, wav, e.x, e.z, WARCRY.hailVolume, WARCRY.voices[colour].rate, WARCRY.hailReach, e.y)) return false;
       this.hailCd = WARCRY.hailCd;
-      this.sfx.playClip(wav, e.x, e.z, WARCRY.hailVolume, WARCRY.voices[colour].rate, WARCRY.hailReach, e.y);
       console.info(`[warcry] colour ${colour} (hail): "${text}"`);
       return;
     }
@@ -481,10 +544,12 @@ export class WarCries {
       if (this.rng() >= (isWar ? WARCRY.warChance : WARCRY.fightChance)) return false;
       const pick = this.pickLine(colour);
       if (!pick) return false;
+      const { rate } = WARCRY.voices[colour];
+      // The slot is taken BEFORE the cooldowns are spent: a refused play must cost the
+      // battlefield nothing, or a full house quietly eats everyone's next turn too.
+      if (!this.voice(e, pick.wav, e.x, e.z, WARCRY.volume, rate, WARCRY.reach, e.y)) return false;
       this.chatterCd = WARCRY.chatterGap;
       if (isWar) this.warCd = WARCRY.warCd; else this.fightCd = WARCRY.fightCd;
-      const { rate } = WARCRY.voices[colour];
-      this.sfx.playClip(pick.wav, e.x, e.z, WARCRY.volume, rate, WARCRY.reach, e.y);
       console.info(`[warcry] colour ${colour} (${kind}): "${pick.text}"`);
       return true;
     }
@@ -498,7 +563,7 @@ export class WarCries {
     this.globalCd = WARCRY.globalCd;
     this.factionCd.set(colour, WARCRY.factionCd);
     const { rate } = WARCRY.voices[colour];
-    this.sfx.playClip(wav, e.x, e.z, WARCRY.volume, rate, WARCRY.reach, e.y);
+    this.voice(e, wav, e.x, e.z, WARCRY.volume, rate, WARCRY.reach, e.y, telegraph);
     console.info(`[warcry] colour ${colour} (${kind}): "${text}"`);
 
     // THE WARBAND ANSWERS. Packmates near the crier take up the cry — staggered, from
@@ -514,7 +579,11 @@ export class WarCries {
       const delay = WARCRY.echoDelayMin + this.rng() * (WARCRY.echoDelayMax - WARCRY.echoDelayMin);
       const throat = rate * (0.94 + this.rng() * 0.12);
       setTimeout(() => {
-        if (o.hp > 0) this.sfx.playClip(echoPick.wav, o.x, o.z, WARCRY.volume * WARCRY.echoVolume, throat, WARCRY.reach, o.y);
+        // The slot is asked for when the echo actually FIRES, not when it was promised —
+        // the battlefield may have filled its throats in the meantime, and an echo is the
+        // most expendable voice there is: the volley already made its point. voice() does
+        // the asking, in the ECHOING mob's own name.
+        if (o.hp > 0) this.voice(o, echoPick.wav, o.x, o.z, WARCRY.volume * WARCRY.echoVolume, throat, WARCRY.reach, o.y);
       }, delay * 1000);
       echoes++;
     }

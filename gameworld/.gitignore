@@ -5,3 +5,4 @@ dist/
 .DS_Store
 audio_originals/
 gameworld-itch.zip
+.vitals.log

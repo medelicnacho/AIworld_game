@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { appendFileSync } from "node:fs";
 
 export default defineConfig({
   // RELATIVE paths, not absolute.
@@ -14,4 +15,27 @@ export default defineConfig({
   // root AND in a subfolder. There is no case where the absolute form is needed and this one
   // is not, so it is simply the right default for a game meant to be handed to people.
   base: "./",
+
+  // THE AUDIO BLACK BOX — dev only, never in a build. Chasing "the voices stutter then die"
+  // by asking the player to read debug numbers mid-fight failed three times running, so the
+  // game reports its own audio vitals here (sfx.js, DEV-gated) and they land in a log file
+  // the toolchain can read while the session is still going. A flight recorder, not a
+  // feature: delete this plugin and the game does not change.
+  plugins: [{
+    name: "audio-blackbox",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use("/__vitals", (req, res) => {
+        let body = "";
+        req.on("data", (c) => { body += c; });
+        req.on("end", () => {
+          try {
+            appendFileSync(".vitals.log", body + "\n");
+          } catch { /* a lost heartbeat is fine */ }
+          res.statusCode = 204;
+          res.end();
+        });
+      });
+    },
+  }],
 });
