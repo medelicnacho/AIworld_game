@@ -8,7 +8,7 @@
 
 import test from "node:test";
 import assert from "node:assert";
-import { ENERGY, NOVA, DASH, CHAIN, FIRERING, WHIRL } from "../config.js";
+import { ENERGY, NOVA, DASH, CHAIN, FIRERING, WHIRL, HEAL, GRENADE } from "../config.js";
 
 test("energy, not cooldown, is what limits the small spells", () => {
   for (const [name, cost, cd] of [
@@ -21,7 +21,7 @@ test("energy, not cooldown, is what limits the small spells", () => {
 
 test("...but the big button is still a cooldown, once per fight", () => {
   assert.ok(FIRERING.cd > ENERGY.firering / ENERGY.regen,
-    "Ring of Fire should be gated by its cooldown — that is what makes it an event");
+    "Explosion! should be gated by its cooldown — that is what makes it an event");
 });
 
 // The exact edge the design is built around: an opener spends most of the bar and leaves you
@@ -36,6 +36,37 @@ test("you are never left standing about", () => {
   assert.ok(ENERGY.max / ENERGY.regen < 6,
     `empty to full takes ${(ENERGY.max / ENERGY.regen).toFixed(1)}s — the punishment is the ` +
     "cast you could not make, not a wait");
+});
+
+// THE TWO YOU START WITH. Heal and the grenade were free while they lived on their own keys
+// outside the bar; as spells they pay like spells, and the whole point of the price is that
+// panicking costs you. What must stay true is that neither one can be spammed on the bar's
+// own terms — the ENERGY has to be the thing that says no, exactly as above.
+test("the starter spells are limited by their cost, not by a cooldown", () => {
+  for (const [name, cost, cd] of [
+    ["Heal", ENERGY.heal, HEAL.cooldown], ["Grenade", ENERGY.grenade, GRENADE.cooldown],
+  ]) {
+    assert.ok(cost > 0, `${name} is a spell now — a free spell is a key you mash`);
+    assert.ok(cost / ENERGY.regen > cd,
+      `${name}: its ${cd}s cooldown outlasts its cost, so the cost is a bar nobody feels`);
+  }
+});
+
+// You always have both, so between them they must not be able to empty the bar in one breath
+// and leave you with no escape — the resource is meant to punish a bad plan, not the opening.
+test("heal and a grenade together still leave you a dash", () => {
+  assert.ok(ENERGY.max - ENERGY.heal - ENERGY.grenade >= ENERGY.dash,
+    "the two abilities everyone owns must not spend the whole bar between them");
+});
+
+// The one addition worth keeping from the expensive-dash detour: the abilities you ESCAPE with
+// are the ones this resource does not govern at all, and that absence is the guarantee. A cost
+// appearing here for any of them turns a mistake into a death sentence, which ENERGY forbids
+// in its own comment.
+test("the tools you escape with are never priced", () => {
+  for (const free of ["dodge", "kick", "potion", "sprint"]) {
+    assert.equal(ENERGY[free], undefined, `${free} must stay free — it is how you survive a bad plan`);
+  }
 });
 
 // Being punished for a misjudgement is the point. Losing the tool that would let you survive

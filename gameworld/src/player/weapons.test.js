@@ -195,9 +195,21 @@ test("legendary weapons are orange, and only the faction three are", () => {
 test("LANCE: heat makes it a weapon you manage, not a hose", () => {
   const w = WEAPONS.lance;
   assert.ok(w.heatUp > 0 && w.heatDown > 0 && w.overheatLock > 0);
-  const secondsToRedline = 1 / w.heatUp;
-  // Long enough to be a weapon, short enough to be a decision.
-  assert.ok(secondsToRedline >= 2, `redline in ${secondsToRedline.toFixed(1)}s is too twitchy`);
-  assert.ok(secondsToRedline <= 6, `redline in ${secondsToRedline.toFixed(1)}s barely exists`);
+  // heatMax, not 1. The tank became a real number when the lance was given a bigger one, and
+  // this line went on dividing by an implied 1.0 — so it had quietly been measuring a weapon
+  // that no longer existed, and would have passed just as happily whatever the tank held.
+  const secondsToRedline = (w.heatMax ?? 1) / w.heatUp;
+
+  // WHAT MUST HOLD IS THE SHAPE, not a duration. How long the beam runs is a feel dial that
+  // has moved several times (3.3s -> 5.9s -> 14s) and will move again; pinning a ceiling to it
+  // means the test fails every time the design is tuned rather than when it is broken. What
+  // makes it "managed rather than a hose" is that the redline EXISTS and costs you something.
+  assert.ok(Number.isFinite(secondsToRedline) && secondsToRedline > 2,
+    `redline in ${secondsToRedline.toFixed(1)}s is too twitchy to aim around`);
+  assert.ok(w.overheatLock > 0.5, "overheating must cost real time, or it is not a limit");
+  // Cooling from red must outlast the lock — otherwise the lockout ends with a full tank and
+  // the heat system is a brief pause rather than a resource you spend.
+  assert.ok((w.heatMax ?? 1) / w.heatDown > w.overheatLock,
+    "a full cool must take longer than the lockout, or heat costs nothing");
   assert.ok(w.aimMult > 1, "aiming must pay, or RMB means nothing on this weapon");
 });

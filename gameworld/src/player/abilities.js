@@ -1,18 +1,38 @@
-// The item bar: four slots on 1–4, for things bought from vendors.
-//
-// It holds ITEMS ONLY. The gun, the grenade and the heal are general abilities on their own
-// keys and are shown in the HUD beside the rest of your state — they are not items and do
-// not belong here.
+// The spell bar: six slots, holding whichever of your abilities you chose to carry.
 //
 // A slot definition is data: {name, desc, use(), cooldown(), ready(), charges()}. Only name
 // and use() are required; a slot with no cooldown() simply always reads as ready. The bar
 // never owns a cooldown — it reads whatever the item's own system reports, so there is only
 // ever one copy of the number.
 
-// The spell bar keys, in order. More than the old four so there's room to SET more spells;
-// keys chosen to avoid the load-bearing ones (R reload, F trade). The bar and the controller
-// both read this, so adding a key here is the only change needed.
-export const SLOT_KEYS = ["1", "2", "3", "4", "5", "6", "T", "Tab"];
+// The spell bar keys, in order. SIX — and every one of them is under a left hand that never
+// leaves WASD.
+//
+// IT USED TO BE TEN, which was exactly the number of abilities the shop sells. So the bar was
+// never a loadout: buying a spell and carrying it were the same act, every purchase was purely
+// additive, and the game did not once ask what you wanted to bring. Ten buttons is not ten
+// decisions when nothing competes for anything — the same thing ENERGY says about cooldowns,
+// one level up. A bar you cannot fill wrong is a bar you cannot fill right either.
+//
+// Heal and the grenade take the first two, so FOUR are yours and eight abilities want them.
+// Leaving half your spells at home is the entire point: it is the first moment the game makes
+// you say what kind of fighter you are this run, and the vendor lets you say something else
+// tomorrow. Nothing is destroyed by choosing — an ability you leave off sits in the bag,
+// keeps ticking its cooldown, and is one drag away.
+//
+// THE THREE THAT WENT WERE 5, 6 AND T, for the same reason the terrain is vertical. This game
+// is played in the air, in the middle of a jump chain, and an ability you have to move your
+// hand to reach is one you will not cast at the moment it would have saved you. A key you
+// cannot press while strafing is not a slot, it is a menu.
+//
+// Q AND E LEAD IT. Heal and the grenade used to be hardwired to those keys, outside the bar
+// and outside the bag — the only two abilities in the game you could not move, compare, or
+// swap away from. They are ordinary spells now, and the two keys they always lived on are
+// simply the first two slots: nobody's hands have to learn anything, but the slots are yours.
+//
+// The bar, the bag screen, the key bindings and the save loader ALL derive from this list, so
+// adding or removing a key here is genuinely the only change needed.
+export const SLOT_KEYS = ["Q", "E", "1", "2", "3", "4"];
 export const SLOTS = SLOT_KEYS.length;
 
 import { player } from "../state.js";
@@ -20,8 +40,8 @@ import { player } from "../state.js";
 export class Abilities {
   constructor(ctx) {
     this.ctx = ctx;
-    // All four start empty. These slots are ITEMS you buy — the gun, the grenade and the
-    // heal are general abilities and live on their own keys, not in here.
+    // All of them start empty; heal and the grenade are granted a moment later and take the
+    // first two, exactly like any other ability being acquired.
     this.slots = new Array(SLOTS).fill(null);
     // Everything you have ever bought. Slots hold references INTO this, so unequipping
     // something never destroys it — it goes back to the bag.
@@ -150,6 +170,10 @@ export class Abilities {
     // Declining (returning false) must not spend the cooldown.
     if (a.use() === false) return "";
     if (a.energy) player.energy = Math.max(0, player.energy - a.energy);
+    // A slot backed by its own system — the grenade counting its own, a channel running its
+    // own clock — is the AUTHORITY on both, and readyOf/chargesOf/cooldownOf already ask it
+    // rather than the bar. Keeping a second copy here could only ever be a divergent one.
+    if (a.charges || a.cooldown) return "";
     const st = this.stateOf(a);
     const max = a.maxCharges || 1;
     if (max > 1) {

@@ -4,16 +4,22 @@
 // slide along a wall instead of sticking to it. It samples the world function directly, so
 // there is no collider to build, bake, or keep in sync with the mesh.
 
-import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY, SPRINT, SPIN } from "../config.js";
+import { PLAYER, CAMERA, DODGE, DASH, WHIRL, ABILITY, SPRINT, SPIN, LANCE_SPIN } from "../config.js";
 import { player } from "../state.js";
 import { solidAt } from "../world/gen.js";
 import { wallBlocksBody, sanctuaryUnder, wallBlocks, boundaryAt } from "../world/sanctuary.js";
 import { isHostileSanctuary } from "../prog/factions.js";
+import { SLOT_KEYS } from "./abilities.js";
 
-// Which keyboard code maps to which spell-bar slot index. Matches abilities.SLOT_KEYS order.
-const SLOT_CODE = {
-  Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4, Digit6: 5, KeyT: 6, Tab: 7,
-};
+// Which keyboard code maps to which spell-bar slot index — DERIVED from SLOT_KEYS rather than
+// written out beside it. This was a hand-kept copy whose comment promised it matched, which is
+// the arrangement where one of two lists is always about to be wrong: abilities.js says editing
+// SLOT_KEYS is the only change needed, and that was true of the HUD and the bag screen and
+// quietly untrue here. A key the bar no longer draws that still fires a slot index is a spell
+// cast by a button nobody can see.
+const SLOT_CODE = Object.fromEntries(SLOT_KEYS.map((k, i) => [
+  /^[0-9]$/.test(k) ? `Digit${k}` : k.length === 1 ? `Key${k}` : k, i,
+]));
 
 export const input = {
   fwd: 0, right: 0, sprint: false, firing: false,
@@ -23,7 +29,7 @@ export const input = {
   aimHeld: false, aim: false,
   // Dodge is double-tap-a-direction, so the queued roll remembers WHICH key fired it —
   // you roll the way you tapped, not the way you happen to be steering a frame later.
-  dodgeQueued: false, dodgeFwd: 0, dodgeRight: 0, throwQueued: false, healQueued: false,
+  dodgeQueued: false, dodgeFwd: 0, dodgeRight: 0,
   // Jump is EDGE-triggered, not held: one press = one jump. A held-key check would let you
   // bunny-hop forever by leaning on space, and would burn both air jumps in a single frame.
   jumpQueued: false,
@@ -96,10 +102,10 @@ export function attachInput(canvas, hooks = {}) {
     if (e.code === "KeyR") hooks.reload?.();
     if (e.code === "KeyF" && !e.repeat) hooks.interact?.();
     if (e.code === "KeyC" && !e.repeat) hooks.drink?.();
-    // General abilities keep their own keys, exactly as before — they are not items.
-    if (e.code === "KeyE" && !e.repeat) input.throwQueued = true;
-    if (e.code === "KeyQ" && !e.repeat) input.healQueued = true;
-    // The spell bar: 1-6, then T and Tab for slots 7-8. R and F are left alone (reload, trade).
+    // The spell bar: Q and E, then 1-4 — all of it under a hand that never leaves WASD.
+    // R and F are left alone (reload, trade); the key list itself lives in abilities.js.
+    // Q and E are no longer special-cased here — heal and the grenade are spells sitting in
+    // the first two slots, so they arrive through the same door as everything else.
     // SHIFT IS ALLOWED — it's sprint, so you must be able to cast while running (Shift+Tab
     // still casts, and its focus-shift is already swallowed above). Only Ctrl/Alt/Meta block a
     // cast, because those are browser-shortcut modifiers (Ctrl+1 switches tabs, etc.).
@@ -107,7 +113,6 @@ export function attachInput(canvas, hooks = {}) {
       const slot = SLOT_CODE[e.code];
       if (slot !== undefined) hooks.ability?.(slot);
     }
-    if (e.code === "KeyG" && !e.repeat) hooks.chat?.();   // talk to the nearest villager
     if (e.code === "KeyZ" && !e.repeat) hooks.sleep?.();  // rest in a safe town: skip to dawn
 
     // Double-tap a movement key to roll that way. Timestamps are per-key, so tapping
@@ -286,7 +291,8 @@ export function stepPlayer(dt) {
     * (player.surgeT > 0 ? ABILITY.surgeSpeed : 1)
     * (player.sprintT > 0 ? SPRINT.mult : 1)
     * (player.whirlT > 0 ? WHIRL.spinSpeed : 1)
-    * (player.spinT > 0 ? SPIN.speed : 1);
+    * (player.spinT > 0 ? SPIN.speed : 1)
+    * (player.lanceSpinT > 0 ? LANCE_SPIN.speed : 1);
 
   // Desired horizontal velocity in the yaw frame.
   const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
@@ -315,7 +321,12 @@ export function stepPlayer(dt) {
       player.dodgeX = rx / rl;
       player.dodgeZ = rz / rl;
       player.dodgeT = DODGE.time;
-      player.iframes = DODGE.iframes;
+      // MAX, never a plain assignment. Every other source of i-frames in the game raises the
+      // floor; this one SET it, so rolling in the middle of a 2.5-second spin cut the guard
+      // down to the roll's own 0.22 — the one move whose entire promise is "untouchable the
+      // whole time", broken by pressing a movement key inside it. A dodge can only ever make
+      // you safer.
+      player.iframes = Math.max(player.iframes, DODGE.iframes);
       player.dodgeCd = DODGE.cooldown;
       // D4: dodging drops you out of ADS — but only for the duration of the roll. The
       // physical button state is untouched, so holding RMB through a dodge resumes aiming
@@ -356,6 +367,24 @@ export function stepPlayer(dt) {
     player.dashT -= dt;
     player.vx = player.dashX * DASH.speed;
     player.vz = player.dashZ * DASH.speed;
+    // IT GOES WHERE YOU ARE LOOKING, up and down included. It used to flatten your aim to the
+    // horizon, so in a game built out of ledges and islands the one committed movement tool
+    // could only ever travel along the floor — you aimed at something above you and slid past
+    // underneath it. Driving vy directly (rather than adding to it) means gravity does not get
+    // to eat the climb halfway through: the dash OWNS all three axes for its quarter second,
+    // the same way it already owned the other two, and gravity resumes the instant it ends.
+    player.vy = player.dashY * DASH.speed;
+    // ...AND IT ENDS DEAD, vertically. Driving vy for the dash's quarter second is what stops
+    // gravity eating the climb; LEAVING it there is a launch. The dash runs at 46, so an
+    // upward one expired with 46 of rise still in the bank and gravity spent the next two
+    // seconds spending it — about forty further blocks, straight up, well after the dash had
+    // visibly finished. Horizontal never showed the bug because vx and vz are rewritten from
+    // your input every frame; nothing rewrites vy but gravity, so whatever the dash left there
+    // simply happened.
+    //
+    // Zeroed rather than kept, so the dash is exactly the twelve blocks it advertises and you
+    // fall from wherever that put you.
+    if (player.dashT <= 0) player.vy = 0;
   } else if (player.dodgeT > 0) {
     player.dodgeT -= dt;
     // The roll OWNS horizontal velocity while it lasts — no steering mid-roll. Committing
@@ -364,6 +393,14 @@ export function stepPlayer(dt) {
     // window — farther and quicker at once, exactly what speed and the Vault stat buy.
     player.vx = player.dodgeX * DODGE.speed * player.dashMult;
     player.vz = player.dodgeZ * DODGE.speed * player.dashMult;
+  } else if (player.kickT > 0) {
+    // THE WALL KICK OWNS ITS ARC, exactly as the roll above owns its own — see DODGE.kickHold.
+    // Held rather than blended, so the leap goes where you kicked it whether or not your hands
+    // are on the keys. Vertical is left to gravity: this governs the ACROSS, which is the half
+    // the movement blend was quietly deleting.
+    player.kickT -= dt;
+    player.vx = player.kickX * DODGE.kickOut;
+    player.vz = player.kickZ * DODGE.kickOut;
   } else if (slideX || slideZ) {
     // OWNS horizontal velocity, exactly like the roll above — steering out of it is what made
     // the first attempt useless. Faster than a sprint, so the wall band is behind you inside
@@ -420,17 +457,41 @@ export function stepPlayer(dt) {
   const sdt = dt / steps;
 
   let stepped = false;      // at most one block of auto-step per physics step — see tryStep
+  // Which way a wall pushed back, if a ROLL ran into one. Captured here and spent after the
+  // loop: the sub-steps would otherwise fire a kick several times in a single frame, and the
+  // direction has to be read BEFORE the velocity that carried you there is zeroed.
+  let kickX = 0, kickZ = 0;
+  const rolling = player.dodgeT > 0;
   for (let k = 0; k < steps; k++) {
     // Axis-separated resolution: try each move independently so a blocked X still allows Z.
     const nx = player.x + player.vx * sdt;
     if (stuck || !blocked(nx, player.y, player.z)) player.x = nx;
     else if (!stepped && tryStep(nx, player.z)) { player.x = nx; stepped = true; }
-    else player.vx = 0;
+    else { if (rolling && player.vx) kickX = player.vx > 0 ? -1 : 1; player.vx = 0; }
 
     const nz = player.z + player.vz * sdt;
     if (stuck || !blocked(player.x, player.y, nz)) player.z = nz;
     else if (!stepped && tryStep(player.x, nz)) { player.z = nz; stepped = true; }
-    else player.vz = 0;
+    else { if (rolling && player.vz) kickZ = player.vz > 0 ? -1 : 1; player.vz = 0; }
+  }
+
+  // THE WALL KICK (see DODGE.kickUp). A roll that hit a wall goes up and off it instead of
+  // stopping dead. Anything knee-high was already absorbed by tryStep above, so reaching here
+  // means it really was a wall — the terrain has answered "is this worth kicking off" before
+  // the question is asked.
+  if (rolling && (kickX || kickZ)) {
+    const len = Math.hypot(kickX, kickZ) || 1;
+    player.dodgeT = 0;                    // the roll is spent on the kick
+    player.vy = DODGE.kickUp;
+    player.kickX = kickX / len;
+    player.kickZ = kickZ / len;
+    player.kickT = DODGE.kickHold;        // the arc is committed — see the branch above
+    player.vx = player.kickX * DODGE.kickOut;
+    player.vz = player.kickZ * DODGE.kickOut;
+    player.onGround = false;
+    // A breath of the roll's own protection carries into the launch, so kicking off a wall
+    // with something swinging at you is a read rather than a coin flip.
+    player.iframes = Math.max(player.iframes, DODGE.iframes * 0.5);
   }
 
   const ny = player.y + player.vy * dt;

@@ -16,7 +16,7 @@ import { WEAPONS } from "../config.js";
 import { player } from "../state.js";
 import { raycastVoxel } from "../world/raycast.js";
 import { solidAt, groundY } from "../world/gen.js";
-import { wallRayDist, wallBlocks, WALL_H } from "../world/sanctuary.js";
+import { wallRayDist, wallBlocksBody } from "../world/sanctuary.js";
 import { sfx } from "../audio/sfx.js";
 
 /** Ray-vs-sphere, nearest hit closer than `maxT`. Returns {id, t, tag} or null. */
@@ -60,6 +60,11 @@ export class Gun {
     this.recoil = 0;          // pitch kick still owed back
     this.shots = 0;
     this.triggerReady = true; // semi-autos must release between shots; this is the latch
+    // The cleaver's shove, rationed (WEAPONS.cleaver.knockCharges). Full on arrival: a weapon
+    // you have just drawn should be a weapon, not one already waiting on a timer.
+    this.knockLeft = 0;
+    this.knockT = 0;
+    this.barrageCd = 0;       // the cannon's second trigger — see barrage()
     this.pumpT = 0;           // countdown to the pump/bolt rack sound after a pump-weapon shot
 
     // A pool of tracers, so a shotgun can draw all nine pellet lines at once.
@@ -182,7 +187,11 @@ export class Gun {
       return m;
     };
     this.beamCore = shaft(0.11, 0xffd9a8, 0.95);
-    this.beamGlow = shaft(0.32, 0xff5a1e, 0.4);
+    // The sheath around the core, pulled in from 0.32 to 0.19. It was nearly three times the
+    // core's width, which read as a fat orange tube with a bright thread inside it rather than
+    // as a beam that GLOWS — and now that hip fire widens the whole thing (beamRadiusHip), a
+    // heavy sheath on top of that made the wide stance a wall of light you could not see past.
+    this.beamGlow = shaft(0.19, 0xff5a1e, 0.4);
     this._beamDir = new THREE.Vector3();
     this._beamQuat = new THREE.Quaternion();
     this._up = new THREE.Vector3(0, 1, 0);
@@ -269,14 +278,93 @@ export class Gun {
    * crosshair", a beam asks "what is in this LINE". Terrain still stops it, so a wall is
    * still cover.
    */
-  pierce(o, dir, targets, maxT) {
+  /**
+   * Put ONE shell in the air along `dir`. Extracted so the barrage fires the same shell the
+   * single shot does — two copies of a launch is how a volley ends up with different gravity,
+   * a different arc or a different lifetime from the thing it is supposed to be six of.
+   */
+  launchShell(dir, w = this.weapon) {
+    const slot = this.shells.find((s) => !s.active);
+    if (!slot) return false;
+    slot.active = true;
+    slot.x = player.x + dir.x * 0.7; slot.y = player.y + 1.35; slot.z = player.z + dir.z * 0.7;
+    slot.vx = dir.x * w.speed; slot.vz = dir.z * w.speed;
+    // A small upward launch on top of the aim so the shell ARCS rather than sagging — it
+    // rises a touch, then the drop curves it back down as it travels.
+    slot.vy = dir.y * w.speed + w.speed * (w.upBias || 0);
+    slot.t = 4;
+    slot.mesh.visible = true;
+    slot.mesh.position.set(slot.x, slot.y, slot.z);
+    return true;
+  }
+
+  /**
+   * THE BARRAGE (right mouse on the cannon). Six shells at once in a cone.
+   *
+   * @returns {string} "" on success, or why it refused — the HUD says it out loud, because a
+   *   button that silently does nothing is indistinguishable from a broken one.
+   */
+  barrage(rng) {
+    const w = this.weapon;
+    if (!w.barrageShots) return "";
+    if (this.reloading > 0) return "reloading";
+    if (this.barrageCd > 0) return `${this.barrageCd.toFixed(1)}s`;
+    // EMPTY MEANS RELOAD, not a refusal you have to answer yourself. The ordinary trigger has
+    // always done this (see tryFire), but the barrage did not — so draining the drum with
+    // right-click left the gun sitting at zero, silently ignoring the button, until you
+    // remembered to press R or fired a single shell to wake it up. Any trigger that finds an
+    // empty magazine starts the reload.
+    if (this.mag < 1) { this.reload(); return "reloading"; }
+    // WHATEVER IS LEFT STILL FLIES. Refusing below a full six turned the last five rounds in
+    // the drum into dead weight — you could see the ammo and not use it, which reads as the
+    // gun being broken rather than as being low. A partial volley is a weaker volley, which
+    // is the honest thing for "nearly out" to feel like: five shells, then four, then one,
+    // each one a thinner wall than the last.
+    const n = Math.min(w.barrageShots, this.mag);
+    this.mag -= n;
+    this.barrageCd = w.barrageCd;
+
+    const fwd = new THREE.Vector3();
+    this.camera.getWorldDirection(fwd);
+    const up = new THREE.Vector3(0, 1, 0);
+    const right = new THREE.Vector3().crossVectors(fwd, up).normalize();
+    const upv = new THREE.Vector3().crossVectors(right, fwd).normalize();
+    for (let i = 0; i < n; i++) {
+      // Spread deterministically around the cone rather than randomly: six random draws
+      // clump, and a volley with a hole in it reads as the gun failing rather than as a
+      // pattern. The jitter keeps it from looking stamped.
+      //
+      // Divided by n, not by barrageShots, so a partial volley still spreads evenly instead
+      // of firing three shells into one quadrant and leaving a gap where the other three
+      // would have been.
+      const a = (i / n) * Math.PI * 2 + rng() * 0.5;
+      const rr = w.barrageSpread * (0.45 + rng() * 0.55);
+      const dir = fwd.clone()
+        .addScaledVector(right, Math.cos(a) * rr)
+        .addScaledVector(upv, Math.sin(a) * rr)
+        .normalize();
+      this.launchShell(dir, w);
+    }
+    sfx.lob();
+    this.recoil += w.recoil * 2.2;
+    // ...and the volley that empties it starts the next one immediately, so the gun is
+    // already working on the answer by the time you notice the drum is dry.
+    if (this.mag <= 0) this.reload();
+    return "";
+  }
+
+  /**
+   * @param {number} radius  how wide the beam cuts. Passed in rather than read off the weapon
+   *   because it is now the HALF OF THE STANCE that matters — see tryFire.
+   */
+  pierce(o, dir, targets, maxT, radius = this.weapon.beamRadius) {
     const out = [];
     const seen = new Set();
     for (const s of targets) {
       if (seen.has(s.id)) continue;
       const ox = o.x - s.x, oy = o.y - s.y, oz = o.z - s.z;
       const b = ox * dir.x + oy * dir.y + oz * dir.z;
-      const c = ox * ox + oy * oy + oz * oz - (s.r + this.weapon.beamRadius) ** 2;
+      const c = ox * ox + oy * oy + oz * oz - (s.r + radius) ** 2;
       const disc = b * b - c;
       if (disc < 0) continue;
       const sq = Math.sqrt(disc);
@@ -324,6 +412,10 @@ export class Gun {
     this.reloading = 0;
     this.cooldown = 0;
     this.triggerReady = true;
+    // Drawn full, and reset on every swap — carrying the shove's cooldown across a weapon
+    // change would mean switching away and back was the fastest way to dodge it.
+    this.knockLeft = this.weapon.knockCharges || 0;
+    this.knockT = 0;
     // Heat belongs to the weapon, not to the player — switching away and back should not
     // launder a redlined lance into a cool one, but nor should another gun inherit its heat.
     this.beamOn = false;
@@ -366,9 +458,16 @@ export class Gun {
       const hit = raycastVoxel(o.x, o.y, o.z, fwd.x, fwd.y, fwd.z, w.range);
       // A town wall stops the beam where a voxel would — clamp to whichever is nearer.
       const stop = Math.min(hit.dist, wallRayDist(o.x, o.y, o.z, fwd.x, fwd.y, fwd.z, Math.min(hit.dist, w.range)));
-      const struck = this.pierce(o, fwd, targets, stop);
+      // THE STANCE IS THE WEAPON. Aiming narrows the beam and concentrates it; firing from
+      // the hip spreads it wide and thin. Before this, aiming was simply +55% damage for no
+      // cost at all — the lance had no spread in either stance, so there was nothing to trade
+      // and nothing to decide. Now it is one weapon with two jobs: a lance for the thing you
+      // picked, a swathe for the crowd you did not.
+      const radius = aiming ? w.beamRadius : (w.beamRadiusHip ?? w.beamRadius);
+      const struck = this.pierce(o, fwd, targets, stop, radius);
       const end = Math.min(stop, w.range);
       this.beamEnd.set(o.x + fwd.x * end, o.y + fwd.y * end, o.z + fwd.z * end);
+      this.beamWide = !aiming;          // the drawn beam follows the one that is hitting
       // Damage is per second, so the caller multiplies nothing — dt is already in here.
       const dmg = w.dps * (aiming ? w.aimMult : 1) * dt;
       return { fired: true, beam: true, damage: dmg, targets: struck };
@@ -394,11 +493,27 @@ export class Gun {
     // --- MELEE: no bullet, no tracer, no travel. Just a wide arc and a shove. --------
     if (w.mode === "melee") {
       const struck = this.swing(fwd, targets);
+      // THE SHOVE IS CHARGED, THE SWING IS NOT. Spent on the swing rather than on a hit, so
+      // the cost is the decision to swing — a shove you get back for missing would make
+      // flailing at air the way to keep your spacing topped up.
+      const shove = this.knockLeft >= 1;
+      if (w.knockCharges) {
+        this.knockLeft = Math.max(0, this.knockLeft - 1);
+        // ARM THE CLOCK ON THE SPEND. Left to the recharge tick, the timer was still zero the
+        // instant a charge went, so the very next frame handed one straight back — two swings
+        // then a full pair returned in under a second, which is no cost at all. Never restarts
+        // one already running, or a second swing would push the first charge's return away.
+        if (this.knockT <= 0) this.knockT = w.knockRecharge;
+      }
       sfx.cleave(struck.length > 0);
       this.swingFx = 0.18;
       player.pitch += w.recoil;
       this.recoil += w.recoil * w.recoilRecover;
-      return { fired: true, melee: true, damage: w.damage, knock: w.knock, targets: struck };
+      return {
+        fired: true, melee: true, damage: w.damage,
+        knock: w.knockCharges && !shove ? 0 : w.knock,
+        targets: struck,
+      };
     }
 
     // --- PROJECTILE: a shell that has to GET there ----------------------------------
@@ -411,18 +526,7 @@ export class Gun {
         const a = rng() * Math.PI * 2, rr = Math.sqrt(rng()) * spread;
         dir.addScaledVector(r2, Math.cos(a) * rr).addScaledVector(u2, Math.sin(a) * rr).normalize();
       }
-      const slot = this.shells.find((s) => !s.active);
-      if (slot) {
-        slot.active = true;
-        slot.x = player.x + dir.x * 0.7; slot.y = player.y + 1.35; slot.z = player.z + dir.z * 0.7;
-        slot.vx = dir.x * w.speed; slot.vz = dir.z * w.speed;
-        // A small upward launch on top of the aim so the shell ARCS rather than sagging — it
-        // rises a touch, then the drop curves it back down as it travels.
-        slot.vy = dir.y * w.speed + w.speed * (w.upBias || 0);
-        slot.t = 4;
-        slot.mesh.visible = true;
-        slot.mesh.position.set(slot.x, slot.y, slot.z);
-      }
+      this.launchShell(dir, w);
       sfx.lob();
       player.pitch += w.recoil;
       this.recoil += w.recoil * w.recoilRecover;
@@ -527,7 +631,14 @@ export class Gun {
       s.mesh.rotation.x += dt * 7; s.mesh.rotation.y += dt * 5;
       const nx = s.x + s.vx * dt, ny = s.y + s.vy * dt, nz = s.z + s.vz * dt;
       // A wall bursts the shell too — it detonates ON the wall rather than sailing through it.
-      const hitWall = ny < groundY(nx, nz) + WALL_H && wallBlocks(nx, nz);
+      //
+      // Against the WALL'S OWN height, via wallBlocksBody. The test used to be "below the
+      // terrain here, plus WALL_H" — and the terrain *here* is not the terrain the wall stands
+      // on. Shooting from low ground at a town up on a plateau, groundY under the town came
+      // back as the plateau itself, so every point in the open sky beneath it read as inside
+      // the wall and the shell burst on nothing, forty blocks below the stonework. Same shape
+      // as every other invisible-wall bug in this game: a height taken from the wrong column.
+      const hitWall = wallBlocksBody(nx, ny, nz);
       // AND SO DOES A BODY. The lobber is the aim-forgiving weapon — the one handed to a
       // player who cannot track a moving target — and it was the only weapon in the game
       // that could score a perfect direct hit on a boss and deal nothing, because the
@@ -581,18 +692,43 @@ export class Gun {
       this.heat += w.heatUp * dt;
       // Redline. A hard cut rather than a fade, so the moment you lost the beam is a moment
       // you can point at rather than something that crept up on you.
-      if (this.heat >= 1) { this.heat = 1; this.overheated = w.overheatLock; this.beamOn = false; }
+      const cap = w.heatMax || 1;
+      if (this.heat >= cap) { this.heat = cap; this.overheated = w.overheatLock; this.beamOn = false; }
     } else {
       this.heat = Math.max(0, this.heat - w.heatDown * dt);
     }
   }
 
+  /**
+   * The cleaver's shove, coming back one at a time (WEAPONS.cleaver.knockRecharge).
+   *
+   * Held on the GUN and not on the weapon definition, because a definition is shared data —
+   * writing a live timer into it would give every copy of the cleaver in the world one shared
+   * pool, and the config would quietly stop describing the weapon and start being its state.
+   */
+  updateKnockCharges(dt) {
+    const w = this.weapon;
+    if (!w.knockCharges) { this.knockLeft = 0; this.knockT = 0; return; }
+    if (this.knockLeft >= w.knockCharges) { this.knockT = 0; return; }
+    this.knockT -= dt;
+    if (this.knockT > 0) return;
+    this.knockLeft = Math.min(w.knockCharges, this.knockLeft + 1);
+    // Start the next one immediately while short, or a half-empty weapon would sit there
+    // never refilling until it was used again.
+    this.knockT = this.knockLeft < w.knockCharges ? w.knockRecharge : 0;
+  }
+
   update(dt) {
     this.updateHeat(dt);
+    this.updateKnockCharges(dt);
+    if (this.barrageCd > 0) this.barrageCd = Math.max(0, this.barrageCd - dt);
 
     // The beam is drawn only while it is actually burning; the swing arc fades out fast.
     if (this.beamOn && this.weapon.mode === "beam") {
-      const mx = player.x, my = player.y + 1.35, mz = player.z;
+      // Lowered from 1.35 to 1.12: the beam left from somewhere around the eyes, so in third
+      // person it appeared to come out of the character's head rather than from what they are
+      // holding. Chest height reads as a weapon being fired.
+      const mx = player.x, my = player.y + 1.12, mz = player.z;
       this._beamDir.set(this.beamEnd.x - mx, this.beamEnd.y - my, this.beamEnd.z - mz);
       const len = Math.max(0.01, this._beamDir.length());
       this._beamDir.normalize();
@@ -600,7 +736,15 @@ export class Gun {
       // The sheath breathes and the core flickers — a beam that holds one width reads as a
       // frozen frame rather than as energy passing through the air.
       const pulse = 1 + 0.22 * Math.sin(performance.now() * 0.02);
-      for (const [m, sc] of [[this.beamCore, 1], [this.beamGlow, pulse]]) {
+      // THE DRAWN BEAM IS AS WIDE AS THE ONE THAT HITS. A hip beam that cuts twice as far to
+      // either side while looking identical to the aimed one is exactly the class of lie this
+      // project keeps paying for — an invisible hitbox. Scaled off the same two numbers the
+      // damage test reads, so they cannot drift apart.
+      const bw = this.weapon;
+      const fat = this.beamWide && bw.beamRadiusHip
+        ? bw.beamRadiusHip / (bw.beamRadius || 1) : 1;
+      for (const [m, sc0] of [[this.beamCore, 1], [this.beamGlow, pulse]]) {
+        const sc = sc0 * fat;
         m.visible = true;
         m.position.set((mx + this.beamEnd.x) / 2, (my + this.beamEnd.y) / 2, (mz + this.beamEnd.z) / 2);
         m.quaternion.copy(this._beamQuat);

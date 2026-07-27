@@ -80,7 +80,12 @@ export class Grenades {
     // Floored: haste (hasteCd = 0.92^haste) may only make the throw arrive sooner, never
     // instant. An instant cooldown is what let a fast build dump the whole stock before
     // anything died.
-    this.cooldown = Math.max(GRENADE.cdFloor, GRENADE.cooldown * (player.hasteCd || 1));
+    // The floor only exists to stop HASTE driving a real cooldown to nothing (see cdFloor).
+    // With no cooldown to shrink there is nothing to protect, and applying the floor anyway
+    // would quietly reinstate the wait this ability was just freed from.
+    this.cooldown = GRENADE.cooldown
+      ? Math.max(GRENADE.cdFloor, GRENADE.cooldown * (player.hasteCd || 1))
+      : 0;
     sfx.whoosh();
     return true;
   }

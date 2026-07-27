@@ -734,6 +734,88 @@ export class Sfx {
     };
   }
 
+  /**
+   * THE LANCE'S SPIN — the beam you already know, swung in a circle.
+   *
+   * SAME VOICE AS beam() ON PURPOSE, note for note: the two detuned saws at 86 and 129 through
+   * the same distortion, the same scorching air at 2200. It is the same weapon doing the same
+   * thing, and giving the spin a brighter, prettier tone of its own made it sound like a
+   * different gun had been drawn — which is exactly the confusion an audio cue must not add.
+   *
+   * WHAT IS NEW IS THE MOTION. An LFO at the rate the beam actually turns rides the level, so
+   * you get the wa-wa-wa of a ray sweeping past four times a second. Level ONLY: modulating a
+   * filter would have been the fancier choice and it would have been wrong, because opening and
+   * closing a cutoff changes the tone as it goes — a "wow" rather than a "wa" — and the tone is
+   * the part that has to stay put.
+   *
+   * @param {number} rate  turns per second — pass LANCE_SPIN.turns / LANCE_SPIN.time so the ear
+   *   and the eye can never drift apart.
+   */
+  lanceSpin(x, z, dur, rate) {
+    if (!this.on) return null;
+    const t = this.t;
+    const { input, gain } = this.place(x, z, 170);
+    if (gain <= 0.001) return null;
+
+    const out = this.ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(gain * 0.55, t + 0.12);
+    out.gain.setValueAtTime(gain * 0.55, t + dur - 0.16);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    out.connect(input);
+
+    const stop = [];
+
+    // THE WA-WA-WA: one dip per rotation. Floor 0.5 with 0.5 of swing, so it breathes hard
+    // without ever cutting to silence — a beam that vanishes between passes reads as a stutter
+    // or a fault, not as something sweeping past you.
+    const sweep = this.ctx.createGain();
+    sweep.gain.value = 0.5;
+    sweep.connect(out);
+    const lfo = this.ctx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = rate;
+    const lfoAmt = this.ctx.createGain();
+    lfoAmt.gain.value = 0.5;
+    lfo.connect(lfoAmt); lfoAmt.connect(sweep.gain);
+    lfo.start(t); lfo.stop(t + dur + 0.1);
+    stop.push(lfo);
+
+    // Two detuned saws grinding against each other, low and mean — beam()'s exact recipe.
+    for (const [f, g] of [[86, 0.3], [129, 0.16]]) {
+      const o = this.ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = f;
+      const og = this.ctx.createGain();
+      og.gain.value = g;
+      const dist = this.distortion(30);
+      o.connect(dist); dist.connect(og); og.connect(sweep);
+      o.start(t); o.stop(t + dur + 0.1);
+      stop.push(o);
+    }
+    // Scorching air on top, so it reads as heat rather than as an engine.
+    const air = this.noise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2200;
+    bp.Q.value = 0.9;
+    const ag = this.ctx.createGain();
+    ag.gain.value = 0.22;
+    air.connect(bp); bp.connect(ag); ag.connect(sweep);
+    air.start(t); air.stop(t + dur + 0.1);
+    stop.push(air);
+
+    return {
+      stop: () => {
+        const n = this.t;
+        out.gain.cancelScheduledValues(n);
+        out.gain.setValueAtTime(Math.max(0.0001, out.gain.value), n);
+        out.gain.exponentialRampToValueAtTime(0.0001, n + 0.1);
+        for (const o of stop) { try { o.stop(n + 0.13); } catch { /* already done */ } }
+      },
+    };
+  }
+
   /** Grenade throw. */
   /** Selling — a bright two-note coin chime, the little "cha-ching" of a sale. */
   sell() {
