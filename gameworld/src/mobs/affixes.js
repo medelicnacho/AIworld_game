@@ -21,16 +21,13 @@ export const AFFIXES = {
   // Each affix is ONE RULE, self-contained: its numbers live beside its behaviour, so the
   // whole thing can be read — and judged — in one place.
 
-  /** Kill it, then LEAVE. Punishes standing on a corpse to finish the next one. */
-  burst: {
-    id: "burst",
-    name: "Dying Burst",
-    color: 0xff2f2f,
-    minTier: 1,
-    weight: 1,
-    desc: "Explodes when it dies. The ground is marked first.",
-    onDeath: (e, ctx) => ctx.mobs.queueBurst(e.x, e.z, e.damage * 3.2, 7.5, 0.8, e.y),
-  },
+  // REMOVED: "Dying Burst" — exploded on death after a marked delay. The rule it wanted to
+  // teach ("kill it, then LEAVE") was fair for the ranged factions and structurally rigged
+  // against Iron: melee makes every kill at point-blank range BY DEFINITION, so the corpse
+  // bomb landed on one faction almost exclusively, and mid-brawl — a pile of bodies, a small
+  // ring under them — its telegraph was unreadable, so it read as dying out of nowhere. An
+  // affix that punishes one faction's whole way of fighting rather than a mistake is not a
+  // rule, it is a tax on a build. Its queueBurst machinery left with it.
 
   /** Stop fighting where it has been. Turns the floor into terrain you have to read. */
   burning: {

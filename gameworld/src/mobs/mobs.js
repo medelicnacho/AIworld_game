@@ -136,20 +136,6 @@ export class Mobs {
 
     // Dying bursts: a telegraph ring, then a bang. Pooled — a wiped elite pack can put
     // several in the air in the same second.
-    const burstGeo = new THREE.RingGeometry(0.55, 1.0, 28);
-    burstGeo.rotateX(-Math.PI / 2);
-    this.bursts = [];
-    for (let i = 0; i < 12; i++) {
-      const mesh = new THREE.Mesh(burstGeo, new THREE.MeshBasicMaterial({
-        color: 0xff3b30, transparent: true, opacity: 0, depthWrite: false,
-        side: THREE.DoubleSide,
-      }));
-      mesh.visible = false;
-      scene.add(mesh);
-      this.bursts.push({ mesh, active: false, x: 0, y: 0, z: 0, t: 0, dmg: 0, r: 0 });
-    }
-
-    // Burning ground. A big pool: one burner walking for ten seconds lays a dozen patches.
     const fireGeo = new THREE.CircleGeometry(1, 16);
     fireGeo.rotateX(-Math.PI / 2);
     this.fires = [];
@@ -819,22 +805,6 @@ export class Mobs {
   // affixes.js before they existed here, which is why Dying Burst threw on the first kill
   // and Burning silently did nothing at all.
 
-  /**
-   * Dying Burst: mark the ground, then detonate on it.
-   *
-   * `y` is where the body DIED, not a column — the marker has the same problem the fire
-   * trail had, and the same answer. A star killed on a sky island must paint its warning
-   * ring on that island; painting it on the land underneath tells the wrong player to move.
-   */
-  queueBurst(x, z, dmg, radius, delay = 0.8, y = null) {
-    const b = this.bursts.find((o) => !o.active);
-    if (!b) return;
-    const fy = y === null ? groundY(x, z) : surfaceNear(x, z, y);
-    Object.assign(b, { active: true, x, z, y: fy, dmg, r: radius, t: delay, delay });
-    b.mesh.position.set(x, fy + 0.06, z);
-    b.mesh.scale.setScalar(radius);
-    b.mesh.visible = true;
-  }
 
   /**
    * Burning: lay a patch of fire that hurts to stand in.
@@ -1632,27 +1602,6 @@ export class Mobs {
    *  killing its packmates would read as a bug rather than as friendly fire. */
   updateGround(dt) {
     const hurt = this.fx.damagePlayer;
-
-    for (const b of this.bursts) {
-      if (!b.active) continue;
-      b.t -= dt;
-      const f = 1 - Math.max(0, b.t) / b.delay;
-      b.mesh.material.opacity = 0.2 + 0.55 * f * f;      // brightens as it closes
-      b.mesh.scale.setScalar(b.r * (0.75 + 0.25 * f));
-      if (b.t > 0) continue;
-      // A SLAB, LIKE THE FIRE. This test was flat, so a star dying on the land detonated up
-      // through every island above it — a ring you never saw, painted on ground you were not
-      // standing on. The marker now knows which floor it was drawn on, so the blast can be
-      // asked the same question the fire patch is: are you standing IN it, not merely over it.
-      // Taller than the fire's slab because this one goes off rather than smouldering.
-      if (inFireSlab(player.y, b.y, MOB.fireHeight * 2.5)
-          && Math.hypot(player.x - b.x, player.z - b.z) < b.r && player.iframes <= 0) {
-        hurt?.(b.dmg, b.x, b.z, MOB.knockback * 1.6);
-      }
-      sfx.explosion(b.x, b.z, 0.8);
-      b.active = false;
-      b.mesh.visible = false;
-    }
 
     for (const f of this.fires) {
       if (!f.active) continue;

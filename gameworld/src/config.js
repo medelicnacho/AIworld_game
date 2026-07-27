@@ -1027,7 +1027,12 @@ Object.assign(WEAPONS, {
     // fireRate 5 is the FLOOR between swings (0.2s), not the rate you get: the semi-auto
     // latch means the trigger has to be released and pulled again every time, so how fast
     // you actually cut is how fast you choose to.
-    damage: 66, fireRate: 5, range: 9.5, coneDeg: 100, coneVertDeg: 140, knock: 12,
+    // 74, a minor buff from 66 (the post-nerf floor; it was 88 before the 25% weapon pass).
+    // Iron pays range for damage — that is its whole bargain — and after the pass the swing
+    // sat at ~370 dps against the beam's 142-at-range, a premium that no longer felt like
+    // one for a weapon that must walk through everything it fights. ~10% back, well short
+    // of the old 88: the nerf stands, the bargain just pays a little better.
+    damage: 74, fireRate: 5, range: 9.5, coneDeg: 100, coneVertDeg: 140, knock: 12,
     // THE SHOVE IS THE RATIONED PART, not the swing.
     //
     // Knockback is what makes a melee weapon SAFE: every hit buys back the spacing that
