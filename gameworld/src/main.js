@@ -6,7 +6,7 @@
 // clocks off the slow model calls.
 
 import * as THREE from "three";
-import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY, RAID, BUILD_TAG, ENERGY, BLAST_VSCALE } from "./config.js";
+import { CAMERA, MOB, BOSS, GRENADE, HEAL, FIRERING, DASH, WHIRL, REGEN, LOOT, DROP, VILLAGE, VIEW_RADIUS, CHUNK_X, RINGS, ARMOR, ARMOR_SLOT_ORDER, TIMEWARP, ORB, NOVA, CHAIN, SPRINT, SPIN, WEAPONS, DIFFICULTY, RAID, BUILD_TAG, GAME_TITLE, ENERGY, BLAST_VSCALE, DUNGEON, VOID, LANCE_SPIN, LOWHP } from "./config.js";
 import { Mobs } from "./mobs/mobs.js";
 import { affixList, brokenAffixes } from "./mobs/affixes.js";
 import { Boss } from "./mobs/boss.js";
@@ -22,10 +22,17 @@ import { HealthBars } from "./ui/healthbars.js";
 import { DamageText } from "./ui/damagetext.js";
 import { armorDR } from "./prog/stats.js";
 import { rollGear, vendorPiece, sellValue, RARITY } from "./prog/gear.js";
-import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, isHostileSanctuary, servesYou, factionOfTown, playerColor } from "./prog/factions.js";
+import { repForTurnIn, repForBoss, gainRep, myFaction, repProgress, isMyAlly, isHostileSanctuary, servesYou, factionOfTown, playerColor, FACTIONS } from "./prog/factions.js";
 import { player, spawnPlayer, world } from "./state.js";
 import { ChunkStreamer } from "./world/streamer.js";
-import { ringAt, tierAt, tierStart, groundY, solidAt, surfaceNear } from "./world/gen.js";
+import { ringAt, tierAt, tierStart, groundY, solidAt, surfaceNear, setDungeon, gateOfRing } from "./world/gen.js";
+// The lance's sweep needs both: terrainClear to refuse a body behind a wall, raycastVoxel to
+// stop the DRAWN beam at that same wall so the two never disagree about where it ends.
+import { raycastVoxel, terrainClear } from "./world/raycast.js";
+import { makeDungeon, enterDungeon, leaveDungeon, inDungeon, activeDungeon, setDungeonSlain,
+         dungeonDoor, atDungeonDoor,
+         nearestGate as nearestDungeonGate, clampToRoom,
+         dungeonBlockAt, dungeonHeightAt, dungeonYRange } from "./world/dungeon.js";
 import { Sanctuaries, sanctuariesNear, boundaryAt, homeOfTier, sanctuaryUnder, wallNormalAt, wallBlocks, WALL_H } from "./world/sanctuary.js";
 import { attachInput, input, stepPlayer } from "./player/controller.js";
 import { CameraRig } from "./player/camera.js";
@@ -37,7 +44,7 @@ import { Heal } from "./player/heal.js";
 import { Abilities, SLOTS, SLOT_KEYS } from "./player/abilities.js";
 import { Minimap } from "./ui/minimap.js";
 import { Bridge } from "./net/bridge.js";
-import { award, killValue, bossValue, xpToNext, levelProgress, loseLevel, applyLevelStats, respawnTierFor, xpLevelMult, altitudeBonus } from "./prog/xp.js";
+import { award, killValue, bossValue, xpToNext, levelProgress, applyLevelStats, respawnTierFor, xpLevelMult, altitudeBonus } from "./prog/xp.js";
 import { save as saveGame, load as loadSave, restore as restoreSave, hasSave, wipe as wipeSave,
   listSlots, setSlot, eraseSlot } from "./prog/save.js";
 import { mulberry32 } from "./rng.js";
@@ -143,12 +150,81 @@ const abilities = new Abilities({
   get heal() { return heal; },
   camera,
 });
-// Ring of Fire: an expanding wall of flame. The mesh is created once and reused — the
-// ability is on a long cooldown, so two can never overlap.
+
+/**
+ * THE TWO SPELLS EVERY CHARACTER OWNS. Patching yourself up and throwing a grenade were
+ * hardwired to Q and E, which made them the only abilities in the game with no card in the
+ * bag, no place on the bar, and no way to trade them for something you liked better. They are
+ * ordinary spells now — they simply happen to be the two you are given.
+ *
+ * Both delegate everything to the system that already owns them: the grenade counts its own
+ * stock and the channel runs its own clock, so the bar reads those rather than keeping a
+ * second copy that could drift. `starter` marks them for save.js, which puts them back on the
+ * bar when it loads a character made before they were spells.
+ *
+ * Called once at boot and again after a restore — acquire() is a no-op on what you own.
+ */
+function grantStarters() {
+  abilities.acquire({
+    id: "heal", name: "Heal", icon: "plus", starter: true,
+    desc: "Channel to patch yourself up. Moving, jumping or taking a hit breaks it.",
+    energy: ENERGY.heal,
+    ready: () => heal.cooldown <= 0 && !heal.casting,
+    cooldown: () => heal.cooldown,
+    use: () => {
+      if (inSafe) { tradeMsg = "no need — the walls mend you"; tradeMsgT = 2; return false; }
+      return heal.start();
+    },
+  });
+  abilities.acquire({
+    id: "grenade", name: "Grenade", icon: "octagon", starter: true,
+    desc: "Lob an explosive. Your stock refills as you kill.",
+    ready: () => grenades.ready,
+    cooldown: () => grenades.cooldown,
+    charges: () => grenades.count,
+    maxCharges: GRENADE.max,
+    energy: ENERGY.grenade,
+    use: () => {
+      // A grenade is a WEAPON, and the walls stow weapons — the one line that separates it
+      // from every other spell, all of which stay castable inside a town.
+      if (inSafe) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; return false; }
+      return grenades.throwFrom(camera);
+    },
+  });
+
+  // ...AND THE TWO YOU USED TO HAVE TO SAVE UP FOR. Explosion and Dash Strike are handed over
+  // at level one now, granted through the SHOP'S OWN definitions rather than rebuilt here —
+  // a second copy of an ability is a second copy that drifts, and these two are stocked, ranked
+  // up and re-granted by a boss drop elsewhere. Whatever the vendor would have sold you is
+  // exactly what you start with.
+  //
+  // `upgrades` is marked as well, because that is the ledger the shop reads to decide an item
+  // is already yours. Granting the ability without it would leave both still sitting on the
+  // shelf with a price on them — and buying a thing you already own is a refund request, not a
+  // purchase.
+  //
+  // NOT flagged `starter`. Heal and the grenade are, which forces them back onto the bar on
+  // every load; doing that here too would weld four of six slots shut and take the loadout
+  // decision away almost entirely. These are a starting KIT, not fixtures — carry them, or
+  // drop them for something you would rather have.
+  // The shop's apply() wants a `game` to hang the cast on, and gameCtx does not exist yet when
+  // this runs. It does not need gameCtx: both of these cast through top-level FUNCTION
+  // DECLARATIONS, which are hoisted, so handing over the two it actually calls is enough and
+  // carries no ordering dependency at all.
+  const castables = { abilities, fireRing, dashStrike };
+  for (const id of ["firering", "dash"]) {
+    const good = (GOODS.adept || []).find((g) => g.id === id);
+    if (!good) continue;                       // renamed or retired: start poorer, never crash
+    good.apply(castables);
+    player.upgrades[id] = (player.upgrades[id] || 0) + 1;
+  }
+}
+grantStarters();
+// Explosion!: a sphere of fire that bursts outward. The mesh is created once and reused — the
+// ability is on a long cooldown, so two can never overlap. A ball rather than a ring, for the
+// reason spelled out on novaMesh: the ring drew one flat slice of a volume.
 const fireRingMesh = (() => {
-  const g = new THREE.RingGeometry(0.55, 1.0, 48);
-  g.rotateX(-Math.PI / 2);
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 3), new THREE.MeshBasicMaterial({
     color: 0xff7a1e, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
   }));
   m.visible = false;
@@ -161,14 +237,17 @@ let fireT = 0;
 
 function fireRing(knock = false) {
   fireT = FIRERING.grow;
-  fireRingMesh.position.set(player.x, player.y + 0.35, player.z);
+  // Centred on the point blast() actually measures from, not just above the floor.
+  fireRingMesh.position.set(player.x, player.y + 1, player.z);
   fireRingMesh.visible = true;
   fireLight.position.set(player.x, player.y + 2, player.z);
   sfx.explosion(player.x, player.z, 1.6);
   // Reuses the same blast path as everything else; hurtsYou = false, since it's centred
   // on you and a ring that killed its caster would be a joke.
+  // vscale 1 — a TRUE SPHERE. This is a ball bursting out of you, so its reach upward is its
+  // reach outward: fifteen metres in every direction, which is the shape the mesh draws.
   blast(player.x, player.y + 1, player.z,
-        FIRERING.radius, FIRERING.damage, FIRERING.knock, false, false, knock, "spell");
+        FIRERING.radius, FIRERING.damage, FIRERING.knock, false, false, knock, "spell", 1);
   markCombat();
 }
 
@@ -185,40 +264,58 @@ const dashTrail = (() => {
 })();
 let dashFx = 0;
 
-/** Distance from a point to a segment, on the ground plane. */
-function segDist(px, pz, x0, z0, x1, z1) {
-  const dx = x1 - x0, dz = z1 - z0;
-  const len2 = dx * dx + dz * dz;
-  const t = len2 ? Math.max(0, Math.min(1, ((px - x0) * dx + (pz - z0) * dz) / len2)) : 0;
-  return Math.hypot(px - (x0 + dx * t), pz - (z0 + dz * t));
+/**
+ * Distance from a point to a segment, in THREE dimensions.
+ *
+ * It measured on the ground plane, which was exactly right while the dash could only travel
+ * along it. Now that the dash follows your aim upward, a flat measure would be the same bug
+ * this codebase has already found in its sight lines and its culling sweep: a body directly
+ * below the arc reads as being ON it, so dashing over a pit would gut everything at the bottom
+ * of the pit, and dashing straight up would hit whatever you happened to be standing over.
+ */
+function segDist(px, py, pz, x0, y0, z0, x1, y1, z1) {
+  const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+  const len2 = dx * dx + dy * dy + dz * dz;
+  const t = len2
+    ? Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy + (pz - z0) * dz) / len2))
+    : 0;
+  return Math.hypot(px - (x0 + dx * t), py - (y0 + dy * t), pz - (z0 + dz * t));
 }
 
 function dashStrike() {
+  // THE FULL LOOK DIRECTION, y included. Flattening it meant the one committed movement tool
+  // in a game made of ledges could only ever travel along the floor: you aimed at the thing
+  // above you and shot past underneath it, which taught players the dash was for closing
+  // ground rather than for crossing it.
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
-  dir.y = 0;
   if (dir.lengthSq() < 1e-6) return false;
   dir.normalize();
 
   player.dashX = dir.x;
+  player.dashY = dir.y;
   player.dashZ = dir.z;
   player.dashT = DASH.time;
   player.iframes = Math.max(player.iframes, DASH.time + DASH.iframePad);
 
-  const x0 = player.x, z0 = player.z;
+  const x0 = player.x, y0 = player.y + 1, z0 = player.z;
   const len = DASH.speed * DASH.time;
-  const x1 = x0 + dir.x * len, z1 = z0 + dir.z * len;
+  const x1 = x0 + dir.x * len, y1 = y0 + dir.y * len, z1 = z0 + dir.z * len;
 
   let hits = 0;
   for (const e of [...world.entities.values()]) {
     if (e.kind !== "mob") continue;
-    if (segDist(e.x, e.z, x0, z0, x1, z1) > DASH.radius) continue;
+    // Against the mob's MIDDLE, not its feet — the line is drawn through your own chest, and
+    // measuring to a point on the floor would make every body read as further from the arc
+    // than it looks, most of all on the steep dashes this change just made possible.
+    if (segDist(e.x, e.y + 0.9, e.z, x0, y0, z0, x1, y1, z1) > DASH.radius) continue;
     const res = mobs.hit(e.id, DASH.damage * player.dmgMult * (1 + (player.dmgSpell || 0)));
     hits++;
     if (res?.killed) { reward(res); grenades.refill(); }
   }
   if (boss.active
-      && segDist(boss.alive.x, boss.alive.z, x0, z0, x1, z1) < DASH.radius + BOSS.contactRange * 0.5) {
+      && segDist(boss.alive.x, boss.alive.y + 1.6, boss.alive.z, x0, y0, z0, x1, y1, z1)
+         < DASH.radius + BOSS.contactRange * 0.5) {
     // Read the position BEFORE the hit: a killing blow despawns the boss, and the relic
     // has to fall where it stood.
     const bx = boss.alive.x, bz = boss.alive.z;
@@ -227,9 +324,11 @@ function dashStrike() {
     if (res?.killed) { rewardBoss(res.ring, bx, bz); grenades.refill(GRENADE.max); }
   }
 
-  // Draw the line you cut.
-  dashTrail.position.set((x0 + x1) / 2, player.y + 1, (z0 + z1) / 2);
-  dashTrail.rotation.y = Math.atan2(dir.x, dir.z);
+  // Draw the line you cut — along the REAL arc now, so a dash up the face of a cliff leaves a
+  // streak going up it. lookAt aims the mesh's +Z down the direction; the trail is authored
+  // along Z, so pointing it at the far end is the whole rotation.
+  dashTrail.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  dashTrail.lookAt(x1, y1, z1);
   dashTrail.scale.set(DASH.radius * 1.4, 1, len);
   dashTrail.visible = true;
   dashFx = 0.3;
@@ -240,18 +339,10 @@ function dashStrike() {
   return true;
 }
 
-// The bar is two groups: bought ITEMS on 1-4, then the general abilities you always have.
-// They read the same way but are never confusable with stock you can buy.
+// What is left of the general row: the potion, which is a consumable you carry rather than an
+// ability you cast. Heal and the grenade used to live here too — they are spells on the bar
+// now (see grantStarters below), and a thing cannot be in two places on the same HUD.
 const GENERAL = [
-  {
-    key: "E", name: "Firebomb", icon: "octagon",
-    cooldown: () => grenades.cooldown, ready: () => grenades.ready,
-    charges: () => grenades.count,
-  },
-  {
-    key: "Q", name: "Heal", icon: "plus",
-    cooldown: () => heal.cooldown, ready: () => heal.cooldown <= 0 && !heal.casting,
-  },
   {
     key: "C", name: "Potion", icon: "flask",
     cooldown: () => player.potionCd,
@@ -348,6 +439,150 @@ const spinRingFx = (() => {
 })();
 let spinTick = 0;
 
+// THE LANCE'S SPIN (LANCE_SPIN) — the beam itself, swung around you like a scythe.
+//
+// Not the cleaver's spin with a new colour. That one is a RING: everything inside the circle
+// takes the tick, all at once, and the shape on the floor is decoration. This is an actual
+// BEAM that points somewhere, sweeps, and only touches what it is pointing at as it goes by —
+// which is why the damage below is per PASS rather than per tick, why walls stop it, and why
+// it reaches a good deal further than a ring ever could without being an aura.
+//
+// Authored along +Z from the origin so the whole rotation is one rotation.y, and the length is
+// one scale — the mesh is a spoke, and a spoke is the honest shape for this.
+const lanceBeamFx = (() => {
+  const spoke = (thick, color, opacity) => {
+    const g = new THREE.BoxGeometry(1, 1, 1);
+    g.translate(0, 0, 0.5);                    // grow out from the player, not through them
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity, depthWrite: false,
+    }));
+    m.visible = false;
+    scene.add(m);
+    return m;
+  };
+  return {
+    core: spoke(LANCE_SPIN.beamThick, 0xffd9a8, 0.95),
+    glow: spoke(LANCE_SPIN.beamThick * 2, 0xff5a1e, 0.32),
+    light: (() => { const l = new THREE.PointLight(0xff6a2a, 0, 16); scene.add(l); return l; })(),
+  };
+})();
+let lanceTick = 0;
+let lanceAng = 0;        // where the beam is pointing, radians, atan2(x, z) convention
+let lanceAngDone = 0;    // how far round the damage has been settled up to
+// NOT `lanceVoice` — that name already belongs to the beam's idle hum further down. Two
+// sounds from one weapon, and the spin silences the hum by taking the trigger away, so
+// they must never share a handle or stopping one would strand the other.
+let lanceSpinVoice = null;
+
+function tryLanceSpin() {
+  if (player.lanceSpinT > 0 || player.lanceSpinCd > 0) return;
+  player.lanceSpinT = LANCE_SPIN.time;
+  lanceTick = LANCE_SPIN.tick;
+  // Start the sweep where you are FACING. Beginning at a fixed compass angle would mean the
+  // first thing hit is decided by which way north happens to be rather than by where you were
+  // looking when you pressed it.
+  //
+  // The +PI is not a fudge: the controller's forward is (-sin yaw, -cos yaw), while this beam
+  // and the bearing test below both read a direction as (sin a, cos a). Same circle, opposite
+  // zero — so without this the spin opens pointing squarely behind you.
+  lanceAng = player.yaw + Math.PI;
+  lanceAngDone = lanceAng;
+  // The opening shove, before the beam has swept anywhere: one push to buy the space the next
+  // two seconds are spent holding open. This one IS a ring — it is the stance, not the beam.
+  for (const e of [...world.entities.values()]) {
+    if (e.kind !== "mob") continue;
+    if (Math.hypot(e.x - player.x, e.z - player.z) > LANCE_SPIN.range * 0.6) continue;
+    mobs.push(e, player.x, player.z, LANCE_SPIN.knock);
+  }
+  sfx.whoosh();
+  // The rate the beam actually turns at is handed to the sound, so the wobble you hear is
+  // the pass you are watching rather than a guess that drifts the next time it is retuned.
+  lanceSpinVoice?.stop();
+  lanceSpinVoice = sfx.lanceSpin(player.x, player.z, LANCE_SPIN.time,
+    LANCE_SPIN.turns / LANCE_SPIN.time);
+  markCombat();
+}
+
+/** Everything the beam passed over between two bearings. `span` may be most of a turn. */
+function lanceSweep(from, span) {
+  const py = player.y + 1;
+  const bucket = 1 + (player.dmgGun || 0);
+  const dmg = LANCE_SPIN.damage * player.dmgMult * bucket;
+  const TAU = Math.PI * 2;
+  for (const e of [...world.entities.values()]) {
+    if (e.kind !== "mob") continue;
+    const dx = e.x - player.x, dz = e.z - player.z;
+    if (Math.hypot(dx, dz) > LANCE_SPIN.range) continue;
+    // A FLAT SLAB, not a column. See LANCE_SPIN.height — on a world of ledges a beam with no
+    // vertical limit is the charge's old 36-block cylinder wearing a different hat.
+    const ey = e.y + 0.9;
+    if (Math.abs(ey - py) > LANCE_SPIN.height) continue;
+    // Is this body inside the wedge the beam has just crossed?
+    let rel = (Math.atan2(dx, dz) - from) % TAU;
+    if (rel < 0) rel += TAU;
+    if (rel > span) continue;
+    // Walls stop it, exactly as they stop the beam you fire. A sweep that cut through the town
+    // wall would be the same bug that was already fixed once for shooting.
+    if (!terrainClear(player.x, py, player.z, e.x, ey, e.z)) continue;
+    const res = mobs.hit(e.id, dmg);
+    if (res === null) continue;                 // an ally: hit() refuses, and so does the shove
+    if (res.killed) { reward(res); grenades.refill(); }
+    mobs.push(e, player.x, player.z, LANCE_SPIN.knockTick);
+  }
+}
+
+function updateLanceSpin(dt) {
+  if (player.lanceSpinCd > 0) player.lanceSpinCd -= dt;
+  if (player.lanceSpinT <= 0) {
+    lanceBeamFx.core.visible = lanceBeamFx.glow.visible = false;
+    lanceBeamFx.light.intensity = 0;
+    // A sound outliving the thing that made it is the game lying about what is happening —
+    // the same reason the charge's rumble is killed the instant the charge ends.
+    if (lanceSpinVoice) { lanceSpinVoice.stop(); lanceSpinVoice = null; }
+    return;
+  }
+
+  player.lanceSpinT -= dt;
+  lanceAng += dt * (LANCE_SPIN.turns * Math.PI * 2) / LANCE_SPIN.time;
+
+  lanceTick -= dt;
+  if (lanceTick <= 0 || player.lanceSpinT <= 0) {
+    lanceTick = LANCE_SPIN.tick;
+    // Settle up the arc actually crossed since last time, capped at a full turn so a frame
+    // spike cannot hand out several rotations' worth of passes at once.
+    const span = Math.min(lanceAng - lanceAngDone, Math.PI * 2);
+    if (span > 0) lanceSweep(lanceAngDone, span);
+    lanceAngDone = lanceAng;
+  }
+
+  // THE COOLDOWN STARTS WHEN THE SPIN ENDS, not when it was cast — counting from the cast
+  // would spend half the gap inside the spin itself and leave a real exposed window of one
+  // second rather than two, which is the same trap WHIRL.cd documents at length.
+  //
+  // This line went missing in the rewrite from ring to sweep: lanceSpinCd was declared, ticked
+  // down every frame and checked before every cast, but nothing ever SET it — so the guard was
+  // reading a number that was always zero and the spin was free every frame. A cooldown with
+  // three of its four moving parts present is indistinguishable from a working one in the code
+  // and instantly obvious in the hands, which is exactly how it shipped past me.
+  if (player.lanceSpinT <= 0) player.lanceSpinCd = LANCE_SPIN.cd;
+
+  // The beam itself. Terrain shortens what is DRAWN as well, so it visibly stops at the wall
+  // it stops at rather than appearing to pass through and hit nothing.
+  const py = player.y + 1;
+  const dirX = Math.sin(lanceAng), dirZ = Math.cos(lanceAng);
+  const hit = raycastVoxel(player.x, py, player.z, dirX, 0, dirZ, LANCE_SPIN.range);
+  const len = Math.min(hit.dist, LANCE_SPIN.range);
+  for (const m of [lanceBeamFx.core, lanceBeamFx.glow]) {
+    m.visible = true;
+    m.position.set(player.x, py, player.z);
+    m.rotation.y = lanceAng;
+    const thick = m === lanceBeamFx.core ? LANCE_SPIN.beamThick : LANCE_SPIN.beamThick * 2;
+    m.scale.set(thick, thick, len);
+  }
+  lanceBeamFx.light.position.set(player.x + dirX * len * 0.5, py, player.z + dirZ * len * 0.5);
+  lanceBeamFx.light.intensity = 2.2;
+}
+
 function trySpin() {
   if (player.spinT > 0 || player.spinCd > 0) return;
   player.spinT = SPIN.time;
@@ -381,7 +616,13 @@ function updateSpin(dt) {
     if (player.spinT <= 0) {
       // Spin just ended — NOW the cooldown starts. Haste shortens it, the floor stops haste
       // breaking it, the same rail as everywhere else.
-      player.spinCd = Math.max(SPIN.cdFloor, SPIN.cd * (player.hasteCd || 1));
+      // FLAT, and deliberately deaf to haste. The gap after a spin is the only thing standing
+      // between a 2.5-second guaranteed guard and simply being invulnerable: at the old haste
+      // floor the cycle reached 68% untouchable, which is not a defensive button any more but
+      // a state you maintain. Haste shortening a cooldown is right for a damage spell, where
+      // more casts mean more damage; it is wrong for a SAFETY window, where more uptime means
+      // the fight stops asking anything of you. So this one number is not for sale.
+      player.spinCd = SPIN.cd;
     }
     spinRingFx.visible = true;
     spinRingFx.position.set(player.x, player.y + 0.35, player.z);
@@ -489,8 +730,13 @@ function updateOrb(dt) {
   // off the EDGE's own normal rather than the direction away from the town centre, which on a
   // nine-corner town differ by twenty degrees or more and is the gap between a bounce that
   // reads and one that looks like a bug.
+  // The band has a FLOOR as well as a ceiling — a wall stands on its plateau, it does not
+  // hang down from it. Without the lower bound an orb thrown along a valley below a hill town
+  // rebounded off open air, which is the same invisible wall the lobber's shell was bursting
+  // on. Matches wallBlocksBody's band exactly; it cannot be used directly here only because
+  // the bounce needs the settlement itself to ask for the edge's normal.
   const hitWall = orb.bounced < ORB.bounces ? wallBlocks(nx, nz) : null;
-  if (hitWall && ny < hitWall.plateau + WALL_H) {
+  if (hitWall && ny < hitWall.plateau + WALL_H && ny > hitWall.plateau - 1) {
     const { nx: wx, nz: wz } = wallNormalAt(hitWall, Math.atan2(nz - hitWall.z, nx - hitWall.x));
     const dot = orb.vx * wx + orb.vz * wz;
     orb.vx = (orb.vx - 2 * dot * wx) * ORB.bounce;
@@ -523,11 +769,19 @@ function updateOrb(dt) {
   orbLight.intensity = 14;
 }
 
-// Frost Nova: instant ring, damage + a hard slow (rank 2 roots instead).
+// Frost Nova: an instant sphere, damage + a hard slow (rank 2 roots instead).
+//
+// A BALL, NOT A RING — and this is a rules change dressed as an art change. A flat ring on the
+// floor drew one horizontal slice of a volume and left the player to guess the rest, which in
+// a world you now spend half your time above meant guessing wrong: standing on a ledge inside
+// the ring and taking nothing, or dropping past one and taking everything.
+//
+// So it is a sphere in both places at once. The spell passes vscale 1 to blast(), making its
+// reach upward equal to its reach outward, and the mesh is scaled uniformly to the same
+// number — one radius, one shape, drawn exactly where it is tested. DoubleSide because these
+// are centred on you: you are always inside them, looking out.
 const novaMesh = (() => {
-  const g = new THREE.RingGeometry(0.6, 1.0, 40);
-  g.rotateX(-Math.PI / 2);
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 3), new THREE.MeshBasicMaterial({
     color: 0x8fdcff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
   }));
   m.visible = false; scene.add(m); return m;
@@ -535,11 +789,13 @@ const novaMesh = (() => {
 let novaFx = 0;
 
 function frostNova(rank = 1) {
-  blast(player.x, player.y + 1, player.z, NOVA.radius, NOVA.damage, 6, false, false, false, "spell");
+  // vscale 1 — a true sphere, same as Explosion!: eleven metres up and out alike.
+  blast(player.x, player.y + 1, player.z, NOVA.radius, NOVA.damage, 6, false, false, false, "spell", 1);
   mobs.chill(player.x, player.z, NOVA.radius, {
     slowT: NOVA.slowT, slowMul: NOVA.slowMul, rootT: rank >= 2 ? NOVA.rootT : 0,
   });
-  novaMesh.position.set(player.x, player.y + 0.3, player.z);
+  // Centred on the point blast() actually measures from, not just above the floor.
+  novaMesh.position.set(player.x, player.y + 1, player.z);
   novaMesh.visible = true;
   novaFx = 0.4;
   sfx.explosion(player.x, player.z, 0.7);
@@ -614,7 +870,17 @@ function shapeBolt(b) {
 }
 
 function chainLightning() {
-  const list = [...world.entities.values()].filter((e) => e.kind === "mob");
+  // YOUR OWN SIDE IS NOT A CONDUCTOR. hit() has always refused to damage an ally and push()
+  // learned the same rule later, but both of those are applied to whatever an effect happens
+  // to touch. Chain is the one spell that CHOOSES, and choosing is where the rule had to be
+  // said a third time: it took the nearest body, and a soldier of your own colour standing
+  // between you and the fight was the nearest body. The bolt leapt to them, dealt nothing,
+  // spent a jump, and the whole spell could go off inside your own line and kill no one.
+  //
+  // Filtering the LIST rather than the two loops is deliberate — the first target and every
+  // jump read from it, and those are exactly the two places that would drift apart.
+  const list = [...world.entities.values()]
+    .filter((e) => e.kind === "mob" && !isMyAlly(e.faction));
   let cur = null, best = CHAIN.range;
   for (const e of list) {
     const d = Math.hypot(e.x - player.x, e.z - player.z);
@@ -712,8 +978,11 @@ function updateSpells(dt) {
   if (novaFx > 0) {
     novaFx -= dt;
     const f = 1 - Math.max(0, novaFx) / 0.4;
-    novaMesh.scale.setScalar(1 + f * NOVA.radius);
-    novaMesh.material.opacity = (1 - f) * 0.8;
+    // Out to the true radius fast, then HELD there while it fades — at its brightest moment
+    // the ball is exactly the volume that got hit, which is the whole point of drawing it.
+    const r = NOVA.radius * Math.min(1, f / 0.4);
+    novaMesh.scale.setScalar(r);          // a true sphere: see the vscale 1 passed to blast
+    novaMesh.material.opacity = (1 - f) * 0.42;
     if (novaFx <= 0) novaMesh.visible = false;
   }
   if (boltT > 0) {
@@ -942,6 +1211,7 @@ const allSlots = [...barEl.querySelectorAll(".slot")];
 const barSlots = allSlots.slice(0, SLOTS);
 const genSlots = allSlots.slice(SLOTS);
 const pointsEl = document.getElementById("points");
+const wpncdEl = document.getElementById("wpncd");
 const inventory = new Inventory(document.getElementById("inv"), abilities, {
   onClose: () => resumeFromShop(),
   gun: () => gun,
@@ -973,7 +1243,36 @@ const inventory = new Inventory(document.getElementById("inv"), abilities, {
     persist();
     window.location.reload();
   },
-  state: () => ({ level: player.level, points: player.points }),
+  // The result goes to the kill feed, not nowhere. A rescue button that reports nothing is a
+  // rescue button you press again immediately, and "you were not stuck" is as useful an answer
+  // as "stood you up" — it tells you the problem is something else.
+  unstick: () => { killFeed = unstick(); },
+  state: () => ({ level: player.level, points: player.points, faction: player.faction }),
+  /**
+   * ADMIN: swear to a colour and pick up its weapon in one press.
+   *
+   * Testing a faction meant three separate errands — reach the join level, find that colour's
+   * quartermaster, then find a smith with nine hundred points in your pocket — before you
+   * could hold the thing you actually wanted to feel. This does all three, and only from
+   * behind the admin code.
+   *
+   * It is NOT join(): that is the real door and it has real rules (a level gate, and your
+   * reputation reset to nothing for changing your mind). Those rules are the design; a
+   * testing tool that quietly enforced half of them would be a testing tool that lies about
+   * what a player experiences. This is openly a cheat, so it cheats completely — the colour
+   * changes and the weapon is in your hands, and nothing pretends that was earned.
+   */
+  setFaction: (id) => {
+    if (!FACTIONS.some((f) => f.id === id)) return;
+    player.faction = id;
+    // Its weapon, granted and drawn. Found by asking the weapon table who it belongs to
+    // rather than by a second hardcoded map — one of those would eventually disagree.
+    const arm = Object.values(WEAPONS).find((w) => w.faction === id);
+    if (arm) { gun.acquire(arm.id); gun.carry(arm.id); }
+    paintPlayer();                        // your colours are what the world reads you by
+    killFeed = `sworn to ${id}${arm ? ` — ${arm.name} in hand` : ""}`;
+    saveSoon();
+  },
   addPoints: (n) => { player.points += n; },
   setLevel: (n) => {
     player.level = Math.max(1, n);
@@ -1234,6 +1533,11 @@ const shakeRng = mulberry32(0x51AE);
 let bossTimer = 6;
 
 const hurtEl = document.getElementById("hurt");
+const lowHpEl = document.getElementById("lowhp");
+// Its own clock, not the world's. The pulse must keep the same steady beat whether it is
+// noon or midnight and whether the day/night cycle has been slept through — a warning whose
+// rhythm wanders is one you stop being able to read as a rhythm at all.
+let lowHpT = 0;
 const subEl = document.getElementById("subtitle");
 const energyEl = document.getElementById("energy");
 const energyFill = energyEl.querySelector(".en-fill");
@@ -1276,6 +1580,74 @@ let bossShown = false, bossEnraged = false;
  * a style poke every frame, but the markup is not, because writing innerHTML sixty times a
  * second to change one number is how a HUD ends up costing more than the fight.
  */
+/** One row of the weapon readout: a name, lit pips, and a countdown only while one is due. */
+function cdRow(name, have, max, secs, active = false) {
+  const pips = Array.from({ length: max }, (_, i) => {
+    const cls = active ? "act" : i < have ? "lit" : "";
+    return `<i class="${cls}"></i>`;
+  }).join("");
+  // The seconds show only while something is genuinely on its way back. A timer reading 0.0
+  // on a full row is noise, and noise beside a thing you glance at is worse than nothing.
+  const wait = !active && have < max && secs > 0
+    ? `<span class="wr-t">${secs.toFixed(1)}s</span>` : "";
+  const state = active ? "act" : have === 0 ? "out" : "";
+  return `<div class="wr ${state}"><span class="wr-k">${name}</span>${pips}${wait}</div>`;
+}
+
+/**
+ * ONE THING ON A CLOCK, drawn as a clock.
+ *
+ * Spin is not a pool you spend from, it is a single button with a wait, and a row of one pip
+ * says that badly — a lone dot that is either on or off tells you nothing about HOW LONG. A
+ * conic sweep does: the ring fills green into the grey as the cooldown runs, so "nearly back"
+ * is a shape rather than a number, catchable in the same glance that told you something was
+ * closing on you. The seconds stay beside it for when you actually want the figure.
+ */
+function cdDial(name, secs, max, active = false, tail = "") {
+  const frac = active ? 1 : Math.max(0, Math.min(1, 1 - secs / (max || 1)));
+  const cls = active ? "act" : secs > 0 ? "" : "full";
+  const wait = !active && secs > 0 ? `<span class="wr-t">${secs.toFixed(1)}s</span>` : "";
+  return `<div class="wr ${active ? "act" : ""}">`
+    + `<span class="wr-k">${name}</span>`
+    + `<span class="dial ${cls}" style="--p:${(frac * 100).toFixed(0)}%"></span>${tail}${wait}</div>`;
+}
+
+/**
+ * WHAT THIS WEAPON CAN DO RIGHT NOW, under the weapon it belongs to.
+ *
+ * Only for weapons that have these things: a row of pips for an ability your gun does not
+ * own is furniture, and the bottom of the screen should only ever answer questions you are
+ * already asking. Both rows share cdRow, so shove and spin cannot drift into looking like
+ * two unrelated widgets — reading one has to teach you how to read the other.
+ */
+function drawWeaponCds() {
+  const w = gun.weapon;
+  const on = (w.mode === "melee" || w.mode === "beam" || !!w.barrageShots) && !inSafe;
+  wpncdEl.classList.toggle("on", on);
+  if (!on) return;
+  let html = "";
+  if (w.mode === "melee") {
+    // SPIN ON TOP. It is the bigger button and the one you plan around — the shove is what
+    // you spend while you wait for it — so it reads first coming up from the weapon name.
+    html += cdDial("SPIN", player.spinCd, SPIN.cd, player.spinT > 0);
+    if (w.knockCharges) html += cdRow("SHOVE", gun.knockLeft, w.knockCharges, gun.knockT);
+  }
+  if (w.mode === "beam") {
+    html += cdDial("SPIN", player.lanceSpinCd, LANCE_SPIN.cd, player.lanceSpinT > 0);
+  }
+  if (w.barrageShots) {
+    // HOW MANY SHELLS THE NEXT VOLLEY THROWS, beside the clock. Since a short drum fires a
+    // short volley, "is it ready" is only half the question — the other half is "how big",
+    // and a number that quietly drops from 6 to 3 is the difference between an answer and a
+    // gesture. Dimmed once it can no longer throw a full one.
+    const shells = Math.min(w.barrageShots, gun.mag);
+    const short = shells < w.barrageShots;
+    const tail = `<span class="wr-n ${short ? "short" : ""}">×${shells}</span>`;
+    html += cdDial("BARRAGE", gun.barrageCd, w.barrageCd, false, tail);
+  }
+  wpncdEl.innerHTML = html;
+}
+
 function drawBossBar() {
   // Only while the fight is actually happening. A boss can be alive two hundred metres away
   // for minutes; a permanent bar for a thing you are not fighting is furniture, and the
@@ -1322,8 +1694,16 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback, sustained = f
   // Difficulty rides in HERE, at the same one choke point armour uses, so Easy softens mob
   // hits, meteors, the beam, burning ground and your own grenades all at once — none of them
   // needing to know a difficulty setting exists.
-  player.hp -= amount * diff().incoming * (1 - armorDR(player.armor, tierAt(player.x, player.z)))
-    * (1 - (player.graceMitigation || 0));       // early-game grace: fades out by ~level 8
+  // The lance's spin softens by 40% while it runs (LANCE_SPIN.mitigation) — here, at the same
+  // choke point armour and difficulty use, so it covers mob hits, meteors, burning ground and
+  // your own grenades without any of them knowing it exists. NOT i-frames: Iron's spin is the
+  // one that stops damage, this one only takes the edge off, and the difference is the whole
+  // reason two weapons can both have a spin without being the same weapon.
+  const spinDR = player.lanceSpinT > 0 ? LANCE_SPIN.mitigation : 0;
+  player.hp -= amount * diff().incoming
+    * (1 - armorDR(player.armor * (player.armorMult || 1), tierAt(player.x, player.z)))
+    * (1 - (player.graceMitigation || 0))        // early-game grace: fades out by ~level 8
+    * (1 - spinDR);
   hurtT = 0.35;
   // Severity is the fraction of your MAX health this took, so the sound scales with what it
   // cost you rather than with a raw number that means nothing at level 30.
@@ -1339,6 +1719,123 @@ function damagePlayer(amount, fromX, fromZ, knock = MOB.knockback, sustained = f
 }
 
 const hurtPlayer = (mob) => damagePlayer(mob.damage, mob.x, mob.z);
+
+/**
+ * UNSTUCK — two tiers, because "stuck" is two different problems sharing one word.
+ *
+ * TIER ONE, and the one that will answer almost every press: stand you on the surface of the
+ * column you are ALREADY IN. It does not move you sideways at all. That is the whole design —
+ * a world streamed in around a moving body will occasionally close over one, and the honest
+ * repair is to put you on top of the ground you are inside of, not to hand you a trip somewhere
+ * better. It cannot be used to escape anything, because everything that was near you still is.
+ *
+ * TIER TWO is the real teleport, and it is only for being nowhere: entombed with no surface to
+ * find, or adrift under the world. That IS an escape, so it is refused while something is
+ * hunting you — otherwise it would quietly become the best defensive button in the game, free,
+ * instant, and strictly better than every spell that costs energy to do less.
+ *
+ * A dungeon is its own world with its own floor, so it is asked its own question rather than
+ * being run through terrain code that would answer about land hundreds of blocks away.
+ *
+ * @returns {string} what happened, for the HUD to say. Saying nothing is how a button that
+ *   did work gets pressed four more times.
+ */
+function unstick() {
+  const wasY = player.y;
+
+  if (inDungeon()) {
+    const { x, z } = clampToRoom(player.x, player.z);
+    player.x = x; player.z = z;
+    player.y = dungeonHeightAt(x, z) + 1;
+    player.vx = player.vy = player.vz = 0;
+    return "Put you back on the floor.";
+  }
+
+  // The surface of your own column. Never below where you already are by much — being popped
+  // DOWN a shaft you deliberately climbed into would be its own kind of stuck.
+  const y = groundY(player.x, player.z) + 0.5;
+  if (Number.isFinite(y) && !solidAt(player.x, y, player.z) && !solidAt(player.x, y + 1, player.z)) {
+    player.y = y;
+    player.vx = player.vy = player.vz = 0;
+    player.dodgeT = player.dashT = 0;
+    const moved = Math.abs(y - wasY);
+    return moved < 0.6 ? "You were not stuck — nothing moved." : `Stood you up, ${Math.round(moved)} blocks.`;
+  }
+
+  // Nowhere to stand in your own column at all. This is the rare one.
+  if (combatT > 0) return "Not while something is hunting you — break away first.";
+  const { home } = sendToSafety();
+  killFeed = `pulled out of the world — set down in ${home?.city ? "the city" : "town"}`;
+  return `Nowhere to stand. Sent you to ${home?.city ? "the city" : "town"}.`;
+}
+
+/**
+ * PUT THE PLAYER SOMEWHERE THEY CAN STAND. Shared by dying and by falling out of the world,
+ * because both answer the same question and an answer that existed twice would drift.
+ *
+ * OUT OF THE INSTANCE FIRST. Everything after it picks a spot in the OPEN world — a city, its
+ * ground height — and none of that exists while a dungeon is the world: groundY answers with
+ * the dungeon's floor and the town's coordinates are empty void, which is precisely how
+ * respawning used to drop you into a second bottomless fall.
+ *
+ * @returns {object|null} the settlement you arrived at, for whoever wants to name it.
+ */
+function sendToSafety() {
+  if (inDungeon()) {
+    leaveDungeon();
+    setDungeon(null);
+    mobs.clearAll();
+    streamer.invalidateAll();
+  }
+  // You wake in the great city of the ring you fell in — but only as deep as your LEVEL
+  // entitles you to, so falling deep while under-levelled isn't a free ride past everything.
+  const fellIn = tierAt(player.x, player.z);
+  const wokeIn = Math.min(fellIn, respawnTierFor(player.level));
+  const home = homeOfTier(wokeIn);
+  if (home) {
+    player.x = home.x;
+    player.z = home.z;
+    player.y = groundY(home.x, home.z) + 0.5;
+  } else {
+    spawnPlayer();
+  }
+  player.vx = player.vy = player.vz = 0;
+  player.dodgeT = player.dashT = player.surgeT = 0;
+  // WHERE you woke and where you FELL both go back to the caller. They were locals of the
+  // old inline version, and extracting this left the death message still reading them from a
+  // scope that no longer had them — which threw before `dead` was ever cleared, so the
+  // respawn button silently did nothing at all.
+  return { home, wokeIn, fellIn };
+}
+
+/**
+ * FELL OUT OF THE WORLD. Checked every frame, and it is the only unsurvivable thing here.
+ *
+ * Not damage — a fall this far is not a wound, and routing it through damagePlayer would let
+ * armour, difficulty and a full health bar decide whether the ground you are never going to
+ * reach hurts enough. It is simply over: hp to zero and the normal death path, which already
+ * knows how to put you in a town.
+ *
+ * The line moves with the world you are in. Outdoors it sits below the bottom of the terrain;
+ * inside an instance it sits under the room, because the void there begins at the floor's edge
+ * rather than at y=0.
+ */
+function checkVoidFall() {
+  if (dead) return;
+  const d = activeDungeon();
+  const floor = d ? d.floor - VOID.belowRoom : VOID.belowWorld;
+  if (player.y >= floor) return;
+  // A RESCUE, NOT A DEATH, and on every mode including Hardcore.
+  //
+  // Killing you here would be consistent — it is a fall, falls kill — but it would be charging
+  // you for the game's mistake. Nothing you can walk off reaches this line; the only ways past
+  // it are a bug or a hole in a dungeon's floor, and on Hardcore that would end a run for
+  // something the player did not do. A silent lift back to town is the honest correction: it
+  // costs the walk back and nothing else.
+  const { home } = sendToSafety();
+  player.iframes = 1.5;                 // you arrive on your feet, not into a fight
+  killFeed = `the world let go — set down in ${home?.city ? "the city" : "town"}`;
+}
 
 function reward(res) {
   player.points += Math.round((LOOT.base + LOOT.perTier * res.ring)
@@ -1457,7 +1954,7 @@ function champFalls(e) {
  */
 function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
                knock = GRENADE.knockback, hurtsYou = true, flat = false, shove = false,
-               kind = "grenade") {
+               kind = "grenade", vscale = BLAST_VSCALE) {
   const falloff = (d) => (flat ? 1 : Math.max(0.25, 1 - d / radius));
   // The damage BUCKET for this source (grenade blasts vs spell/ability blasts). It scales the
   // ENEMY damage only — your own self-damage below stays on the base so it can't grow with
@@ -1470,7 +1967,11 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
     // The vertical axis is STRETCHED, not squashed — see BLAST_VSCALE. Scaling it by 0.5
     // doubled the vertical reach, so every ground effect was a column reaching far further up
     // and down than it ever did outward.
-    const d = Math.hypot(e.x - x, e.z - z, (e.y - y) * BLAST_VSCALE);
+    //
+    // Per-blast now, because not everything wants the same shape. A grenade is a thing that
+    // went off on the FLOOR and should stay wide and shallow; the two spells that erupt out of
+    // the player are meant to be balls, and a ball reaches as far up as it does out.
+    const d = Math.hypot(e.x - x, e.z - z, (e.y - y) * vscale);
     if (d > radius) continue;
     const res = mobs.hit(e.id, damage * player.dmgMult * bucket * falloff(d));
     if (res?.killed) { reward(res); grenades.refill(); }
@@ -1490,7 +1991,13 @@ function blast(x, y, z, radius = GRENADE.radius, damage = GRENADE.damage,
   // You are not exempt. Half damage, but a point-blank throw will still hurt badly —
   // which is what makes it a decision rather than a free button.
   // Cataclysm is centred on you, so it must not blow you up — hence hurtsYou.
-  const dp = Math.hypot(player.x - x, player.z - z, (player.y - y) * 0.5);
+  // * vscale, exactly as the mob test above measures — THE MISSED SPOT in the BLAST_VSCALE
+  // fix. Every enemy stopped being hit through floors when blasts became slabs, but your own
+  // self-damage kept the old backwards 0.5, which DOUBLES vertical reach instead of halving
+  // it: your grenade could catch you at the top of a jump, through a ledge, from a floor
+  // below — the one blast in the game still behaving the way the essay on BLAST_VSCALE
+  // describes as the bug.
+  const dp = Math.hypot(player.x - x, player.z - z, (player.y - y) * vscale);
   if (hurtsYou && dp < radius) {
     damagePlayer(damage * falloff(dp) * GRENADE.selfScale, x, z, knock);
   }
@@ -1509,48 +2016,57 @@ function onDeath() {
   dead = true;
   deeds.push(`the wanderer fell out in ${RINGS[Math.min(ringAt(player.x, player.z), RINGS.length - 1)].name} `
     + `and came back walking`, 1.8);
-  const lost = loseLevel();
-  // COMMIT IT, this instant. Every other save can wait; this one cannot. The whole weight of
-  // dying rests on the level being genuinely gone, and a player who works out that closing the
-  // tab on the death screen undoes it has been handed a way to opt out of the only real stake
-  // in the game — and will use it, because everyone does.
+  // COMMIT IT, this instant. Every other save can wait; this one cannot. In Hardcore the whole
+  // weight of dying rests on the run being genuinely over, and a player who works out that
+  // closing the tab on the death screen undoes it has been handed a way to opt out of the only
+  // real stake in the game — and will use it, because everyone does.
   saveNow();
   document.body.classList.add("dead");
+  // AND STOP BEING "RUNNING". The class is what hides the system cursor (body.running sets
+  // cursor:none), and nothing cleared it on death — so the death screen appeared with an
+  // invisible mouse and the button on it could not be found, let alone clicked, until the page
+  // was reloaded. Set directly rather than via setPaused, which would also throw the inventory
+  // open over the top of the death screen.
+  document.body.classList.remove("running");
   music.pause();
   deathSound.currentTime = 0;
   deathSound.play().catch(() => {});
   if (document.pointerLockElement) document.exitPointerLock();
-  deathSubEl.textContent = lost
-    ? `You slipped to level ${player.level}. Respawn at the nearest safe town.`
+  // HARDCORE ends here rather than pausing here. The screen says so plainly and the button
+  // stops offering a respawn, because there is nothing to respawn into — what it offers is
+  // another run.
+  const over = !!diff().wipeOnDeath;
+  document.body.classList.toggle("hardcore-death", over);
+  respawnBtn.textContent = over ? "One more try?" : "Respawn in nearest safe zone";
+  deathSubEl.textContent = over
+    ? `Level ${player.level}, and every step of it, ends here. Start over from nothing?`
     : "Respawn at the nearest safe town.";
 }
 
 function doRespawn() {
-  // You wake in the great city of the ring you fell in — but only as deep as your LEVEL
-  // entitles you to, so dying deep while under-levelled isn't a free teleport past everything.
-  const diedIn = tierAt(player.x, player.z);
-  const allowed = respawnTierFor(player.level);
-  const wokeIn = Math.min(diedIn, allowed);
-  const home = homeOfTier(wokeIn);
-  if (home) {
-    player.x = home.x;
-    player.z = home.z;
-    player.y = groundY(home.x, home.z) + 0.5;
-    player.vx = player.vy = player.vz = 0;
-    player.dodgeT = player.dashT = player.surgeT = 0;
-  } else {
-    spawnPlayer();
+  // HARDCORE: the character is gone. Erase the slot and reload rather than unwinding a live
+  // game back to level one by hand — a dozen places hold a piece of who you are, and a
+  // teardown that misses one leaves something that is neither the old run nor a new one. The
+  // latch stops the reload's save-on-exit handlers writing the corpse straight back over the
+  // wipe, which is exactly how an earlier erase quietly undid itself.
+  if (diff().wipeOnDeath) {
+    resetting = true;
+    wipeSave();
+    window.location.reload();
+    return;
   }
+  const { home, wokeIn, fellIn } = sendToSafety();
   player.hp = player.maxHp;
   player.iframes = 1.5;                 // grace on arrival, so you can't be spawn-camped
   killFeed = `woke in ${home?.city ? "the city" : "town"}`
-    + (wokeIn < diedIn ? `, carried back to ${RINGS[Math.min(wokeIn, RINGS.length - 1)].name}` : "");
+    + (wokeIn < fellIn ? `, carried back to ${RINGS[Math.min(wokeIn, RINGS.length - 1)].name}` : "");
   dead = false;
   document.body.classList.remove("dead");
   music.resume();
   resumeFromShop();                     // resume the world and chase the pointer lock back
 }
-document.getElementById("respawn-btn").addEventListener("click", doRespawn);
+const respawnBtn = document.getElementById("respawn-btn");
+respawnBtn.addEventListener("click", doRespawn);
 
 // Start INSIDE the spawn town, not on the bare plain outside it — the first thing you see is
 // the place you'll come back to, and you're safe while you find your feet.
@@ -1564,12 +2080,173 @@ function spawnInTown() {
 }
 spawnInTown();
 
+// --- DUNGEON GATES -------------------------------------------------------------------
+//
+// The gate is the whole of the door: walk into reach of one, press the interact key, and the
+// world underneath you is swapped for the instance (world/dungeon.js). What makes that a few
+// lines rather than a subsystem is that nothing else has to be told — the streamer rebuilds
+// what it has, and collision, sight and the mesher were always reading whatever the fill
+// said, so they simply start reading the other one.
+//
+// Where the gates ARE lives in world/dungeon.js — the door and the minimap's arrow both ask
+// it, so neither keeps its own idea of where a dungeon is.
+
+/**
+ * THE DOORWAY YOU CAN ACTUALLY SEE.
+ *
+ * The gate was a four-block trigger on open ground with nothing drawn at it — the arrow said
+ * "here" and here was a hillside. A door has to be a THING: two jambs, a lintel across them,
+ * and a black opening under it that reads as depth rather than decoration, set into the
+ * levelled pad so it stands square instead of sinking into the slope.
+ *
+ * One mesh, moved rather than rebuilt. There is one gate in reach at a time by construction
+ * (they are a ring apart), so a second one would only ever be scenery for a place you cannot
+ * enter from where you are standing.
+ */
+const gateMesh = (() => {
+  const g = new THREE.Group();
+  const rock = new THREE.MeshLambertMaterial({ color: 0x6d7480 });
+  const jamb = new THREE.BoxGeometry(1.6, 7, 2.2);
+  for (const side of [-1, 1]) {
+    const p = new THREE.Mesh(jamb, rock);
+    p.position.set(side * 3.1, 3.5, 0);
+    g.add(p);
+  }
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(9.4, 1.8, 2.6), rock);
+  lintel.position.set(0, 7.9, 0);
+  g.add(lintel);
+  // The dark. Unlit and nearly black, so it reads as a hole in a mountain rather than a
+  // painted rectangle — the one part of this that has to say "there is somewhere behind me".
+  const dark = new THREE.Mesh(
+    new THREE.PlaneGeometry(6, 7),
+    new THREE.MeshBasicMaterial({ color: 0x0a0c10, side: THREE.DoubleSide }),
+  );
+  dark.position.set(0, 3.5, 0.6);
+  g.add(dark);
+  g.visible = false;
+  scene.add(g);
+  return g;
+})();
+
+/** Keep the doorway sitting on whichever gate is nearest, facing out of the mountain. */
+function updateGateMesh() {
+  // INSIDE, the same arch marks the way out. It is the one thing in the room that has to be
+  // findable from anywhere in it, because it is now the only place leaving works.
+  const door = dungeonDoor();
+  if (door) {
+    gateMesh.visible = true;
+    gateMesh.position.set(door.x, activeDungeon().floor - 0.5, door.z);
+    gateMesh.rotation.y = -door.bearing + Math.PI / 2;
+    return;
+  }
+  const gate = nearestDungeonGate(player.x, player.z);
+  if (!gate || Math.hypot(player.x - gate.x, player.z - gate.z) > VIEW_RADIUS * CHUNK_X) {
+    gateMesh.visible = false;
+    return;
+  }
+  gateMesh.visible = true;
+  gateMesh.position.set(gate.x, groundY(gate.x, gate.z) - 0.5, gate.z);
+  // Face OUT along the gate's own bearing — the direction that points away from the peak, so
+  // you meet the doorway head-on walking up to it rather than edge-on.
+  gateMesh.rotation.y = -gate.bearing + Math.PI / 2;
+}
+
+/** The gate you are standing at, or null. Cheap enough to ask every frame. */
+function gateInReach() {
+  if (inDungeon()) return null;
+  const g = nearestDungeonGate(player.x, player.z);
+  if (!g) return null;
+  return Math.hypot(player.x - g.x, player.z - g.z) <= DUNGEON.enterRange ? g : null;
+}
+
+/** @returns {boolean} true if the interact key was spent on a door. */
+function tryDungeonDoor() {
+  if (inDungeon()) {
+    // ONLY AT THE DOOR. Leaving from anywhere meant the room had no geography — you could
+    // stand in the far corner with the whole garrison between you and daylight and step out of
+    // the world regardless, so nothing inside was ever between you and anything.
+    if (!atDungeonDoor(player.x, player.z)) {
+      tradeMsg = "the way out is back at the gate";
+      tradeMsgT = 2;
+      return true;              // the key WAS spent on the door; do not fall through to a villager
+    }
+    const back = leaveDungeon();
+    setDungeon(null);
+    mobs.clearAll();          // the bodies in here belong to a world that no longer exists
+    streamer.invalidateAll();
+    if (back) { player.x = back.x; player.z = back.z; player.y = groundY(back.x, back.z) + 0.5; }
+    player.vx = player.vy = player.vz = 0;
+    tradeMsg = "back out under the sky";
+    tradeMsgT = 2;
+    return true;
+  }
+  const gate = gateInReach();
+  if (!gate) return false;
+  const d = makeDungeon(gate);
+  const at = enterDungeon(d, { x: player.x, y: player.y, z: player.z });
+  // The instance is only live once gen.js is reading it — order matters, because groundY on
+  // the next line has to answer with the dungeon's floor rather than the mountain's.
+  setDungeon({ blockAt: dungeonBlockAt, heightAt: dungeonHeightAt, yRange: dungeonYRange });
+  // Nothing from the frontier follows you in. The distance sweep cannot do this — those bodies
+  // are not far away, they are in a different world at the same coordinates — and town
+  // defenders are exempt from it entirely, so they would have stood in the room for ever
+  // counting against the dungeon's own garrison.
+  mobs.clearAll();
+  streamer.invalidateAll();
+  player.x = at.x; player.z = at.z;
+  player.y = at.y + 0.5;
+  player.vx = player.vy = player.vz = 0;
+  tradeMsg = "you step inside the mountain";
+  tradeMsgT = 2.5;
+  return true;
+}
+
 // --- PERSISTENCE ---------------------------------------------------------------------
 // One slot, written quietly, never rewindable. See prog/save.js for why that is a design
 // decision rather than a shortcut: a game whose death penalty is a whole level only keeps
 // that stake if closing the tab cannot undo it.
+/**
+ * WHERE YOU ARE, when "where" is not a place in the world.
+ *
+ * A dungeon is a pure function of its gate (D1), so the whole of it collapses to the gate's
+ * RING plus the doorstep you came in by. The room does not need saving any more than the
+ * terrain does — it is rebuilt from that one number.
+ *
+ * Without this the save wrote y=400 and nothing to explain it, and reloading put you at 400
+ * in the OPEN world: a three-hundred-block fall onto a mountainside, and on hardcore a dead
+ * character for the crime of closing the tab indoors.
+ */
+function dungeonState() {
+  const d = activeDungeon();
+  return d ? { ring: d.ring, exit: d.exit, slain: d.slain } : null;
+}
+
+/**
+ * Put a reloading character back inside. Returns false if it cannot, and the caller then
+ * treats the save as an ordinary outdoor one — a dungeon that will not rebuild must never be
+ * the reason a character cannot be loaded at all.
+ */
+function restoreDungeon(state) {
+  if (!state || !Number.isFinite(state.ring)) return false;
+  const gate = gateOfRing(state.ring);
+  if (!gate) return false;
+  const d = makeDungeon(gate);
+  // The way OUT is remembered too, or leaving after a reload has nowhere to put you. Falling
+  // back to the gate's own doorstep, which is always somewhere you can stand.
+  enterDungeon(d, state.exit || { x: gate.x, y: groundY(gate.x, gate.z) + 0.5, z: gate.z });
+  setDungeon({ blockAt: dungeonBlockAt, heightAt: dungeonHeightAt, yRange: dungeonYRange });
+  // WHAT YOU ALREADY KILLED STAYS KILLED. Without this a reload handed the whole garrison
+  // back, which is the one thing that made the room feel like a tap rather than a place.
+  setDungeonSlain(state.slain | 0);
+  streamer.invalidateAll();
+  return true;
+}
+
 const saveCtx = {
   get abilities() { return abilities; },
+  dungeonState,
+  restoreDungeon,
+  groundAt: (x, z) => groundY(x, z),
   get gun() { return gun; },
   get game() { return gameCtx; },
   get townVoice() { return townVoice; },
@@ -1588,10 +2265,29 @@ const saveCtx = {
 // playing and never reloads. It is kept because the hazard is real and will come back the
 // moment anything in here erases again — and because the alternative is rediscovering it.
 let resetting = false;
+
+/**
+ * HAS A CHARACTER ACTUALLY BEEN LOADED INTO `player` YET? Until openSlot() has run, `player`
+ * holds the module's defaults — level 1, hard, unsworn — and those defaults are a perfectly
+ * valid-looking save. That mattered because persist() is wired to `pagehide` and to the tab
+ * being hidden, and BOTH of those fire while the slot picker is still up:
+ *
+ *     open the game, sit on "Choose a character", close the tab
+ *     -> pagehide -> persist() -> a blank level 1 is written over the active slot
+ *
+ * which is a character destroyed without a single frame of play, by a save system doing
+ * exactly what it was told. It is not even a rare path — every reload goes through it, and a
+ * dev server that hot-reloads on file changes hits it constantly.
+ *
+ * So a save is only ever written for a character somebody chose. There is no state worth
+ * keeping before that: the picker is a menu, not a game.
+ */
+let loaded = false;
+
 // A debounced write, for the things that happen in clusters — walking over three drops in a
 // second should cost one save, not three. Anything that must not be lost calls saveNow.
 let saveT = 0;
-const persist = () => { if (!resetting) saveGame(saveCtx); };
+const persist = () => { if (!resetting && loaded) saveGame(saveCtx); };
 const saveSoon = () => { saveT = 1.5; };
 const saveNow = () => { saveT = 0; persist(); };
 
@@ -1620,6 +2316,9 @@ function openSlot(i) {
   } else {
     spawnInTown();                  // an empty slot starts you at the gate, like a first run
   }
+  // From here `player` is a character somebody chose, so it is finally safe to write. Set on
+  // every path — restored, freshly spawned, or recovered from a save that would not load.
+  loaded = true;
 }
 
 // THE DIFFICULTY PICKER. Held in front of a fresh start until a card is chosen — nothing
@@ -1658,7 +2357,7 @@ function showSlotPicker() {
 
   const render = () => {
     slotsEl.innerHTML = `
-      <h1>WAR NACHO</h1>
+      <h1>${GAME_TITLE.toUpperCase()}</h1>
       <div class="sub">Choose a character.</div>
       <div class="row">
         ${listSlots().map((sl) => `
@@ -1702,7 +2401,7 @@ function showDifficultyPicker() {
   let selected = null;
 
   diffEl.innerHTML = `
-    <h1>WAR NACHO</h1>
+    <h1>${GAME_TITLE.toUpperCase()}</h1>
     <div class="sub">Choose how hard the frontier bites. This is set for the whole run.</div>
     <div class="modes">
       ${Object.values(DIFFICULTY).map((d) => `
@@ -1736,6 +2435,58 @@ function showDifficultyPicker() {
   // separate world-click means one clear "start" button, exactly what was asked for.
   startBtn.addEventListener("click", () => {
     if (!selected) return;
+    // ...and then WHO you are. Difficulty is how hard the world hits; the faction is what you
+    // are holding when it does. Two screens rather than one because they are different
+    // questions, and a wall with six cards on it is a wall nobody reads.
+    showFactionPicker();
+  });
+}
+
+/**
+ * WHO YOU FIGHT AS — the second half of making a character.
+ *
+ * The faction used to be sworn at a quartermaster after ten levels, and that was the right
+ * design while everyone started with the same rifle: you chose once you understood what the
+ * choice meant. Now the faction IS your weapon, so it has to come first — and that means the
+ * screen owes the player far more than a one-line blurb. Each card says how its weapon
+ * actually works and what it is bad at, because a decision made blind is not a decision.
+ */
+function showFactionPicker() {
+  choosing = true;
+  clickEl.style.display = "none";
+  diffEl.style.display = "grid";
+  let picked = null;
+
+  diffEl.innerHTML = `
+    <h1>${GAME_TITLE.toUpperCase()}</h1>
+    <div class="sub">Choose your colour. This is your weapon and your allies for the whole run.</div>
+    <div class="modes factions">
+      ${FACTIONS.map((f) => `
+        <button class="mode fac" data-fac="${f.id}" style="--fc:${f.color}">
+          <span class="nm" style="color:${f.color}">${f.name}</span>
+          <span class="wpn">${f.weapon}</span>
+          <span class="bl">${f.blurb}</span>
+          <ul class="ps">${f.playstyle.map((l) => `<li>${l}</li>`).join("")}</ul>
+        </button>`).join("")}
+    </div>
+    <button class="startbtn hidden" data-start>▶  CLICK TO START  ◀</button>
+    <div class="hint">You keep your gear if you swear to someone else later, but your standing starts again.</div>`;
+
+  const modes = diffEl.querySelector(".modes");
+  const startBtn = diffEl.querySelector("[data-start]");
+
+  diffEl.querySelectorAll("[data-fac]").forEach((b) => {
+    b.addEventListener("click", () => {
+      picked = b.dataset.fac;
+      diffEl.querySelectorAll(".mode").forEach((m) => m.classList.toggle("sel", m === b));
+      modes.classList.add("chosen");
+      startBtn.classList.remove("hidden");
+    });
+  });
+
+  startBtn.addEventListener("click", () => {
+    if (!picked) return;
+    armForFaction(picked);
     choosing = false;
     diffEl.style.display = "none";
     clickEl.style.display = "";
@@ -1745,6 +2496,27 @@ function showDifficultyPicker() {
     if (paused) { lockTries = 0; setPaused(false); }
     renderer.domElement.requestPointerLock?.();   // this click is a fresh user gesture
   });
+}
+
+/**
+ * Swear a NEW character in, and put their weapon in their hands.
+ *
+ * The starter rifle is removed outright rather than left in the bag beside the faction
+ * weapon. A generic automatic sitting next to the thing that defines how you fight is an
+ * escape hatch from the decision you just made — and the whole point of moving the choice to
+ * character creation was to make it mean something. Old saves keep theirs (see prog/save.js);
+ * this only ever runs for a character being made right now.
+ */
+function armForFaction(id) {
+  player.faction = id;
+  player.rep = 0;
+  const arm = Object.values(WEAPONS).find((w) => w.faction === id);
+  if (!arm) return;
+  gun.acquire(arm.id);
+  gun.owned = new Set([arm.id]);      // the Repeater is not in the bag, it is not anywhere
+  gun.setLoadout([arm.id]);
+  gun.equip(arm.id);
+  paintPlayer();
 }
 // The browser can close without warning. This is the last chance to commit, and it has to be
 // cheap and synchronous — 'hidden' fires on tab-switch and phone-lock too, which are exactly
@@ -1758,6 +2530,9 @@ attachInput(renderer.domElement, {
   reload: () => gun.reload(),
   cycleWeapon: (dir) => gun.cycle(dir),
   interact: () => {
+    // A gate takes precedence over a villager: nobody stands in a mountain mouth, so the two
+    // can never be in reach at once, and asking about the gate first keeps the door reliable.
+    if (tryDungeonDoor()) return;
     const v = villagers.nearest();
     if (!v) return;
     shop.show(v);
@@ -1799,7 +2574,10 @@ attachInput(renderer.domElement, {
   },
   // G: talk to the nearest villager (town/chat.js). Replaces the old dev speak-test —
   // the chat IS that test grown up: typed line in, spoken line out, in a real character.
-  chat: () => townChat.tryOpen(),
+  // CHAT IS GONE FROM PLAY. It opened a panel whose replies came from a model that only
+  // ever ran on the developer's machine (see LAB in config.js), so for every player it
+  // was a window that opened, said something canned, and closed — a mechanic advertised
+  // by a keybind and delivered by nobody. F is the whole of talking to someone now.
   sleep: () => trySleep(),
   // Clicking the world starts the game, lock or no lock. tryLock() keeps chasing the mouse
   // capture separately; not getting it costs you comfortable looking, not the ability to play.
@@ -1959,6 +2737,10 @@ function nearestGate() {
 // SCREEN. Stamped once at boot; if the corner doesn't say config.js's current BUILD_TAG,
 // the copy being played predates the fix being tested.
 document.getElementById("buildtag").textContent = BUILD_TAG;
+// The tab, from the same string the character screen uses. index.html names it too, because a
+// tab needs a title before any module loads — this is what makes that copy a bootstrap rather
+// than a second opinion.
+document.title = GAME_TITLE;
 console.info(`[build] ${BUILD_TAG}`);
 
 const hud = document.getElementById("stats");
@@ -2011,13 +2793,22 @@ function frame(now) {
     acc -= FIXED_DT;
   }
 
+  checkVoidFall();
   streamer.update(player.x, player.z, player.y);
+  updateGateMesh();
   sanctuaries.update(dt, player.x, player.z);
   // The camera must settle BEFORE the gun reads it — firing off last frame's camera is a
   // subtle, maddening "my shots trail my aim" bug when you're turning fast.
   // The cleaver never pulls to first person: RMB is its SPIN, and there is nothing for ADS
   // to buy on a weapon with no spread. The other two aim exactly like guns.
-  rig.update(dt, input.aim && gun.weapon.mode !== "melee");
+  // Neither the cleaver nor the cannon aims — RMB is a spin and a barrage respectively, and
+  // a camera that zoomed as well would be answering a button that means something else.
+  // NONE OF THE THREE FACTION WEAPONS AIMS ANY MORE. Cleaver spins, cannon barrages, lance
+  // spins — right mouse means something different on each of them, which is the point. The
+  // rig's blend is what tryFire reads as "aiming", so excluding a weapon here is also what
+  // stops it collecting an aim damage bonus it can no longer earn.
+  rig.update(dt, input.aim && gun.weapon.mode !== "melee" && gun.weapon.mode !== "beam"
+    && !gun.weapon.barrageShots);
 
   // Weapons stow inside the walls. Gated HERE rather than inside gun.js, for the same
   // reason the damage rule lives in damagePlayer: systems don't learn each other's names,
@@ -2038,10 +2829,29 @@ function frame(now) {
   {
     const rmbPressed = input.aimHeld && !prevRmb;
     prevRmb = input.aimHeld;
-    if (rmbPressed && gun.weapon.mode === "melee") {
+    // RMB ON THE CANNON IS A BARRAGE, not a zoom. A shell you have to LEAD gains nothing from
+    // a narrower view — the skill is reading where something will be, not seeing it closer —
+    // so the button was doing nothing but taking away your peripheral vision in the one
+    // situation the cannon is worst at: something already on top of you.
+    if (rmbPressed && gun.weapon.barrageShots) {
+      if (inSafeZone) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; }
+      else if (gun.lockedFor(player.faction)) { tradeMsg = `swear to ${gun.weapon.faction} to wield this`; tradeMsgT = 2; }
+      else {
+        const why = gun.barrage(gunRng);
+        if (why) { tradeMsg = `barrage — ${why}`; tradeMsgT = 1.2; }
+        else markCombat();
+      }
+    } else if (rmbPressed && gun.weapon.mode === "melee") {
       if (inSafeZone) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; }
       else if (gun.lockedFor(player.faction)) { tradeMsg = `swear to ${gun.weapon.faction} to wield this`; tradeMsgT = 2; }
       else trySpin();
+    // RMB ON THE LANCE IS ITS OWN SPIN, not a zoom (LANCE_SPIN). Aiming was the last generic
+    // second trigger left on a faction weapon, and it was not even a choice — +55% for a bit
+    // of peripheral vision is simply correct every time you are not being touched.
+    } else if (rmbPressed && gun.weapon.mode === "beam") {
+      if (inSafeZone) { tradeMsg = "weapons stowed inside the walls"; tradeMsgT = 2; }
+      else if (gun.lockedFor(player.faction)) { tradeMsg = `swear to ${gun.weapon.faction} to wield this`; tradeMsgT = 2; }
+      else tryLanceSpin();
     }
   }
 
@@ -2070,7 +2880,12 @@ function frame(now) {
     // applied per struck target, each pellet dealing the weapon's damage through dmgMult.
     const shot = gun.tryFire(rig.blend > 0.5, gunRng,
       [...mobs.targets(), ...boss.targets()],
-      input.firing && !inSafeZone && !gun.lockedFor(player.faction), dt);
+      // BOTH HANDS ARE ON THE SPIN. The trigger is dead while the beam sweeps — you are
+      // already firing it, just not where you are looking — and holding LMB through a spin
+      // must not stack a second beam on top of the one going round. Deliberately the ONLY
+      // thing taken away: spells, the heal, the grenade and every scrap of movement still
+      // work, so the two seconds are a window you act inside rather than a cutscene.
+      input.firing && !inSafeZone && !gun.lockedFor(player.faction) && player.lanceSpinT <= 0, dt);
 
     if (shot?.beam) {
       // THE BEAM does not deal its damage here. It burns for tiny amounts sixty times a
@@ -2120,27 +2935,9 @@ function frame(now) {
     sfx.explosion(sx, sz, 0.9);
     markCombat();
   });
-  if (input.throwQueued) {
-    input.throwQueued = false;
-    if (inSafeZone) {
-      tradeMsg = "weapons stowed inside the walls";
-      tradeMsgT = 2;
-    } else if (grenades.throwFrom(camera)) {
-      markCombat();
-    }
-  }
   grenades.update(dt, blast);
 
   // The root condition, in one expression: steering, rolling, or airborne all break it.
-  if (input.healQueued) {
-    input.healQueued = false;
-    if (inSafeZone) {
-      tradeMsg = "no need — the walls mend you";
-      tradeMsgT = 2;
-    } else {
-      heal.start();
-    }
-  }
   const stirring = input.fwd !== 0 || input.right !== 0 || player.dodgeT > 0 || !player.onGround;
   heal.update(dt, stirring);
   // Leap -> slam. Gated on a PENDING FLAG, not on leapT still being positive: leapT is
@@ -2188,12 +2985,14 @@ function frame(now) {
   if (fireT > 0) {
     fireT -= dt;
     const f = 1 - Math.max(0, fireT) / FIRERING.grow;
-    fireRingMesh.scale.setScalar(1 + f * FIRERING.radius);
-    fireRingMesh.material.opacity = (1 - f) * 0.9;
+    const r = FIRERING.radius * Math.min(1, f / 0.4);
+    fireRingMesh.scale.setScalar(r);      // a true sphere: see the vscale 1 passed to blast
+    fireRingMesh.material.opacity = (1 - f) * 0.42;
     fireLight.intensity = (1 - f) * 30;
     if (fireT <= 0) { fireRingMesh.visible = false; fireLight.intensity = 0; }
   }
 
+  drawWeaponCds();
   pointsEl.innerHTML = `${player.points} <small>POINTS</small>`;
   const paint = (el, def, left, ready, charges = undefined) => {
     el.classList.toggle("up", !!def && ready);
@@ -2271,8 +3070,10 @@ function frame(now) {
     }
   }
   plates.draw([
+    // ONE KEY, ONE VERB. Two prompts meant two mechanics, and one of them was never really
+    // there — so the plate says the thing you can actually do.
     ...villagers.list.filter((v) => Villagers.sells(v))
-      .map((v) => ({ x: v.x, y: v.y + 2.05, z: v.z, label: v.role.name, sub: "F to trade" })),
+      .map((v) => ({ x: v.x, y: v.y + 2.05, z: v.z, label: v.role.name, sub: "F to talk" })),
     ...champPlates,
     ...allyPlates,
   ]);
@@ -2335,15 +3136,22 @@ function frame(now) {
   updateGearDrops(dt);
   updateSpells(dt);
   updateSpin(dt);
+  updateLanceSpin(dt);
   updateLevelFx(dt);
   minimap.draw(dt, mobs, boss, villagers);
 
   const vendor = shop.open ? null : villagers.nearest();
   if (tradeMsgT > 0) tradeMsgT -= dt;
   if (vendor || tradeMsgT > 0) {
+    // Villagers.sells, NOT role.offer. `offer` was read here and set NOWHERE — one reference
+    // in the whole codebase and no writer — so it was always undefined and this line only ever
+    // printed a bare name. The prompt has been silently missing for as long as it has existed,
+    // which is exactly the failure a field nobody assigns produces: no error, no crash, just a
+    // branch that is never taken. sells() is the same test the nameplate above already uses,
+    // so the floating label and the line under the crosshair can no longer disagree.
     subEl.textContent = tradeMsgT > 0 ? tradeMsg
-      : vendor.role.offer
-        ? `${vendor.role.name} — press F to trade`
+      : Villagers.sells(vendor)
+        ? `${vendor.role.name} — press F to talk`
         : `${vendor.role.name}`;
     subEl.style.opacity = "1";
     subtitleT = 0;
@@ -2364,9 +3172,38 @@ function frame(now) {
     hurtEl.style.opacity = String(Math.max(0, hurtT / 0.35) * 0.55);
   }
 
+  // THE LOW-HEALTH BREATH (LOWHP). Driven here rather than by a CSS animation so the pace has
+  // exactly one home — a @keyframes duration would be a second copy of LOWHP.period sitting in
+  // a file nobody edits when they retune the first one.
+  //
+  // The clock only runs while you are ACTUALLY low, and resets when you are not, so the pulse
+  // always begins at its dimmest and swells. Letting it free-run would mean dropping to 19%
+  // health could land you anywhere in the cycle — including at full brightness, which reads as
+  // a hit rather than as a state, and at the worst possible moment for a misread.
+  {
+    const frac = player.maxHp > 0 ? player.hp / player.maxHp : 1;
+    if (!dead && frac > 0 && frac <= LOWHP.at) {
+      lowHpT += dt;
+      // Starts at the trough and swells: (1 - cos) rises from 0, where a plain sine would open
+      // halfway up and read as something already in progress.
+      const wave = (1 - Math.cos(lowHpT * Math.PI * 2 / LOWHP.period)) / 2;
+      lowHpEl.style.opacity = String(LOWHP.min + (LOWHP.max - LOWHP.min) * wave);
+    } else if (lowHpT !== 0 || lowHpEl.style.opacity !== "0") {
+      lowHpT = 0;
+      lowHpEl.style.opacity = "0";
+    }
+  }
+
   // Socket 2 in practice: the render layer READS sim state and owns none of it.
   body.position.set(player.x, player.y + 0.62, player.z);
-  body.rotation.y = (player.whirlT > 0 || player.spinT > 0) ? (body.rotation.y + dt * 22) : player.yaw;
+  // THE LANCE SPIN DRIVES THE BODY FROM THE BEAM'S OWN ANGLE, not from a rate that happens to
+  // look similar. The body was turning at 30 rad/s while the beam swept at 9.4, so the thing in
+  // your hands and the thing doing the damage were pointing in different directions — you
+  // cannot read where the sweep is if the character is not where the sweep is. One number now,
+  // less the half-turn that separates the beam's frame from the body's (see tryLanceSpin).
+  body.rotation.y = player.lanceSpinT > 0 ? lanceAng - Math.PI
+    : (player.whirlT > 0 || player.spinT > 0) ? (body.rotation.y + dt * 22)
+      : player.yaw;
   body.visible = rig.blend < 0.85;      // hide your own head in first person
 
   const ring = ringAt(player.x, player.z);
@@ -2437,9 +3274,12 @@ function frame(now) {
   // Overwatch-style HUD: big health bottom-left, big ammo bottom-right.
   const hpFrac = player.maxHp > 0 ? player.hp / player.maxHp : 0;
   const dr = player.armor ? Math.round(armorDR(player.armor, tier) * 100) : 0;
-  healthEl.className = hpFrac < 0.35 ? "low" : "";
+  // Green -> amber -> red. The thresholds are where the DECISION changes: a third left is
+  // "stop pushing and heal", a sixth is "you are about to die", and above that the number is
+  // the only thing worth reading.
+  healthEl.className = hpFrac < 0.17 ? "low" : hpFrac < 0.35 ? "warn" : "";
   healthEl.innerHTML =
-    `<div class="hp-lvl">LVL ${player.level}</div>`
+    `<div class="hp-lvl">LVL ${player.level} <span class="hp-word">HEALTH</span></div>`
     + `<div class="hp-top"><span class="hp-num">${Math.max(0, Math.round(player.hp))}</span>`
     + `<span class="hp-max">/ ${Math.round(player.maxHp)}</span>`
     + `${dr ? `<span class="hp-arm">◆ ${dr}% ARMOR</span>` : ""}</div>`
@@ -2459,19 +3299,17 @@ function frame(now) {
     else if (w.mode === "melee") left = `<span class="am-cur">∞</span>`;
     else if (w.mode === "beam") {
       // Heat is the lance's ammunition, so it lives where ammunition lives.
-      const pct = Math.round(gun.heat * 100);
+      const pct = Math.round(gun.heat / (w.heatMax || 1) * 100);   // of ITS OWN tank
       left = gun.overheated > 0
         ? `<span class="am-reload">OVERHEAT</span>`
         : `<span class="am-cur ${pct > 70 ? "low" : ""}">${pct}%</span><span class="am-max"> heat</span>`;
     } else if (gun.reloading > 0) left = `<span class="am-reload">RELOAD</span>`;
     else left = `<span class="am-cur ${lowAmmo ? "low" : ""}">${gun.mag}</span><span class="am-max">/ ${magMax}</span>`;
 
-    let rc = "";
-    if (w.mode === "melee" && !inSafeZone) {
-      rc = player.spinT > 0 ? `<span class="am-rc on">SPINNING</span>`
-        : player.spinCd > 0 ? `<span class="am-rc">RMB ${player.spinCd.toFixed(1)}s</span>`
-          : `<span class="am-rc up">RMB SPIN</span>`;
-    }
+    // Spin used to be a word tacked onto the ammo line. It lives in the readout below now,
+    // beside the shove, because they are the same question and answering them in two
+    // different shapes made the player learn the HUD twice.
+    const rc = "";
     ammoEl.innerHTML =
       `<div class="am-name" style="${w.color ? `color:${w.color}` : ""}">${w.name}${gun.loadout.length > 1 ? " ⟳" : ""}</div>`
       + `<div class="am-row">${left}${rc}</div>`;

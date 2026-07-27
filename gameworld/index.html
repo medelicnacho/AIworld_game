@@ -3,7 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>gameworld</title>
+    <!-- Bootstrap only: the tab needs a name before any module loads. config.js GAME_TITLE is
+         the authority and main.js overwrites this the moment it runs. -->
+    <title>War Parkour</title>
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e13; }
       canvas { display: block; }
@@ -17,7 +19,15 @@
       #stats { position: absolute; top: 8px; left: 10px; white-space: pre; opacity: .4;
         font-size: 10px; line-height: 1.35; max-width: 44vw; }
       /* --- Overwatch-style HUD: big health bottom-left, big ammo bottom-right --------- */
-      #health { position: absolute; left: 34px; bottom: 30px; width: 300px;
+      /* THE TWO BLOCKS THAT MATTER MOST, LIFTED AND DRAWN IN.
+         Health and the weapon were pinned to the bottom corners, which is the furthest any
+         two things on a screen can be from each other — and from the crosshair, where your
+         eyes actually live. Reading "how much have I got left" meant a trip to one corner and
+         reading "can I still shoot" meant a trip to the other, in a game whose whole pitch is
+         movement. Raised well clear of the ability bar and pulled in toward the middle, they
+         both sit inside the same downward glance. Still low, because they are not what you
+         aim with — just no longer in the far corners of a 1536-wide screen. */
+      #health { position: absolute; left: 120px; bottom: 230px; width: 300px;
         font: ui-sans-serif, system-ui, sans-serif; text-shadow: 0 2px 6px #000c; }
       #health .hp-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
       #health .hp-num { font-size: 40px; font-weight: 800; color: #eaf6ff; line-height: .9; }
@@ -29,11 +39,23 @@
         /* segment ticks, the Overwatch look */
         background-image: repeating-linear-gradient(90deg, transparent 0 30px, #0008 30px 32px);
         background-color: #0d1420cc; }
-      #health .hp-fill { height: 100%; background: linear-gradient(#f4fbff, #cfe6ff);
-        transition: width .12s linear; box-shadow: 0 0 10px #bfe0ff88; }
-      #health.low .hp-fill { background: linear-gradient(#ff9a8a, #ff5a4a); box-shadow: 0 0 12px #ff5a4aaa; }
-      #health.low .hp-num { color: #ff8a7a; }
-      #ammo { position: absolute; right: 34px; bottom: 28px; text-align: right;
+      /* HEALTH IS GREEN, AND GOES RED. It used to be near-white, which reads as "a bar" and
+         nothing else — you had to check the NUMBER to know how you were doing. Colour is the
+         fastest channel there is, so the bar itself now carries the state: bright green while
+         you are fine, amber when it is worth noticing, red when it is the only thing that
+         matters. Three steps rather than a smooth fade, because a continuous gradient never
+         crosses a line you can feel — a step change is an event you notice in the corner of
+         your eye mid-fight, which is the entire point of putting it there. */
+      #health .hp-fill { height: 100%; background: linear-gradient(#8dffb0, #35d96e);
+        transition: width .12s linear, background .2s, box-shadow .2s;
+        box-shadow: 0 0 10px #35d96e88; }
+      #health.warn .hp-fill { background: linear-gradient(#ffd98a, #ffab3d);
+        box-shadow: 0 0 11px #ffab3d99; }
+      #health.warn .hp-num { color: #ffc46b; }
+      #health.low .hp-fill { background: linear-gradient(#ff9a8a, #ff3b2e);
+        box-shadow: 0 0 14px #ff3b2ebb; }
+      #health.low .hp-num { color: #ff7a68; }
+      #ammo { position: absolute; right: 240px; bottom: 280px; text-align: right;
         font: ui-sans-serif, system-ui, sans-serif; text-shadow: 0 2px 6px #000c; }
       #ammo .am-name { font-size: 12px; font-weight: 700; letter-spacing: .1em;
         text-transform: uppercase; color: #9fb2cc; margin-bottom: 2px; }
@@ -45,6 +67,11 @@
       #ammo .am-stow { font-size: 22px; font-weight: 700; color: #7dffb5; letter-spacing: .04em; }
       #health .hp-lvl { font-size: 12px; font-weight: 800; letter-spacing: .16em; color: #ffe08a;
         margin-bottom: 3px; }
+      /* NAMED, now that the bar is green. A green bar beside an amber one beside a blue one is
+         three colours a new player has to be taught; a word is one they already know. White,
+         because the fill changes colour and a label that changed with it would read as part of
+         the state rather than as the thing being labelled. */
+      #health .hp-word { color: #fff; font-weight: 700; letter-spacing: .18em; opacity: .85; }
       /* XP bar — a long thin BLUE bar sitting directly on top of the ability bar. */
       /* overflow VISIBLE, not hidden: the bar's floating label lives above the box, and
          overflow:hidden was silently clipping it to nothing. The fill rounds itself. */
@@ -73,14 +100,29 @@
          on to parse cannot carry that. So it is length and colour — amber while it fills,
          white when it is full and everything is available, and a hard red flash when a cast
          is refused, which is the only time it needs to shout. */
-      #energy { position: absolute; left: 50%; transform: translateX(-50%); bottom: 90px;
-        width: min(420px, 60vw); height: 7px; background: #1a1206cc;
+      /* ENERGY sits in the middle of the bottom stack — under the jump chevrons, over the
+         points line — rather than beneath the xp bar. Energy is a COMBAT resource: it is read
+         in the same glance as "have I got another jump", and it was living below the xp bar
+         with the progression furniture, the part of the HUD you only look at between fights.
+         Thicker, too, for the same reason: at 7px it read as a rule under the xp bar. */
+      #energy { position: absolute; left: 50%; transform: translateX(-50%); bottom: 157px;
+        width: min(420px, 60vw); height: 11px; background: #1a1206cc;
         border: 1px solid #4a3a12; border-radius: 4px; overflow: hidden; }
+      /* The word sits INSIDE the bar — there is no room above it, and a label floating over
+         the gap between two bars belongs to neither. Centred and dim enough to read as an
+         engraving rather than as content, so it names the bar without competing with it. */
+      #energy .en-word { position: absolute; inset: 0; display: grid; place-content: center;
+        font: 700 8px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .22em;
+        color: #fff; opacity: .72; text-shadow: 0 1px 2px #0009; pointer-events: none; }
+      /* BRIGHT ORANGE. The old amber sat a shade off the xp bar's gold and the points line
+         above it, so three different meanings shared one family of colour and the bar you
+         read MID-CAST looked like the two you only read between fights. Orange is nothing
+         else on this screen. */
       #energy .en-fill { height: 100%; width: 100%; border-radius: 3px;
-        background: linear-gradient(90deg, #c88a1e, #ffd45e);
-        box-shadow: 0 0 8px #ffc24a66; transition: width .06s linear, background .15s; }
-      #energy.full .en-fill { background: linear-gradient(90deg, #ffe9b0, #fffdf5);
-        box-shadow: 0 0 10px #ffeab8aa; }
+        background: linear-gradient(90deg, #ff7a1e, #ffa63d);
+        box-shadow: 0 0 10px #ff7a1e88; transition: width .06s linear, background .15s; }
+      #energy.full .en-fill { background: linear-gradient(90deg, #ffb057, #ffd9a0);
+        box-shadow: 0 0 12px #ffa63daa; }
       #energy.starved { animation: enflash .3s ease-out; }
       @keyframes enflash {
         from { border-color: #ff5a4a; box-shadow: 0 0 14px #ff3b2ecc; }
@@ -93,7 +135,7 @@
          because that is what they buy you. It counts however many you actually have, since
          maxJumps grows with level (XP.jumpsPerLevels) and a hardcoded pair would quietly
          start lying at the exact moment you earned a third. */
-      #jumps { position: absolute; left: 50%; bottom: 166px; transform: translateX(-50%);
+      #jumps { position: absolute; left: 50%; bottom: 176px; transform: translateX(-50%);
         display: flex; gap: 7px; pointer-events: none; }
       #jumps i { width: 0; height: 0; border-left: 7px solid transparent;
         border-right: 7px solid transparent; border-bottom: 10px solid #7fd0ff;
@@ -211,6 +253,58 @@
       #ammo .am-rc { font-size: 12px; color: #8fa3bf; margin-left: 12px; letter-spacing: .04em; }
       #ammo .am-rc.up { color: #9fe8b5; }
       #ammo .am-rc.on { color: #ffe08a; }
+      /* THE CLEAVER'S SHOVE — pips, not a number, at the weight of the side readouts.
+         It is read MID-SWING with a crowd on you, so it has to answer "have I got one" from
+         peripheral vision: a row of dots is a shape you catch without looking, where a digit
+         is something you stop and parse. Tucked in the corner beside the spin it was neither
+         — too small to catch and too far from where your eyes actually are. Centred and sized
+         like the health and ammo blocks, it sits in the same glance as the crosshair. */
+      /* WHAT THE WEAPON CAN DO FOR YOU RIGHT NOW — under the weapon, on the right.
+         Shove and spin are the same question asked twice ("have I got one, and if not, how
+         long"), so they are the same shape: a name, a row of lit pips, and a countdown that
+         only exists while something is genuinely coming back. Written as two rows of one
+         component rather than two bespoke widgets, because the moment they look different is
+         the moment reading one stops teaching you how to read the other. */
+      /* CLEAR OF THE BARS. At 106 the SHOVE row occupied 106-122 and the xp bar sits at
+         108-114 — the two were drawn straight through each other, and the pips read as debris
+         on top of the progress bar. The centre bars own the strip from 108 up to about 123, so
+         everything on the right starts above that and stacks upward from there: charges first,
+         then the weapon they belong to. */
+      #wpncd { position: absolute; right: 240px; bottom: 212px;
+        display: none; flex-direction: column; align-items: flex-end; gap: 7px;
+        pointer-events: none; font: 700 14px/1 ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: .12em; color: #9fb2cc; text-shadow: 0 2px 6px #000c; }
+      body.running #wpncd.on { display: flex; }
+      #wpncd .wr { display: flex; align-items: center; gap: 9px; }
+      #wpncd i { width: 16px; height: 16px; border-radius: 50%;
+        border: 2px solid #8fa3bf66; background: #0d142088;
+        filter: drop-shadow(0 1px 3px #000c); transition: background .1s, box-shadow .1s; }
+      #wpncd i.lit { background: linear-gradient(#d8ffe6, #9fe8b5); border-color: #9fe8b5;
+        box-shadow: 0 0 12px #9fe8b5aa; }
+      /* Mid-spin is its own state, not a spent one — you are inside the thing right now. */
+      #wpncd i.act { background: linear-gradient(#fff2c9, #ffd45e); border-color: #ffd45e;
+        box-shadow: 0 0 14px #ffd45ecc; }
+      /* SPIN IS A DIAL, not a pip, because it is one thing on a clock rather than a pool you
+         spend from. A conic sweep says "how much of the wait is done" without being read as a
+         number — you catch a three-quarter-full circle in the same glance that told you an
+         enemy was closing, which a countdown in seconds can never do. The green grows INTO
+         the grey, so the shape you are waiting for is the completed circle. */
+      #wpncd .dial { width: 26px; height: 26px; border-radius: 50%;
+        background: conic-gradient(#9fe8b5 var(--p, 0%), #2b3444 0);
+        border: 2px solid #8fa3bf66; filter: drop-shadow(0 1px 3px #000c);
+        transition: background .08s linear; }
+      #wpncd .dial.full { background: radial-gradient(circle, #d8ffe6 0%, #9fe8b5 70%);
+        border-color: #9fe8b5; box-shadow: 0 0 14px #9fe8b5aa; }
+      #wpncd .dial.act { background: radial-gradient(circle, #fff2c9 0%, #ffd45e 70%);
+        border-color: #ffd45e; box-shadow: 0 0 16px #ffd45ecc; }
+      #wpncd .wr.out .wr-k { color: #ff8a7a; }
+      #wpncd .wr.act .wr-k { color: #ffd45e; }
+      #wpncd .wr-t { font-weight: 600; font-size: 12px; color: #b9c6da; letter-spacing: .06em; }
+      /* How many shells the next volley throws. Full is the weapon working as designed, so it
+         reads as plain state; SHORT is a warning, because a three-shell volley looks like a
+         six-shell one right up until it fails to clear the room. */
+      #wpncd .wr-n { font-weight: 800; font-size: 14px; color: #eaf2ff; letter-spacing: .04em; }
+      #wpncd .wr-n.short { color: #ffb057; }
       #shop footer { padding: 9px 14px; background: #161d2b; color: #8fa3bf; font-size: 12px; }
       #shop .panel.wide { width: min(820px, 94vw); }
       #shop .cols { display: grid; grid-template-columns: 1fr 1fr; }
@@ -269,6 +363,15 @@
       #inv .cell.blank { background: #2a344699; border-style: dashed; cursor: default; }
       #inv .cell.eq { border-color: #7dffb5; box-shadow: 0 0 10px #3ce88a44; }
       #inv .cell.held { border-color: #ffd45e; box-shadow: 0 0 12px #ffd45e66; }
+      /* The keybind badge, in the same corner and the same colour the in-game bar uses for it
+         (#bar .slot .k) — this screen and the HUD are two views of ONE bar, so a slot has to
+         look like the same slot in both. Blank squares keep the badge, dimmed: an empty slot
+         still owns its key, and that is the whole reason to drag something onto it. */
+      #inv .cell .k { position: absolute; top: 2px; left: 5px; font-size: 10px; font-weight: 600;
+                      color: #dbe6f5; letter-spacing: .02em; pointer-events: none; }
+      #inv .cell.blank .k { color: #8fa0bb; }
+      #inv .bar h3 .hint, #inv h3 .hint { font-weight: 400; color: #ffb45e; font-size: 11px;
+                      letter-spacing: .01em; margin-left: 6px; }
       #inv .cell .ic { width: 30px; height: 30px; }
       #inv .cell .ic svg { width: 100%; height: 100%; display: block; }
       #inv .cell .nm { font-size: 9px; text-align: center; line-height: 1.15; color: #f0f5ff; }
@@ -301,6 +404,12 @@
         font: inherit; font-size: 11px; }
       #inv .reset:hover { border-color: #8c5a6b; color: #e8c2cd; }
       #inv .reset.go { background: #6b1d2c; border-color: #c9455f; color: #ffd6de; }
+      /* UNSTUCK. Shares the muted shape of its neighbour but not its colour — that one is red
+         because it leaves your character behind, and this one only stands you up. A rescue
+         button that looks like a danger button gets hesitated over at the exact moment
+         somebody needs it. */
+      #inv .reset.unstuck { background: #1c2430; border-color: #33465e; color: #9db4cf; }
+      #inv .reset.unstuck:hover { border-color: #5b87b8; color: #dcecff; }
       #inv .admin { padding: 10px 14px; background: #1d1a10;
         border-top: 1px solid #4a3c18; color: #e8d9b0; font-size: 12px; }
       #inv .admin .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -457,6 +566,22 @@
       #hpbars .hpbar i { display: block; height: 100%; background: #e2483d; }
       #hpbars .hpbar.elite { width: 46px; height: 5px; border-color: #7a5c12; }
       #hpbars .hpbar.elite i { background: #ffc84a; }
+      /* THE LOW-HEALTH BREATH. Same vignette shape as #hurt because it is the same language —
+         danger comes from the edges — but deeper, wider and driven slowly. Its own element
+         rather than a second use of #hurt: they overlap constantly (you are usually being hit
+         while you are nearly dead) and sharing one opacity would mean each one erasing the
+         other's message. Declared BEFORE #hurt so a fresh hit still flashes over the top.
+         No CSS animation: the pace lives in config.js LOWHP and is driven per frame, so there
+         is no second copy of the timing to drift. */
+      #lowhp {
+        position: absolute; inset: 0; opacity: 0; pointer-events: none;
+        /* Three stops, not two. With only a clear centre and a red rim the colour lives in
+           the extreme corners and most of the frame is a wash — which on a bright green
+           hillside reads as the screen being dirty rather than as blood. The middle stop
+           carries real red well inside the edge, where peripheral vision actually is. */
+        background: radial-gradient(ellipse at center,
+          #90000000 26%, #b41414b3 62%, #d01818 100%);
+      }
       #hurt {
         position: absolute; inset: 0; opacity: 0;
         background: radial-gradient(ellipse at center, #d0202000 45%, #e02a2acc 100%);
@@ -520,6 +645,10 @@
       #difficulty .mode .nm { font-size: 18px; letter-spacing: .06em; display: block; margin-bottom: 8px; }
       #difficulty .mode .bl { font-size: 12px; line-height: 1.55; color: #9fb0c8; }
       #difficulty .mode.hard .nm { color: #ff8a6a; }
+      /* Hardcore reads as the dangerous one before you have read a word of it. */
+      #difficulty .mode.hardcore { border-color: #5a2020; background: #180e0e; }
+      #difficulty .mode.hardcore:hover { border-color: #b8433a; background: #1f1010; }
+      #difficulty .mode.hardcore .nm { color: #ff5a4a; }
       #difficulty .mode.easy .nm { color: #7fe0a0; }
       /* SELECTED — the whole box goes green and glows, and the other card dims back. */
       #difficulty .mode.sel { border-color: #4fe08a; background: #123020;
@@ -527,6 +656,28 @@
         transform: translateY(-2px); }
       #difficulty .mode.sel .nm { color: #8affc0; }
       #difficulty .modes.chosen .mode:not(.sel) { opacity: .45; }
+      /* THE FACTION CARDS carry far more than the difficulty ones — a weapon name and five
+         lines about how it fights — because this choice is made before the player has seen
+         anything, and a blurb cannot teach a weapon. Wider, and each card tinted with its own
+         colour so the three read apart at a glance before a word is read. */
+      #difficulty .modes.factions { max-width: 1020px; }
+      #difficulty .mode.fac { max-width: 330px; border-color: color-mix(in srgb, var(--fc) 45%, #2a3548); }
+      #difficulty .mode.fac:hover { border-color: var(--fc);
+        background: color-mix(in srgb, var(--fc) 10%, #141b28); }
+      #difficulty .mode.fac .nm { margin-bottom: 2px; }
+      #difficulty .mode.fac .wpn { display: block; font-size: 11px; letter-spacing: .14em;
+        text-transform: uppercase; color: #8fa3bf; margin-bottom: 10px; }
+      #difficulty .mode.fac .bl { display: block; margin-bottom: 10px; }
+      #difficulty .mode.fac .ps { margin: 0; padding-left: 15px; }
+      #difficulty .mode.fac .ps li { font-size: 11.5px; line-height: 1.5; color: #9fb0c8;
+        margin-bottom: 5px; }
+      /* The LAST line of every card is what it is bad at — dimmer, so it reads as the caveat
+         it is rather than as one more selling point. */
+      #difficulty .mode.fac .ps li:last-child { color: #7c8ba3; font-style: italic; }
+      #difficulty .mode.fac.sel { border-color: var(--fc);
+        background: color-mix(in srgb, var(--fc) 16%, #141b28);
+        box-shadow: 0 0 26px color-mix(in srgb, var(--fc) 55%, transparent); }
+      #difficulty .mode.fac.sel .nm { color: #fff; }
       /* The start prompt — hidden until a difficulty is chosen, then green and pulsing. */
       #difficulty .startbtn { margin-top: 22px; padding: 12px 28px; border-radius: 8px;
         font: inherit; font-size: 15px; letter-spacing: .1em; cursor: pointer;
@@ -573,14 +724,18 @@
          Keyed on `running`, so every panel that pauses the game (the shop, the character
          sheet, the slot picker, the death screen) gets the cursor straight back — those are
          the only places it means anything. */
-      body.running, body.running canvas { cursor: none; }
+      /* :not(.dead) is a BELT AND BRACES. The class bookkeeping is the real fix (see
+         onDeath), but a hidden cursor on a screen whose only control is a button is
+         unrecoverable without a reload — so the stylesheet refuses to hide it while dead
+         no matter what any script forgets to do. */
+      body.running:not(.dead), body.running:not(.dead) canvas { cursor: none; }
       #health, #ammo, #xp, #rep, #jumps, #energy { opacity: 0; transition: opacity .2s; }
       body.running #health, body.running #ammo, body.running #xp, body.running #rep,
       body.running #jumps, body.running #energy { opacity: 1; }
       /* "Move outward" nudge — shows when your zone has greyed out (little/no xp). */
       /* The sleep nudge: a quiet line while you stand in a safe town after dark. Teaches
          the ONE key the night wants without a tutorial — and only when it's usable. */
-      #sleephint { position: absolute; left: 50%; bottom: 196px; transform: translateX(-50%);
+      #sleephint { position: absolute; left: 50%; bottom: 236px; transform: translateX(-50%);
         font: 600 12px/1.4 ui-sans-serif, system-ui, sans-serif; color: #b9c6da;
         text-shadow: 0 2px 6px #000b; letter-spacing: .08em; opacity: 0;
         transition: opacity .4s; pointer-events: none; }
@@ -622,6 +777,7 @@
     <div id="hud">
       <div id="stats"></div>
       <div id="crosshair"></div>
+      <div id="lowhp"></div>
       <div id="hurt"></div>
       <div id="subtitle"></div>
       <div id="chat"></div>
@@ -631,7 +787,8 @@
       <div id="ammo"></div>
       <div id="rep"></div>
       <div id="xp"></div>
-      <div id="energy"><div class="en-fill"></div></div>
+      <div id="energy"><div class="en-fill"></div><span class="en-word">ENERGY</span></div>
+      <div id="wpncd"></div>
       <div id="jumps"></div>
       <div id="bossbar"></div>
       <div id="alert"></div>
@@ -645,7 +802,7 @@
       <canvas id="minimap" width="180" height="180"></canvas>
       <div id="slots" style="display:none"></div>
       <div id="difficulty" style="display:none"></div>
-      <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; G chat &nbsp; Z sleep &nbsp; F trade &nbsp; C potion &nbsp; E firebomb &nbsp; Q heal &nbsp; C potion &nbsp; 1-6 T Tab spells &nbsp; wheel switch weapon</div>
+      <div id="click">CLICK TO PLAY &nbsp;·&nbsp; WASD move &nbsp; SPACE double-jump &nbsp; double-tap WASD dodge &nbsp; LMB fire &nbsp; RMB aim &nbsp; R reload &nbsp; F5 camera &nbsp; [ ] look &nbsp; M music &nbsp; Z sleep &nbsp; F talk / enter dungeon &nbsp; C potion &nbsp; Q E 1-4 spells &nbsp; wheel switch weapon</div>
     </div>
     <!-- Outside #hud on purpose: the HUD is pointer-events:none so it never eats clicks,
          and the shop is the one overlay that must receive them. -->

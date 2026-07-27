@@ -15,6 +15,8 @@ export default [
         navigator: "readonly", fetch: "readonly", Worker: "readonly", URL: "readonly",
         EventSource: "readonly", AudioContext: "readonly", Audio: "readonly",
         AbortSignal: "readonly", AbortController: "readonly", indexedDB: "readonly",
+        // Used by the LAB flag in config.js to read ?lab=0 off the URL.
+        location: "readonly", URLSearchParams: "readonly",
       },
     },
     rules: {

@@ -47,10 +47,19 @@ export const player = {
   dodgeT: 0, dodgeCd: 0, iframes: 0, dodgeX: 0, dodgeZ: 0,
   // The cleaver's right-click spin. Transient combat state, never saved.
   spinT: 0, spinCd: 0,
-  dashT: 0, dashX: 0, dashZ: 0,
+  // The lance's, which is a different animal despite the name — see LANCE_SPIN. Kept as its
+  // own pair rather than shared with the cleaver's: they run different lengths, different
+  // cooldowns and different guards, and one weapon's spin ending must never be able to cancel
+  // the other's just because you switched guns mid-swing.
+  lanceSpinT: 0, lanceSpinCd: 0,
+  // Dash carries a vertical component too, so looking up throws you up. Y is separate from
+  // dashX/dashZ because everything else about the dash is a flat heading.
+  dashT: 0, dashX: 0, dashY: 0, dashZ: 0,
   leapT: 0, leapX: 0, leapZ: 0, leapPending: false, whirlT: 0,
   hp: 100, maxHp: 100,
   level: 1, xp: 0, dmgMult: 1, speedMult: 1, jumpMult: 1, maxJumps: 2,
+  // The wall kick's committed arc — see DODGE.kickHold.
+  kickT: 0, kickX: 0, kickZ: 0,
   surgeT: 0,
   points: 0, potions: 0, potionCd: 0, gearDmg: 0,
   // GEAR: five equipment slots (one piece each) and everything you own. All the stats across

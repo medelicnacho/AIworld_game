@@ -2,6 +2,44 @@
 
 export const WORLD_SEED = 1337;
 
+/**
+ * THE LAB — the local LLM + Piper bridge, and everything that rides on it.
+ *
+ * A DEV TOY, NOT A FEATURE OF THE GAME. It talks to http://127.0.0.1:8777, which exists on
+ * exactly one machine in the world, so it has never run for a single player and never will:
+ * a page served from itch cannot reach a stranger's localhost, and would not be allowed to
+ * over HTTPS if it could. Every build ever shipped has quietly been the no-bridge build.
+ *
+ * That is now a DECISION rather than an accident of `import.meta.env.DEV`. The reasoning, so
+ * it does not have to be rediscovered:
+ *
+ *   IT FIGHTS THE PILLAR. This is a parkour frontier shooter — movement, height, firefights.
+ *   Walking into town to wait for a model to finish thinking is not a change of pace, it is a
+ *   full stop, and no amount of tuning makes a twitch game and a chat interface share a rhythm.
+ *
+ *   IT IS A PER-PLAYER COST, FOREVER. Hosted inference bills on every conversation between
+ *   every player and every villager. That is a business decision wearing a feature's clothes,
+ *   and the wrong one to make before the game is known to be fun.
+ *
+ *   IT WAS NEVER GATED ON FUN. Verticality earned its stages by being played and enjoyed
+ *   first. The talking villagers never had that test, while carrying more machinery than
+ *   anything else in the game: a bridge, a queue, a scheduler, per-town memory, decay.
+ *
+ * WHAT IS KEPT is the part that was always the good part: towns REMEMBER. Who you are, what
+ * you did, fading honestly while you are away. That lives in town/voice.js and town/chat.js
+ * and needs no model — the model was only ever one way of reading it aloud.
+ *
+ * Set ?lab=0 in dev to play exactly what a player gets.
+ */
+export const LAB = {
+  enabled: (() => {
+    // A built copy never reaches for it. This is the whole of the shipping decision.
+    if (!import.meta.env?.DEV) return false;
+    if (typeof location === "undefined") return false;   // node, running the tests
+    return new URLSearchParams(location.search).get("lab") !== "0";
+  })(),
+};
+
 // VOICE.md V1 — the murmuring starter town. Every number here is the silence budget: the
 // point of the feature is how RARELY it fires. Local-only by nature (the bridge refuses to
 // connect in built copies), so none of this exists for an itch player.
@@ -125,7 +163,7 @@ export const WARCRY = {
     "You smell of poo!",
     "I'm gonna put some dirt in your eye!",
     "I know kung fu!",
-    "Run home, little wanderer!",
+    "Run home to your mommy!",
     "Crawl back to your mommy!",
     "I'm going to wipe that smug look off your face!",
     "I'm going to beat you silly!",
@@ -181,7 +219,11 @@ export const WARCRY = {
   // Bump whenever `voices` changes. Baked WAVs are keyed by it, so audio in the browser's
   // store that was spoken in a retired throat is swept instead of played — otherwise a
   // voice change is inaudible until the caches happen to roll over.
-  voiceRev: 2,
+  // 3 — bumped when "the green wind cuts" was cut from the Vale seeds. Removing a line from
+  // the source stops it being GENERATED again, but audio baked from it in an earlier session
+  // is sitting in IndexedDB and would go on being shouted for ever. loadPersisted sweeps
+  // anything stamped with an older revision, so this is the one switch that retires a voice.
+  voiceRev: 3,
 };
 
 // DAY AND NIGHT — 20 minutes each, with soft ~90s dawns and dusks. Night is visual only
@@ -202,6 +244,13 @@ export const DAYNIGHT = {
 // played. Bump it whenever behaviour changes meaningfully.
 export const BUILD_TAG = "garrison-v4 07-25";
 
+// THE NAME, in one place. It lived twice — the <h1> on the character screen and the <title> in
+// index.html — which is how a game ends up called two things at once, and the tab is the copy
+// nobody looks at while they work. index.html still carries it as plain text because a tab needs
+// a name before any script runs; main.js sets document.title from THIS the moment it loads, so
+// this string is the one that wins and the HTML is only the bootstrap.
+export const GAME_TITLE = "War Parkour";
+
 // DIFFICULTY. Chosen once on the start screen and remembered in the save. HARD is the harshest
 // the frontier gets — everything out there hits TWICE as hard as the raw numbers say, the level
 // is lost on death, and every telegraph is unforgiving. EASY exists for someone who has never
@@ -213,25 +262,53 @@ export const BUILD_TAG = "garrison-v4 07-25";
 //               and your own grenades without any of them knowing it exists. Above 1.0 it
 //               AMPLIFIES (hard doubles the hurt); below 1.0 it softens (easy).
 //   playerDmg   everything you deal, folded into dmgMult where levels and gear already live.
-//   deathLoss   the level lost on death, as a multiplier: 0 means death costs you nothing but
-//               the walk back, which is the right training-wheels setting.
+//   wipeOnDeath a death ENDS the run — levels, gear, standing, all of it. Hardcore only.
 //   grace       scales the early-game GRACE bonus, so easy stays kind well past level 12.
 export const DIFFICULTY = {
   hard: {
     id: "hard", label: "Hard",
-    blurb: "The frontier at its meanest. Everything hits twice as hard. Death costs a level. "
-      + "Every telegraph is lethal.",
-    // incoming 2.0: mobs (and meteors, beams, burning ground) do DOUBLE damage. playerDmg and
-    // deathLoss stay at the original baseline — hard raises the sting, not what you deal.
-    incoming: 2.0, playerDmg: 1.0, deathLoss: 1.0, grace: 1.0,
+    blurb: "The frontier at its meanest — once you have found your feet. It eases you "
+      + "through the first levels, then takes the cushion away. Dying costs only the walk back.",
+    // incoming 1.4: mobs (and meteors, beams, burning ground) hit 40% harder than baseline,
+    // down from DOUBLE.
+    //
+    // Two changes, and the second matters more than the first.
+    //
+    // The FLAT number came down because 2.0 was not a difficulty, it was a filter. Every
+    // telegraph in the game is tuned to be readable and survivable once; doubling all of them
+    // means the first mistake you make in any fight is often the last, and a player learning
+    // the telegraphs is exactly the player who cannot yet avoid them. 1.4 still bites — the
+    // deep rings are unforgiving — without making "I have not learned this yet" fatal.
+    //
+    // GRACE 2.2 is the real answer to "hard is brutal at the start". Grace is the early-game
+    // cushion that fades out by level 12 (see GRACE): more damage dealt, much less taken, and
+    // it was set to 1.0 here — meaning hard got the standard fade while ALSO taking double
+    // damage, so the opening hours were by far the worst part of the mode. Stretching it to
+    // easy's 2.2 keeps the cushion in place through the levels where you are still learning
+    // what everything does, and it is GONE by the time you are deep enough for it to matter.
+    // The mode ends up hard where hard should be hard: out in the rings, not in the tutorial.
+    incoming: 1.4, playerDmg: 1.0, grace: 2.2,
+  },
+  hardcore: {
+    id: "hardcore", label: "Hardcore",
+    blurb: "One life. The same fight as Hard, but when you fall you lose all of it — "
+      + "levels, gear, standing — and begin again with nothing.",
+    // THE SAME FIGHT AS HARD, and it follows hard wherever hard goes — there is a test that
+    // holds these two numbers equal on purpose. What changes is what a death MEANS: not a
+    // setback, an ending. A stake you accept once, at the start, instead of a levy collected
+    // every time you slip — which is the difference between tension and attrition.
+    //
+    // It inherits the gentler opening too, and that is right rather than a compromise: a mode
+    // whose whole weight rests on one life should not spend that life on the levels where you
+    // are still learning which telegraphs kill you.
+    incoming: 1.4, playerDmg: 1.0, grace: 2.2, wipeOnDeath: true,
   },
   easy: {
     id: "easy", label: "Easy",
-    blurb: "For a first shooter. You take far less damage, hit harder, and keep your "
-      + "level when you fall.",
+    blurb: "For a first shooter. You take far less damage and hit harder.",
     // Unchanged in ABSOLUTE terms (0.34) so a first-timer's experience is exactly as gentle as
     // before — it just reads as an even bigger gap now that hard hits twice as hard.
-    incoming: 0.34, playerDmg: 1.6, deathLoss: 0, grace: 2.2,
+    incoming: 0.34, playerDmg: 1.6, grace: 2.2,
   },
 };
 export const DEFAULT_DIFFICULTY = "hard";
@@ -267,6 +344,94 @@ export const CHUNK_X = 16;
  * columns cut into thirds is three times the meshes — and draw call overhead, not vertex
  * count, is what this renderer is short of.
  */
+/**
+ * DUNGEONS — instanced, and instanced almost for free.
+ *
+ * The world is a pure function of coordinates and a seed (D1) read through one door (D15), so
+ * an instance is not a parallel world with its own store, collider and mesher. It is a
+ * DIFFERENT FUNCTION behind the same door. Nothing downstream — movement, sight, the streamer,
+ * the mesher — ever knew where blocks came from, so nothing downstream has to be told.
+ *
+ * It sits at the GATE'S OWN x,z, high above the terrain rather than off in some far corner of
+ * the coordinate space. That is not a detail: tierAt() is a function of x,z, so a dungeon in
+ * the mouth of a ring-9 mountain is automatically a ring-9 dungeon, and its mobs, loot and
+ * pressure all scale from where you found it without a single special case.
+ */
+/**
+ * MOUNTAINS — one landmark per ring, and the only thing in the world you can navigate by.
+ *
+ * Every other feature here is texture: hills, terraces, spires, chasms, islands. They make
+ * ground interesting to cross and are deliberately everywhere, which means none of them tells
+ * you WHERE you are. A mountain does. It is visible from most of a ring, it is in the same
+ * place every time, and it is the only structure in the game a player can point at.
+ *
+ * That is why the dungeon gates are cut into them rather than scattered on open ground: an
+ * entrance you can only find by following a compass arrow is a waypoint, but an entrance in
+ * the side of the mountain you can already see is a place.
+ *
+ * They are allowed to break TERRAIN_CAP. The cap exists to stop ordinary land eating the sky
+ * the islands live in; a mountain that respected it would be a hill.
+ */
+export const MOUNTAIN = {
+  radius: 105,          // how wide its skirt is, in blocks
+  height: 96,           // how far its peak stands above the land it grows out of
+  cap: 168,             // mountains may reach this high — well past TERRAIN_CAP, under the sky
+  sharp: 2.1,           // >1 pulls the dome into a peak instead of a bun
+  rough: 9,             // noise on the slopes, so it is rock and not a cone
+  // 0.62 puts the door on the FLANK, where the dome still has real height under it and the
+  // slope above reads as a wall of rock you are walking into. At 0.86 it stood out on the
+  // skirt where the mountain lifts the ground by about two feet — a door in a field.
+  gateOut: 0.62,        // where on the slope the gate sits: 0 = peak, 1 = the very edge
+  gateFlat: 13,         // radius of level ground at the gate's mouth, so you can stand there
+};
+
+/**
+ * THE VOID FLOOR — how far you can fall before the world gives up on you.
+ *
+ * There is no bottom to this world. blockAt answers AIR below y=0 and an instance is a box
+ * floating in nothing, so falling out of either one is not a long drop, it is a permanent
+ * one: you keep accelerating, nothing ever catches you, and the only exit is deleting the
+ * character. That is the worst failure state a game can have, because it does not even look
+ * like a failure — it looks like the game stopped.
+ *
+ * So there is a line, and crossing it kills you like anything else would. Death is a state
+ * the game already knows how to recover from: a screen, a button, and a town.
+ *
+ * Deliberately FAR below anything reachable. This is a backstop for bugs and for falling out
+ * of a dungeon, not a hazard to design around — nothing you can walk off should ever put you
+ * near it, and if this ever fires during ordinary play the bug is elsewhere.
+ */
+export const VOID = {
+  belowWorld: -30,      // outdoors: the land starts at y=1, so this is unreachable by falling
+  belowRoom: 70,        // inside an instance: this far under its floor
+};
+
+export const DUNGEON = {
+  y: 400,               // the altitude band an instance occupies — clear of any terrain
+  height: 9,            // floor to ceiling, inside a room
+  wall: 3,              // rock around the room; anything past it is simply void
+  roomMin: 14,          // half-extent of the room, before the seed varies it
+  roomSpan: 9,          // ...and how much the seed may add
+  enterRange: 4,        // how close to a gate you must be for it to offer itself
+  // How far in from the doorway you arrive. Far enough that the door is a place you go
+  // BACK to rather than one you are already standing on, close enough that you can see it
+  // from where you land and never have to wonder where the way out went.
+  entryStep: 7,
+  doorW: 3,             // half-width of the doorway recess, along the wall
+  doorH: 6,             // and how tall it stands off the floor
+
+  // THE GARRISON. A dungeon is a FIXED NUMBER of defenders, not a tap.
+  //
+  // Borrowing the open-world spawner gave the room three separate wrongnesses at once, all
+  // from the same cause: the frontier is an endless place with a war on it, and a room is
+  // neither. Camps rolled their own colours, so the dungeon's own occupants fought each other
+  // while you watched; the population budget refilled for ever, so there was no such thing as
+  // clearing it; and none of it was written down, so a reload handed back everything you had
+  // already killed. A dungeon you cannot finish is a corridor with a respawn timer.
+  garrison: [16, 34],   // how many hold it, rolled from the gate's own seed
+  garrisonPack: [3, 6], // ...arriving in knots this size, so it is a series of fights
+};
+
 export const CHUNK_Y = 256;
 /**
  * How far you climb before the window follows. Coarse on purpose: crossing a step re-streams
@@ -310,7 +475,20 @@ export const BASE_HEIGHT = 30;
  * you can see it on the horizon.
  */
 export const RELIEF = {
-  fullTier: 4,          // drama ramps from nothing at spawn to full by this ring
+  fullTier: 4,          // sky islands still ramp from nothing at spawn to full by this ring
+  // THE GROUND, though, does not wait for a whole ring. Rings are 260 blocks wide and widen
+  // from there, so a tier-based ramp meant the first ridge appeared a four-minute walk out and
+  // the terrain only became itself a kilometre and a half from spawn — the player met the game
+  // as a field. These are a plain radius instead.
+  //
+  // AND THEY START ALMOST AT YOUR FEET. A settlement levels its own ground (see heightRaw) and
+  // eases the wild land back in across its margin, so there is nothing to protect out here:
+  // the spawn town stays a flat, buildable plain no matter how violent the country around it
+  // gets. Which means the first thing the game can show you is the thing the game IS — walk
+  // out of the gate and you are already climbing, rather than crossing a field first to find
+  // out whether this one has any terrain in it.
+  startR: 30,           // relief begins essentially at the town's edge
+  spanR: 190,           // and is fully itself before you have left the first ring
   // TERRACES. Heights snap toward multiples of this, which turns smooth hills into stepped
   // plateaus with real edges. The effective step is terraceStep * terraceMix ≈ 2 blocks —
   // deliberately just above a single jump and just under a double, so every ledge asks for
@@ -402,6 +580,38 @@ export const RELIEF = {
    * unrelated sky. These are what make a chain crossable: the gap between two real islands is
    * usually too far, and a pebble in the middle turns it into two jumps.
    */
+  /**
+   * WEDGES — the smallest thing in the sky, and the only one with a SLOPE.
+   *
+   * Everything else up there is a slab: flat on top, so hopping between them is a series of
+   * identical landings and the only question is whether you cleared the gap. A wedge answers
+   * a second question — WHICH END do you land on — because its top ramps, so the high lip is
+   * a launch and the low lip is a landing, and a chain of them reads as a run rather than a
+   * sequence of pads.
+   *
+   * Deliberately LOW and deliberately in deck 0 only. They are the rung between standing on
+   * the ground and reaching the first real platform, which is exactly where the sky was
+   * thinnest — up high there is already plenty to stand on, and a slope you cannot see the
+   * top of is a hazard rather than a step.
+   *
+   * The ramp comes from a smooth field sampled at wedge SIZE: across a blob a few blocks
+   * wide, smooth noise is near enough a straight line, so the top of one tilts like a plank
+   * without any of them needing to know where its own edges are.
+   */
+  wedge: {
+    scale: 0.115,       // small blobs — a few blocks across, not a platform
+    thresh: 0.26,       // common enough to chain, sparse enough to be a choice
+    above: 7,           // the lowest one sits this far over the land
+    rise: 30,           // ...and they scatter up to this much higher
+    thin: 1,            // the thin end is one block: a lip, not a pillar
+    ramp: 5,            // how far the top climbs from thin end to thick
+    // MATCHED TO THE BLOB, not to the landscape. At 0.05 the tilt field turned over roughly
+    // every twenty blocks while a wedge is about eight across, so each one caught a slice of
+    // the ramp and rose under a block end to end — a slope you cannot see is a flat pad with
+    // extra maths. Near the mask's own scale, one blob spans most of one swing of the field,
+    // which is what makes a low lip and a high lip on the SAME wedge.
+    tiltScale: 0.1,     // the ramp's direction and length
+  },
   pebble: {
     scale: 0.085,       // ~12-unit cells — a few strides across
     // 0.18 against a field whose median is 0.00 and 90th percentile 0.42 — about 30% of
@@ -638,6 +848,14 @@ export const SETTLE = {
   // into a canyon. Towns get the wider apron because they are small — the blend has to be
   // long enough that the drop back to wild land is a slope you walk, not a wall you meet.
   flatten: 1.25,
+  // Daylight between a settlement's flattened apron and a mountain's skirt. A town levels
+  // whatever it stands on, so one placed on a mountain bites a flat disc out of the only
+  // landmark in the ring — and a town near the gate would put a dungeon door inside a safe
+  // zone, where no weapon works. See mountainGap() in world/sanctuary.js.
+  mountainGap: 30,
+  // Open air a sky town keeps between the underside of its slab and whatever rock is below
+  // it. Only mountains are tall enough for this to bite.
+  skyClear: 12,
   // 1.35, not more: ring 1 packs nine towns into the narrowest band, and a wider apron made
   // neighbours overlap — where two aprons meet, one wins and the seam between them is a
   // cliff, which is the exact thing this was added to prevent.
@@ -657,13 +875,33 @@ export const PLAYER = {
   radius: 0.35,
   height: 1.8,
   eye: 1.62,
-  walkSpeed: 7.3,      // level-1 baseline; levels multiply this (XP.speedGrowth)
-  sprintSpeed: 9.6,
+  // 8.2 and 10.8, up from 7.3 and 9.6. The BASE moved up as the ceiling came down (see
+  // XP.speedSoftCap): the point of that change was to stop a levelled character outrunning
+  // the terrain, not to make a level-1 one wade. Raising the floor while lowering the roof
+  // narrows the whole band — the game feels closer to the same speed at hour one and hour
+  // twenty, which is what makes the movement design tunable at all. Every jump, gap and
+  // wall kick reads the same way for everybody rather than being a different game per level.
+  walkSpeed: 8.2,      // level-1 baseline; levels multiply this (XP.speedGrowth)
+  sprintSpeed: 10.8,
   accel: 45,
   friction: 12,
   gravity: -26,
-  jumpSpeed: 8.4,
-  jumps: 2,             // ground jump + this many air jumps - 1
+  // 9.3, up from 8.4 — about 1.66 blocks instead of 1.36, and a full double-jump chain
+  // reaching noticeably higher. The terrain grew taller faster than this number did: terraces
+  // step ~2 blocks by design (RELIEF.terraceStep x terraceMix), which was tuned to sit "just
+  // above a single jump and just under a double" — but with mountains, wedges and four island
+  // decks in play, a great deal more of the world is a ledge you are trying to get onto.
+  jumpSpeed: 9.3,
+  // THREE FROM THE FIRST FRAME (a ground jump and two in the air), rising to four at level 10
+  // and one more every ten after that — see XP.jumpsPerLevels.
+  //
+  // Two was the number from when this was a shooter that happened to have terrain. It is a
+  // PARKOUR game now: the sky is where most of the world lives, the wedges and stepping stones
+  // are laid out expecting a chain of hops, and starting with two meant a new player met that
+  // architecture without the vocabulary to read it — every gap looked like a wall. Three is
+  // the smallest number that lets you commit to a jump, misjudge it, and still save yourself,
+  // which is the moment the whole pillar is selling.
+  jumps: 3,             // ground jump + this many air jumps - 1
   airJumpScale: 0.92,   // air jumps slightly weaker, so the first one still feels best
   maxFall: -60,
   // AUTO STEP-UP. A capsule that tests its whole height against the voxel grid is stopped
@@ -700,10 +938,32 @@ export const PLAYER = {
 // multiplier and the (coming) Gun-Damage stat, so a weapon's number is its IDENTITY, not its
 // power ceiling — a sniper hits like a truck at every level, an MG spits chip damage at every
 // level, and gear scales both together.
+/**
+ * A 25% CUT TO WEAPON DAMAGE, applied in one pass. Damage ONLY — fire rates, magazines,
+ * ranges, reloads and radii are all untouched, so every weapon still feels like itself and
+ * simply takes longer to finish what it starts.
+ *
+ * NOT scaled: the two faction right-clicks (SPIN, LANCE_SPIN), Dash Strike or Whirlwind.
+ * Those are abilities rather than triggers, and they keep their own numbers.
+ *
+ * ONE KNOCK-ON WAS FOLLOWED THROUGH. The lance's sweep is tuned to LOSE against simply holding
+ * the beam on one target, and that is a RATIO, meaningful only against the beam — so cutting
+ * the trigger to 142 dps left the sweep winning at 304 against 284, backwards. Re-derived to 28
+ * a pass (224 against 284). It is the one ability in the kit whose number is pinned to a
+ * weapon's damage, and so the only one that has to move when a gun does.
+ */
 export const WEAPONS = {
   rifle: {
     id: "rifle", name: "Repeater", price: 0,   // the starter; owned from the first frame
-    damage: 12, fireRate: 7.5, magSize: 18, reloadTime: 1.15, range: 220,
+    // 60 ROUNDS AT 11 A SECOND. The starter's job is to let a new player LEARN — shoot, miss,
+    // reposition, keep shooting — and every number here is bent toward "keep shooting". A
+    // long belt on the weapon you never have to buy is the kindest place to put generosity,
+    // and a fast one means a missed shot is a fifth of a second rather than an event.
+    //
+    // 5.5 seconds of continuous fire, up from 2.4 at the original 18/7.5. Long enough that
+    // the reload is something you CHOOSE to do in a gap, rather than the thing every fight
+    // interrupts you with.
+    damage: 9, fireRate: 11, magSize: 60, reloadTime: 1.15, range: 220,
     pellets: 1, auto: true, recoil: 0.016, recoilRecover: 0.75,
     spreadHip: 0.06, spreadAim: 0.002, sound: "rifle",
     desc: "Balanced automatic. Hold to fire.",
@@ -711,7 +971,7 @@ export const WEAPONS = {
   shotgun: {
     id: "shotgun", name: "Scattergun", price: 260,
     // A wall of pellets that now carries a real distance. One booming shot, a pump between.
-    damage: 11, fireRate: 1.3, magSize: 5, reloadTime: 0.65, range: 90,
+    damage: 8, fireRate: 1.3, magSize: 5, reloadTime: 0.65, range: 90,
     pellets: 9, auto: false, pump: true, recoil: 0.05, recoilRecover: 0.6,
     spreadHip: 0.14, spreadAim: 0.09, sound: "shotgun",
     desc: "9 pellets, long reach now, one booming shot with a pump between rounds.",
@@ -719,7 +979,7 @@ export const WEAPONS = {
   sniper: {
     id: "sniper", name: "Longshot", price: 300,
     // One enormous round across the whole map, then a bolt cycle. bam — ka-chunk — bam.
-    damage: 165, fireRate: 1.1, magSize: 1, reloadTime: 1.05, range: 600,
+    damage: 124, fireRate: 1.1, magSize: 1, reloadTime: 1.05, range: 600,
     pellets: 1, auto: false, pump: true, recoil: 0.09, recoilRecover: 0.5,
     spreadHip: 0.11, spreadAim: 0.0, sound: "sniper",
     desc: "One huge round per reload — bam, bolt, bam. Enormous damage, map-long range.",
@@ -727,7 +987,7 @@ export const WEAPONS = {
   mg: {
     id: "mg", name: "Ripper", price: 300,
     // A hose. Low per-shot, huge belt, so it answers crowds and never stops for long.
-    damage: 6, fireRate: 12, magSize: 60, reloadTime: 2.0, range: 180,
+    damage: 4, fireRate: 12, magSize: 60, reloadTime: 2.0, range: 180,
     pellets: 1, auto: true, recoil: 0.012, recoilRecover: 0.8,
     spreadHip: 0.12, spreadAim: 0.028, sound: "mg",
     desc: "Low damage, huge belt, high rate. Hoses down crowds.",
@@ -767,7 +1027,19 @@ Object.assign(WEAPONS, {
     // fireRate 5 is the FLOOR between swings (0.2s), not the rate you get: the semi-auto
     // latch means the trigger has to be released and pulled again every time, so how fast
     // you actually cut is how fast you choose to.
-    damage: 88, fireRate: 5, range: 9.5, coneDeg: 100, coneVertDeg: 140, knock: 12,
+    damage: 66, fireRate: 5, range: 9.5, coneDeg: 100, coneVertDeg: 140, knock: 12,
+    // THE SHOVE IS THE RATIONED PART, not the swing.
+    //
+    // Knockback is what makes a melee weapon SAFE: every hit buys back the spacing that
+    // closing in cost you, so a cleaver that always shoves is a cleaver that never has to
+    // stand its ground. Cutting the damage or the rate would answer that by making the weapon
+    // worse; charging the shove answers it by making it a DECISION — five of them, then you
+    // are in the crowd on the crowd's terms until they come back.
+    //
+    // The swing itself is untouched: same damage, same reach, same rate, always available.
+    // Running out of shove means the arc stops clearing room, never that it stops working.
+    knockCharges: 5,
+    knockRecharge: 1.5,   // seconds per charge, recovered one at a time
     magSize: 0, reloadTime: 0, pellets: 1, auto: false, recoil: 0.004, recoilRecover: 0.7,
     spreadHip: 0, spreadAim: 0, sound: "cleave",
     desc: "A wide swing in front of you that throws things back. Right-click to spin: "
@@ -779,7 +1051,30 @@ Object.assign(WEAPONS, {
     // clears a crowd along a line, this clears one in a ring — the speed faction's answer to
     // being surrounded, thrown from range.
     damage: 0,                     // all of it lands as splash; see blastDamage
-    fireRate: 1.7, magSize: 5, reloadTime: 1.4, range: 130,
+    // TWENTY-FOUR, because the magazine now feeds two different guns. Single shells are the
+    // aimed, leading shot this weapon was built around; the BARRAGE below eats six at a time,
+    // so a seven-round drum would have held one volley and a spare. Twenty-four is four
+    // volleys, or a long patient afternoon of single shells, or any mix — which is the choice
+    // the second trigger exists to create.
+    fireRate: 1.7, magSize: 24, reloadTime: 1.4, range: 130,
+    // THE BARRAGE — right mouse. Not an aim: a projectile you have to LEAD is not a weapon
+    // that wants a zoom, and pressing RMB on it did nothing but narrow your view. Six shells
+    // at once in a cone, which turns the cannon from a placed-shot weapon into a wall when
+    // something is close enough that leading is impossible.
+    //
+    // Costs six rounds — one per shell, no discount. The volley's advantage is that it
+    // arrives together; making it cheaper per shell as well would leave no reason to ever
+    // fire a single one. Below six it fires whatever remains rather than refusing: the last
+    // five rounds are not dead weight, they are a thinner wall.
+    barrageShots: 6,
+    barrageCost: 6,
+    barrageSpread: 0.16,   // cone half-angle in radians — a spread, not a shotgun blast
+    // FOUR SECONDS. At 0.9 the barrage was simply the better trigger: four volleys emptied
+    // the drum in under four seconds, so the cannon's identity — a slow shell you have to
+    // LEAD — was something you did while waiting for the real button. A four second gap makes
+    // the volley an ANSWER to a specific problem (something already on top of you) rather
+    // than the default, and puts the single aimed shell back in the space between.
+    barrageCd: 4,
     pellets: 1, auto: false, recoil: 0.045, recoilRecover: 0.55,
     spreadHip: 0.05, spreadAim: 0.005, sound: "lob",
     // SLOW on purpose. With no self-damage and a huge blast, travel time is the ONLY skill
@@ -789,7 +1084,7 @@ Object.assign(WEAPONS, {
     // arc is another thing to read into the lead. A touch of upward launch (upBias) makes it
     // lob rather than merely sag, so the curve reads as an arc.
     speed: 34, drop: -12, upBias: 0.06,
-    blastRadius: 10.5, blastDamage: 130,
+    blastRadius: 10.5, blastDamage: 98,
     // IT DOES NOT HURT YOU. The opposite of the grenade rule, on purpose — an explosive fired
     // like a sidearm would kill you constantly up close, punishing the exact thing the speed
     // faction is FOR. The cost is leading a slow shell, not fearing your own boom.
@@ -801,17 +1096,73 @@ Object.assign(WEAPONS, {
     id: "lance", name: "Ash Lance", price: 900, faction: "ash", mode: "beam",
     // Sustained, and it PIERCES: it does not stop at the first thing it touches.
     damage: 0,
-    dps: 132, aimMult: 1.55, range: 78, beamRadius: 0.9,
+    // 190, up from 132. The lance was the quietest of the three faction weapons by a wide
+    // margin — the cleaver's swing ceiling is 440 in a hundred-degree cone and the cannon's
+    // shell is 221 across a ten-metre burst, while this managed 132 and asked you to hold it
+    // on a moving target the whole time. Ash is the DAMAGE faction; its weapon should not be
+    // the one that kills slowest.
+    //
+    // At 190 hip and 295 aimed it sits between the other two, which is where a weapon with no
+    // travel time and no reach requirement belongs: the cleaver still hits harder but has to
+    // get there, the cannon still clears more ground but has to be led. What the lance sells
+    // is CERTAINTY — it is the only one that cannot miss.
+    dps: 142, range: 78,
+    // UNUSED, and kept as a headstone like SPIN.cdFloor. Right mouse is the spin now, so the
+    // lance cannot enter an aimed stance at all and nothing can read this — the rig is told
+    // not to blend for beam weapons (see main), which is the same switch that fed this bonus.
+    // Named rather than deleted so the next person wondering "did aiming ever do anything"
+    // finds the answer instead of silence. Its removal cost the lance a 295 aimed ceiling.
+    aimMult: 1.55,
+    // TWO BEAMS IN ONE TRIGGER. Aimed, it is a lance: 0.9 wide and +55% damage, for the thing
+    // you chose. From the hip it fans to 1.9 — a bit over twice the reach to either side, and
+    // it PIERCES, so a hip-fired sweep catches the bodies beside the one you are pointing at
+    // while the aimed beam deletes a single target.
+    //
+    // Kept modest on purpose. A very wide hip beam stops being a sweep and becomes an aura:
+    // you would hold the trigger, face roughly forward and never need to aim at all, which is
+    // the same dominance the +55% used to be, wearing the other stance's clothes.
+    //
+    // This exists because aiming used to be free. Spread is zero in both stances (a beam does
+    // not miss) and heat does not care either, so RMB was +55% damage for nothing and hip fire
+    // had no reason to exist. Width is the cost that makes it a decision: you give up the
+    // crowd to gain the target, and the fight in front of you decides which you want.
+    beamRadius: 0.9,               // aimed — precise
+    beamRadiusHip: 1.9,            // hip — a swathe, not an aura
     fireRate: 0, magSize: 0, reloadTime: 0, pellets: 1, auto: true,
     recoil: 0, recoilRecover: 1, spreadHip: 0, spreadAim: 0, sound: "beam",
     // OVERHEAT, because a piercing sustained beam with no cost is the best crowd answer in
     // the game and nobody would ever use anything else. This turns "hold the button" into
     // "manage the beam", which is a skill rather than a dominance.
-    heatUp: 0.30,                  // fraction of the bar per second while firing (~3.3s)
+    // 0.146 — a full tank burns for TWELVE seconds (1.75 / 0.146).
+    //
+    // Eight was the right number for the fights this weapon was originally tuned against, and
+    // those fights no longer exist: the sky population was quadrupled the same day, so an
+    // engagement on an island is now a dozen-plus bodies rather than a knot of three. A
+    // piercing beam is the weapon that answers exactly that, and a crowd weapon whose tank
+    // empties halfway through a crowd is not a limit, it is a tax on doing the thing it is for.
+    //
+    // The redline still has to mean something, which is what stops this being fourteen: twelve
+    // outlasts a fight, not a ring. You can clear what is in front of you and then you are
+    // holding a cooling gun with whatever else the sky sent, which is a real position to be in.
+    //
+    // Set here rather than by growing the tank, deliberately: heatDown drains a fixed-size tank
+    // at a fixed rate, so the tank governs RECOVERY and this governs the burn. Keeping them
+    // apart is what let this move 14 -> 8 -> 12 without the cool-down drifting once.
+    heatUp: 0.146,                 // fraction of the bar per second while firing
     heatDown: 0.42,                // and per second while off it
+    // 175% OF THE OLD TANK. The lance held 1.0 and burned 0.30 a second, so a trigger pull
+    // was 3.3 seconds and then a 1.6s lockout — a rhythm where the weapon was unavailable
+    // about a third of every fight, and where committing to a target you could not finish
+    // was the default outcome rather than a mistake. At 1.75 a pull runs ~5.8 seconds, which
+    // is long enough to hold a beam through a whole engagement and makes the redline
+    // something you walk into by overreaching rather than by simply using the gun.
+    //
+    // The bar still reads 0-100% (main scales the display by this), so nothing on the HUD
+    // starts speaking in numbers over a hundred — capacity grew, the gauge did not.
+    heatMax: 1.75,
     overheatLock: 1.6,             // forced cool-down once it redlines
-    desc: "A burning ray that goes THROUGH what it hits. Stronger while aiming. "
-      + "Hold it too long and it overheats.",
+    desc: "A burning ray that goes THROUGH what it hits. Right mouse sweeps it around you, "
+      + "shoving back what it touches. Hold it too long and it overheats.",
   },
 });
 
@@ -829,17 +1180,34 @@ for (const id of ["cleaver", "lobber", "lance"]) {
 // space fits melee far better than standing still, and because it makes the defensive faction
 // the one that is best at READING incoming damage rather than the one that cannot be hurt.
 export const SPIN = {
-  // HALF A SECOND, down from 2.5 by way of 1.5 and 1. UNTOUCHABLE THE WHOLE SPIN — that part is deliberate and unchanged;
-  // a guard that expires halfway through is a guard you cannot plan around. What changed is
-  // how LONG you get it for: at 2.5s against a 2.5s gap it was fifty percent invulnerability
-  // uptime, and better than two thirds once haste was stacked, which is not a defensive
-  // button any more but a state you live in. A short, whole, reliable window is worth more
-  // than a long one you have to ration, and it keeps the gap between spins — where the
-  // danger actually lives — the larger half of the cycle.
-  time: 0.5,
-  iframes: 0.5,          // = time: guarded start to finish, on purpose
+  // 2.5 SECONDS, up from 1.2 (which was up from 0.5, itself down from an earlier 2.5).
+  //
+  // UNTOUCHABLE THE WHOLE SPIN — that part has never changed and is the reason the number is
+  // worth arguing about at all: a guard that expires halfway through is a guard you cannot
+  // plan around, so however long it lasts, it lasts completely.
+  //
+  // What the length actually buys is not survival, it is DISTANCE. Half a second was long
+  // enough to eat one blow and not long enough to go anywhere with it; 1.2 is long enough to
+  // cross a gap, close on an archer, or leave a pack behind while nothing can touch you —
+  // which is what a mobility game should be selling.
+  //
+  // THE COST IS UPTIME, and at this length it is no longer a rounding error. Against the 2.5s
+  // gap the spin is now HALF the cycle spent untouchable — 50%, up from 32% at 1.2s and 17%
+  // at 0.5s — and with haste stacked to the cooldown floor it reaches 68%.
+  //
+  // That is a different weapon, not a tuned one: past about half uptime a defensive button
+  // stops being something you time and becomes a state you maintain, and the fights stop
+  // asking whether you read the telegraph. Written down here rather than discovered later,
+  // because the number that fixes it is `cd` and not `time` — lengthening the GAP keeps the
+  // long, committal spin that was asked for while giving the danger somewhere to live.
+  time: 2.5,
+  iframes: 2.5,          // = time: guarded start to finish, on purpose
   cd: 2.5,               // starts counting AFTER the spin, not on cast
-  cdFloor: 1.2,          // ...down to this with haste stacked
+  // UNUSED, and kept only as a headstone. Haste no longer touches the spin's cooldown at all
+  // (see updateSpin) — a floor exists to stop a shrinking number reaching zero, and nothing
+  // is shrinking any more. Left named rather than deleted so the next person to wonder "did
+  // haste ever affect this" finds the answer instead of the silence.
+  cdFloor: 1.2,
   radius: 6.6,
   tick: 0.25,
   // Per tick, and deliberately the WEAKEST sustained damage in the kit: under the cleaver's
@@ -853,6 +1221,159 @@ export const SPIN = {
 };
 
 // The starting weapon, and a back-compat alias for a few call sites that still say GUN.
+/**
+ * THE ASH LANCE'S SPIN — right mouse, and the reason the lance stopped having a boring one.
+ *
+ * Of the three faction weapons, two had an INVENTED second trigger (the cleaver spins, the
+ * cannon fires a barrage) and the lance had "aim" — the same zoom every shooter has had for
+ * thirty years. Aiming also happened to be strictly correct at all times, +55% for the cost of
+ * some peripheral vision, so it was not a decision either. One button doing nothing interesting
+ * on one weapon out of three is a whole third of the roster's identity missing.
+ *
+ * WHAT IT IS: two seconds of sweeping the beam around yourself at close range, shoving back
+ * everything it passes over, taking 40% less while you do it.
+ *
+ * WHY IT IS THE RIGHT ABILITY FOR ASH SPECIFICALLY. Read the faction's own weakness line —
+ * "crowds while it cools, and anything that reaches you during the lockout". That is the exact
+ * hole this fills, and it fills it without patching over it: the spin costs NO HEAT, so the two
+ * seconds you spend spinning are two seconds the tank is recovering (0.42/s of a 1.75 tank —
+ * about half a second of beam handed back). The dead time in the weapon's own rhythm becomes
+ * the thing you do with the crowd that arrived during it. A weapon that answers its own
+ * weakness for free would be a bad fix; a weapon whose answer IS its downtime is a loop.
+ *
+ * WHY IT IS NOT IRON'S SPIN, which it superficially resembles. Iron's makes you UNTOUCHABLE.
+ * This one makes them NOT THERE, and only softens what still lands. That is the difference
+ * between a wall and a shove, and it keeps the two factions answering the same problem in
+ * different verbs: Iron stands in the middle of it, Ash refuses to let it arrive.
+ *
+ * ON THE 50% UPTIME. Two seconds on, two off, would be alarming for a defensive button — the
+ * long comment on SPIN.cd exists because a guard at that uptime stops being something you time
+ * and becomes a state you hold. It is fine here precisely because 40% is not immunity: you are
+ * still being hurt the whole time, so spinning through a pack is a decision with a bill, not a
+ * safe place to stand.
+ */
+/**
+ * THE LOW-HEALTH PULSE — the screen breathing red from the edges when you are nearly gone.
+ *
+ * The health bar already turns red, and a bar is a thing you have to LOOK AT. In a game played
+ * at a crosshair in the middle of the screen, with a movement kit that wants your eyes on the
+ * terrain, "glance down and read a number" is precisely what nobody does in the two seconds
+ * that decide whether they live. So the warning is moved to where you cannot help but see it:
+ * the edges of your own vision, which is exactly where real peripheral alarm lives.
+ *
+ * SLOW ON PURPOSE. A fast flash reads as damage arriving — that is what #hurt already says,
+ * and saying it twice in two rhythms would make both harder to read. This one breathes, about
+ * one cycle every two and a half seconds, closer to a heartbeat than to an alarm. It says a
+ * STATE ("you are nearly dead"), not an EVENT ("you were hit"), and the pace is the whole
+ * difference between those two sentences.
+ *
+ * It starts a little BEFORE the bar goes red (which is at 0.17): the ambient warning arrives
+ * first and the precise one confirms it, rather than both landing at once and saying one thing
+ * twice. Never fully opaque at the trough either — a warning that blinks out entirely reads as
+ * a glitch, and the point is that it is always there once it starts.
+ */
+/**
+ * WHAT SWEARING TO A COLOUR IS WORTH, on top of the weapon and the allies.
+ *
+ * The choice already hands you a weapon, an army and two thirds of the game's gear taken away,
+ * which is plenty of consequence — but none of it touched your CHARACTER. Ash is "the damage
+ * faction" and an Ash character with no Ash gear yet dealt precisely as much damage as anyone
+ * else, so the identity lived entirely in equipment you had not earned. Five percent is small
+ * on purpose: enough that the sheet agrees with the pitch from the first minute, nowhere near
+ * enough to be the reason you pick one.
+ *
+ * Each pair matches the faction's own `focus`, so there is one story rather than two.
+ *
+ * WHY THESE ARE MULTIPLIERS ON DERIVED VALUES rather than points added to your stats: gear is
+ * summed into player.armor and player.stamina wholesale on every equip, so a bonus living
+ * there would be erased by the next re-sum. And +5% of a stat that reads 0 on a bare character
+ * is 0 — Ash would work from the first frame while Iron's did nothing until it found a
+ * breastplate. Applied to the OUTPUT, all three land immediately and still scale with the kit.
+ */
+export const FACTION_BONUS = {
+  ash: { damage: 0.05 },                  // every source: gun, spell, grenade, melee
+  vale: { speed: 0.05, haste: 0.05 },     // movement, and shorter cooldowns and casts
+  iron: { health: 0.05, armor: 0.05 },    // a bigger pool, and more of every point of armour
+};
+
+export const LOWHP = {
+  at: 0.2,               // fraction of max health at which it begins
+  period: 2.5,           // seconds for one full breath
+  min: 0.16,             // opacity at the trough — dim, but never gone
+  max: 0.5,              // and at the peak
+};
+
+export const LANCE_SPIN = {
+  time: 2,
+  cd: 2,                 // starts when the spin ENDS, like the cleaver's — see updateLanceSpin
+  // HOW FAR THE BEAM REACHES WHILE IT SWEEPS. The lance shoots 78 blocks and does not stop at
+  // the first thing it touches; a sweeping version of that would clear the horizon in every
+  // direction at once, which is a screen-wipe rather than a defensive move. Keeping it far
+  // short of that is what makes this a bubble you hold rather than an attack you aim.
+  //
+  // 13, up from 11 — DOUBLE the cleaver's 6.6, which is the relationship that matters here
+  // rather than the number itself. Ash should never have to stand where Iron stands: Iron's
+  // spin is a thing you do once you have already closed, and this one is what stops anything
+  // closing in the first place. Two full body-lengths of clearance is what "do not come here"
+  // looks like, and it is still under a fifth of what the beam does when you simply point it.
+  range: 13,
+  // EIGHT FULL TURNS IN TWO SECONDS — four a second. A blur rather than a sweep, but pulled
+  // back from ten: past about that the passes stop reading as individual passes and the whole
+  // thing smears into a disc, which loses the one thing a beam has over a ring — you can see
+  // where it is pointing. This is the fastest it goes while still being a beam.
+  //
+  // Turns are DAMAGE PASSES, so this number cannot be raised on its own — everything in range
+  // is crossed once per rotation, and tripling the rotations while leaving `damage` alone would
+  // have tripled the ability. It went up, `damage` came down to match, and the total below is
+  // what actually got tuned.
+  turns: 8,
+  // Fine enough that a tick is a QUARTER of a turn rather than a whole one. At 0.2s each tick
+  // would have swept the full circle, every body in range would be inside every wedge, and the
+  // sweep would quietly collapse back into the ring this ability exists not to be. The wedge
+  // has to stay smaller than the circle for the beam to mean anything.
+  tick: 0.05,
+  // HOW TALL A SLAB IT CUTS. The beam sweeps flat at chest height, so this is what stops it
+  // from being a column that reaches things standing far below you on a world made of ledges —
+  // the same mistake the charge made with reachY, and it is not making it twice.
+  height: 2.6,
+  // 28 A PASS ACROSS EIGHT PASSES, so 224 over the full spin against one body versus 284 for
+  // simply holding the beam on it. Deliberately the LOSING play single-target, exactly like the
+  // cleaver's spin: if spinning out-damaged your own trigger there would be no reason ever to
+  // stop. It wins only when there are several of them, which is the situation it exists for.
+  //
+  // THE TOTAL IS THE TUNED NUMBER, not this one — and it is tuned against the beam, which is
+  // why it moved when the beam did. This sat at 38 for exactly as long as the lance dealt 190
+  // dps: the 25% weapon-damage pass took the trigger to 142 and quietly made the sweep the
+  // better single-target play, 304 against 284, inverting the one thing it was built around.
+  // A number that is really a RATIO has to be re-derived whenever either side of it moves.
+  damage: 28,
+  knock: 14,             // the opening shove, before the beam has swept anywhere
+  /**
+   * ...AND A MUCH SMALLER ONE EACH TIME THE BEAM COMES ROUND. 3, down from 8.
+   *
+   * At 8 this was a force field, not an attack. A body was shoved every quarter of a second
+   * against a walking speed of 3.1, so it lost ground faster than it could ever make it up:
+   * nothing reached you for the whole two seconds, at fifty percent uptime, which quietly made
+   * the 40% mitigation decoration — you cannot be softened out of damage you were never going
+   * to take. An ability that removes the risk AND the answer to the risk has stopped being a
+   * decision and become a place to stand.
+   *
+   * Small enough now to stagger rather than repel: a pack loses its footing and its shape, and
+   * a determined one still closes on you. That is what makes the mitigation earn its place, and
+   * it is the same conclusion SPIN.knock reached — the opening beat buys the space, the sweeps
+   * only keep it untidy.
+   */
+  knockTick: 3,
+  mitigation: 0.4,       // 40% off everything that lands while it runs
+  // AND YOU MOVE FASTER WHILE YOU DO IT. Twenty percent, which is under the cleaver's 25 on
+  // purpose — Iron's spin is untouchable, so its speed is for crossing ground safely, while
+  // this one is for STAYING in the middle of what you are shoving. The point is repositioning
+  // inside the fight rather than leaving it, and a spin you can outrun the crowd with would
+  // quietly become an escape button on a two-second cooldown.
+  speed: 1.2,
+  beamThick: 0.55,       // the drawn core; the glow around it is twice this
+};
+
 export const GUN = WEAPONS.rifle;
 
 // ARMOR — a WoW-style SLOT SET, and every piece rolls a LIST of stats, not just armour.
@@ -1000,11 +1521,28 @@ export const XP = {
   // as at level 4 and survival stays a question of reading telegraphs rather than of having
   // a bigger bar. What you gain is the ability to be somewhere else.
   hpPerLevel: 0,
-  speedGrowth: 1.02,      // raw per-level; fed through a tanh soft cap (see applyLevelStats)
+  // 0.8% per level, down from 2%. This HAD to come down with the cap, not after it: at 2% a
+  // bare level-50 character already sat on a 0.55 ceiling, so every point of Agility and every
+  // speed roll on every piece of gear was worth about a thousandth of a multiplier. Lowering
+  // the cap alone would not have made speed a smaller stat — it would have made it a DEAD one,
+  // decided entirely by your level and unaffected by anything you chose.
+  //
+  // At 0.8% the curve is still climbing at level 80, so gear and Agility keep mattering the
+  // whole way up, which is the point of having them.
+  speedGrowth: 1.008,     // raw per-level; fed through a tanh soft cap (see applyLevelStats)
   // The most speed levels + gear can ever add, as a fraction of base. tanh approaches but
-  // never quite reaches it, so effective speed tops out near ×(1 + this). 1.2 = ~2.2× base
-  // at the extreme, vs the old uncapped 3-5×. This is the "you go too fast" dial.
-  speedSoftCap: 1.2,
+  // never quite reaches it, so effective speed tops out near ×(1 + this).
+  //
+  // 0.55, down from 1.2 (and from uncapped before that). At ×2.2 the world had quietly
+  // shrunk: a ring you were meant to cross took seconds, terrain you were meant to READ went
+  // past too fast to read, and the parkour the whole game is built on stopped being about
+  // choosing a line because you cleared every gap by accident. Speed is the stat that makes
+  // all the OTHER content smaller, which is why it is the one that has to be held down.
+  //
+  // ×1.55 at the extreme still feels quick against a base you have played for hours, and it
+  // leaves the dash and sprint as the things that make you fast — cooldowns you spend, rather
+  // than a number you accumulate until distance stops existing.
+  speedSoftCap: 0.55,
   jumpGrowth: 1.015,      // L20 ×1.35 launch = ~1.8× the height (h scales with v²)
   jumpsPerLevels: 10,     // +1 air jump at 10, 20, 30, …
   // COMPOUNDING, not additive. Mob HP grows 55% per ring and levelling is what carries you
@@ -1090,18 +1628,49 @@ export const BLAST_VSCALE = 2;
 export const ENERGY = {
   max: 100,
   regen: 22,            // empty to full in about four and a half seconds
-  // The costs. Read them as a rotation: Nova then Dash is 65 and leaves you 35 — enough for
-  // one more small thing, never enough for a second Nova. That gap is where the game is.
-  dash: 25,
-  nova: 40,
-  chain: 35,
-  firering: 60,
+  // The costs. Read them as a rotation: Nova then Dash is 95 and leaves you 5 — not enough for
+  // anything at all. That gap is where the game is, and it is now a much narrower one.
+  //
+  // EVERY OFFENSIVE SPELL WENT UP BY ABOUT HALF. Two reasons, and they are the same reason
+  // twice. A full bar used to fund an opener AND a follow-up AND still be most of the way back
+  // by the time the cooldowns were: the resource was a speed limit on a rotation rather than a
+  // budget, and it never once said no to a plan you actually wanted. And a new character now
+  // STARTS holding Explosion and Dash Strike — spells that used to be several hours of saving —
+  // so the thing standing between level one and casting the best button in the game repeatedly
+  // has to be something, and a price is a far better something than a locked shop door.
+  //
+  // Heal and the grenade are deliberately untouched at 30 and 35. Everyone owns those two from
+  // the first frame whatever else they are carrying, and making the floor of the kit dearer
+  // punishes the player who has nothing else — which is the opposite of the intent.
+  //
+  // BACK TO 25, after a detour up through 45, 60 and 80. That climb was chasing the wrong
+  // thing: the dash had just learned to follow your aim upward and appeared to give absurd
+  // free height, so it looked like it needed pricing out of reach. It did not — it had a bug.
+  // Driving vertical velocity for the dash and then LEAVING it there meant an upward dash
+  // expired with 46 of rise still in the bank, and gravity spent the next two seconds turning
+  // that into roughly forty extra blocks of flight. The dash was never worth 80; it was worth
+  // 25 and doing something it was never told to do. Fixed at the source (see controller), and
+  // the price came home. Worth remembering the next time a number looks like it needs tripling.
+  dash: 35,
+  nova: 60,
+  chain: 50,
+  firering: 90,
   // WHIRLWIND is charged UP FRONT, not by the second. It is a fixed 3.6s spin rather than a
   // hold, so a drain would only be a fixed cost with extra steps — and it could run dry
   // mid-spin and strip the invulnerability, which is the one thing this resource must never
   // do. You either get the whole spin or you never started it. Dearer than a Nova because
   // being untouchable for three seconds is worth more than any amount of damage.
-  whirl: 55,
+  whirl: 85,
+  // THE TWO YOU START WITH. They were free while they lived on their own keys outside the
+  // bar; now that they are spells they pay like spells, and the price is what makes them
+  // decisions. Thirty each is deliberately under a third of the pool: a Nova and a heal still
+  // fit in one breath, but panic-mashing heal while the grenade is out puts you on the floor
+  // with no energy — which is exactly the mistake the resource exists to let you make.
+  heal: 30,
+  // The grenade is dearer than the heal because it is the one that ENDS things. With no
+  // cooldown left on it, this number is the entire brake: 35 means two throws and you are
+  // down to a Dash, three and you are on the floor with nothing.
+  grenade: 35,
 };
 
 export const DASH = {
@@ -1238,7 +1807,13 @@ export const GRENADE = {
   radius: 6.5,
   damage: 90,
   selfScale: 0.5,        // you take half — dangerous, not instantly lethal
-  cooldown: 2.2,
+  // NO COOLDOWN AT ALL. The 2.2s wait was doing the rationing back when the grenade was free;
+  // now that it is a spell costing ENERGY.grenade, two other things already say no — the
+  // energy and the stock you only refill by killing. A third gate on top of those is one
+  // nobody can feel: whichever is slowest is the only limit that ever speaks, and the rest
+  // are bars you watch instead of decisions you make. Throw all three if you like. Then you
+  // have no grenades, no energy, and something is still walking at you.
+  cooldown: 0,
   // Haste shrinks the throw cooldown (0.92^haste). Without a floor, enough speed drives it
   // to ~0, and you empty the whole stock in a blink -- then, since supply only ever came
   // from kills, nothing you throw has died yet and they never come back. Same shape as the
@@ -1297,7 +1872,12 @@ export const STATS = {
   // Primary attributes -> effect. Strength pours into GLOBAL damage; Agility into speed and
   // dash. Both are flat integers on gear; these coefficients turn a point into an effect.
   strDmg: 0.006,          // each Strength = +0.6% to ALL damage
-  agiSpeed: 0.004,        // each Agility = +0.4% into the speed input (before the soft cap)
+  // Each Agility = +0.15% into the speed input, down from 0.4%. Agility still buys speed,
+  // it just stops being the stat that decides what the game feels like: a big Agility roll
+  // used to be worth more than the terrain, and gear should not be able to opt out of a
+  // pillar. Its DASH half (agiDash) is untouched — that is a burst you aim and spend, which
+  // is exactly the kind of speed this game wants to sell.
+  agiSpeed: 0.0015,
   agiDash: 0.05,          // dash gains agiDash * sqrt(Agility)
   // Secondary-rating denominators (rating -> % via rating/(rating+K)). Diminishing by shape:
   // a lone 80-rating helm ~35%, and stacking more approaches but never reaches 100%.
@@ -1561,6 +2141,57 @@ export const MOB = {
   chargeRecover: 1.7,     // helpless afterwards, whether it hit or missed
   chargeDamage: 2.3,      // multiplier on its own damage
   chargeKnock: 15,
+  /**
+   * HOW LEVEL WITH A GROUNDED BODY YOU MUST BE FOR ITS MELEE TO LAND — charge AND lunge,
+   * one rule, and the reason a jump beats both.
+   *
+   * The charge was gated only by MOB.reachY, which is 18: a GLOBAL "how high can anything
+   * fight you" number that exists to stop bodies far below shooting up at you. Applied to a
+   * charge it made the hitbox a cylinder three blocks wide and thirty-six tall, and the very
+   * best jump in this game reaches 7.3. So there was no height a player could ever reach that
+   * a charge could not, and the one verb the whole game teaches was not an answer to the one
+   * attack that most looks like it should be. You could only ever step sideways.
+   *
+   * 1.3 is the body's own height, and that makes the rule physical instead of arbitrary:
+   * get your feet above its head and it goes underneath you. It does not need explaining in a
+   * tooltip, because it is what the thing looks like it should do.
+   *
+   * The charge learned this rule first; the LUNGE — the standing bite of every grounded mob —
+   * kept the old 18-block allowance for a while longer, which meant the ordinary attack could
+   * still do the thing the spectacular one had been forbidden: reach the top of your jump from
+   * a floor below. One gate now, so they cannot drift apart again. FLYERS are the deliberate
+   * exception — they hunt AT your altitude, which is their whole answer to high ground, so
+   * their gate is derived from the hover they actually keep (see mobs.js).
+   *
+   * Missing already costs it 1.7 helpless seconds, so the jump is not just a dodge — it is how
+   * you buy the opening. The window is about a third of a second at the top of a jump, which
+   * is tighter than it sounds until you remember the wind-up SCREAMS three quarters of a second
+   * before it moves, and that spending your second jump at the apex holds you up there much
+   * longer. It rewards timing and it rewards the movement kit, which is the point.
+   */
+  meleeClearY: 1.3,
+  /**
+   * ...and how level you have to be for it to BOTHER — a different question from whether it
+   * connects, so a different number.
+   *
+   * Starting a charge never checked height at all: only flat distance. Something under an
+   * island would wind up, scream, rush its full twenty-four blocks and recover, three and a
+   * half seconds spent on a target it could not have touched. With the clearance above in
+   * place that would have got far worse — every charger would telegraph at anyone standing on
+   * a rock. And that sound is the ONLY warning this game gives for an attack that arrives from
+   * off screen, so spending it on threats that are not threats teaches players to ignore it.
+   *
+   * Six blocks is deliberately loose: slopes and low steps still get charged, because the
+   * ground between you resolves as it runs. A ledge or a deck does not. The caster forty lines
+   * away in the same loop has measured this in 3D for a while — this is the charger catching up.
+   */
+  chargeStartY: 6,
+  // The lunge's start gate, much tighter than the charge's six: a lunge travels under three
+  // blocks (lungeSpeed x lungeTime), so the ground can only resolve a couple of blocks of
+  // slope on the way. Committing at a target higher than that is a hop at unreachable air —
+  // and, once melee could no longer CONNECT upward, it would have been every mob under every
+  // ledge hopping forever at the person standing on it.
+  lungeStartY: 2.5,
 
   // --- FACTIONS AT WAR: the cheap emergent win ------------------------------------
   // Every camp belongs to a faction (a colour). Enemy factions fight EACH OTHER, not just
@@ -1621,9 +2252,19 @@ export const MOB = {
   // you can be inside or above — it used to be a horizontal circle of infinite height, which
   // meant it burned you on a ledge three blocks up and at the top of a jump. Harmless when
   // the ground was flat and nobody jumped; absurd the moment the world had ledges in it.
-  // 1.2 sits just under the player's 1.36-block jump, so clearing a patch mid-stride is a
+  // 1.2 sits just under the player's 1.66-block jump, so clearing a patch mid-stride is a
   // real option and standing in one is still a mistake.
   fireHeight: 1.2,
+  // YOUR OWN SIDE'S FIRE MENDS YOU. A blue pool that merely failed to hurt would be a patch
+  // of ground with no reason to exist — you would learn to ignore it, which is the same as
+  // not drawing it. Making it heal turns an ally's burner from scenery into a REASON TO
+  // MOVE somewhere, and gives the war a shape you can stand inside.
+  //
+  // A fraction of your maximum rather than a flat number, so it keeps meaning the same thing
+  // at level 40 as at level 4. Small on purpose: this is a trickle you hold ground in, never
+  // an alternative to the heal you cast — three seconds standing in one is worth about a
+  // tenth of your bar, which is a nudge, not a strategy.
+  allyFireHeal: 0.035,
   // THE LEAP. maxClimb is what a body can WALK up; this is what it can throw itself over.
   // Without it, RELIEF's terraces were a wall that thinking creatures stood and stared at,
   // and the answer to every hard fight was "find a step". A leap costs them a beat of
@@ -1656,6 +2297,12 @@ export const MOB = {
   //
   // 18 is tighter than the boss's 32 because a mob is a body, not a siege engine: it should
   // reach a ledge above it and nothing further.
+  // UNUSED — a headstone, like SPIN.cdFloor and the lance's aimMult. This was the one global
+  // "how far up can anything fight you" number, 18 blocks tall on every melee, and it is the
+  // reason "something hit me from a level below" was ever a bug report: no jump in the game
+  // reaches 8, so there was no air it did not cover. Melee now gates on meleeClearY per body;
+  // ranged attacks measure honest 3D distance and need no allowance at all. Named rather than
+  // deleted so the next person wondering what happened to it finds the answer.
   reachY: 18,
   // How often a body that COULD be put on an island is. Islands with nothing on them are
   // scenery; the whole argument for having them is that taking one is a fight.
@@ -1673,12 +2320,45 @@ export const MOB = {
    * hundred blocks up, the world fills in around you there instead of far below. Nothing is
    * taken from the ground to pay for the air — the budget simply lands where you are.
    */
-  skyWeight: 5.5,       // a perch is worth this many ground slots before distance is counted
+  // A perch is worth this many ground slots before distance is counted.
+  //
+  // 1.6, DOWN FROM 14. Fourteen was a thumb on the scale so heavy it broke the thing it was
+  // pushing: measured over three thousand real columns, a player standing ON THE GROUND had
+  // only 9% of camps spawn on the ground with them. The frontier had emptied out, and the
+  // reason was this number rather than the budget.
+  //
+  // The altitude term below (skyAffinity) is what should decide which level fills — it
+  // already prefers whichever floor you are standing on. This only exists to stop the ONE
+  // ground floor being outvoted by the several sky floors stacked over every column, so it
+  // needs to be a nudge, not a landslide.
+  //
+  // 0.8 — BELOW ONE, which is the honest expression of what this number is for. A perch is
+  // not worth more than the land; there are simply more perches, three or four sky floors
+  // stacked over every column against the ground's one, and an even weight per FLOOR quietly
+  // means the sky wins four votes to one. Weighting each perch slightly under the ground
+  // corrects for that count rather than adding a preference on top of it.
+  //
+  // 2.2, WITH THE BUDGET NEARLY DOUBLED TO MATCH — and the pairing is the whole point.
+  //
+  // The ask was "far more in the sky, the same on the ground", and those two are only
+  // compatible if the POOL grows. Weighting alone is zero-sum: every camp moved onto an
+  // island is one taken off the land, so any attempt to fill the sky by re-weighting empties
+  // the floor again — which is the exact bug that started this whole sequence.
+  //
+  // So the two moved together, and the arithmetic is deliberate rather than eyeballed.
+  // Measured over four thousand real columns with the player standing on the ground: the
+  // ground's share falls 70% -> 36%, and the budget rises x1.96, which leaves the ground
+  // holding the same ABSOLUTE number it did before and multiplies the sky by 4.2.
+  skyWeight: 2.2,
   skyAffinity: 55,      // blocks of altitude over which a floor's share falls away
   // The world grew a sky, so the crowd budget grows with it — otherwise populating the air
   // just empties the ground, and the frontier you walk through gets quieter the more there
   // is above it.
-  skyCrowd: 1.8,
+  // The whole population budget, multiplied, because a world with levels holds more fights
+  // than a world with one. Every mob still has to be somewhere you could reach it — the 3D
+  // sweep (despawnVScale) is what keeps this from being spent on bodies a hundred blocks
+  // below your feet.
+  skyCrowd: 2.9,
   // A FLIER CHASES IN THREE DIMENSIONS. Hovering a fixed distance over the LAND meant an air
   // mob would sail along underneath an island with you standing on top of it, which makes
   // the sky a safe place and the fliers ornaments. Chasing, it climbs to your height plus
@@ -1701,15 +2381,21 @@ export const MOB = {
   // The count drops hard at the base and the ramp steepens to make it up, so the Commons is
   // a handful of mobs you can read while the deep stays a horde. (GEAR.md G5/G6 take this
   // further into the MMO direction: fewer, meatier mobs.)
-  maxAlive: 44,          // scaled by MOB.skyCrowd — see budget()
-  maxAlivePerTier: 28,    // tier 1: ~72 · tier 3: ~150 · tier 6+: capped — less swarm early
+  maxAlive: 188,          // scaled by MOB.skyCrowd — see budget()
+  maxAlivePerTier: 114,   // tier 1: ~305 · tier 3: ~640 · deep rings ride the cap
   // Raised with the sky. The deep rings sit ON this cap, so skyCrowd alone would have done
   // nothing out there — the extra bodies the air needs would have been taken straight off the
   // ground instead of added.
-  maxAliveCap: 470,
-  maxPacks: 6,
-  maxPacksPerTier: 5,
-  maxPacksCap: 34,
+  // 950. Raised alongside the skyWeight fix rather than instead of it: rebalancing the
+  // SPLIT alone would have moved bodies off the islands to fill the ground, which is not
+  // what was asked for. More of both means a bigger pool as well as a fairer share.
+  // x1.96 on the old 1500 — the figure that keeps the GROUND's count flat while the sky
+  // fills. This is the number to walk back first if the deep rings ever stutter: the
+  // per-voxel mesher gives out long before the AI does.
+  maxAliveCap: 2940,
+  maxPacks: 23,
+  maxPacksPerTier: 18,
+  maxPacksCap: 196,
   packSize: [9, 18],      // a camp is a crowd, not a squad
   packCap: 26,            // and it can breed to this
   breedEvery: [35, 80],   // seconds between a mob's offspring (idle only, never mid-fight)
@@ -1718,9 +2404,30 @@ export const MOB = {
   spawnMin: 22,
   spawnMax: 58,
   despawn: 105,
+  // ALTITUDE COUNTS, AND COUNTS DOUBLE. The sweep above was flat distance, which was the whole
+  // truth while the world was a surface. With a sky full of islands it meant that climbing to
+  // a perch left every mob on the land below you inside "nearby" — ten metres away across the
+  // map, sixty metres straight down, unreachable by either of you, and holding a slot in a
+  // budget that counts EVERY living mob. The upper levels were not under-spawning; they had
+  // nowhere to spawn INTO, because the ground crowd never let go of the allowance.
+  //
+  // Doubled rather than merely counted, because vertical separation matters more than
+  // horizontal: you can walk sixty metres, but sixty metres down is a different level of the
+  // world with its own fight on it. At x2 a mob is swept by roughly 52 blocks of pure
+  // altitude. That has to sit comfortably UNDER a layer's separation or arriving on a level
+  // fails to clear the one you left: the median first island stands 59 blocks over the land,
+  // and x2 swept at 52.5 — a six-block margin, which the lower half of the distribution would
+  // have eaten. x2.4 sweeps at ~44 and keeps the whole layer.
+  //
+  // Nothing that could actually fight you is anywhere near this line: MOB.reachY is 18, so a
+  // body 44 blocks above or below you was already unable to touch you, and you it.
+  despawnVScale: 2.4,
   // Deeper rings repopulate faster as well as holding more: a camp you clear at tier 8
   // is replaced almost at once, so the frontier never feels emptied.
-  spawnInterval: 0.3,
+  // 0.18, down from 0.3 — the budget only matters if the world can REACH it. A camp every
+  // third of a second took the best part of a minute to fill a deep ring, which is most of
+  // the time you spend in one; the population was right on paper and thin in practice.
+  spawnInterval: 0.18,
   spawnFasterPerTier: 0.12,   // interval x (1 - this)^tier, floored below
   spawnIntervalMin: 0.06,
 };
@@ -1770,6 +2477,26 @@ export const BOSS = {
   // it, you are looking at it.
   reachY: 32,
   barHold: 10,
+
+  // LETTING GO. Running away used to mean nothing until you cleared aggroRange — ninety
+  // metres of being shelled by something you had already decided to leave alone. Lowering
+  // that range is the wrong fix: it is also the range at which a boss NOTICES you, and a boss
+  // you can walk up to unmolested is not a boss.
+  //
+  // So disengaging is a separate question from distance alone: it lets go when you have not
+  // hurt it for giveUp seconds AND you are past releaseRange. Both halves matter. Fighting it
+  // toe to toe never triggers it however long the fight runs, and neither does backing off to
+  // reload and coming straight back in — that is a rotation, not a retreat. But turn and run
+  // without shooting, and it stops rather than following you across the ring.
+  //
+  // The clock is refreshed by YOUR damage only, never by its own hits landing on you.
+  // Refreshing on both would mean a boss that is shooting you keeps its own reason to shoot.
+  // Deliberately LOOSE. The fight as it stands is good, and the only thing being fixed is the
+  // tail: ninety metres of shelling after you had plainly left. Five seconds untouched AND
+  // forty-five metres out is unmistakably a retreat — you cannot reach it by repositioning, by
+  // reloading, or by any pause inside a real fight. Everything before that point is unchanged.
+  giveUp: 5,
+  releaseRange: 45,
   maxHitFraction: 0.03,     // ring 1: no single hit may exceed 3% of max HP (~34-hit floor)
   hitCapTighten: 0.06,      // and that shrinks: fraction / (1 + this * ring)
 
@@ -1853,6 +2580,47 @@ export const DODGE = {
   // Double-tap window. Too long and ordinary strafing triggers rolls you didn't ask for;
   // too short and deliberate taps get eaten. 280ms is the usual comfortable middle.
   doubleTapMs: 280,
+
+  /**
+   * THE WALL KICK. Roll into a wall and you go UP it instead of stopping against it.
+   *
+   * A dodge that ends in a thud is the one place the movement stopped being a conversation
+   * with the terrain: everywhere else in this game a wall is something to read and use, and
+   * here it was a full stop. Since the auto step-up (tryStep) already swallows anything knee
+   * height, ANY surface still blocking a roll is genuinely a wall — which makes "was that
+   * worth kicking off" a question the terrain has already answered.
+   *
+   * Up AND out, not just up: a purely vertical launch would paste you to the wall and leave
+   * you sliding back down it. Kicking away at an angle is what turns two walls into a route
+   * and what makes a single wall a way to gain height and change direction at once.
+   *
+   * A LEAP, NOT A HOP — and thrown DIAGONALLY, with more push across than up.
+   *
+   * The first version was deliberately weaker than a jump, which was the wrong instinct: a
+   * kick that gains less height than simply jumping is a worse option than the one you
+   * already had, so nobody would ever aim a roll at a wall and the wall stayed a full stop
+   * with extra steps. To be worth doing, it has to give you something no other move can.
+   *
+   * And what it gives is DISTANCE with height attached, not a boost straight up. A vertical
+   * launch pins you to the face you just kicked and drops you back down beside it, which is
+   * a lift, not a move. Out ~15 against up ~12.5 puts the launch near forty degrees: it
+   * clears about three blocks while carrying you fourteen across, so a wall becomes a way to
+   * cross a chasm, reach the ledge opposite, or leave a fight — a redirection you aim, which
+   * is what the roll was always for.
+   *
+   * What keeps it honest is not the size but the COST: it spends the roll, which is a 0.7s
+   * cooldown and a double-tap. Scaling a tall face means kick, fall, land, tap-tap, kick —
+   * a rhythm you can drop, not a ladder you ride.
+   */
+  kickUp: 12.5,           // vertical launch off the wall — ~3.0 blocks of height
+  kickOut: 15.0,          // and how hard it throws you ACROSS — the larger half, on purpose
+  // HOW LONG THE LAUNCH OWNS YOU. Without this the outward half simply did not exist: the
+  // movement blend runs every frame in the AIR as well as on the ground, so with no key held
+  // it pulled the kick's horizontal speed to nothing within about five frames and a 15-unit
+  // throw became six tenths of a block. The dodge, the dash and the wall slide all solve this
+  // the same way — they own velocity for a fixed window — so this does too, and for the same
+  // reason: an impulse you can accidentally cancel by not holding a key is not a move.
+  kickHold: 0.5,
 
   // The roll SCALES now (see applyLevelStats -> player.dashMult). It gets both faster and
   // farther — the i-frame window is unchanged, so a bigger dash covers more ground inside
