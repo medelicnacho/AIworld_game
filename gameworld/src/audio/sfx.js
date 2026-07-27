@@ -215,10 +215,20 @@ export class Sfx {
   /** Soft-clip curve — what makes a roar sound like a throat instead of a sine. */
   distortion(amount = 40) {
     const ws = this.ctx.createWaveShaper();
-    const n = 1024, curve = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      const x = (i * 2) / n - 1;
-      curve[i] = ((1 + amount) * x) / (1 + amount * Math.abs(x));
+    // The CURVE is cached per amount — WaveShaper nodes can share one Float32Array, and this
+    // was building a fresh 4KB table for every distorted sound. In a big battle that is the
+    // explosion rate times 4KB of allocation a second, all of it identical maths, feeding
+    // exactly the GC the battle can least afford.
+    this.curves ??= new Map();
+    let curve = this.curves.get(amount);
+    if (!curve) {
+      const n = 1024;
+      curve = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const x = (i * 2) / n - 1;
+        curve[i] = ((1 + amount) * x) / (1 + amount * Math.abs(x));
+      }
+      this.curves.set(amount, curve);
     }
     ws.curve = curve;
     return ws;

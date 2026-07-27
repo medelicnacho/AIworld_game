@@ -2889,7 +2889,13 @@ let autosaveT = AUTOSAVE_EVERY;
 // already reports fps. Big fights get slow and "big fight" touches five systems at once, so
 // without this every optimization is a guess about which one. The cost of measuring is five
 // performance.now() calls a frame, which is nothing against what it saves in wrong guesses.
-const frameMs = { sim: 0, mobs: 0, hud: 0, render: 0, total: 0 };
+const frameMs = { sim: 0, mobs: 0, hud: 0, render: 0, total: 0,
+  // THE WORST FRAME OF THE LAST FEW SECONDS, with its own breakdown. The running averages
+  // above smooth a 40ms hitch every second into statistical fog — and a hitch every second
+  // is exactly what "it lags in big fights" feels like. The peak line names the frame that
+  // actually hurt: if one section owns it, that section is guilty; if the total spikes and
+  // NO section does, the time went between the timers — which is the signature of GC.
+  peak: 0, peakLine: "", peakAge: 0 };
 
 // innerHTML ONLY WHEN IT CHANGED. Seven HUD blocks rebuilt their markup every frame whether
 // anything moved or not — health, ammo, xp, rep, points, the weapon dials, the boss bar —
@@ -3437,7 +3443,7 @@ function frame(now) {
     `in   fwd ${input.fwd >= 0 ? " " : ""}${input.fwd} str ${input.right >= 0 ? " " : ""}${input.right}` +
     `  ${input.aimHeld ? "AIM" : "---"}${input.aim ? "*" : " "}` +
     `  ${player.dodgeT > 0 ? "ROLL" : "    "}  ${player.onGround ? "grnd" : "air "}\n` +
-    `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ms ${frameMs.total.toFixed(1)} = sim ${frameMs.sim.toFixed(1)} + mobs ${frameMs.mobs.toFixed(1)} + hud ${frameMs.hud.toFixed(1)} + gpu ${frameMs.render.toFixed(1)}`;
+    `fps  ${fps.toFixed(0)}   chunks ${streamer.loaded.size}   ms ${frameMs.total.toFixed(1)} = sim ${frameMs.sim.toFixed(1)} + mobs ${frameMs.mobs.toFixed(1)} + hud ${frameMs.hud.toFixed(1)} + gpu ${frameMs.render.toFixed(1)}   ${frameMs.peakLine}`;
 
   // Overwatch-style HUD: big health bottom-left, big ammo bottom-right.
   const hpFrac = player.maxHp > 0 ? player.hp / player.maxHp : 0;
@@ -3523,7 +3529,16 @@ function frame(now) {
   lap.at("hud");
   renderer.render(scene, camera);
   lap.at("render");
-  frameMs.total += (performance.now() - frameT0 - frameMs.total) * 0.05;
+  const frameTotal = performance.now() - frameT0;
+  frameMs.total += (frameTotal - frameMs.total) * 0.05;
+  frameMs.peakAge += dt;
+  if (frameTotal > frameMs.peak || frameMs.peakAge > 4) {
+    frameMs.peak = frameTotal;
+    frameMs.peakAge = 0;
+    frameMs.peakLine = `worst ${frameTotal.toFixed(0)}ms`
+      + ` (sim ${frameMs.sim.toFixed(0)} mobs ${frameMs.mobs.toFixed(0)}`
+      + ` hud ${frameMs.hud.toFixed(0)} gpu ${frameMs.render.toFixed(0)})`;
+  }
 }
 requestAnimationFrame(frame);
 
