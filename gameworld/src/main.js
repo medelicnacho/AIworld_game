@@ -3155,6 +3155,13 @@ function frame(now) {
   const paint = (el, def, left, ready, charges = undefined) => {
     el.classList.toggle("up", !!def && ready);
     el.classList.toggle("empty", !def);
+    // TOO EXPENSIVE RIGHT NOW is a state you can SEE, before you press. The economy refuses
+    // casts constantly by design — that is what the prices are for — but the refusal only
+    // spoke after the press (a flash, a line of text), and mid-fight both go unseen, so the
+    // third "spell will not cast" bug report in a row was the price working invisibly. A slot
+    // you cannot afford dims amber; the moment regen covers it, it lights back up. No number
+    // to read, no message to miss — the bar itself says "not yet".
+    el.classList.toggle("starved", !!def && def.energy > 0 && player.energy < def.energy);
     // Icons are static per slot — only rewrite the SVG when the slot's contents change,
     // rather than reparsing markup 60 times a second for a picture that never moves.
     const icon = def?.icon || "";

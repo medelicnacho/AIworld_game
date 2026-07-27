@@ -531,6 +531,13 @@
         filter: drop-shadow(0 1px 2px #0009); }
       #bar .slot .ic svg { width: 100%; height: 100%; display: block; }
       #bar .slot.up .ic { filter: drop-shadow(0 0 5px #3ce88a88); }
+      /* Can't afford it YET. Amber like the energy bar it is waiting on, so the eye links
+         the dim slot to the filling bar without being taught — and clearly distinct from a
+         cooldown, which darkens the whole slot with its timer. Starved beats "up": a spell
+         off cooldown that you cannot pay for is not up. */
+      #bar .slot.starved .ic { filter: grayscale(0.75) brightness(0.55) sepia(0.5)
+        hue-rotate(-15deg) saturate(2.2); }
+      #bar .slot.starved .n { color: #c9a05a; }
       #bar .slot .n { font-size: 9px; letter-spacing: .03em; color: #f0f5ff; }
       /* The cooldown veil covers the whole slot, so it must be INVISIBLE when there is no
          cooldown — otherwise it sits on top of the icon permanently, which is exactly what
