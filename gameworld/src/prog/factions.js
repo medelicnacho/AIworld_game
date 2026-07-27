@@ -25,7 +25,13 @@
 // belongs to the author, and none of the machinery cares what they are called.
 
 import { player } from "../state.js";
-import { MOB } from "../config.js";
+// The playstyle cards QUOTE these. A card that describes a weapon is a second copy of that
+// weapon's numbers, and the copy is the one nobody re-reads when they retune the original —
+// Ash advertised six seconds of beam for a while after it became twelve, and Iron promised 1.2
+// seconds of invulnerability that had already grown to 2.5. This is the first screen a new
+// player reads and the only description they get before committing a whole run to it, so it
+// derives from the same constants the weapon actually runs on.
+import { MOB, WEAPONS, SPIN, LANCE_SPIN, FACTION_BONUS } from "../config.js";
 import { sanctuariesNear } from "../world/sanctuary.js";
 
 /**
@@ -42,21 +48,58 @@ import { sanctuariesNear } from "../world/sanctuary.js";
 //   (the third colour is nobody's business of yours — neutral, still hostile, no rep.)
 // It is a rock-paper-scissors: Ash hunts Iron's black, Vale hunts Ash's blue, Iron hunts
 // Vale's green — so no two factions share an ally OR an enemy.
+/**
+ * The three, and what choosing one actually gets you.
+ *
+ * `weapon` and `playstyle` exist because the choice moved to CHARACTER CREATION. It used to
+ * be made at a quartermaster's desk after ten levels of play, where the answer was informed
+ * by everything you had already seen; made at the start it is the first decision in the game
+ * and the player has seen nothing at all. A one-line blurb was enough to pick between things
+ * you understood — it is not enough to pick a WEAPON and a stat spread blind, so each of them
+ * says plainly how it fights and what it is bad at.
+ *
+ * The weakness line is not modesty. A list of three strengths is a list of three right
+ * answers, and the player learns nothing from it; naming the cost is what makes it a choice.
+ */
 export const FACTIONS = [
   {
     id: "ash", name: "Ash", ally: 1, enemy: 0, focus: "damage",
     color: "#5b9dff",   // blue
     blurb: "Hits harder than it can take. Strength, and every kind of damage.",
+    weapon: "Ash Lance",
+    playstyle: [
+      "A sustained beam that PIERCES and sweeps wide — it does not stop at the first thing it touches, and it catches the bodies beside your target.",
+      `Right mouse SPINS the beam around you for ${LANCE_SPIN.time}s — everything it passes over is thrown back, and you take ${Math.round(LANCE_SPIN.mitigation * 100)}% less while it runs.`,
+      `No magazine: it runs on HEAT. About ${Math.round(WEAPONS.lance.heatMax / WEAPONS.lance.heatUp)} seconds of continuous fire, then a forced cool-down.`,
+      `Strength raises every kind of damage you deal — and swearing to Ash adds ${Math.round(FACTION_BONUS.ash.damage * 100)}% on top of everything, from level one.`,
+      "Weak to: crowds while it cools, and anything that reaches you during the lockout.",
+    ],
   },
   {
     id: "vale", name: "Vale", ally: 2, enemy: 1, focus: "speed",
     color: "#5fd66a",   // green
     blurb: "Never where the blow lands. Agility, movement, shorter cooldowns.",
+    weapon: "Vale Cannon",
+    playstyle: [
+      "Lobs a heavy shell that BURSTS in a wide circle. It travels slowly, so you must lead it.",
+      `Right mouse fires a barrage of ${WEAPONS.lobber.barrageShots} at once — the answer when something is already on you.`,
+      "Never hurts you, however close it lands. The skill is reading where things will be.",
+      `Agility makes you faster and sharpens your dash — and Vale itself grants ${Math.round(FACTION_BONUS.vale.speed * 100)}% speed and ${Math.round(FACTION_BONUS.vale.haste * 100)}% shorter cooldowns.`,
+      "Weak to: fast single targets, and anything close enough that leading is impossible.",
+    ],
   },
   {
     id: "iron", name: "Iron", ally: 0, enemy: 2, focus: "survival",
     color: "#aab0be",   // iron/black — a legible steel for text; its mobs are truly black
     blurb: "Outlasts what should have killed it. Armour and Stamina.",
+    weapon: "Iron Cleaver",
+    playstyle: [
+      "A wide melee arc that hits everything in front of you, high or low.",
+      `${WEAPONS.cleaver.knockCharges} SHOVE charges throw what you hit backwards — spacing you spend and win back.`,
+      `Right mouse SPINS: untouchable for ${SPIN.iframes} seconds while you cross ground or leave a fight.`,
+      `Armour and Stamina — the only one that can stand in the middle of a pack, with ${Math.round(FACTION_BONUS.iron.health * 100)}% more health and ${Math.round(FACTION_BONUS.iron.armor * 100)}% more armour for swearing to it.`,
+      "Weak to: range. Everything you fight, you have to reach first.",
+    ],
   },
 ];
 

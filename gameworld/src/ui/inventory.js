@@ -10,7 +10,7 @@
 // impossible one-handed, and an interface with only one input path excludes people for no
 // reason.
 
-import { SLOTS } from "../player/abilities.js";
+import { SLOTS, SLOT_KEYS } from "../player/abilities.js";
 import { ICONS } from "./icons.js";
 import { WEAPONS, STAT_INFO, ADMIN_CODE, CAMERA } from "../config.js";
 import { setLook, LOOK_MIN, LOOK_MAX } from "../player/controller.js";
@@ -176,9 +176,15 @@ export class Inventory {
     // you open forty times a session — right beside the tabs. It belongs on the screen whose
     // whole job is choosing a character, and nowhere else.
     if (e.target.closest("[data-slots]")) { this.hooks.toCharacterSelect?.(); return; }
+    // UNSTUCK closes the panel on the way out. You pressed it to look at the world, and the
+    // whole point is seeing whether it worked — leaving the sheet over the top would mean
+    // pressing it again because nothing appeared to happen.
+    if (e.target.closest("[data-unstuck]")) { this.hooks.unstick?.(); this.close(); return; }
     if (e.target.closest("[data-grant]")) { this.hooks.grantAll?.(); this.render(); return; }
     const one = e.target.closest("[data-give]");
     if (one) { this.hooks.give?.(one.dataset.give); this.render(); return; }
+    const fac = e.target.closest("[data-faction]");
+    if (fac) { this.hooks.setFaction?.(fac.dataset.faction); this.render(); return; }
     const spawn = e.target.closest("[data-spawn]");
     if (spawn) { this.hooks.spawnAffix?.(spawn.dataset.spawn); this.close(); return; }
     if (e.target.closest("[data-spawnmix]")) { this.hooks.spawnAffixMix?.(); this.close(); return; }
@@ -228,10 +234,19 @@ export class Inventory {
     }
   }
 
-  cell(def, attr, i, extra = "") {
+  /**
+   * One draggable square. `key` is the keyboard key this slot answers to, drawn in the corner
+   * exactly where the in-game bar draws it — this screen is where you DECIDE what sits on which
+   * key, and it was the one place that never said. You arranged a bar by position and then went
+   * back to a HUD labelled Q/E/1/2/3/4, which is a translation nobody should have to do. Blank
+   * slots get the badge too, and want it most: an empty square is a question about a key.
+   */
+  cell(def, attr, i, extra = "", key = "") {
+    const label = def ? `${def.name} — ${def.desc || ""}` : key ? `empty — ${key}` : "empty";
     return `
       <div class="cell ${def ? "" : "blank"} ${extra}" ${attr}="${i}" ${def ? 'draggable="true"' : ""}
-           title="${def ? `${def.name} — ${def.desc || ""}` : "empty"}">
+           title="${label}">
+        ${key ? `<span class="k">${key}</span>` : ""}
         <span class="ic">${def ? (ICONS[def.icon] || "") : ""}</span>
         <span class="nm">${def ? def.name : ""}</span>
       </div>`;
@@ -448,10 +463,17 @@ export class Inventory {
       : `<p class="none">Nothing yet. Adepts in the towns sell abilities.</p>`;
     const bar = Array.from({ length: SLOTS }, (_, i) =>
       this.cell(a.slots[i], "data-slot", i,
-        this.picked?.from === "slot" && this.picked.index === i ? "held" : "")).join("");
+        this.picked?.from === "slot" && this.picked.index === i ? "held" : "", SLOT_KEYS[i])).join("");
+    // The heading names the keys rather than stating a range. It said "(1–4)" long after the
+    // bar stopped being four slots on 1–4 — a hardcoded description of a list that is right
+    // there to be read is a comment pretending to be UI, and it goes stale in silence.
+    const free = a.slots.filter((s) => !s).length;
     return `
       <div class="bag">${bag}</div>
-      <h3>Ability bar (1–4)</h3>
+      <h3>Ability bar — ${SLOT_KEYS.join(" · ")}${
+        a.owned.length > SLOTS
+          ? ` <span class="hint">${a.owned.length - SLOTS + free} left in the bag — you cannot carry them all</span>`
+          : ""}</h3>
       <div class="bar">${bar}</div>`;
   }
 
@@ -509,6 +531,13 @@ export class Inventory {
         </div>
         <div class="row give-row">${list}</div>
         <div class="row give-row">
+          <span class="lbl">swear to:</span>
+          ${["iron", "ash", "vale"].map((f) => `
+            <button class="give ${p.faction === f ? "has" : ""}" data-faction="${f}">
+              ${f}${p.faction === f ? " ✓" : ""}
+            </button>`).join("")}
+        </div>
+        <div class="row give-row">
           <span class="lbl">spawn star pack:</span>
           ${(this.hooks.affixes?.() || []).map((a) => `
             <button class="give spawn" data-spawn="${a.id}" title="${a.desc}">${a.name}</button>`).join("")}
@@ -529,6 +558,11 @@ export class Inventory {
     // The way out to the slot screen. Safe by construction — it saves and returns you to the
     // character list, where switching, starting another and deleting one all live together.
     const reset = `<button class="reset" data-slots>Characters</button>`;
+    // UNSTUCK lives here rather than on a key. It is pressed when the world has gone wrong,
+    // which is never a moment that needs to be fast — and a hotkey for it is a hotkey somebody
+    // fat-fingers mid-fight. Beside "Characters" on purpose: both are ways out, and a player
+    // hunting for one has already found the other.
+    const unstuck = `<button class="reset unstuck" data-unstuck title="Stand you back up if the world has closed over you">Unstuck</button>`;
 
     const foot = this.tab === "spells"
       ? (this.picked ? "Now click a slot to place it"
@@ -541,6 +575,7 @@ export class Inventory {
       <div class="panel">
         <header>
           <h2>Character</h2>
+          ${unstuck}
           ${reset}
           <button class="adm ${this.admin ? "on" : ""}" data-admin>admin</button>
           <button class="x" data-close>✕</button>

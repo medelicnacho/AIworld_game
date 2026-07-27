@@ -117,14 +117,47 @@ export class Villagers {
     const QM_HEADING = 0.6;          // which way the row sits from the centre — fixed, so it
                                      // is in the same place in every town you ever enter
     const QM_SPACING = 3.6 / QM_RAD; // ~3.6 world units apart, as an angle at this radius
-    let qmSeen = 0;
+
+    // THE MARKET ROW, beside the recruiting row — cities only.
+    //
+    // A city is the place you come back to with a full bag, and the three people who empty it
+    // were scattered on random bearings and STROLLING, so restocking meant three laps of the
+    // largest enclosure in the game hunting moving targets. The quartermasters solved exactly
+    // this for themselves years ago (see above) and the reasoning applies wholesale: someone
+    // standing at a counter should be where the counter is.
+    //
+    // So in a city the herbalist, smith and adept form a second short row on the same radius,
+    // just around the arc from the desks — one visit, four people, everything a city is for
+    // within a few paces. Towns keep their strollers: a hamlet with four residents is small
+    // enough to cross at a glance, and people wandering is most of what makes it feel lived in.
+    // ONE OF EACH, not all of them. A city's roster carries two herbalists, two smiths and
+    // two adepts — which nobody ever noticed while they were scattered on random bearings,
+    // and which turned the first version of this row into six people strung across eighteen
+    // units of arc. A counter you have to walk the length of is the problem this was fixing.
+    // The first of each trade takes the desk; the second keeps strolling, and a city having
+    // spare tradesfolk wandering about is exactly right for the biggest place in the world.
+    const TRADE = ["herbalist", "smith", "adept"];
+    const tradeRow = s.city ? [...new Set(roles.filter((k) => TRADE.includes(k)))] : [];
+    const posted_ = new Set();
+    // Far enough round that the two rows read as separate counters rather than one crowd,
+    // close enough that both are in frame at once when you walk up to either.
+    const TRADE_HEADING = QM_HEADING + (qmCount * QM_SPACING) / 2 + 5.2 / QM_RAD;
+    const TRADE_SPACING = 3.6 / QM_RAD;
+    let qmSeen = 0, tradeSeen = 0;
     for (const key of roles) {
       const ri = ROLES.findIndex((r) => r.key === key);
       const isQm = QM.includes(key);
-      const ang = isQm
-        ? QM_HEADING + (qmSeen - (qmCount - 1) / 2) * QM_SPACING
-        : rng() * Math.PI * 2;
+      // Only the FIRST of each trade is posted — see tradeRow.
+      const isTrader = tradeRow.includes(key) && !posted_.has(key);
+      if (isTrader) posted_.add(key);
+      let ang;
+      if (isQm) ang = QM_HEADING + (qmSeen - (qmCount - 1) / 2) * QM_SPACING;
+      else if (isTrader) {
+        ang = TRADE_HEADING + (tradeSeen - (tradeRow.length - 1) / 2) * TRADE_SPACING;
+        tradeSeen++;
+      } else ang = rng() * Math.PI * 2;
       if (isQm) qmSeen++;
+      const posted = isQm || isTrader;    // anyone at a counter stands at it
       // Colour override, town scheme: civilians carry the flag, the QM desk goes red,
       // herbalist and adept keep the trade colours you learned in the spawn town.
       let col = null;
@@ -143,10 +176,10 @@ export class Villagers {
         uid: folk.length,
         col: col !== null ? new THREE.Color(col) : null,
         ang,
-        rad: isQm ? QM_RAD : 4 + rng() * Math.max(4, s.rMin - 9),
-        spd: isQm ? 0 : (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.05),
-        bob: isQm ? 0 : rng() * Math.PI * 2,
-        still: isQm,
+        rad: posted ? QM_RAD : 4 + rng() * Math.max(4, s.rMin - 9),
+        spd: posted ? 0 : (rng() < 0.5 ? -1 : 1) * (0.02 + rng() * 0.05),
+        bob: posted ? 0 : rng() * Math.PI * 2,
+        still: posted,
         x: s.x, z: s.z, y: 0,
       });
     }

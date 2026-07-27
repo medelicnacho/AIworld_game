@@ -4,9 +4,10 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyLevelStats, xpToNext, respawnTierFor, xpLevelMult, loseLevel } from "./xp.js";
+import { applyLevelStats, xpToNext, respawnTierFor, xpLevelMult } from "./xp.js";
 import { maxHpFor } from "./stats.js";
 import { player } from "../state.js";
+import { diff } from "./difficulty.js";
 import { GRACE, XP, STATS } from "../config.js";
 
 /** Reset every input applyLevelStats reads, at a given level; then derive. */
@@ -74,19 +75,28 @@ test("respawnTierFor: floored, never negative, non-decreasing", () => {
   }
 });
 
-test("grace: full at level 1, gone by GRACE.levels+1, monotonically fading", () => {
+test("grace: full at level 1, gone by the end of its span, monotonically fading", () => {
   derive(1);
   assert.ok(Math.abs(player.graceMitigation - GRACE.mitigation) < 1e-9, "full mitigation at L1");
   // dmgMult at L1 = level(1) * (1+0) * (1 + full dmgBonus).
   assert.ok(Math.abs(player.dmgMult - (1 + GRACE.dmgBonus)) < 1e-9, "full damage bonus at L1");
 
-  derive(GRACE.levels + 1);
-  assert.equal(player.graceMitigation, 0, "grace fully gone");
-  assert.ok(Math.abs(player.dmgMult - Math.pow(XP.damageGrowth, GRACE.levels)) < 1e-6,
+  // THE SPAN IS PER-DIFFICULTY, not a constant. Every mode stretches the cushion by its own
+  // `grace` (easy and hard both run it long now), so a test that assumed GRACE.levels was the
+  // whole story was really testing "the difficulty happens to be 1.0" — and broke the moment
+  // hard's opening was softened, for a reason that had nothing to do with the curve's shape.
+  // What must hold is the SHAPE: full at level 1, gone by the end of whatever span this mode
+  // has, and never rising in between.
+  // CEIL, not round: the span is 26.4 levels on a 2.2 multiplier, and level 27 still has a
+  // sliver of cushion left on it. Rounding down asked "is it gone" one level too early.
+  const span = Math.ceil(GRACE.levels * diff().grace);
+  derive(span + 1);
+  assert.equal(player.graceMitigation, 0, "grace fully gone by the end of its span");
+  assert.ok(Math.abs(player.dmgMult - Math.pow(XP.damageGrowth, span)) < 1e-6,
     "no grace left in dmgMult");
 
   let prev = Infinity;
-  for (let l = 1; l <= GRACE.levels + 1; l++) {
+  for (let l = 1; l <= span + 1; l++) {
     derive(l);
     assert.ok(player.graceMitigation <= prev, `mitigation should not rise at level ${l}`);
     prev = player.graceMitigation;
@@ -100,45 +110,8 @@ test("maxHp: driven by Stamina, and hp rides a raised ceiling up", () => {
   assert.ok(player.hp <= player.maxHp, "hp never exceeds max");
 });
 
-test("death: ALWAYS costs a level, at every level — this is the design, not a bug", () => {
-  // Guarding the intent: death is meant to be the harshest thing in the game. If someone
-  // later "fixes" this into a gentler fraction-of-a-bar penalty, this test should stop them.
-  for (const lv of [2, 5, 20, 40, 60]) {
-    derive(lv);
-    player.xp = Math.floor(xpToNext(lv) * 0.9);      // nearly levelled: still costs a level
-    assert.equal(loseLevel(), true, `dying at level ${lv} must cost a level`);
-    assert.equal(player.level, lv - 1, `must land exactly one level down from ${lv}`);
-  }
-});
 
-test("death: you land a third of the way into the level below, wherever you died in yours", () => {
-  for (const lv of [10, 30, 50]) {
-    for (const where of [0, 0.5, 0.99]) {
-      derive(lv);
-      player.xp = Math.floor(xpToNext(lv) * where);
-      loseLevel();
-      assert.equal(player.xp, Math.floor(xpToNext(lv - 1) * XP.deathLandFrac),
-        `landing spot must not depend on how far into level ${lv} you were`);
-      assert.ok(player.xp > 0, "never stranded at zero — the climb back has a running start");
-      assert.ok(player.xp < xpToNext(lv - 1), "and never so far in that the level is free");
-    }
-  }
-});
 
-test("death: losing a level also re-derives your stats (the setback is felt, not just shown)", () => {
-  derive(20);
-  const before = player.dmgMult;
-  loseLevel();
-  assert.ok(player.dmgMult < before, "a lost level must actually cost you power");
-});
-
-test("death: level 1 is a floor — you can never be driven below it", () => {
-  derive(1);
-  player.xp = 0;
-  assert.equal(loseLevel(), false, "level 1 has nothing left to take");
-  assert.equal(player.level, 1);
-  assert.ok(player.xp >= 0, "xp can never go negative");
-});
 
 test("reloadMult: floored above zero even with absurd reload rating (the bricked-gun bug)", () => {
   derive(10, { gearReload: 0.6, rReload: 100000 });

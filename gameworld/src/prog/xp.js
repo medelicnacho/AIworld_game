@@ -10,7 +10,7 @@
 // Which is the intended pressure: to keep levelling you must walk further out, where mobs
 // are worth more AND more of them are elites. Distance is the progression system.
 
-import { XP, PLAYER, HASTE, DODGE, STATS, GRACE } from "../config.js";
+import { XP, PLAYER, HASTE, DODGE, STATS, GRACE, FACTION_BONUS } from "../config.js";
 import { player } from "../state.js";
 import { groundY } from "../world/gen.js";
 import { maxHpFor, ratingPct } from "./stats.js";
@@ -96,8 +96,13 @@ export function applyLevelStats() {
   // Damage = level × (1 + GLOBAL). Global is Strength (STATS.strDmg per point) plus any
   // Global-Damage gear. The gun/spell/grenade BUCKETS are per-source and applied at the use
   // sites (they can't be uniform here). gearDmg is 0 now that Sharpen is gone, kept for safety.
+  // WHAT YOUR COLOUR IS WORTH (FACTION_BONUS). Read here, inside the derivation, because
+  // recomputeGear() re-sums player.dmgGlobal and friends from your equipment on every equip —
+  // a bonus stored in one of those fields would survive exactly until you changed a hat.
+  const fac = FACTION_BONUS[player.faction] || {};
   player.dmgMult = player.levelMult
     * (1 + (player.gearDmg || 0) + STATS.strDmg * (player.str || 0) + (player.dmgGlobal || 0))
+    * (1 + (fac.damage || 0))    // Ash
     * diff().playerDmg;          // Easy hits harder — the second half of "softer, same game"
 
   // Early-game grace: large at level 1, linear to nothing by GRACE.levels. It makes a fresh,
@@ -114,7 +119,8 @@ export function applyLevelStats() {
   // of +speedSoftCap. You keep gaining forever, each gain worth less than the last, and you
   // can never outrun the game. (The dash reads speedMult too, so it tames in step.)
   // Agility feeds the speed input alongside Lighten (STATS.agiSpeed per point).
-  const speedGear = (player.gearSpeed || 0) + STATS.agiSpeed * (player.agi || 0) + (player.moveSpeed || 0);
+  const speedGear = (player.gearSpeed || 0) + STATS.agiSpeed * (player.agi || 0)
+    + (player.moveSpeed || 0) + (fac.speed || 0);      // Vale
   const rawSpeedBonus = Math.pow(XP.speedGrowth, n) * (1 + speedGear) - 1;
   player.speedMult = 1 + XP.speedSoftCap * Math.tanh(rawSpeedBonus / XP.speedSoftCap);
   player.jumpMult = Math.pow(XP.jumpGrowth, n);
@@ -124,7 +130,14 @@ export function applyLevelStats() {
   // change. Armour is no longer a precomputed multiplier: its mitigation depends on the
   // ATTACKER's tier, so it is resolved at the damage choke point instead (see damagePlayer).
   const before = player.maxHp;
-  player.maxHp = maxHpFor(player.stamina);
+  // Not rounded: the HUD already rounds for display, and the raw value is what the rest of the
+  // maths expects. Rounding here changed a stat that nothing asked me to change.
+  player.maxHp = maxHpFor(player.stamina) * (1 + (fac.health || 0));   // Iron
+  // IRON'S ARMOUR BONUS AS A SEPARATE MULTIPLIER, read at the damage choke point. It must
+  // NOT scale player.armor: that field is re-summed from gear by recomputeGear, but this
+  // function also runs on its own at every level-up — so multiplying it in place would
+  // compound the bonus a little more each level until armour meant nothing at all.
+  player.armorMult = 1 + (fac.armor || 0);
   // If gear just raised your ceiling, ride the gain up rather than leaving a gap under a
   // fuller bar; never top you off from a mere re-derive (level-up does that deliberately).
   if (player.maxHp > before) player.hp += player.maxHp - before;
@@ -151,11 +164,15 @@ export function applyLevelStats() {
   const h = player.haste || 0;
   const hasteR = ratingPct(player.rHaste, STATS.hasteK);
   const atkR = ratingPct(player.rAtkSpeed, STATS.attackSpeedK);
+  // Vale's haste is on COOLDOWNS AND CASTS, which is what its own pitch promises ("movement,
+  // dash, shorter cooldowns") — deliberately not fire rate, which is the Attack Speed rating's
+  // job and belongs to gear rather than to a colour.
+  const facHaste = 1 - (fac.haste || 0);
   player.hasteFire = Math.pow(HASTE.fire, h) * (1 + atkR);
-  player.hasteCd = Math.pow(HASTE.cooldown, h) * (1 - hasteR);
+  player.hasteCd = Math.pow(HASTE.cooldown, h) * (1 - hasteR) * facHaste;
   // The channel keeps its floor: this one is a DESIGN limit, not a safety one. Standing
   // still is the cost of Mend, and an instant channel would quietly make it a second potion.
-  player.hasteCast = Math.max(HASTE.castFloor, Math.pow(HASTE.cast, h) * (1 - hasteR));
+  player.hasteCast = Math.max(HASTE.castFloor, Math.pow(HASTE.cast, h) * (1 - hasteR) * facHaste);
 }
 
 /** Fraction of the way to the next level, for the HUD bar. */
@@ -181,28 +198,3 @@ export function levelForTier(t) {
   return t <= 0 ? 1 : 5 + 5 * t;
 }
 
-/**
- * D9's death penalty: you lose a LEVEL, and land a third of the way into the one below.
- *
- * This is deliberately the harshest thing in the game and it is meant to be — hardcore WoW's
- * grip without its permanence. The number on your character goes down where you can see it,
- * which is what makes the fear real; a gentler penalty measured in slices of a bar is fairer
- * and much less frightening, and fear is the point. See XP.deathLandFrac.
- *
- * It also pairs with respawnTierFor(): your level is your passport to the deep, so losing one
- * can revoke your right to wake out there and carry you back to ground you have earned. The
- * two rules are the same idea said twice, and they are meant to agree.
- *
- * @returns {boolean} whether a level was actually lost (the death screen says so if it was)
- */
-export function loseLevel() {
-  // On Easy, death costs nothing but the walk back — no level, no lost bar. Training wheels:
-  // the whole point is that a beginner can throw themselves at the frontier and learn it
-  // without the stake that makes Hard, Hard.
-  if (diff().deathLoss <= 0) return false;
-  if (player.level <= 1) { player.xp = 0; return false; }   // level 1 is the floor
-  player.level--;
-  applyLevelStats();
-  player.xp = Math.floor(xpToNext(player.level) * XP.deathLandFrac);
-  return true;
-}

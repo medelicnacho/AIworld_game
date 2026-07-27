@@ -113,6 +113,9 @@ export function snapshot(ctx) {
     rep: player.rep || 0,
     difficulty: difficultyId(),
     x: player.x, y: player.y, z: player.z,
+    // ...and WHICH WORLD those coordinates belong to. Null out under the sky; inside an
+    // instance, the one number that rebuilds it. See dungeonState() in main.
+    dungeon: ctx.dungeonState ? ctx.dungeonState() : null,
     yaw: player.yaw, pitch: player.pitch,
     // Stacking upgrade counters. These live on the player rather than in the gear sum, so
     // they have to travel separately or a loaded character quietly loses what it bought.
@@ -165,6 +168,18 @@ export function restore(data, ctx) {
   player.rep = Math.max(0, data.rep | 0);
   setDifficulty(data.difficulty || "hard");
   player.x = data.x; player.y = data.y; player.z = data.z;
+  // WHICH WORLD those coordinates were in. Restored BEFORE anything reads the ground, because
+  // groundY means something entirely different once an instance is live.
+  const inside = data.dungeon ? !!ctx.restoreDungeon?.(data.dungeon) : false;
+  // THE FALL GUARD. A save written before dungeons were saveable — or one whose instance
+  // refused to rebuild — can carry a Y hundreds of blocks above the land with no floor under
+  // it, and restoring that faithfully means loading into freefall. Nothing legitimate puts you
+  // that far over the terrain, so it is treated as the corruption it is and dropped to the
+  // ground beneath. Costs a returning player nothing; costs a hardcore one their character.
+  if (!inside) {
+    const g = ctx.groundAt ? ctx.groundAt(player.x, player.z) : null;
+    if (g !== null && player.y > g + 240) player.y = g + 0.5;
+  }
   player.yaw = data.yaw || 0; player.pitch = data.pitch || 0;
   player.haste = data.haste || 0;
   player.dashRank = data.dashRank || 0;
@@ -200,6 +215,21 @@ export function restore(data, ctx) {
   abilities.slots = (data.bar || []).map((id) => (id ? owned.get(id) || null : null));
   while (abilities.slots.length < ctx.slots) abilities.slots.push(null);
   abilities.slots.length = ctx.slots;
+  // THE ONES YOU WERE GIVEN. Heal and the grenade were fixed keys before they were spells, so
+  // a bar saved back then does not mention them — and rebuilding the bar from that list would
+  // strand the two abilities every character owns in the bag. Anything marked `starter` that
+  // the saved bar left out goes back onto it. Deliberately not a repair for spells you BOUGHT:
+  // those you arranged yourself, and an empty slot is a choice.
+  // ...and if there is NOWHERE to put one, make room. The bar shrank from ten slots to six, so
+  // a character built back then can load with its heal truncated off the end — equip(-1) finds
+  // no free slot, quietly declines, and you spawn with no heal key and no idea why. Nothing was
+  // ever lost (the displaced spell is still in `owned`, one drag from the bag), so the trade is
+  // an arrangement you can redo in a second against a button your hands reach for without
+  // asking. Last slot, so it takes the least-reached key.
+  for (const a of abilities.owned) {
+    if (!a.starter || abilities.slots.some((s) => s?.id === a.id)) continue;
+    if (!abilities.equip(-1, a)) abilities.equip(ctx.slots - 1, a);
+  }
 
   for (const id of data.guns || []) gun.acquire(id);
   // The two you CARRIED, not just the pile you owned. Older saves have no loadout; derive

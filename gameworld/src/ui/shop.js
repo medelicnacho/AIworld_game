@@ -95,14 +95,14 @@ export const GOODS = {
   // which collapses its term to 1 and leaves the gear rating driving fire rate, cooldowns and
   // the heal channel exactly as before.
   adept: [
-    { id: "firering", name: "Ring of Fire", price: FIRERING.price, once: true,
-      desc: `A wall of flame erupts outward, ${spellDamage(FIRERING.damage)} damage to everything within `
+    { id: "firering", name: "Explosion!", price: FIRERING.price, once: true,
+      desc: `A ball of fire bursts out of you, ${spellDamage(FIRERING.damage)} damage to everything within `
         + `${FIRERING.radius}m. ${FIRERING.cd}s cooldown. Goes to your first free slot.`,
       apply: (game) => game.abilities.acquire({
         id: "firering",
-        name: "Ring of Fire",
+        name: "Explosion!",
         icon: "burst",
-        desc: "A wall of flame erupts around you.",
+        desc: "A ball of fire bursts out of you.",
         cd: FIRERING.cd, energy: ENERGY.firering,
         use: () => game.fireRing(),
       }) },
@@ -118,14 +118,14 @@ export const GOODS = {
         cd: DASH.cd, energy: ENERGY.dash,
         use: () => game.dashStrike(),
       }) },
-    { id: "firering2", name: "Ring of Fire II", price: RANK2.fireringPrice, once: true,
+    { id: "firering2", name: "Explosion! II", price: RANK2.fireringPrice, once: true,
       minTier: 1,
-      desc: `The same wall of flame on a ${RANK2.fireringCd}s cooldown instead of `
+      desc: `The same ball of fire on a ${RANK2.fireringCd}s cooldown instead of `
         + `${FIRERING.cd}s, and anything that survives it is thrown clear. `
-        + `Replaces Ring of Fire.`,
+        + `Replaces Explosion!`,
       apply: (game) => game.abilities.acquire({
-        id: "firering2", name: "Ring of Fire II", icon: "burst", replaces: "firering",
-        desc: `A wall of flame around you; survivors are thrown clear. `
+        id: "firering2", name: "Explosion! II", icon: "burst", replaces: "firering",
+        desc: `A ball of fire bursts out of you; survivors are thrown clear. `
           + `${RANK2.fireringCd}s cooldown.`,
         cd: RANK2.fireringCd,
         use: () => game.fireRing(true),

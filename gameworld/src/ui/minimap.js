@@ -13,6 +13,7 @@ import { RINGS } from "../config.js";
 import { player } from "../state.js";
 import { heightAt, ringAt, tierStart } from "../world/gen.js";
 import { sanctuariesNear, boundaryAt, gateArc } from "../world/sanctuary.js";
+import { nearestGate, inDungeon } from "../world/dungeon.js";
 import { servesYou, isHostileSanctuary, isMyAlly, FACTIONS } from "../prog/factions.js";
 import { Villagers } from "../town/villagers.js";
 
@@ -207,7 +208,7 @@ export class Minimap {
    * two markers pointing the same way cannot print their words on top of each other — the
    * second keeps its arrow and drops its text, which still says "something is that way".
    */
-  compass(ctx, R, scale, m, fill, edge, label, placed) {
+  compass(ctx, R, scale, m, fill, edge, label, placed, shape = "diamond") {
     const d = Math.hypot(m.mx, m.my);
     const near = d <= RANGE - 10;
     const k = near ? 1 : (RANGE - 12) / (d || 1);
@@ -216,7 +217,19 @@ export class Minimap {
     ctx.save();
     ctx.translate(x, y);
     ctx.lineJoin = "round";
-    if (near) {
+    if (near && shape === "dot") {
+      // A DOT for a dungeon mouth. The diamond is the shape this map uses for "a place you
+      // travel to"; a dungeon is a hole in the ground you stand on top of, and giving it its
+      // own shape means the two never have to be told apart by colour alone — which matters
+      // for anyone reading this map who does not separate green from orange easily.
+      ctx.beginPath();
+      ctx.arc(0, 0, 4.2, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    } else if (near) {
       ctx.rotate(Math.PI / 4);
       ctx.fillStyle = fill;
       ctx.fillRect(-4, -4, 8, 8);
@@ -245,14 +258,20 @@ export class Minimap {
     ctx.textAlign = "center";
     const w = ctx.measureText(text).width;
     const ly = y + (y < R ? 17 : -12);
-    const box = { x0: x - w / 2 - 2, x1: x + w / 2 + 2, y0: ly - 9, y1: ly + 3 };
+    // PULLED BACK INSIDE THE MAP. A rim arrow sits ON the edge, so a label centred under it
+    // hangs half its width over the side — and everything here draws inside a circular clip,
+    // which does not wrap the overflow, it deletes it. The longer the word the more of it
+    // goes, which is why "dungeon" lost more of itself than "town" ever did. Slide the text
+    // along until it fits; the arrow stays exactly where it was pointing.
+    const tx = Math.max(w / 2 + 3, Math.min(R * 2 - w / 2 - 3, x));
+    const box = { x0: tx - w / 2 - 2, x1: tx + w / 2 + 2, y0: ly - 9, y1: ly + 3 };
     if (placed.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0)) return;
     placed.push(box);
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = "rgba(8,12,18,0.85)";
-    ctx.strokeText(text, x, ly);
+    ctx.strokeText(text, tx, ly);
     ctx.fillStyle = fill;
-    ctx.fillText(text, x, ly);
+    ctx.fillText(text, tx, ly);
   }
 
   draw(dt, mobs, boss, villagers) {
@@ -366,16 +385,31 @@ export class Minimap {
         }
       }
 
-      // And mark it, so it's findable at a glance rather than only if you study the shape.
+      // AND MARK IT, BIG AND BLUE. This is the single most navigationally useful point on the
+      // whole map — a town's wall is unbroken except here, so arriving anywhere else means
+      // walking the perimeter until you find the way in. At 3.4px in amber it was smaller than
+      // a vendor dot and the same family of colour as the town fill it sat on, so it read as
+      // decoration on the outline rather than as the one thing you were looking for.
+      //
+      // Blue because nothing else on this map is: the factions own red, orange and green, the
+      // dungeon arrow is green, vendors are green, and a colour already spoken for cannot mean
+      // "door". Ringed in white so it holds against a green town, a red camp or bare terrain
+      // alike — the mark has to survive whatever it happens to be drawn on top of.
       const gr = boundaryAt(s, s.gate);
       const [gx, gy] = pt(Math.cos(s.gate) * gr, Math.sin(s.gate) * gr);
       ctx.beginPath();
-      ctx.arc(gx, gy, 3.4, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffe066";
+      ctx.arc(gx, gy, 8, 0, Math.PI * 2);
+      ctx.fillStyle = "#3aa2ff";
       ctx.fill();
-      ctx.strokeStyle = "#4a3a00";
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "#eaf4ff";
+      ctx.lineWidth = 2;
       ctx.stroke();
+      // A darker core, so the disc still reads as a RING at a glance rather than a blob —
+      // shape carries as far as colour does, and further for anyone who separates hues poorly.
+      ctx.beginPath();
+      ctx.arc(gx, gy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "#0b2f57";
+      ctx.fill();
 
       // The name is DEFERRED, not drawn here — a garrison stands in the middle of its own
       // town, so writing the name now would put it under fifteen mob dots. Same rule the
@@ -432,6 +466,17 @@ export class Minimap {
     // these two. That is a rule worth holding: four arrows stop being something you glance at
     // and become something you decode, and the whole point of this map is the glance.
     const placed = [];
+    // THE WAY UNDERGROUND GOES FIRST, and the order is the whole point: when two markers
+    // point the same way the SECOND one silently drops its word and keeps only its arrow.
+    // Drawn after the town, a gate in roughly the town's direction became a green arrow with
+    // nothing written on it — the one marker on this map whose shape you have no other way to
+    // read. Town and spawn can afford to lose a label; you can find a town by walking at it,
+    // and spawn is written in the rings. A dungeon is a specific hole in a specific hillside.
+    const gate = inDungeon() ? null : nearestGate(player.x, player.z);
+    if (gate) {
+      const g = this.toMap(gate.x - player.x, gate.z - player.z);
+      this.compass(ctx, R, scale, g, "#3ddc84", "#0a3b21", "dungeon", placed, "dot");
+    }
     const nearestTown = this.nearestTradePost();
     if (nearestTown) {
       const t = this.toMap(nearestTown.x - player.x, nearestTown.z - player.z);

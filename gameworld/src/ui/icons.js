@@ -16,7 +16,7 @@ export const ICONS = {
     <polygon points="8.2,2 15.8,2 22,8.2 22,15.8 15.8,22 8.2,22 2,15.8 2,8.2"
       fill="#c49a6c" stroke="#7d5c3a" stroke-width="1.6" stroke-linejoin="round"/></svg>`,
 
-  // Ring of Fire — a bright red-orange disc with a hotter core.
+  // Explosion! — a bright red-orange disc with a hotter core.
   burst: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <circle cx="12" cy="12" r="10" fill="#ff5a1e" stroke="#ffb066" stroke-width="1.4"/>
     <circle cx="12" cy="12" r="4.6" fill="#ffd08a" opacity="0.9"/></svg>`,
