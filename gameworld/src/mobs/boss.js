@@ -108,6 +108,7 @@ export class Boss {
       // Seconds left on the HUD's engagement clock — see engage(). Starts at zero: a boss
       // that has spawned somewhere behind you is not yet YOUR fight.
       engaged: 0,
+      pressed: 0,        // seconds of grace left before it may let you go
       phase: 1,
       charging: false,
       roarCd: BOSS.roarEvery[0],
@@ -198,6 +199,8 @@ export class Boss {
     const weak = tag === "bossWeak";
     this.alive.hp -= dmg;
     this.engage();
+    // YOUR damage, and only yours, is what keeps it on you. See BOSS.giveUp.
+    this.alive.pressed = BOSS.giveUp;
     this.hitEvents.push({ x: this.alive.x, y: this.alive.y + 5.5, z: this.alive.z, amount: Math.round(dmg), weak });
     if (this.alive.hp <= 0) {
       const ring = this.alive.ring;
@@ -259,6 +262,7 @@ export class Boss {
     const b = this.alive;
     if (!b) return;
     if (b.engaged > 0) b.engaged = Math.max(0, b.engaged - dt);
+    if (b.pressed > 0) b.pressed = Math.max(0, b.pressed - dt);
 
     const dx = player.x - b.x, dz = player.z - b.z;
     const dist = Math.hypot(dx, dz) || 1;
@@ -279,7 +283,11 @@ export class Boss {
     // advancing. Meteors already in the air still land — you ran, they were already falling.
     // Out of its reach for the same reason a sanctuary is: it cannot fight what it cannot
     // get to, so it stops winding up rather than firing into the sky.
-    if (overhead || sanctuaryUnder(player.x, player.y, player.z, 0)) {
+    // BROKEN OFF: you stopped shooting and you are away. Handled with the other reasons it
+    // cannot fight you, so it drops its telegraphs the same way rather than firing a volley
+    // it committed to before you left.
+    const brokenOff = b.pressed <= 0 && dist > BOSS.releaseRange;
+    if (overhead || brokenOff || sanctuaryUnder(player.x, player.y, player.z, 0)) {
       b.charging = false;
       b.beamWarm = 0;
       b.beamT = 0;

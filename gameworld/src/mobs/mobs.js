@@ -12,11 +12,13 @@
 // drives this same locomotion layer with a substrate brain, and none of it has to change.
 
 import * as THREE from "three";
-import { MOB, PLAYER, RAID, WARCRY } from "../config.js";
+import { MOB, PLAYER, RAID, WARCRY, DUNGEON } from "../config.js";
 import { player } from "../state.js";
 import { addEntity, removeEntity, reindex, world, nearby } from "../state.js";
 import { groundY, solidAt, tierAt, ringPressure, surfaceNear, islandTopsAt } from "../world/gen.js";
 import { terrainClear } from "../world/raycast.js";
+import { dungeonSpawnPoint, dungeonFaction, dungeonGarrisonLeft,
+         noteDungeonKill, clampToRoom } from "../world/dungeon.js";
 import { sfx } from "../audio/sfx.js";
 import { sanctuaryOf, boundaryAt, gateArc, sanctuaryUnder, wallBlocks, WALL_H } from "../world/sanctuary.js";
 import { mulberry32 } from "../rng.js";
@@ -144,7 +146,7 @@ export class Mobs {
       }));
       mesh.visible = false;
       scene.add(mesh);
-      this.bursts.push({ mesh, active: false, x: 0, z: 0, t: 0, dmg: 0, r: 0 });
+      this.bursts.push({ mesh, active: false, x: 0, y: 0, z: 0, t: 0, dmg: 0, r: 0 });
     }
 
     // Burning ground. A big pool: one burner walking for ten seconds lays a dozen patches.
@@ -158,7 +160,7 @@ export class Mobs {
       }));
       mesh.visible = false;
       scene.add(mesh);
-      this.fires.push({ mesh, active: false, x: 0, y: 0, z: 0, t: 0, life: 1, dps: 0, r: 1 });
+      this.fires.push({ mesh, active: false, x: 0, y: 0, z: 0, t: 0, life: 1, dps: 0, r: 1, friendly: false });
     }
 
     // Fireballs, pooled. Slow and straight, so they're a movement problem, not a DPS race.
@@ -423,6 +425,28 @@ export class Mobs {
     }
   }
 
+  /**
+   * HOW FAR A BODY IS, with altitude weighted heavier than ground (MOB.despawnVScale).
+   *
+   * Every distance a mob measured used to be flat, which was exact while the world was a
+   * surface. It is what kept the ground population alive and budget-hogging while you stood
+   * on an island above them — see MOB.despawnVScale for the whole argument.
+   */
+  farFrom(x, y, z) {
+    return Math.hypot(x - player.x, z - player.z, (y - player.y) * MOB.despawnVScale);
+  }
+
+  /**
+   * EVERYTHING GOES. Called when the world itself is swapped — stepping into an instance or
+   * back out of it. The sweep is a distance test and cannot help here: the bodies you leave
+   * behind are not far away, they are in a DIFFERENT WORLD at the same coordinates, and
+   * defenders are exempt from distance sweeps entirely.
+   */
+  clearAll() {
+    for (const e of [...this.entities()]) this.despawn(e.id);
+    this.packs.clear();
+  }
+
   breedDelay() {
     const [lo, hi] = MOB.breedEvery;
     return lo + this.rng() * (hi - lo);
@@ -533,7 +557,7 @@ export class Mobs {
     const hz = player.z + Math.sin(a) * 26;
     if (sanctuaryOf(hx, hz, 20)) return false;
     const id = this.nextPack++;
-    this.packs.set(id, { x: hx, z: hz });
+    this.packs.set(id, { x: hx, z: hz, y: player.y });
     const count = kind === "swarm" ? 18 : n;
     const faction = Math.floor(this.rng() * MOB.factions);
     for (let i = 0; i < count; i++) {
@@ -552,7 +576,7 @@ export class Mobs {
     const hz = player.z + Math.sin(a) * 26;
     if (sanctuaryOf(hx, hz, 20)) return false;
     const id = this.nextPack++;
-    this.packs.set(id, { x: hx, z: hz });
+    this.packs.set(id, { x: hx, z: hz, y: player.y });
     for (let i = 0; i < n; i++) {
       const ang = this.rng() * Math.PI * 2;
       const e = this.spawnOne(hx + Math.cos(ang) * 4, hz + Math.sin(ang) * 4,
@@ -563,38 +587,92 @@ export class Mobs {
   }
 
   /** A camp: several mobs sharing a home they return to and breed at. */
-  spawnPack() {
+  /**
+   * @param {number} instAlive  how many of an INSTANCE's own defenders are standing. The
+   *   world's total population is deliberately not a parameter: the caller checks that
+   *   against the budget before it ever gets here, and a second copy of the number in this
+   *   signature was one more thing that could disagree with it.
+   */
+  spawnPack(instAlive = 0) {
+    // A GARRISON IS FINITE. Outside, this is Infinity and nothing changes; inside an instance
+    // it counts down as you kill, and when it reaches zero the room stops producing enemies
+    // and stays cleared. Checked before anything else is rolled, so a spent dungeon costs
+    // nothing per attempt. Counted against the INSTANCE's own bodies — see update().
+    if (dungeonGarrisonLeft(instAlive) <= 0) return null;
     const a = this.rng() * Math.PI * 2;
     const d = MOB.spawnMin + this.rng() * (MOB.spawnMax - MOB.spawnMin);
-    const hx = player.x + Math.cos(a) * d;
-    const hz = player.z + Math.sin(a) * d;
+    // A ROOM IS NOT OPEN GROUND. The ring below is the right shape for a frontier and the
+    // wrong one for four walls — inside an instance it puts nine camps in ten out in the void
+    // past the shell, where they are rejected and the dungeon stays empty. Ask the instance
+    // where its floor actually is instead.
+    const spot = dungeonSpawnPoint(this.rng, player);
+    const hx = spot ? spot.x : player.x + Math.cos(a) * d;
+    const hz = spot ? spot.z : player.z + Math.sin(a) * d;
     // THE CAMP'S GROUND FIRST, because whether this is holy ground depends on which FLOOR the
     // camp stands on. A sky town's walls do not sterilise the land two hundred blocks below
     // them — that is ordinary frontier and should be thick with camps — but its own platform
     // is a refuge like any other.
     const packY = this.pickFloor(hx, hz);
-    // Never make camp on holy ground — a refuge you have to clear isn't a refuge.
+    // THERE HAS TO BE SOMETHING TO STAND ON. Outdoors this is free — groundY is defined as one
+    // above the top solid block, so the block beneath it is solid by construction. Inside an
+    // instance it is the whole question: the floor query answers with the room's floor height
+    // for EVERY column, including the empty void outside the shell, so without this a camp
+    // gets pitched in mid-air beyond the wall where nothing can reach anything.
+    if (!solidAt(hx, packY - 1, hz)) return null;
+    // NEVER MAKE CAMP ON HOLY GROUND — a refuge you have to clear isn't a refuge.
+    //
+    // TWO TESTS, because "is this spot in a town" has two different meanings and only asking
+    // one of them is how camps kept appearing in the streets.
+    //
+    // The BAND test is about levels: it is what lets the frontier two hundred blocks beneath
+    // a sky town stay ordinary hostile country instead of being sterilised by something
+    // floating over it.
+    //
+    // The FOOTPRINT test is about the map, and it has no height at all — no camp is pitched
+    // anywhere inside a settlement's walls, at any altitude. That is what was missing. A camp
+    // whose chosen floor was a sky island cleared the band test easily (the city's band is
+    // sixty blocks; the island was three hundred up) and was then free to scatter its members
+    // across homeWander, and every member landing on a column with no island over it fell to
+    // the floor below — the market square. It also stops the sky directly over a city being
+    // the busiest airspace in the ring, which is the same problem one storey up.
+    //
+    // Rejecting the CAMP and not its members matters: an earlier version skipped individual
+    // bodies, which left the camp registered but empty. The pack budget filled with hollow
+    // camps, the alive count stayed low, and the spawner answered by making more of them.
     if (sanctuaryUnder(hx, packY, hz, MOB.homeWander + 14)) return null;
+    if (sanctuaryOf(hx, hz, MOB.homeWander + 14)) return null;
     const id = this.nextPack++;
-    this.packs.set(id, { x: hx, z: hz });
+    // WITH ITS FLOOR. A camp on an island and a camp on the land beneath it are not the
+    // same camp, and the sweep below cannot tell them apart without this.
+    this.packs.set(id, { x: hx, z: hz, y: packY });
 
     // A camp is either ordinary or a SWARM — mixing them would blur the silhouette read,
     // and reading the camp before you engage it is the whole point of having breeds.
-    const isSwarm = this.rng() < MOB.swarmPackChance;
-    const [lo, hi] = isSwarm ? MOB.swarmSize : MOB.packSize;
-    const n = lo + Math.floor(this.rng() * (hi - lo + 1));
+    const inst = dungeonFaction() !== null;
+    // Inside, knots are small and the total is what matters — see DUNGEON.garrison. A frontier
+    // camp of eighteen would empty half a dungeon's roster in one spawn.
+    const isSwarm = !inst && this.rng() < MOB.swarmPackChance;
+    const [lo, hi] = inst ? DUNGEON.garrisonPack : (isSwarm ? MOB.swarmSize : MOB.packSize);
+    let n = lo + Math.floor(this.rng() * (hi - lo + 1));
+    if (inst) n = Math.min(n, dungeonGarrisonLeft(instAlive));
     // The whole camp shares one faction — a camp is a side in the war. WHOSE side is the
     // land's to say: inside a town's claim the camp flies that town's colour, so the bodies
     // outside a gate are the same army as the bodies inside it. Only unclaimed ground rolls.
     // The roll is drawn either way so the RNG stream does not depend on where you are standing.
     const roll = Math.floor(this.rng() * MOB.factions);
     const held = territoryColorAt(hx, hz);
-    const faction = held >= 0 ? held : roll;
+    // A stronghold belongs to ONE side. Territory colour is a question about the map, and
+    // inside an instance the map is not where you are.
+    const faction = inst ? dungeonFaction() : (held >= 0 ? held : roll);
     for (let i = 0; i < n; i++) {
       const ang = this.rng() * Math.PI * 2;
       const r = this.rng() * MOB.homeWander * (isSwarm ? 0.5 : 1);
-      const e = this.spawnOne(hx + Math.cos(ang) * r, hz + Math.sin(ang) * r, id, hx, hz,
-                              null, faction, packY);
+      // Inside four walls the scatter has to stay inside them — see clampToRoom.
+      const at = clampToRoom(hx + Math.cos(ang) * r, hz + Math.sin(ang) * r);
+      const e = this.spawnOne(at.x, at.z, id, hx, hz, null, faction, packY);
+      // Marks it as one of THIS instance's defenders, so the garrison counts itself and
+      // nothing out in the world can be mistaken for part of it.
+      if (inst) e.inst = true;
       if (isSwarm) this.makeSwarm(e);
     }
     return id;
@@ -720,6 +798,14 @@ export class Mobs {
   /** Shove a mob outward from a point. Survivors get thrown; the dead do not care. A shove
    *  also STOPS a charge — you cannot both be flung backward and still be barreling forward. */
   push(e, fromX, fromZ, force) {
+    // NOT YOUR OWN ARMY. hit() has refused to damage an ally since factions landed, but the
+    // SHOVE and the SLOW were never given the same rule — so every spin, nova, ring of fire
+    // and cleaver swing scattered the soldiers fighting beside you and froze them in place.
+    // Worse than useless: the one moment you most want your side pressing forward is the
+    // moment you are throwing everything you have, which is exactly when you were knocking
+    // them out of the fight. Every caller of this is one of YOUR effects (see main), so the
+    // rule belongs here rather than at five call sites that would drift apart.
+    if (isMyAlly(e.faction)) return;
     const dx = e.x - fromX, dz = e.z - fromZ;
     const d = Math.hypot(dx, dz) || 1;
     e.kx = (dx / d) * force;
@@ -733,12 +819,19 @@ export class Mobs {
   // affixes.js before they existed here, which is why Dying Burst threw on the first kill
   // and Burning silently did nothing at all.
 
-  /** Dying Burst: mark the ground, then detonate on it. */
-  queueBurst(x, z, dmg, radius, delay = 0.8) {
+  /**
+   * Dying Burst: mark the ground, then detonate on it.
+   *
+   * `y` is where the body DIED, not a column — the marker has the same problem the fire
+   * trail had, and the same answer. A star killed on a sky island must paint its warning
+   * ring on that island; painting it on the land underneath tells the wrong player to move.
+   */
+  queueBurst(x, z, dmg, radius, delay = 0.8, y = null) {
     const b = this.bursts.find((o) => !o.active);
     if (!b) return;
-    Object.assign(b, { active: true, x, z, dmg, r: radius, t: delay, delay });
-    b.mesh.position.set(x, groundY(x, z) + 0.06, z);
+    const fy = y === null ? groundY(x, z) : surfaceNear(x, z, y);
+    Object.assign(b, { active: true, x, z, y: fy, dmg, r: radius, t: delay, delay });
+    b.mesh.position.set(x, fy + 0.06, z);
     b.mesh.scale.setScalar(radius);
     b.mesh.visible = true;
   }
@@ -757,10 +850,26 @@ export class Mobs {
     if (!f) return;
     e.fireX = e.x;
     e.fireZ = e.z;
-    // The floor it sits on, remembered — the damage test needs to know what "on the ground"
-    // means HERE, and asking groundY again every frame would answer for wherever YOU are.
-    const fy = groundY(e.x, e.z);
-    Object.assign(f, { active: true, x: e.x, y: fy, z: e.z, dps, r: radius, t: life, life });
+    // THE FLOOR THIS BURNER IS ACTUALLY ON, not the land. groundY answers "how tall is the
+    // terrain in this column", which was the whole truth when there was one floor — with
+    // islands over it, a burner walking a platform two hundred blocks up laid its trail on
+    // the ground far below, burning nothing and warning nobody. floorAt asks which of the
+    // floors over this column the BODY is standing on, which is the question being asked.
+    //
+    // Remembered rather than recomputed, because the damage test needs to know what "on the
+    // ground" means HERE, and asking again every frame would answer for wherever YOU are.
+    const fy = this.floorAt(e);
+    // WHOSE FIRE IT IS, in colour. A burning patch is read at a glance while you are already
+    // moving, and until now every one of them was the same orange whether it was laid by the
+    // thing hunting you or by the army you swore to — so the only way to find out was to walk
+    // into it. Your side burns blue.
+    //
+    // It still HURTS. Blue does not mean safe, it means "this one is not evidence that
+    // something is hunting you" — which is the thing you actually misread in a crowded fight,
+    // and the reason you flinch away from ground you could have held.
+    const friendly = isMyAlly(e.faction);
+    f.mesh.material.color.setHex(friendly ? 0x3fa9ff : 0xff7a1e);
+    Object.assign(f, { active: true, x: e.x, y: fy, z: e.z, dps, r: radius, t: life, life, friendly });
     f.mesh.position.set(e.x, fy + 0.05, e.z);
     f.mesh.scale.setScalar(radius);
     f.mesh.visible = true;
@@ -773,6 +882,7 @@ export class Mobs {
    */
   chill(x, z, radius, { slowT = 0, slowMul = 1, rootT = 0 } = {}) {
     for (const e of this.entities()) {
+      if (isMyAlly(e.faction)) continue;          // your own side is never frozen — see push()
       if (Math.hypot(e.x - x, e.z - z) > radius) continue;
       if (slowT > e.slowT) { e.slowT = slowT; e.slowMul = slowMul; }
       if (rootT > e.rootT) {
@@ -832,6 +942,9 @@ export class Mobs {
       // faction rides along so the reward path can tell whether this was the colour your
       // side is sworn against — the kill site is the only place that still knows.
       const out = { killed: true, elite: e.elite, ring: e.ring, faction: e.faction, affixes: affixLabel(e) };
+      // One fewer defender. No-op outdoors; inside, this is the only thing that makes clearing
+      // a dungeon a real state rather than a lull between spawns.
+      noteDungeonKill();
       this.despawn(id);
       this.killed++;
       return out;
@@ -936,21 +1049,37 @@ export class Mobs {
       // — the recurring "two champions, then everyone appears" glitch. The only ways a
       // defender leaves the world are dying and its whole town standing down.
       if (e.defender) continue;
-      if (Math.hypot(e.x - player.x, e.z - player.z) > MOB.despawn) this.despawn(e.id);
+      if (this.farFrom(e.x, e.y, e.z) > MOB.despawn) this.despawn(e.id);
     }
+    // EMPTY CAMPS GO WITH THEIR BODIES, by the same 3D measure. Judging a camp home flat
+    // while sweeping its members in 3D is the worst of both: climb to a perch, every mob on
+    // the land below is swept, and their now-empty camps stay registered because they are
+    // still directly underneath you. packs.size pins itself to the cap, and the spawn gate
+    // (`this.packs.size < cap.packs`) then refuses to open AT ALL. The sky was not short of
+    // room — it was short of permission.
     for (const [id, p] of this.packs) {
-      if (this.packCount(id) === 0
-          && Math.hypot(p.x - player.x, p.z - player.z) > MOB.despawn) this.packs.delete(id);
+      if (this.packCount(id) === 0 && this.farFrom(p.x, p.y ?? player.y, p.z) > MOB.despawn) {
+        this.packs.delete(id);
+      }
     }
 
-    let alive = 0;
-    for (const _ of this.entities()) alive++;   // eslint-disable-line no-unused-vars
+    // TWO COUNTS, because two different questions are being asked. `alive` is the world's
+    // population, for the world's budget. `instAlive` is how many of an instance's OWN
+    // defenders are on their feet — and only they may be counted against its garrison.
+    //
+    // Passing the global count was why walking into a dungeon left it empty: town defenders
+    // are never swept by distance (they belong to their town, and raid.js keeps mustering them
+    // out in the world while you are underground), so a couple of dozen of them sat in the
+    // total and the room read as already full. Reloading looked like it "fixed" it only
+    // because a fresh page has no leftovers at all.
+    let alive = 0, instAlive = 0;
+    for (const e of this.entities()) { alive++; if (e.inst) instAlive++; }
 
     const cap = this.budget();
     this.spawnTimer -= dt;
     if (alive < cap.alive && this.packs.size < cap.packs && this.spawnTimer <= 0) {
       this.spawnTimer = cap.interval;
-      this.spawnPack();
+      this.spawnPack(instAlive);
     }
 
     const lunged = [];
@@ -973,7 +1102,15 @@ export class Mobs {
       // for every question about fighting you: a body on the ground under an island reads as
       // being at flat distance zero, so it bit, shot and charged from two hundred blocks
       // below where you could neither see nor answer it. That is the invisible damage.
-      const reach = Math.abs(player.y - e.y) <= MOB.reachY;
+      // For MELEE that question is now answered per body: within its own head-height
+      // (meleeClearY) for anything on the ground — feet above its head and it cannot touch
+      // you, the same physical rule the charge enforces. A FLYER hunts at your altitude
+      // (restY eases it to player.y + flyChaseLift), so its gate is DERIVED from the hover it
+      // actually keeps, bob included; a second constant would be the hover written down twice,
+      // and a flat gate of 1.3 would have made flyers unable to land a hit at all — their
+      // resting attack height is 3.2 above you by design.
+      const meleeReach = Math.abs(player.y - e.y)
+        <= (e.flies ? MOB.flyChaseLift + MOB.flyBob + 0.8 : MOB.meleeClearY);
       // THE BUG THAT WORE FIVE DISGUISES. This is a DUPLICATE of the distance sweep at the
       // top of update() — and for days it was the only one of the two that still culled
       // DEFENDERS. The garrison musters when you are ~150-208 from a town's centre; walking
@@ -985,7 +1122,9 @@ export class Mobs {
       // moved, and reloading AT a town (the only way anyone ever verified) hid it, because
       // a reload musters with every body already inside 105. Defenders leave the world by
       // DYING or by their town's atomic eviction (raid.js) — never by this line.
-      if (dist > MOB.despawn) { if (!e.defender) this.despawn(e.id); continue; }
+      // farFrom, not `dist` — `dist` is the FLAT distance every range check below rides on
+      // (chase, melee, ranged) and must stay flat. Only the sweep counts altitude.
+      if (this.farFrom(e.x, e.y, e.z) > MOB.despawn) { if (!e.defender) this.despawn(e.id); continue; }
 
       if (e.hurtT > 0) e.hurtT -= dt;
       if (e.atkCd > 0) e.atkCd -= dt;
@@ -1177,7 +1316,7 @@ export class Mobs {
           e.x = lx;
           e.z = lz;
         }
-        if (dist < MOB.attackRange && reach && player.iframes <= 0) {
+        if (dist < MOB.attackRange && meleeReach && player.iframes <= 0) {
           e.lungeT = 0;
           onPlayerHit?.(e);
           runAffix(e, "onHitPlayer", this.fx);
@@ -1225,7 +1364,12 @@ export class Mobs {
           // while it runs, and the whole point of the sound is to answer "where is it now"
           // while you are turned away mid-dodge.
           e.rushVoice?.move(e.x, e.z);
-          if (dist < MOB.attackRange * 1.3 && reach && player.iframes <= 0) {
+          // JUMP IT. Not `reach` — that is the global 18-block allowance, which for a charge
+          // meant a hitbox taller than anything you could ever jump. A charge connects only if
+          // you are within its own height of it, so clearing its head sends it under you and
+          // straight into the 1.7 helpless seconds it pays for missing.
+          if (dist < MOB.attackRange * 1.3 && Math.abs(player.y - e.y) <= MOB.meleeClearY
+              && player.iframes <= 0) {
             onPlayerHit?.({ damage: e.damage * MOB.chargeDamage, x: e.x, z: e.z });
             runAffix(e, "onHitPlayer", this.fx);
             e.rushT = 0;
@@ -1341,7 +1485,10 @@ export class Mobs {
         if (e.bold && adist > MOB.attackRange * 1.4) { vx += aux * 0.9; vz += auz * 0.9; }
 
         // Begin a charge from mid range — too close and there is no room to read it.
-        if (!foe && e.charger && e.atkCd <= 0 && dist > MOB.attackRange * 2.5 && dist < MOB.chargeRange) {
+        // ...and only at something roughly on its level. Flat distance alone had it committing
+        // its whole 3.6s cycle, telegraph and all, at targets on decks it could never reach.
+        if (!foe && e.charger && e.atkCd <= 0 && dist > MOB.attackRange * 2.5 && dist < MOB.chargeRange
+            && Math.abs(player.y - e.y) <= MOB.chargeStartY) {
           e.windT = MOB.chargeWind;
           e.atkCd = MOB.attackCd * 2.2;
           this.onWarcry?.(e, "charge");  // the scream IS the telegraph (warcry.js)
@@ -1349,7 +1496,14 @@ export class Mobs {
           // from off screen. The glow only works if you happen to be looking at it; the sound
           // works wherever you are facing, which is the whole reason it exists.
           sfx.chargeWind(e.x, e.z, MOB.chargeWind);
-        } else if (!foe && e.bold && dist <= MOB.attackRange * 1.7 && e.atkCd <= 0) {
+        } else if (!foe && e.bold && dist <= MOB.attackRange * 1.7 && e.atkCd <= 0
+            // ...and only at someone it could actually reach. Flat distance alone had every
+            // mob under every ledge committing its lunge at the air below your feet — worse
+            // than wasted, because the hop is exactly what sells "you are about to be hit",
+            // fired by things that could not hit you. Flyers gate on the same hover-derived
+            // reach as the connect test; the grounded use lungeStartY, looser than their
+            // connect gate because the ground between resolves as the lunge travels.
+            && (e.flies ? meleeReach : Math.abs(player.y - e.y) <= MOB.lungeStartY)) {
           // The lunge is for YOU alone — never mid-brawl (!foe): a lunge writes position
           // directly, and aimed at another mob it would shove the fight across the field.
           e.lungeT = MOB.lungeTime;
@@ -1486,7 +1640,13 @@ export class Mobs {
       b.mesh.material.opacity = 0.2 + 0.55 * f * f;      // brightens as it closes
       b.mesh.scale.setScalar(b.r * (0.75 + 0.25 * f));
       if (b.t > 0) continue;
-      if (Math.hypot(player.x - b.x, player.z - b.z) < b.r && player.iframes <= 0) {
+      // A SLAB, LIKE THE FIRE. This test was flat, so a star dying on the land detonated up
+      // through every island above it — a ring you never saw, painted on ground you were not
+      // standing on. The marker now knows which floor it was drawn on, so the blast can be
+      // asked the same question the fire patch is: are you standing IN it, not merely over it.
+      // Taller than the fire's slab because this one goes off rather than smouldering.
+      if (inFireSlab(player.y, b.y, MOB.fireHeight * 2.5)
+          && Math.hypot(player.x - b.x, player.z - b.z) < b.r && player.iframes <= 0) {
         hurt?.(b.dmg, b.x, b.z, MOB.knockback * 1.6);
       }
       sfx.explosion(b.x, b.z, 0.8);
@@ -1499,8 +1659,13 @@ export class Mobs {
       f.t -= dt;
       f.mesh.material.opacity = 0.25 + Math.max(0, f.t / f.life) * 0.5;
       if (f.t <= 0) { f.active = false; f.mesh.visible = false; continue; }
-      if (inFireSlab(player.y, f.y) && Math.hypot(player.x - f.x, player.z - f.z) < f.r
-          && player.iframes <= 0) {
+      if (!inFireSlab(player.y, f.y) || Math.hypot(player.x - f.x, player.z - f.z) >= f.r) continue;
+      if (f.friendly) {
+        // YOUR SIDE'S FIRE MENDS YOU (MOB.allyFireHeal). No iframes check: a heal is not a
+        // hit, and skipping it during the moment after you were struck would withhold help at
+        // exactly the point you needed it most.
+        player.hp = Math.min(player.maxHp, player.hp + player.maxHp * MOB.allyFireHeal * dt);
+      } else if (player.iframes <= 0) {
         hurt?.(f.dps * dt, f.x, f.z, 0);                 // no knockback: it is a floor
       }
     }

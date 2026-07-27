@@ -29,7 +29,7 @@ export const AFFIXES = {
     minTier: 1,
     weight: 1,
     desc: "Explodes when it dies. The ground is marked first.",
-    onDeath: (e, ctx) => ctx.mobs.queueBurst(e.x, e.z, e.damage * 3.2, 7.5),
+    onDeath: (e, ctx) => ctx.mobs.queueBurst(e.x, e.z, e.damage * 3.2, 7.5, 0.8, e.y),
   },
 
   /** Stop fighting where it has been. Turns the floor into terrain you have to read. */
