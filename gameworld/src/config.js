@@ -1039,7 +1039,13 @@ Object.assign(WEAPONS, {
     // The swing itself is untouched: same damage, same reach, same rate, always available.
     // Running out of shove means the arc stops clearing room, never that it stops working.
     knockCharges: 5,
-    knockRecharge: 1.5,   // seconds per charge, recovered one at a time
+    // 0.5, down from 1.5 — recovered one at a time, and now three times as fast. At 1.5 a
+    // fully spent bank took 7.5 seconds to refill, which in a game where the melee weapon is
+    // the one that must STAND IN the fight meant the cleaver's spacing tool spent most of a
+    // long brawl absent. Half a second a charge keeps the ration real — five shoves back to
+    // back still empties the bank, and burning it all still costs a beat before the next —
+    // without the recovery outlasting the fight it was needed in.
+    knockRecharge: 0.5,
     magSize: 0, reloadTime: 0, pellets: 1, auto: false, recoil: 0.004, recoilRecover: 0.7,
     spreadHip: 0, spreadAim: 0, sound: "cleave",
     desc: "A wide swing in front of you that throws things back. Right-click to spin: "
@@ -1202,7 +1208,15 @@ export const SPIN = {
   // long, committal spin that was asked for while giving the danger somewhere to live.
   time: 2.5,
   iframes: 2.5,          // = time: guarded start to finish, on purpose
-  cd: 2.5,               // starts counting AFTER the spin, not on cast
+  // 1.2, DOWN FROM 2.5 — chosen in play, eyes open. The essay above warned that past about
+  // half uptime a guard stops being timed and becomes maintained, and at this gap the cycle
+  // is 68% untouchable, precisely the number it warned about. The playtest verdict was that
+  // the longer gap starved the weapon: Iron has to STAND IN the fight, and 2.5 exposed
+  // seconds against a pack that respaces in one was most of the brawl spent backpedalling.
+  // If hard-mode fights stop asking anything of an Iron player, this number is why — raise
+  // the GAP, never shorten the spin. Still flat, still counts from the spin's END, and still
+  // deliberately deaf to haste: a safety window that scales is a telegraph deleter.
+  cd: 1.2,
   // UNUSED, and kept only as a headstone. Haste no longer touches the spin's cooldown at all
   // (see updateSpin) — a floor exists to stop a shrinking number reaching zero, and nothing
   // is shrinking any more. Left named rather than deleted so the next person to wonder "did

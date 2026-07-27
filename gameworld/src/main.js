@@ -86,6 +86,124 @@ const body = new THREE.Mesh(
 scene.add(body);
 
 /**
+ * THE CLEAVER IN THE HAND — the first weapon in the game you can actually SEE held.
+ *
+ * The guns earn their absence: they speak in tracers, shells and a beam, so the projectile
+ * is the weapon. Melee has no projectile, which meant Iron's entire kit was an invisible
+ * force emanating from a box — a swing arc appearing out of nothing. A weapon that asks you
+ * to stand inside the fight should be visible standing there with you.
+ *
+ * Built from boxes in the same voxel language as everything else. The CARRIER group is the
+ * shoulder: every swing pose is a rotation of the carrier, while the blade keeps its own
+ * fixed grip offset inside it — one pivot, so a swing arcs like something held rather than
+ * something orbiting. Parented to the body, so it turns, spins and travels with the
+ * wanderer for free — including the cleaver's whirl, where the spinning body IS the
+ * animation and the blade only has to hold still and stay out.
+ */
+const { rig: bladeRig, arm: bladeArm } = (() => {
+  const mat = (c) => new THREE.MeshLambertMaterial({ color: c });
+  const g = new THREE.Group();
+  const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.42, 0.09), mat(0x2a2d33));
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.14), mat(0x4a4f58));
+  guard.position.y = 0.21;
+  // 1.35 of blade past the guard — with the arm's reach the tip carves well over two metres
+  // from the pivot, a length the exaggerated swing finally has the wingspan to justify.
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.13, 1.35, 0.045), mat(0x9aa4b2));
+  blade.position.y = 0.92;
+  // The cutting edge, brighter — reads as a bevel from any angle, and it faces the way the
+  // first swing travels.
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.35, 0.05), mat(0xe8f0fa));
+  edge.position.set(-0.065, 0.92, 0);
+  g.add(hilt, guard, blade, edge);
+  g.position.set(0, 0.12, 0);              // grip: the hand holds the hilt, not the centre
+  const carrier = new THREE.Group();
+  // A hair IN FRONT of the chest line — the body's local forward is -Z (the same convention
+  // that put the +PI in the lance's sweep), so a positive z here had the whole swing happening
+  // fractionally behind the shoulder.
+  carrier.position.set(0.34, 0.18, -0.06);
+  // YAW THEN PITCH, and the order is the entire animation. The blade is authored pointing UP,
+  // and the first version swung it with rotation.y — but rotating a vertical blade around the
+  // vertical axis only twists it about its own length, which on screen was a wiggle. A cut is
+  // pitch-then-sweep: X levels the blade forward, and with order YXZ the Y sweep then carries
+  // that levelled blade across the front like an arm actually would.
+  carrier.rotation.order = "YXZ";
+  carrier.add(g);
+  carrier.visible = false;
+  body.add(carrier);
+  // The ARM comes back too: sliding the inner group along the blade's length is how a swing
+  // reaches — rest holds the grip near the shoulder, the cut punches it out to arm's length,
+  // which multiplies the whole arc's radius without touching a single angle.
+  return { rig: carrier, arm: g };
+})();
+// Where the blade is EASED toward each frame, rather than snapped — the wind-up becomes a
+// visible pull-back and the follow-through settles instead of teleporting home. Position
+// rides along too: the swing moves the pivot to the body's centre so the blade's arc and the
+// drawn sweep share an axle, and rest returns it to the shoulder.
+const bladePose = { x: -0.35, y: 0.18, z: 0.12, px: 0.34, py: 0.18, pz: -0.06, ay: 0.12, tw: 0 };
+
+/** Drive the held cleaver from the gun's swing state. Reads everything, owns nothing. */
+function drawBlade(dt) {
+  const show = gun.weapon.mode === "melee" && !inSafe && !dead;
+  bladeRig.visible = show;
+  if (!show) return;
+  // Rest: a guard stance at the shoulder — blade up, pitched a touch forward, held inward.
+  let tx = -0.35, ty = 0.18, tz = 0.12;
+  let ppx = 0.34, ppy = 0.18, ppz = -0.06;
+  let ay = 0.12, tw = 0;
+  if (player.spinT > 0) {
+    // Levelled straight out AT REACH. The body's own spin (below) carries it round: the
+    // whirl animation is the body doing the work, exactly like a real spin.
+    tx = -1.35; ty = 0; tz = 0;
+    ppx = 0; ppy = 0.2; ay = 0.5;
+  } else if (gun.swingFx > 0) {
+    const pr = 1 - Math.max(0, gun.swingFx / 0.18);
+    const e = pr * pr * (3 - 2 * pr);                  // same curve the drawn sweep uses
+    // THE BLADE IS THE SWISH — same axle, same easing as the lead wedge — but EXAGGERATED:
+    // it overswings the glow by 1.4x (about 115 degrees to the cone's 82), punches out to
+    // arm's length (ay), and the pivot itself slides forward off the chest (ppz), so the
+    // cut happens plainly IN FRONT of the wanderer at full extension rather than politely
+    // at their side. The glow stays the honest hitbox; the sword is allowed the theatre.
+    tx = -1.45;
+    // 2.4x the glow's span — just shy of 200 degrees of travel: the wind-up starts BEHIND
+    // one shoulder and the follow-through carries past the other, a full half-turn of
+    // scythe. The arm punches out to a metre of reach and the pivot rides half a body ahead
+    // of the chest. The glow remains the honest hitbox underneath the theatre.
+    ty = gun.swingDir * gun.sweep.span * 2.4 * (1 - 2 * e);
+    tz = 0;
+    // ...AND THE WHOLE SWORD CARRIES ACROSS. Rotation alone is a windscreen wiper — the tip
+    // moves but the weapon stays planted. The pivot itself now slides shoulder-to-shoulder
+    // through the cut on the same curve, so the blade TRANSLATES sideways while it sweeps:
+    // rotation says "arc", the carry says "swing", and it needs both to read as a body
+    // putting its weight through a blow.
+    ppx = gun.swingDir * 0.55 * (1 - 2 * e);
+    ppy = 0.2; ppz = -0.55; ay = 1.35;
+    // THE BODY SWINGS TOO. The torso winds back with the blade and rotates through the cut —
+    // smaller than the blade's travel, the way hips lead a real blow — and because the blade
+    // is the body's child, the twist compounds every other exaggeration for free. This is
+    // the difference between a character swinging a sword and a sword happening near a
+    // character. Eased through the same pose lerp as everything else, or the torso would
+    // teleport a third of a turn on the swing's first frame.
+    tw = gun.swingDir * 0.6 * (1 - 2 * e);
+  }
+  // TWO settle speeds. During the cut the blade must chase the curve tightly — the smoothing
+  // that makes the return gentle was eating half the swing's amplitude when it applied to the
+  // swing itself, which is the other half of why the first version read as a wiggle.
+  const k = 1 - Math.exp(-dt * (gun.swingFx > 0 ? 30 : 14));
+  bladePose.x += (tx - bladePose.x) * k;
+  bladePose.y += (ty - bladePose.y) * k;
+  bladePose.z += (tz - bladePose.z) * k;
+  bladePose.px += (ppx - bladePose.px) * k;
+  bladePose.py += (ppy - bladePose.py) * k;
+  bladePose.pz += (ppz - bladePose.pz) * k;
+  bladePose.ay += (ay - bladePose.ay) * k;
+  bladePose.tw += (tw - bladePose.tw) * k;
+  bladeRig.rotation.set(bladePose.x, bladePose.y, bladePose.z);
+  bladeRig.position.set(bladePose.px, bladePose.py, bladePose.pz);
+  bladeArm.position.y = bladePose.ay;
+  body.rotation.y += bladePose.tw;
+}
+
+/**
  * THE WANDERER WEARS THEIR BANNER. Swear to Iron and you go black; Ash, blue; Vale, green
  * — the same three war-colours every camp, town and garrison in the world already flies,
  * so in third person you can see at a glance which side of the map is yours. Unaligned
@@ -2909,12 +3027,16 @@ function frame(now) {
     // applied per struck target, each pellet dealing the weapon's damage through dmgMult.
     const shot = gun.tryFire(rig.blend > 0.5, gunRng,
       [...mobs.targets(), ...boss.targets()],
-      // BOTH HANDS ARE ON THE SPIN. The trigger is dead while the beam sweeps — you are
-      // already firing it, just not where you are looking — and holding LMB through a spin
-      // must not stack a second beam on top of the one going round. Deliberately the ONLY
-      // thing taken away: spells, the heal, the grenade and every scrap of movement still
-      // work, so the two seconds are a window you act inside rather than a cutscene.
-      input.firing && !inSafeZone && !gun.lockedFor(player.faction) && player.lanceSpinT <= 0, dt);
+      // BOTH HANDS ARE ON THE SPIN — either spin. The trigger is dead while the lance's beam
+      // sweeps (you are already firing it, just not where you are looking) and now while the
+      // cleaver whirls too: an untouchable window in which you could also still swing was the
+      // guard and the damage in one press, with nothing given up for either. Deliberately the
+      // ONLY thing taken away: spells, the heal, the grenade and every scrap of movement
+      // still work, so the guarded seconds are a window you act inside, not a cutscene.
+      // (Covers switching weapons mid-spin as well — the wheel still turns, but whatever
+      // arrives in your hands stays holstered until the spin lets go of them.)
+      input.firing && !inSafeZone && !gun.lockedFor(player.faction)
+        && player.lanceSpinT <= 0 && player.spinT <= 0, dt);
 
     if (shot?.beam) {
       // THE BEAM does not deal its damage here. It burns for tiny amounts sixty times a
@@ -3235,6 +3357,7 @@ function frame(now) {
   body.rotation.y = player.lanceSpinT > 0 ? lanceAng - Math.PI
     : (player.whirlT > 0 || player.spinT > 0) ? (body.rotation.y + dt * 22)
       : player.yaw;
+  drawBlade(dt);
   body.visible = rig.blend < 0.85;      // hide your own head in first person
 
   const ring = ringAt(player.x, player.z);

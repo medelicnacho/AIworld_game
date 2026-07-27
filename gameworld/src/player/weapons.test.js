@@ -50,9 +50,13 @@ test("SPIN: untouchable the WHOLE spin, but the gap after it is real", () => {
   // gap opens afterwards — so the one rule that has to hold is that the floored cooldown you
   // spend vulnerable is itself a meaningful slice of the safe time, never a sliver.
   assert.ok(SPIN.iframes >= SPIN.time, "the guard must cover the whole spin");
-  assert.ok(SPIN.cdFloor > 0, "haste has no ceiling; the floor is the rail");
-  assert.ok(SPIN.cdFloor / SPIN.time >= 0.4,
-    `the exposed gap at the haste floor is ${(SPIN.cdFloor / SPIN.time).toFixed(2)} of the spin — too thin to be a real opening`);
+  // The gap is pinned against the CD itself now, not cdFloor — haste stopped touching this
+  // cooldown entirely, so the floor is a headstone and the flat number is the whole story.
+  // 0.4 of the spin is the line under which the opening stops being one: at the current 1.2
+  // against a 2.5s guard the cycle is 68% untouchable, a deliberate playtest call recorded
+  // in config — this test is what stops the gap from quietly eroding the rest of the way.
+  assert.ok(SPIN.cd / SPIN.time >= 0.4,
+    `the exposed gap is ${(SPIN.cd / SPIN.time).toFixed(2)} of the spin — too thin to be a real opening`);
 });
 
 test("SPIN: sustained damage loses to swinging, and to Whirlwind", () => {

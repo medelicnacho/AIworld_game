@@ -108,17 +108,36 @@ export class Gun {
     // turning the wrong way as you turned, so the arc wandered behind and beside you —
     // a drawn hitbox that lies is worse than none at all.
     this.swingFx = 0;
-    this.swingArc = (() => {
+    // Alternates every swing — a cut, then a backhand. Purely visual: the hit test is the
+    // whole cone in one frame either way, but eyes read direction, and a swing that always
+    // travels the same way looks like a stamp.
+    this.swingDir = 1;
+    // THE SWING SWEEPS NOW. It used to draw the entire cone at once and fade it — a flash
+    // that tells you where the hit landed but never LOOKS like anything moved. This is a
+    // narrow bright wedge that wipes across the full cone over the swing, with two ghost
+    // wedges trailing at falling opacity — a blade's wake, not a stencil. The group carries
+    // the aim (yaw + pitch, the same recipe the hit test uses) and each wedge only ever
+    // rotates around the group's own vertical, so the sweep stays inside the true cone and
+    // the picture still cannot disagree with the test on either axis.
+    this.sweep = (() => {
       const w = WEAPONS.cleaver;
-      const half = (w.coneDeg * Math.PI / 180) / 2;      // the drawn arc IS the config cone
-      const g = new THREE.RingGeometry(0.8, w.range, 26, 1, Math.PI / 2 - half, half * 2);
-      g.rotateX(-Math.PI / 2);
-      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
-        color: 0xdfe8ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
-      }));
-      m.visible = false;
-      scene.add(m);
-      return m;
+      const coneHalf = (w.coneDeg * Math.PI / 180) / 2;
+      const wedgeHalf = coneHalf * 0.18;                 // ~18 degrees of the 100 lit at once
+      const group = new THREE.Group();
+      group.visible = false;
+      scene.add(group);
+      const wedges = [];
+      const base = [0.55, 0.22, 0.09];                   // lead edge hot, wake fading
+      for (const op of base) {
+        const g = new THREE.RingGeometry(0.8, w.range, 10, 1, Math.PI / 2 - wedgeHalf, wedgeHalf * 2);
+        g.rotateX(-Math.PI / 2);
+        const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+          color: 0xdfe8ff, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false,
+        }));
+        group.add(m);
+        wedges.push(m);
+      }
+      return { group, wedges, base, span: coneHalf - wedgeHalf };
     })();
 
     // THE SHELLS. Pooled like every other projectile in the game — allocating a mesh per shot
@@ -507,6 +526,7 @@ export class Gun {
       }
       sfx.cleave(struck.length > 0);
       this.swingFx = 0.18;
+      this.swingDir *= -1;                 // cut, backhand, cut — see the sweep in update()
       player.pitch += w.recoil;
       this.recoil += w.recoil * w.recoilRecover;
       return {
@@ -761,19 +781,23 @@ export class Gun {
 
     if (this.swingFx > 0) {
       this.swingFx -= dt;
-      const f = Math.max(0, this.swingFx / 0.18);
-      this.swingArc.visible = true;
+      const p = 1 - Math.max(0, this.swingFx / 0.18);   // 0 windup edge -> 1 follow-through
+      const s = this.sweep;
+      s.group.visible = true;
       // Anchored at the same height the hit test measures from, and TILTED WITH YOUR AIM —
-      // yaw and pitch together, in the same rotation recipe the camera uses. The hit cone
-      // always followed the camera up and down; the drawn arc used to lie flat on the
-      // ground, which taught the eye that the swing could not reach up a slope or down at
-      // the small ones when it could all along. The picture and the test now share both
-      // numbers, so they cannot disagree on either axis.
-      this.swingArc.position.set(player.x, player.y + 1.1, player.z);
-      this.swingArc.rotation.set(player.pitch, player.yaw, 0, "YXZ");
-      this.swingArc.material.opacity = f * 0.5;
-      this.swingArc.scale.setScalar(1 + (1 - f) * 0.15);
-      if (this.swingFx <= 0) this.swingArc.visible = false;
+      // yaw and pitch together, the same rotation recipe the camera uses, so the drawn
+      // sweep can never disagree with the cone that actually hit.
+      s.group.position.set(player.x, player.y + 1.1, player.z);
+      s.group.rotation.set(player.pitch, player.yaw, 0, "YXZ");
+      // Smoothstep, so the wedge leaves the wind-up slowly, is FAST through the middle where
+      // a real cut is fast, and arrives softly — constant speed reads as a windscreen wiper.
+      const ease = (q) => q * q * (3 - 2 * q);
+      for (let i = 0; i < s.wedges.length; i++) {
+        const q = Math.max(0, p - i * 0.16);             // each ghost lives a beat in the past
+        s.wedges[i].rotation.y = this.swingDir * s.span * (1 - 2 * ease(q));
+        s.wedges[i].material.opacity = s.base[i] * Math.min(1, (1 - p) * 3 + 0.2);
+      }
+      if (this.swingFx <= 0) s.group.visible = false;
     }
 
     if (this.cooldown > 0) this.cooldown -= dt;
