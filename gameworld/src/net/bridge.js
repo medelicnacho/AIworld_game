@@ -9,6 +9,8 @@
 // Transport is deliberately boring: SSE down (a long-lived GET), POST up. No websockets,
 // no library, nothing for the lab to install.
 
+import { LAB } from "../config.js";
+
 const DEFAULT_URL = "http://127.0.0.1:8777";
 const BACKOFF = [1000, 2000, 4000, 8000, 15000];   // ms between reconnect attempts
 
@@ -36,7 +38,12 @@ export class Bridge {
     // game rather than an absent one. So a built copy simply never reaches for it. This is
     // the same rule as the rest of the file (the bridge is an enhancement, never a
     // dependency), applied one step earlier: the best failure is the one that never happens.
-    if (!import.meta.env?.DEV) { this.state = "offline"; return; }
+    //
+    // Named now (LAB.enabled) rather than inferred from the build mode, because "the LLM is a
+    // dev toy and not part of the game" is a design decision and deserves to be written down
+    // somewhere a person would look. It also gives dev a way to switch it OFF (?lab=0) and
+    // play what a player actually gets, which nobody could do while the test was the build mode.
+    if (!LAB.enabled) { this.state = "offline"; return; }
     this.state = "connecting";
 
     // EventSource retries on its own, but with no backoff control and a console error per

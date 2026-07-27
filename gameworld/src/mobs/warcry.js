@@ -48,7 +48,7 @@ const CRY_SEEDS = {
     "the blue comes killing", "tear them open", "burn the field bare",
   ],
   2: [   // VALE — never where the blow lands
-    "run them down", "quick now quick", "the green wind cuts",
+    "run them down", "quick now quick",
     "never where they strike", "in and out and gone", "vale takes the roads",
     "fast as the fallows wind", "circle and cut them", "gone before the blow",
   ],
@@ -79,6 +79,8 @@ export class WarCries {
     // baked bytes; a fresh session wakes with yesterday's arsenal and improves it.
     this.db = null;
     this.loadPersisted();
+    // THE SHIPPED FLOOR, loaded before anything else can be quiet. See loadBaked.
+    this.loadBaked();
     this.newsCursor = 0;           // this reader's place in the deed feed
     this.bakeT = 0;
     this.baking = false;
@@ -91,6 +93,50 @@ export class WarCries {
     // The arsenal used to name its betters in a holdWhile predicate and carry its own
     // abort handle. Both are gone: it simply asks at PRIORITY.bake, the lowest rung there
     // is, and the queue takes the thread away the instant anything real wants it.
+  }
+
+  /**
+   * THE VOICES EVERY PLAYER GETS, loaded from disk like any other sound effect.
+   *
+   * Piper is a synthesizer, and synthesizers do not care WHEN they run. This file used to
+   * run it at PLAY time, which quietly made every voice in the game depend on a localhost
+   * server — so a built copy had no war cries at all, not even the hardcoded ones, and the
+   * comment above about "silence is the baseline" was describing the shipped game rather
+   * than an edge case. Nobody but the developer has ever heard an army shout.
+   *
+   * The taunts and hails are a FIXED LIST, so they are baked once by tools/bake_warcries.py
+   * and shipped as wavs. No server, no latency, no per-player cost — and the same audio for
+   * everyone, which is what makes it tunable.
+   *
+   * All three clans share one voice today (WARCRY.voices), so each line is fetched once and
+   * handed to all three shelves. The model-written cries layered on top are unaffected and
+   * remain a dev-only enhancement (LAB in config.js).
+   */
+  async loadBaked() {
+    try {
+      const res = await fetch("voice/warcry.json");
+      if (!res.ok) return;                       // not baked yet; the game is just quieter
+      const man = await res.json();
+      for (const [kind, bins] of [["taunts", this.taunts], ["hails", this.hails]]) {
+        for (const entry of man[kind] || []) {
+          const wav = await fetch(entry.file).then((r) => (r.ok ? r.arrayBuffer() : null));
+          if (!wav) continue;
+          for (const c of [0, 1, 2]) {
+            const bin = bins.get(c);
+            // Never displace something already loaded — persisted audio from a live lab
+            // session is at least as good, and re-adding a line would double it up.
+            if (!bin.some((b) => b.text === entry.text)) {
+              // A COPY PER SHELF. decodeAudioData DETACHES the buffer it is handed, so three
+              // clans sharing one ArrayBuffer means the second and third get an empty one and
+              // two of the three armies fall silent after the first shout.
+              bin.push({ text: entry.text, wav: wav.slice(0) });
+            }
+          }
+        }
+      }
+      console.info(`[warcry] shipped voices loaded: `
+        + `${this.taunts.get(0).length} taunts, ${this.hails.get(0).length} hails`);
+    } catch { /* offline or missing — silence is survivable, it always was */ }
   }
 
   async openDb() {

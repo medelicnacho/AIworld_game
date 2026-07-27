@@ -1,0 +1,160 @@
+{
+ "voice": "en_US-amy-medium.onnx",
+ "pace": 0.8,
+ "taunts": [
+  {
+   "text": "I will kill you!",
+   "file": "voice/warcry/d43def251f5483ec.wav"
+  },
+  {
+   "text": "You're going to die!",
+   "file": "voice/warcry/e4703787b76ff9b7.wav"
+  },
+  {
+   "text": "Evil fatso!",
+   "file": "voice/warcry/aeb674615178a489.wav"
+  },
+  {
+   "text": "Your mom is lame!",
+   "file": "voice/warcry/b4bc45c6e3c1f5c4.wav"
+  },
+  {
+   "text": "You like doodoo!",
+   "file": "voice/warcry/846805e4de322299.wav"
+  },
+  {
+   "text": "I poo and pee on your face!",
+   "file": "voice/warcry/2462d0515e9ba860.wav"
+  },
+  {
+   "text": "You're a homosapien!",
+   "file": "voice/warcry/3f94843b2aa9b586.wav"
+  },
+  {
+   "text": "Go back to stupid school!",
+   "file": "voice/warcry/2b36009b137b5cd3.wav"
+  },
+  {
+   "text": "I am going to own you, noob!",
+   "file": "voice/warcry/cfbd7674e34ed252.wav"
+  },
+  {
+   "text": "Super ultra power boost!",
+   "file": "voice/warcry/f02e933b5a863c1f.wav"
+  },
+  {
+   "text": "You smell of poo!",
+   "file": "voice/warcry/a688e9746a04e640.wav"
+  },
+  {
+   "text": "I'm gonna put some dirt in your eye!",
+   "file": "voice/warcry/e5466c23b948e378.wav"
+  },
+  {
+   "text": "I know kung fu!",
+   "file": "voice/warcry/1654df2208df7ad3.wav"
+  },
+  {
+   "text": "Run home to your mommy!",
+   "file": "voice/warcry/aa3ef262be5a267a.wav"
+  },
+  {
+   "text": "Crawl back to your mommy!",
+   "file": "voice/warcry/fdb38bcfb8916f45.wav"
+  },
+  {
+   "text": "I'm going to wipe that smug look off your face!",
+   "file": "voice/warcry/7ca1e1daad0db98e.wav"
+  },
+  {
+   "text": "I'm going to beat you silly!",
+   "file": "voice/warcry/daab1d400f47fe4d.wav"
+  },
+  {
+   "text": "You fat oaf!",
+   "file": "voice/warcry/edd18d71c3112d58.wav"
+  },
+  {
+   "text": "I will destroy your hopes and dreams!",
+   "file": "voice/warcry/5b89938b20ee111b.wav"
+  },
+  {
+   "text": "I am going to kill you!",
+   "file": "voice/warcry/89a42bf866a63655.wav"
+  },
+  {
+   "text": "You will die slowly!",
+   "file": "voice/warcry/cfac4d065c3c0bf2.wav"
+  },
+  {
+   "text": "I will inflict agonizing pain on you!",
+   "file": "voice/warcry/2aae6cf4b9ccd1cc.wav"
+  },
+  {
+   "text": "Your mom is fat!",
+   "file": "voice/warcry/b0a2c5a50574ee10.wav"
+  },
+  {
+   "text": "I slept with your mother!",
+   "file": "voice/warcry/bbf6c616673bfebc.wav"
+  },
+  {
+   "text": "You will taste my fist!",
+   "file": "voice/warcry/7f091797890e79cd.wav"
+  },
+  {
+   "text": "While you were partying, I trained in the blade!",
+   "file": "voice/warcry/f31c1671e70feda2.wav"
+  },
+  {
+   "text": "I have two hundred and twenty-three confirmed kills!",
+   "file": "voice/warcry/aca15f9976f0a64a.wav"
+  }
+ ],
+ "hails": [
+  {
+   "text": "Hail, comrade!",
+   "file": "voice/warcry/8986f471cf0c1563.wav"
+  },
+  {
+   "text": "Brother in arms!",
+   "file": "voice/warcry/6c305a144a1cff24.wav"
+  },
+  {
+   "text": "Greetings, soldier!",
+   "file": "voice/warcry/192aae87d8798d6c.wav"
+  },
+  {
+   "text": "We unite as one!",
+   "file": "voice/warcry/c36a5a741d46260f.wav"
+  },
+  {
+   "text": "Hail, soldier!",
+   "file": "voice/warcry/d5ab1a4b243a207c.wav"
+  },
+  {
+   "text": "Let's destroy the enemy!",
+   "file": "voice/warcry/11cdd123834960c5.wav"
+  },
+  {
+   "text": "Let's fight in glory!",
+   "file": "voice/warcry/d4c58e8a02dfdbdc.wav"
+  },
+  {
+   "text": "Hail, friend!",
+   "file": "voice/warcry/504bb24cd54f3c55.wav"
+  },
+  {
+   "text": "Well met, warrior!",
+   "file": "voice/warcry/b9970419ff1607cb.wav"
+  },
+  {
+   "text": "The colours hold!",
+   "file": "voice/warcry/60dd496c43cdeb07.wav"
+  },
+  {
+   "text": "Good hunting out there!",
+   "file": "voice/warcry/947126ba4d95ff7b.wav"
+  }
+ ]
+}
